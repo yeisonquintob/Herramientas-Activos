@@ -1,0 +1,41 @@
+﻿name: navi-tools-assets
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: navi-tools-sqlserver
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: ${ACCEPT_EULA}
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      MSSQL_PID: ${MSSQL_PID}
+    ports:
+      - "1434:1433"
+    volumes:
+      - navi_sqlserver_data:/var/opt/mssql
+    networks:
+      - navi_tools_network
+
+  minio:
+    image: minio/minio:latest
+    container_name: navi-tools-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9100:9000"
+      - "9101:9001"
+    volumes:
+      - navi_minio_data:/data
+    networks:
+      - navi_tools_network
+
+volumes:
+  navi_sqlserver_data:
+  navi_minio_data:
+
+networks:
+  navi_tools_network:
+    driver: bridge
