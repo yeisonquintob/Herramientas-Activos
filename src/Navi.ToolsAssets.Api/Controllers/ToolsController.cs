@@ -469,6 +469,224 @@ public class ToolsController : ControllerBase
         return null;
     }
 
+
+    [HttpGet("operational-statuses")]
+    public IActionResult GetOperationalStatuses()
+    {
+        var statuses = Enum.GetNames<ToolOperationalStatus>()
+            .Select(x => new
+            {
+                Value = x,
+                Label = GetOperationalStatusLabel(x)
+            })
+            .ToList();
+
+        return Ok(statuses);
+    }
+
+    [HttpPatch("{id:guid}/operational-status")]
+    public async Task<IActionResult> UpdateOperationalStatus(Guid id, [FromBody] UpdateToolOperationalStatusRequest request)
+    {
+        var tool = await _context.ToolAssets.FirstOrDefaultAsync(x => x.Id == id);
+
+        if (tool is null)
+        {
+            return NotFound(new
+            {
+                Message = $"No se encontró la herramienta con Id {id}."
+            });
+        }
+
+        var normalizedStatus = NormalizeOperationalStatusName(request.OperationalStatus);
+
+        if (normalizedStatus is null ||
+            !Enum.TryParse<ToolOperationalStatus>(normalizedStatus, ignoreCase: true, out var newStatus))
+        {
+            return BadRequest(new
+            {
+                Message = "El estado operativo enviado no es válido.",
+                AllowedValues = Enum.GetNames<ToolOperationalStatus>()
+            });
+        }
+
+        var validation = ValidateOperationalStatusChange(tool, newStatus, request.Reason);
+
+        if (validation is not null)
+        {
+            return validation;
+        }
+
+        tool.OperationalStatus = newStatus;
+        tool.UpdatedAt = DateTime.UtcNow;
+        tool.UpdatedBy = string.IsNullOrWhiteSpace(request.ChangedBy)
+            ? "api"
+            : request.ChangedBy.Trim();
+
+        await _context.SaveChangesAsync();
+
+        var response = await BuildToolQuery()
+            .FirstAsync(x => x.Id == tool.Id);
+
+        return Ok(response);
+    }
+
+    private IActionResult? ValidateOperationalStatusChange(
+        ToolAsset tool,
+        ToolOperationalStatus newStatus,
+        string? reason)
+    {
+        var currentStatus = tool.OperationalStatus.ToString();
+        var targetStatus = newStatus.ToString();
+
+        if (currentStatus.Equals(targetStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (IsDisposedStatus(currentStatus))
+        {
+            return Conflict(new
+            {
+                Message = "La herramienta ya está dada de baja y no puede modificarse operativamente."
+            });
+        }
+
+        if (IsLoanedStatus(targetStatus) && IsBlockedForLoan(currentStatus))
+        {
+            return Conflict(new
+            {
+                Message = $"La herramienta no puede pasar a prestada porque su estado actual es {GetOperationalStatusLabel(currentStatus)}."
+            });
+        }
+
+        if (RequiresReasonForStatusChange(currentStatus, targetStatus) &&
+            string.IsNullOrWhiteSpace(reason))
+        {
+            return BadRequest(new
+            {
+                Message = $"Para cambiar la herramienta de {GetOperationalStatusLabel(currentStatus)} a {GetOperationalStatusLabel(targetStatus)} se debe indicar una razón."
+            });
+        }
+
+        return null;
+    }
+
+    private static bool IsDisposedStatus(string status)
+    {
+        return status.Equals("Disposed", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsLoanedStatus(string status)
+    {
+        return status.Equals("Loaned", StringComparison.OrdinalIgnoreCase) ||
+               status.Equals("Borrowed", StringComparison.OrdinalIgnoreCase) ||
+               status.Equals("Prestada", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsBlockedForLoan(string status)
+    {
+        return status.Equals("Damaged", StringComparison.OrdinalIgnoreCase) ||
+               status.Equals("NotSuitable", StringComparison.OrdinalIgnoreCase) ||
+               status.Equals("InMaintenance", StringComparison.OrdinalIgnoreCase) ||
+               status.Equals("PendingDisposal", StringComparison.OrdinalIgnoreCase) ||
+               status.Equals("Disposed", StringComparison.OrdinalIgnoreCase) ||
+               status.Equals("NotLocated", StringComparison.OrdinalIgnoreCase) ||
+               status.Equals("Inconsistent", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool RequiresReasonForStatusChange(string currentStatus, string targetStatus)
+    {
+        if (targetStatus.Equals("Damaged", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (targetStatus.Equals("NotSuitable", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (targetStatus.Equals("InMaintenance", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (targetStatus.Equals("PendingDisposal", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (targetStatus.Equals("Disposed", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (targetStatus.Equals("Available", StringComparison.OrdinalIgnoreCase) &&
+            IsBlockedForDirectAvailability(currentStatus))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsBlockedForDirectAvailability(string status)
+    {
+        return status.Equals("Damaged", StringComparison.OrdinalIgnoreCase) ||
+               status.Equals("NotSuitable", StringComparison.OrdinalIgnoreCase) ||
+               status.Equals("InMaintenance", StringComparison.OrdinalIgnoreCase) ||
+               status.Equals("PendingDisposal", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? NormalizeOperationalStatusName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var text = value.Trim();
+
+        return text.ToUpperInvariant() switch
+        {
+            "DISPONIBLE" => "Available",
+            "ASIGNADA" => "Assigned",
+            "PRESTADA" => "Loaned",
+            "EN MANTENIMIENTO" => "InMaintenance",
+            "MANTENIMIENTO" => "InMaintenance",
+            "DAÑADA" => "Damaged",
+            "DANADA" => "Damaged",
+            "NO APTA" => "NotSuitable",
+            "PENDIENTE DE VALIDACION" => "PendingValidation",
+            "PENDIENTE DE VALIDACIÓN" => "PendingValidation",
+            "INCONSISTENTE" => "Inconsistent",
+            "NO LOCALIZADA" => "NotLocated",
+            "PENDIENTE DE BAJA" => "PendingDisposal",
+            "DADA DE BAJA" => "Disposed",
+            _ => text
+        };
+    }
+
+    private static string GetOperationalStatusLabel(string status)
+    {
+        return status switch
+        {
+            "Available" => "Disponible",
+            "Assigned" => "Asignada",
+            "Loaned" => "Prestada",
+            "Borrowed" => "Prestada",
+            "InMaintenance" => "En mantenimiento",
+            "Damaged" => "Dañada",
+            "NotSuitable" => "No apta",
+            "PendingValidation" => "Pendiente de validación",
+            "Inconsistent" => "Inconsistente",
+            "NotLocated" => "No localizada",
+            "PendingDisposal" => "Pendiente de baja",
+            "Disposed" => "Dada de baja",
+            _ => status
+        };
+    }
+
     private IQueryable<ToolAssetResponse> BuildToolQuery()
     {
         return _context.ToolAssets
@@ -572,6 +790,13 @@ public class ToolsController : ControllerBase
         public bool IsSpecialized { get; set; }
     }
 
+
+    public sealed class UpdateToolOperationalStatusRequest
+    {
+        public string? OperationalStatus { get; set; }
+        public string? Reason { get; set; }
+        public string? ChangedBy { get; set; }
+    }
     private sealed class ToolAssetResponse
     {
         public Guid Id { get; set; }
@@ -617,5 +842,9 @@ public class ToolsController : ControllerBase
         public string? ToolCategoryName { get; set; }
     }
 }
+
+
+
+
 
 
