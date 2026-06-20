@@ -470,6 +470,42 @@ public class ToolsController : ControllerBase
     }
 
 
+
+    [HttpGet("{id:guid}/life-cycle-events")]
+    public async Task<IActionResult> GetToolLifeCycleEvents(Guid id)
+    {
+        var exists = await _context.ToolAssets.AnyAsync(x => x.Id == id);
+
+        if (!exists)
+        {
+            return NotFound(new
+            {
+                Message = $"No se encontró la herramienta con Id {id}."
+            });
+        }
+
+        var events = await _context.ToolLifeCycleEvents
+            .Where(x => x.ToolAssetId == id)
+            .OrderByDescending(x => x.CreatedAt)
+            .Select(x => new
+            {
+                x.Id,
+                x.ToolAssetId,
+                x.EventType,
+                x.Title,
+                x.Description,
+                x.PreviousValue,
+                x.NewValue,
+                EventDate = x.CreatedAt,
+                PerformedBy = x.CreatedBy,
+                Source = "API",
+                x.CreatedAt,
+                x.CreatedBy
+            })
+            .ToListAsync();
+
+        return Ok(events);
+    }
     [HttpGet("operational-statuses")]
     public IActionResult GetOperationalStatuses()
     {
@@ -516,11 +552,16 @@ public class ToolsController : ControllerBase
             return validation;
         }
 
-        tool.OperationalStatus = newStatus;
-        tool.UpdatedAt = DateTime.UtcNow;
-        tool.UpdatedBy = string.IsNullOrWhiteSpace(request.ChangedBy)
+        var previousStatus = tool.OperationalStatus;
+        var changedBy = string.IsNullOrWhiteSpace(request.ChangedBy)
             ? "api"
             : request.ChangedBy.Trim();
+
+        tool.OperationalStatus = newStatus;
+        tool.UpdatedAt = DateTime.UtcNow;
+        tool.UpdatedBy = changedBy;
+
+        RegisterOperationalStatusLifeCycleEvent(tool, previousStatus, newStatus, request, changedBy);
 
         await _context.SaveChangesAsync();
 
@@ -530,6 +571,38 @@ public class ToolsController : ControllerBase
         return Ok(response);
     }
 
+
+    private void RegisterOperationalStatusLifeCycleEvent(
+        ToolAsset tool,
+        ToolOperationalStatus previousStatus,
+        ToolOperationalStatus newStatus,
+        UpdateToolOperationalStatusRequest request,
+        string changedBy)
+    {
+        if (previousStatus == newStatus)
+        {
+            return;
+        }
+
+        var previousStatusName = previousStatus.ToString();
+        var newStatusName = newStatus.ToString();
+
+        var reason = string.IsNullOrWhiteSpace(request.Reason)
+            ? "Sin motivo registrado."
+            : request.Reason.Trim();
+
+        _context.ToolLifeCycleEvents.Add(new()
+        {
+            ToolAssetId = tool.Id,
+            EventType = "OperationalStatusChanged",
+            Title = "Cambio de estado operativo",
+            Description = $"La herramienta cambió de {GetOperationalStatusLabel(previousStatusName)} a {GetOperationalStatusLabel(newStatusName)}. Motivo: {reason}",
+            PreviousValue = previousStatusName,
+            NewValue = newStatusName,
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = changedBy
+        });
+    }
     private IActionResult? ValidateOperationalStatusChange(
         ToolAsset tool,
         ToolOperationalStatus newStatus,
@@ -842,6 +915,13 @@ public class ToolsController : ControllerBase
         public string? ToolCategoryName { get; set; }
     }
 }
+
+
+
+
+
+
+
 
 
 
