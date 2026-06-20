@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Navi.ToolsAssets.Domain.Entities.Documents;
+using Navi.ToolsAssets.Application.Documents;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Navi.ToolsAssets.Domain.Entities.Inventory;
 using Navi.ToolsAssets.Domain.Enums;
@@ -11,10 +13,12 @@ namespace Navi.ToolsAssets.Api.Controllers;
 public class ToolsController : ControllerBase
 {
     private readonly NaviToolsAssetsDbContext _context;
+    private readonly IDocumentStorageService _documentStorageService;
 
-    public ToolsController(NaviToolsAssetsDbContext context)
+    public ToolsController(NaviToolsAssetsDbContext context, IDocumentStorageService documentStorageService)
     {
         _context = context;
+        _documentStorageService = documentStorageService;
     }
 
     [HttpGet]
@@ -471,6 +475,334 @@ public class ToolsController : ControllerBase
 
 
 
+
+
+    [HttpPost("{id:guid}/documents")]
+    public async Task<IActionResult> UploadToolDocument(
+        Guid id,
+        IFormFile file,
+        [FromForm] string? documentType,
+        [FromForm] string? description,
+        [FromForm] string? uploadedBy)
+    {
+        var tool = await _context.ToolAssets.FirstOrDefaultAsync(x => x.Id == id);
+
+        if (tool is null)
+        {
+            return NotFound(new
+            {
+                Message = $"No se encontró la herramienta con Id {id}."
+            });
+        }
+
+        if (file is null || file.Length == 0)
+        {
+            return BadRequest(new
+            {
+                Message = "Debe adjuntar un archivo válido."
+            });
+        }
+
+        var allowedExtensions = new[] { ".pdf", ".jpg", ".jpeg", ".png", ".xlsx", ".xls", ".docx" };
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+
+        if (!allowedExtensions.Contains(extension))
+        {
+            return BadRequest(new
+            {
+                Message = "Tipo de archivo no permitido.",
+                AllowedExtensions = allowedExtensions
+            });
+        }
+
+        var user = string.IsNullOrWhiteSpace(uploadedBy)
+            ? "api"
+            : uploadedBy.Trim();
+
+        var safeFileName = Path.GetFileName(file.FileName);
+        var objectName = $"tools/{tool.InternalCode}/documents/{DateTime.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}{extension}";
+
+        await using var stream = file.OpenReadStream();
+
+        await _documentStorageService.UploadAsync(
+            objectName,
+            stream,
+            string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType);
+
+        var document = new ToolDocument
+        {
+            ToolAssetId = tool.Id,
+            DocumentType = ParseDocumentType(documentType),
+            FileName = safeFileName,
+            ObjectKey = objectName,
+            ContentType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType,
+            SizeBytes = file.Length,
+            Description = description,
+            UploadedBy = user,
+            UploadedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = user
+        };
+
+        _context.ToolDocuments.Add(document);
+
+        _context.ToolLifeCycleEvents.Add(new()
+        {
+            ToolAssetId = tool.Id,
+            EventType = "DocumentUploaded",
+            Title = "Documento cargado",
+            Description = $"Se cargó el documento {safeFileName}.",
+            PreviousValue = null,
+            NewValue = objectName,
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = user
+        });
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new
+        {
+            document.Id,
+            document.ToolAssetId,
+            document.DocumentType,
+            document.FileName,
+            StoragePath = document.ObjectKey,
+            document.ContentType,
+            SizeInBytes = document.SizeBytes,
+            document.Description,
+            document.CreatedAt,
+            document.CreatedBy
+        });
+    }
+
+    [HttpGet("{id:guid}/documents")]
+    public async Task<IActionResult> GetToolDocuments(Guid id)
+    {
+        var exists = await _context.ToolAssets.AnyAsync(x => x.Id == id);
+
+        if (!exists)
+        {
+            return NotFound(new
+            {
+                Message = $"No se encontró la herramienta con Id {id}."
+            });
+        }
+
+        var documents = await _context.ToolDocuments
+            .AsNoTracking()
+            .Where(x => x.ToolAssetId == id)
+            .OrderByDescending(x => x.CreatedAt)
+            .Select(x => new
+            {
+                x.Id,
+                x.ToolAssetId,
+                x.DocumentType,
+                x.FileName,
+                StoragePath = x.ObjectKey,
+                x.ContentType,
+                SizeInBytes = x.SizeBytes,
+                x.Description,
+                x.CreatedAt,
+                x.CreatedBy
+            })
+            .ToListAsync();
+
+        return Ok(documents);
+    }
+
+    [HttpGet("documents/{documentId:guid}/download")]
+    public async Task<IActionResult> DownloadToolDocument(Guid documentId)
+    {
+        var document = await _context.ToolDocuments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == documentId);
+
+        if (document is null)
+        {
+            return NotFound(new
+            {
+                Message = $"No se encontró el documento con Id {documentId}."
+            });
+        }
+
+        var exists = await _documentStorageService.ExistsAsync(document.ObjectKey);
+
+        if (!exists)
+        {
+            return NotFound(new
+            {
+                Message = "El archivo no existe en MinIO.",
+                document.ObjectKey
+            });
+        }
+
+        var stream = await _documentStorageService.DownloadAsync(document.ObjectKey);
+
+        return File(
+            stream,
+            string.IsNullOrWhiteSpace(document.ContentType) ? "application/octet-stream" : document.ContentType,
+            document.FileName);
+    }
+    [HttpGet("{id:guid}/life-record")]
+    public async Task<IActionResult> GetToolLifeRecord(Guid id)
+    {
+        var tool = await BuildToolQuery()
+            .FirstOrDefaultAsync(x => x.Id == id);
+
+        if (tool is null)
+        {
+            return NotFound(new
+            {
+                Message = $"No se encontró la herramienta con Id {id}."
+            });
+        }
+
+        var lifeCycleEvents = await _context.ToolLifeCycleEvents
+            .AsNoTracking()
+            .Where(x => x.ToolAssetId == id)
+            .OrderByDescending(x => x.CreatedAt)
+            .Select(x => new
+            {
+                x.Id,
+                x.ToolAssetId,
+                x.EventType,
+                x.Title,
+                x.Description,
+                x.PreviousValue,
+                x.NewValue,
+                EventDate = x.CreatedAt,
+                PerformedBy = x.CreatedBy,
+                Source = "API",
+                x.CreatedAt,
+                x.CreatedBy
+            })
+            .ToListAsync();
+
+        var documents = await _context.ToolDocuments
+            .AsNoTracking()
+            .Where(x => x.ToolAssetId == id)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync();
+
+        var loanItems = await _context.ToolLoanItems
+            .AsNoTracking()
+            .Where(x => x.ToolAssetId == id)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync();
+
+        var damageReports = await _context.DamageReports
+            .AsNoTracking()
+            .Where(x => x.ToolAssetId == id)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync();
+
+        var maintenanceRecords = await _context.MaintenanceRecords
+            .AsNoTracking()
+            .Where(x => x.ToolAssetId == id)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync();
+
+        var physicalCountItems = await _context.PhysicalCountItems
+            .AsNoTracking()
+            .Where(x => x.ToolAssetId == id)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync();
+
+        var reconciliationRecords = await _context.FenixReconciliationRecords
+            .AsNoTracking()
+            .Where(x => x.ToolAssetId == id)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync();
+
+        var response = new
+        {
+            Tool = tool,
+            CurrentState = new
+            {
+                tool.OperationalStatus,
+                tool.PhysicalStatus,
+                tool.CustodyStatus,
+                tool.ReconciliationStatus,
+                tool.SyncStatus,
+                tool.IsSpecialized,
+                tool.RequiresMaintenance,
+                tool.RequiresPreOperationalCheck,
+                tool.RequiresCertification
+            },
+            Location = new
+            {
+                tool.ZoneId,
+                tool.ZoneCode,
+                tool.ZoneName,
+                tool.BranchId,
+                tool.BranchCode,
+                tool.BranchName,
+                tool.LocationId,
+                tool.LocationCode,
+                tool.LocationName,
+                tool.ResponsiblePersonId,
+                tool.ResponsiblePersonName
+            },
+            TechnicalData = new
+            {
+                tool.Brand,
+                tool.Model,
+                tool.SerialNumber,
+                tool.FixedAssetCode,
+                tool.FenixCode,
+                tool.UnitOfMeasure,
+                tool.Quantity,
+                tool.ToolTypeId,
+                tool.ToolTypeName,
+                tool.ToolCategoryId,
+                tool.ToolCategoryName
+            },
+            LifeCycle = new
+            {
+                Events = lifeCycleEvents,
+                Documents = documents,
+                LoanItems = loanItems,
+                DamageReports = damageReports,
+                MaintenanceRecords = maintenanceRecords,
+                PhysicalCountItems = physicalCountItems,
+                ReconciliationRecords = reconciliationRecords
+            },
+            Summary = new
+            {
+                EventsCount = lifeCycleEvents.Count,
+                DocumentsCount = documents.Count,
+                LoanItemsCount = loanItems.Count,
+                DamageReportsCount = damageReports.Count,
+                MaintenanceRecordsCount = maintenanceRecords.Count,
+                PhysicalCountItemsCount = physicalCountItems.Count,
+                ReconciliationRecordsCount = reconciliationRecords.Count
+            }
+        };
+
+        return Ok(response);
+    }
+
+    [HttpGet("by-code/{internalCode}/life-record")]
+    public async Task<IActionResult> GetToolLifeRecordByInternalCode(string internalCode)
+    {
+        var code = NormalizeCode(internalCode);
+
+        var toolId = await _context.ToolAssets
+            .AsNoTracking()
+            .Where(x => x.InternalCode == code)
+            .Select(x => x.Id)
+            .FirstOrDefaultAsync();
+
+        if (toolId == Guid.Empty)
+        {
+            return NotFound(new
+            {
+                Message = $"No se encontró la herramienta con código interno {code}."
+            });
+        }
+
+        return await GetToolLifeRecord(toolId);
+    }
     [HttpGet("{id:guid}/life-cycle-events")]
     public async Task<IActionResult> GetToolLifeCycleEvents(Guid id)
     {
@@ -572,6 +904,31 @@ public class ToolsController : ControllerBase
     }
 
 
+
+    private static ToolDocumentType ParseDocumentType(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return ToolDocumentType.Other;
+        }
+
+        var text = value.Trim();
+
+        if (Enum.TryParse<ToolDocumentType>(text, ignoreCase: true, out var parsed))
+        {
+            return parsed;
+        }
+
+        return text.ToUpperInvariant() switch
+        {
+            "EVIDENCE" => ToolDocumentType.Other,
+            "EVIDENCIA" => ToolDocumentType.Other,
+            "DOCUMENTO" => ToolDocumentType.Other,
+            "OTHER" => ToolDocumentType.Other,
+            "OTRO" => ToolDocumentType.Other,
+            _ => ToolDocumentType.Other
+        };
+    }
     private void RegisterOperationalStatusLifeCycleEvent(
         ToolAsset tool,
         ToolOperationalStatus previousStatus,
@@ -915,6 +1272,15 @@ public class ToolsController : ControllerBase
         public string? ToolCategoryName { get; set; }
     }
 }
+
+
+
+
+
+
+
+
+
 
 
 

@@ -1,4 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Navi.ToolsAssets.Infrastructure.Storage;
+using Navi.ToolsAssets.Application.Documents;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Navi.ToolsAssets.Infrastructure.Persistence.Context;
@@ -19,6 +21,9 @@ public static class DependencyInjection
             options.UseSqlServer(connectionString);
         });
 
+        services.AddScoped<IDocumentStorageService, MinioDocumentStorageService>();
+
         return services;
     }
 }
+
