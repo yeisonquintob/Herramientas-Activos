@@ -2,6 +2,7 @@
 using Navi.ToolsAssets.Domain.Entities.Damages;
 using Navi.ToolsAssets.Domain.Entities.Documents;
 using Navi.ToolsAssets.Domain.Entities.Inventory;
+using Navi.ToolsAssets.Domain.Entities.Imports;
 using Navi.ToolsAssets.Domain.Entities.LifeCycles;
 using Navi.ToolsAssets.Domain.Entities.Loans;
 using Navi.ToolsAssets.Domain.Entities.Maintenance;
@@ -36,10 +37,89 @@ public class NaviToolsAssetsDbContext : DbContext
     public DbSet<MaintenanceRecord> MaintenanceRecords => Set<MaintenanceRecord>();
     public DbSet<PhysicalCount> PhysicalCounts => Set<PhysicalCount>();
     public DbSet<PhysicalCountItem> PhysicalCountItems => Set<PhysicalCountItem>();
+    public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
+
+    public DbSet<ImportRow> ImportRows => Set<ImportRow>();
+
     public DbSet<FenixReconciliationRecord> FenixReconciliationRecords => Set<FenixReconciliationRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<ImportBatch>(entity =>
+        {
+            entity.ToTable("ImportBatches", "Imports");
+
+            entity.HasKey(x => x.Id);
+
+            entity.HasIndex(x => x.ImportNumber)
+                .IsUnique();
+
+            entity.Property(x => x.ImportNumber)
+                .HasMaxLength(50)
+                .IsRequired();
+
+            entity.Property(x => x.SourceType)
+                .HasMaxLength(100)
+                .IsRequired();
+
+            entity.Property(x => x.FileName)
+                .HasMaxLength(300)
+                .IsRequired();
+
+            entity.Property(x => x.ObjectKey)
+                .HasMaxLength(500);
+
+            entity.Property(x => x.Status)
+                .HasMaxLength(50)
+                .IsRequired();
+
+            entity.Property(x => x.ProcessedBy)
+                .HasMaxLength(150);
+
+            entity.HasMany(x => x.Rows)
+                .WithOne(x => x.ImportBatch)
+                .HasForeignKey(x => x.ImportBatchId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ImportRow>(entity =>
+        {
+            entity.ToTable("ImportRows", "Imports");
+
+            entity.HasKey(x => x.Id);
+
+            entity.HasIndex(x => new { x.ImportBatchId, x.RowNumber })
+                .IsUnique();
+
+            entity.Property(x => x.InternalCode)
+                .HasMaxLength(100);
+
+            entity.Property(x => x.FenixCode)
+                .HasMaxLength(100);
+
+            entity.Property(x => x.FixedAssetCode)
+                .HasMaxLength(100);
+
+            entity.Property(x => x.SerialNumber)
+                .HasMaxLength(150);
+
+            entity.Property(x => x.ToolName)
+                .HasMaxLength(300);
+
+            entity.Property(x => x.BranchCode)
+                .HasMaxLength(50);
+
+            entity.Property(x => x.ResponsibleName)
+                .HasMaxLength(300);
+
+            entity.Property(x => x.OperationalStatus)
+                .HasMaxLength(100);
+
+            entity.Property(x => x.ResultStatus)
+                .HasMaxLength(50)
+                .IsRequired();
+        });
+
         base.OnModelCreating(modelBuilder);
 
         ConfigureOrganization(modelBuilder);
@@ -429,4 +509,5 @@ public class NaviToolsAssetsDbContext : DbContext
         });
     }
 }
+
 
