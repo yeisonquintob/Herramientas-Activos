@@ -1,6 +1,7 @@
 ﻿using Hangfire;
 using Hangfire.SqlServer;
 using Navi.ToolsAssets.Infrastructure.Extensions;
+using Navi.ToolsAssets.Infrastructure.Seed;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,6 +37,8 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
+    await app.Services.SeedDatabaseAsync();
+
     app.UseSwagger();
     app.UseSwaggerUI();
 
@@ -53,6 +56,7 @@ app.MapGet("/", () => Results.Ok(new
     App = "NAVI Herramientas API",
     Status = "Running",
     Database = "NaviToolsAssetsDb",
+    Seed = "AGU / Zona Antioquia / Catálogos base",
     Hangfire = "/hangfire"
 }));
 

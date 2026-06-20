@@ -37,6 +37,8 @@ public class ToolAsset : BaseEntity
 
     public decimal Quantity { get; set; } = 1;
 
+    public bool IsSpecialized { get; set; }
+
     public bool RequiresMaintenance { get; set; }
 
     public bool RequiresPreOperationalCheck { get; set; }
@@ -103,3 +105,4 @@ public class ToolAsset : BaseEntity
 
     public ICollection<FenixReconciliationRecord> ReconciliationRecords { get; set; } = new List<FenixReconciliationRecord>();
 }
+

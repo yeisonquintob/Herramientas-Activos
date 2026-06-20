@@ -177,6 +177,7 @@ public class NaviToolsAssetsDbContext : DbContext
             entity.Property(x => x.FenixCode).HasMaxLength(100);
             entity.Property(x => x.UnitOfMeasure).HasMaxLength(20);
             entity.Property(x => x.Quantity).HasColumnType("decimal(18,2)");
+            entity.Property(x => x.IsSpecialized).HasDefaultValue(false);
             entity.Property(x => x.OperationalStatus).HasConversion<string>().HasMaxLength(80);
             entity.Property(x => x.PhysicalStatus).HasConversion<string>().HasMaxLength(80);
             entity.Property(x => x.CustodyStatus).HasConversion<string>().HasMaxLength(80);
@@ -428,3 +429,4 @@ public class NaviToolsAssetsDbContext : DbContext
         });
     }
 }
+

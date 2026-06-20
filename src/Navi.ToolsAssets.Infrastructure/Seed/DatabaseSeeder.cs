@@ -1,0 +1,468 @@
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Navi.ToolsAssets.Domain.Entities.Inventory;
+using Navi.ToolsAssets.Domain.Entities.Organization;
+using Navi.ToolsAssets.Domain.Enums;
+using Navi.ToolsAssets.Infrastructure.Persistence.Context;
+
+namespace Navi.ToolsAssets.Infrastructure.Seed;
+
+public static class DatabaseSeeder
+{
+    public static async Task SeedDatabaseAsync(this IServiceProvider serviceProvider)
+    {
+        using var scope = serviceProvider.CreateScope();
+
+        var context = scope.ServiceProvider.GetRequiredService<NaviToolsAssetsDbContext>();
+
+        await SeedSystemParametersAsync(context);
+        await context.SaveChangesAsync();
+
+        await SeedZonesAndBranchesAsync(context);
+        await context.SaveChangesAsync();
+
+        await SeedLocationsAsync(context);
+        await context.SaveChangesAsync();
+
+        await SeedResponsiblePeopleAsync(context);
+        await context.SaveChangesAsync();
+
+        await SeedCatalogsAsync(context);
+        await context.SaveChangesAsync();
+
+        await SeedPilotToolsAsync(context);
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedSystemParametersAsync(NaviToolsAssetsDbContext context)
+    {
+        await AddOrUpdateSystemParameterAsync(
+            context,
+            "SYSTEM_NAME",
+            "Nombre del sistema",
+            "NAVI Herramientas",
+            "Sistema de gestión de herramientas y activos operativos de Navitrans.");
+
+        await AddOrUpdateSystemParameterAsync(
+            context,
+            "PILOT_BRANCH",
+            "Sede piloto",
+            "AGU",
+            "Sede piloto inicial para validación del MVP.");
+
+        await AddOrUpdateSystemParameterAsync(
+            context,
+            "DOCUMENT_BUCKET",
+            "Bucket documental",
+            "navi-tools-documents",
+            "Bucket principal de MinIO para documentos y evidencias.");
+
+        await AddOrUpdateSystemParameterAsync(
+            context,
+            "FENIX_SOURCE",
+            "Fuente Fenix365",
+            "DynamicsExport",
+            "Fuente inicial de conciliación con Fenix365 / Dynamics 365.");
+
+        await AddOrUpdateSystemParameterAsync(
+            context,
+            "BRANCH_SOURCE",
+            "Fuente de sedes",
+            "navitrans.com.co/sedes",
+            "Sedes iniciales tomadas como referencia de la página pública de Navitrans.");
+    }
+
+    private static async Task SeedZonesAndBranchesAsync(NaviToolsAssetsDbContext context)
+    {
+        var ant = await AddOrUpdateZoneAsync(context, "ANT", "Zona Antioquia", "Sedes de Antioquia.");
+        var centro = await AddOrUpdateZoneAsync(context, "CENTRO", "Zona Centro", "Sedes de Cundinamarca y Tolima.");
+        var norte = await AddOrUpdateZoneAsync(context, "NORTE", "Zona Norte", "Sedes de Atlántico y Córdoba.");
+        var occidente = await AddOrUpdateZoneAsync(context, "OCCIDENTE", "Zona Occidente", "Sedes de Valle del Cauca y Risaralda.");
+        var oriente = await AddOrUpdateZoneAsync(context, "ORIENTE", "Zona Oriente", "Sedes de Boyacá, Meta y Santander.");
+
+        await AddOrUpdateBranchAsync(context, ant.Id, "AGU", "Aguacatala", "Medellín", "Cl. 11 Sur #50 - 50, Guayabal, Medellín", true);
+        await AddOrUpdateBranchAsync(context, ant.Id, "BTR", "Barrio Triste", "Medellín", "Cra. 59 #44a-38, La Candelaria, Medellín", false);
+        await AddOrUpdateBranchAsync(context, ant.Id, "ITA", "Itagüí", "Itagüí", "Cra 42 #24-85, La Florida, Itagüí", false);
+        await AddOrUpdateBranchAsync(context, ant.Id, "AYU", "Ayurá", "Medellín", "Carrera 50 #26 Sur", false);
+
+        await AddOrUpdateBranchAsync(context, centro.Id, "TIN", "Tintalito", "Bogotá", "Av. Ciudad de Cali No. 13 C - 31", false);
+        await AddOrUpdateBranchAsync(context, centro.Id, "AME", "Américas", "Bogotá", "Av. Américas No. 39 - 73", false);
+        await AddOrUpdateBranchAsync(context, centro.Id, "IBA", "Ibagué", "Ibagué", "Cra. 48 Sur No. 92 - 65", false);
+
+        await AddOrUpdateBranchAsync(context, norte.Id, "SOL", "Soledad", "Soledad", "Cl. 30 #14-101, Soledad, Atlántico", false);
+        await AddOrUpdateBranchAsync(context, norte.Id, "MON", "Montería", "Montería", "Calle 7 No 108 - 200, barrio Los Garzones", false);
+
+        await AddOrUpdateBranchAsync(context, occidente.Id, "YUM", "Yumbo", "Yumbo", "Carrera 37 #14 - 181 Aut Cali - Yumbo", false);
+        await AddOrUpdateBranchAsync(context, occidente.Id, "ARR", "Arroyohondo", "Cali", "Cra. 32 #13-95, Arroyo Hondo", false);
+        await AddOrUpdateBranchAsync(context, occidente.Id, "PER", "Pereira", "Pereira", "Km. 8 Vía La Romelia El Pollo Sector de la Gran Vía Lote 1 del 2B, La Alquería, Pereira, Dosquebradas", false);
+
+        await AddOrUpdateBranchAsync(context, oriente.Id, "DUI", "Duitama", "Duitama", "Duitama, Boyacá", false);
+        await AddOrUpdateBranchAsync(context, oriente.Id, "VIL", "Villavicencio", "Villavicencio", "Carrera 1 Nº 19 - 04 Anillo vial - Sector terminal Villavicencio", false);
+        await AddOrUpdateBranchAsync(context, oriente.Id, "GIR", "Girón", "Girón", "Calle 6 #17b - 60 bodega 4, Sector Chimitá Zona Industrial, vía Café Madrid - Girón", false);
+    }
+
+    private static async Task SeedLocationsAsync(NaviToolsAssetsDbContext context)
+    {
+        var branches = await context.Branches.ToListAsync();
+
+        foreach (var branch in branches)
+        {
+            await AddOrUpdateLocationAsync(context, branch.Id, $"{branch.Code}-BOD-HERR", "Bodega de herramientas", $"Ubicación principal de herramientas en sede {branch.Name}.");
+            await AddOrUpdateLocationAsync(context, branch.Id, $"{branch.Code}-TALLER", "Taller", $"Zona operativa de taller en sede {branch.Name}.");
+            await AddOrUpdateLocationAsync(context, branch.Id, $"{branch.Code}-MANT", "Mantenimiento", $"Zona de mantenimiento en sede {branch.Name}.");
+        }
+    }
+
+    private static async Task SeedResponsiblePeopleAsync(NaviToolsAssetsDbContext context)
+    {
+        await AddOrUpdateResponsibleAsync(context, "AGU-HERRAMIENTAS", "Herramientero AGU", "herramientero.agu@navitrans.com", "Herramientero", "Taller");
+        await AddOrUpdateResponsibleAsync(context, "AGU-COORD-TALLER", "Coordinador Taller AGU", "coordinador.taller.agu@navitrans.com", "Coordinador de taller", "Taller");
+        await AddOrUpdateResponsibleAsync(context, "AGU-ING-SERVICIO", "Ingeniero de Servicio AGU", "ingeniero.servicio.agu@navitrans.com", "Ingeniero de servicio", "Servicio");
+        await AddOrUpdateResponsibleAsync(context, "AGU-TECNICO", "Técnico AGU", "tecnico.agu@navitrans.com", "Técnico", "Taller");
+    }
+
+    private static async Task SeedCatalogsAsync(NaviToolsAssetsDbContext context)
+    {
+        await AddOrUpdateToolTypeAsync(context, "HERR", "Herramienta", "Elemento utilizado en actividades de taller o servicio.");
+        await AddOrUpdateToolTypeAsync(context, "EQDIAG", "Equipo de diagnóstico", "Equipo usado para diagnóstico técnico.");
+        await AddOrUpdateToolTypeAsync(context, "ACTOP", "Activo operativo", "Activo operativo de apoyo a taller.");
+        await AddOrUpdateToolTypeAsync(context, "EQSOP", "Equipo de soporte", "Equipo de soporte para operación.");
+
+        await AddOrUpdateToolCategoryAsync(context, "GATO-PLUMA", "Gato pluma", "Equipo de izaje o apoyo mecánico.");
+        await AddOrUpdateToolCategoryAsync(context, "COMPUTADOR-ESCANER", "Computador escáner", "Equipo tecnológico para diagnóstico.");
+        await AddOrUpdateToolCategoryAsync(context, "HERR-MANUAL", "Herramienta manual", "Herramienta manual de uso operativo.");
+        await AddOrUpdateToolCategoryAsync(context, "HERR-ELECTRICA", "Herramienta eléctrica", "Herramienta eléctrica de taller.");
+        await AddOrUpdateToolCategoryAsync(context, "EQUIPO-DIAG", "Equipo diagnóstico", "Equipo para diagnóstico técnico.");
+        await AddOrUpdateToolCategoryAsync(context, "OTRO", "Otro", "Categoría general.");
+    }
+
+    private static async Task SeedPilotToolsAsync(NaviToolsAssetsDbContext context)
+    {
+        var zone = await context.Zones.FirstAsync(x => x.Code == "ANT");
+        var branch = await context.Branches.FirstAsync(x => x.Code == "AGU");
+        var location = await context.ToolLocations.FirstAsync(x => x.Code == "AGU-BOD-HERR");
+        var responsible = await context.ResponsiblePeople.FirstAsync(x => x.EmployeeCode == "AGU-HERRAMIENTAS");
+
+        var toolTypeHerr = await context.ToolTypes.FirstAsync(x => x.Code == "HERR");
+        var toolTypeDiag = await context.ToolTypes.FirstAsync(x => x.Code == "EQDIAG");
+
+        var categoryGato = await context.ToolCategories.FirstAsync(x => x.Code == "GATO-PLUMA");
+        var categoryEscaner = await context.ToolCategories.FirstAsync(x => x.Code == "COMPUTADOR-ESCANER");
+
+        await AddOrUpdatePilotToolAsync(
+            context,
+            "AGU-GATO-PLUMA-002",
+            "GATO PLUMA 2 AGU",
+            "Herramienta inicial cargada como referencia del piloto AGU.",
+            zone.Id,
+            branch.Id,
+            location.Id,
+            responsible.Id,
+            toolTypeHerr.Id,
+            categoryGato.Id,
+            requiresMaintenance: true,
+            requiresPreOperationalCheck: true,
+            isSpecialized: false);
+
+        await AddOrUpdatePilotToolAsync(
+            context,
+            "AGU-COMPUTADOR-ESCANER-006",
+            "COMPUTADOR ESCÁNER 6 AGU",
+            "Equipo inicial cargado como referencia del piloto AGU.",
+            zone.Id,
+            branch.Id,
+            location.Id,
+            responsible.Id,
+            toolTypeDiag.Id,
+            categoryEscaner.Id,
+            requiresMaintenance: true,
+            requiresPreOperationalCheck: false,
+            isSpecialized: true);
+    }
+
+    private static async Task AddOrUpdateSystemParameterAsync(
+        NaviToolsAssetsDbContext context,
+        string code,
+        string name,
+        string value,
+        string description)
+    {
+        var item = await context.SystemParameters.FirstOrDefaultAsync(x => x.Code == code);
+
+        if (item is null)
+        {
+            context.SystemParameters.Add(new SystemParameter
+            {
+                Code = code,
+                Name = name,
+                Value = value,
+                Description = description,
+                CreatedBy = "seed"
+            });
+
+            return;
+        }
+
+        item.Name = name;
+        item.Value = value;
+        item.Description = description;
+        item.UpdatedAt = DateTime.UtcNow;
+        item.UpdatedBy = "seed";
+    }
+
+    private static async Task<Zone> AddOrUpdateZoneAsync(
+        NaviToolsAssetsDbContext context,
+        string code,
+        string name,
+        string description)
+    {
+        var zone = await context.Zones.FirstOrDefaultAsync(x => x.Code == code);
+
+        if (zone is null)
+        {
+            zone = new Zone
+            {
+                Code = code,
+                Name = name,
+                Description = description,
+                CreatedBy = "seed"
+            };
+
+            context.Zones.Add(zone);
+            return zone;
+        }
+
+        zone.Name = name;
+        zone.Description = description;
+        zone.IsActive = true;
+        zone.UpdatedAt = DateTime.UtcNow;
+        zone.UpdatedBy = "seed";
+
+        return zone;
+    }
+
+    private static async Task<Branch> AddOrUpdateBranchAsync(
+        NaviToolsAssetsDbContext context,
+        Guid zoneId,
+        string code,
+        string name,
+        string city,
+        string address,
+        bool isPilot)
+    {
+        var branch = await context.Branches.FirstOrDefaultAsync(x => x.Code == code);
+
+        if (branch is null)
+        {
+            branch = new Branch
+            {
+                ZoneId = zoneId,
+                Code = code,
+                Name = name,
+                City = city,
+                Address = address,
+                IsPilot = isPilot,
+                CreatedBy = "seed"
+            };
+
+            context.Branches.Add(branch);
+            return branch;
+        }
+
+        branch.ZoneId = zoneId;
+        branch.Name = name;
+        branch.City = city;
+        branch.Address = address;
+        branch.IsPilot = isPilot;
+        branch.IsActive = true;
+        branch.UpdatedAt = DateTime.UtcNow;
+        branch.UpdatedBy = "seed";
+
+        return branch;
+    }
+
+    private static async Task AddOrUpdateLocationAsync(
+        NaviToolsAssetsDbContext context,
+        Guid branchId,
+        string code,
+        string name,
+        string description)
+    {
+        var location = await context.ToolLocations.FirstOrDefaultAsync(x => x.Code == code);
+
+        if (location is null)
+        {
+            context.ToolLocations.Add(new ToolLocation
+            {
+                BranchId = branchId,
+                Code = code,
+                Name = name,
+                Description = description,
+                CreatedBy = "seed"
+            });
+
+            return;
+        }
+
+        location.BranchId = branchId;
+        location.Name = name;
+        location.Description = description;
+        location.IsActive = true;
+        location.UpdatedAt = DateTime.UtcNow;
+        location.UpdatedBy = "seed";
+    }
+
+    private static async Task AddOrUpdateResponsibleAsync(
+        NaviToolsAssetsDbContext context,
+        string employeeCode,
+        string fullName,
+        string email,
+        string position,
+        string area)
+    {
+        var person = await context.ResponsiblePeople.FirstOrDefaultAsync(x => x.EmployeeCode == employeeCode);
+
+        if (person is null)
+        {
+            context.ResponsiblePeople.Add(new ResponsiblePerson
+            {
+                EmployeeCode = employeeCode,
+                FullName = fullName,
+                Email = email,
+                Position = position,
+                Area = area,
+                CreatedBy = "seed"
+            });
+
+            return;
+        }
+
+        person.FullName = fullName;
+        person.Email = email;
+        person.Position = position;
+        person.Area = area;
+        person.IsActive = true;
+        person.UpdatedAt = DateTime.UtcNow;
+        person.UpdatedBy = "seed";
+    }
+
+    private static async Task AddOrUpdateToolTypeAsync(
+        NaviToolsAssetsDbContext context,
+        string code,
+        string name,
+        string description)
+    {
+        var item = await context.ToolTypes.FirstOrDefaultAsync(x => x.Code == code);
+
+        if (item is null)
+        {
+            context.ToolTypes.Add(new ToolType
+            {
+                Code = code,
+                Name = name,
+                Description = description,
+                CreatedBy = "seed"
+            });
+
+            return;
+        }
+
+        item.Name = name;
+        item.Description = description;
+        item.IsActive = true;
+        item.UpdatedAt = DateTime.UtcNow;
+        item.UpdatedBy = "seed";
+    }
+
+    private static async Task AddOrUpdateToolCategoryAsync(
+        NaviToolsAssetsDbContext context,
+        string code,
+        string name,
+        string description)
+    {
+        var item = await context.ToolCategories.FirstOrDefaultAsync(x => x.Code == code);
+
+        if (item is null)
+        {
+            context.ToolCategories.Add(new ToolCategory
+            {
+                Code = code,
+                Name = name,
+                Description = description,
+                CreatedBy = "seed"
+            });
+
+            return;
+        }
+
+        item.Name = name;
+        item.Description = description;
+        item.IsActive = true;
+        item.UpdatedAt = DateTime.UtcNow;
+        item.UpdatedBy = "seed";
+    }
+
+    private static async Task AddOrUpdatePilotToolAsync(
+        NaviToolsAssetsDbContext context,
+        string internalCode,
+        string name,
+        string description,
+        Guid zoneId,
+        Guid branchId,
+        Guid locationId,
+        Guid responsiblePersonId,
+        Guid toolTypeId,
+        Guid toolCategoryId,
+        bool requiresMaintenance,
+        bool requiresPreOperationalCheck,
+        bool isSpecialized)
+    {
+        var tool = await context.ToolAssets.FirstOrDefaultAsync(x => x.InternalCode == internalCode);
+
+        if (tool is null)
+        {
+            context.ToolAssets.Add(new ToolAsset
+            {
+                InternalCode = internalCode,
+                Name = name,
+                Description = description,
+                UnitOfMeasure = "UND",
+                Quantity = 1,
+                ZoneId = zoneId,
+                BranchId = branchId,
+                LocationId = locationId,
+                ResponsiblePersonId = responsiblePersonId,
+                ToolTypeId = toolTypeId,
+                ToolCategoryId = toolCategoryId,
+                OperationalStatus = ToolOperationalStatus.PendingValidation,
+                PhysicalStatus = ToolPhysicalStatus.Good,
+                CustodyStatus = ToolCustodyStatus.InWarehouse,
+                ReconciliationStatus = ToolReconciliationStatus.Pending,
+                SyncStatus = ToolSyncStatus.NotSynced,
+                IsSpecialized = isSpecialized,
+                RequiresMaintenance = requiresMaintenance,
+                RequiresPreOperationalCheck = requiresPreOperationalCheck,
+                RequiresCertification = false,
+                CreatedBy = "seed"
+            });
+
+            return;
+        }
+
+        tool.Name = name;
+        tool.Description = description;
+        tool.ZoneId = zoneId;
+        tool.BranchId = branchId;
+        tool.LocationId = locationId;
+        tool.ResponsiblePersonId = responsiblePersonId;
+        tool.ToolTypeId = toolTypeId;
+        tool.ToolCategoryId = toolCategoryId;
+        tool.IsSpecialized = isSpecialized;
+        tool.RequiresMaintenance = requiresMaintenance;
+        tool.RequiresPreOperationalCheck = requiresPreOperationalCheck;
+        tool.UpdatedAt = DateTime.UtcNow;
+        tool.UpdatedBy = "seed";
+    }
+}
+
+
