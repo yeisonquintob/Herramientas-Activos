@@ -571,6 +571,267 @@ public class ImportsController : ControllerBase
             CreatedBy = changedBy
         });
     }
+
+    [HttpGet("{id:guid}/summary")]
+    public async Task<IActionResult> GetImportSummary(Guid id)
+    {
+        var importBatch = await _context.ImportBatches
+            .AsNoTracking()
+            .Include(x => x.Rows)
+            .FirstOrDefaultAsync(x => x.Id == id);
+
+        if (importBatch is null)
+        {
+            return NotFound(new { Message = $"No se encontró la importación con Id {id}." });
+        }
+
+        var statusSummary = importBatch.Rows
+            .GroupBy(x => x.ResultStatus)
+            .Select(x => new
+            {
+                Status = x.Key,
+                Count = x.Count()
+            })
+            .OrderBy(x => x.Status)
+            .ToList();
+
+        return Ok(new
+        {
+            importBatch.Id,
+            importBatch.ImportNumber,
+            importBatch.SourceType,
+            importBatch.FileName,
+            importBatch.Status,
+            importBatch.TotalRows,
+            importBatch.ValidRows,
+            importBatch.ErrorRows,
+            importBatch.CreatedTools,
+            importBatch.UpdatedTools,
+            importBatch.DuplicateRows,
+            importBatch.Summary,
+            importBatch.ProcessedAt,
+            importBatch.ProcessedBy,
+            StatusSummary = statusSummary
+        });
+    }
+
+    [HttpGet("{id:guid}/rows/by-status/{status}")]
+    public async Task<IActionResult> GetImportRowsByStatus(Guid id, string status)
+    {
+        var exists = await _context.ImportBatches.AnyAsync(x => x.Id == id);
+
+        if (!exists)
+        {
+            return NotFound(new { Message = $"No se encontró la importación con Id {id}." });
+        }
+
+        var normalizedStatus = status.Trim();
+
+        var rows = await _context.ImportRows
+            .AsNoTracking()
+            .Where(x => x.ImportBatchId == id && x.ResultStatus == normalizedStatus)
+            .OrderBy(x => x.RowNumber)
+            .Select(x => new
+            {
+                x.Id,
+                x.ImportBatchId,
+                x.RowNumber,
+                x.InternalCode,
+                x.FenixCode,
+                x.FixedAssetCode,
+                x.SerialNumber,
+                x.ToolName,
+                x.BranchCode,
+                x.ResponsibleName,
+                x.OperationalStatus,
+                x.ResultStatus,
+                x.Message,
+                x.RawDataJson,
+                x.CreatedAt,
+                x.CreatedBy,
+                x.UpdatedAt,
+                x.UpdatedBy
+            })
+            .ToListAsync();
+
+        return Ok(rows);
+    }
+
+    [HttpPatch("rows/{rowId:guid}/mark-reviewed")]
+    public async Task<IActionResult> MarkImportRowReviewed(Guid rowId, [FromBody] ImportRowActionRequest request, CancellationToken cancellationToken)
+    {
+        var row = await _context.ImportRows
+            .Include(x => x.ImportBatch)
+            .FirstOrDefaultAsync(x => x.Id == rowId, cancellationToken);
+
+        if (row is null)
+        {
+            return NotFound(new { Message = $"No se encontró la fila de importación con Id {rowId}." });
+        }
+
+        var changedBy = GetImportRowActionUser(request);
+        var previousStatus = row.ResultStatus;
+
+        row.ResultStatus = "Reviewed";
+        row.Message = string.IsNullOrWhiteSpace(request.Notes)
+            ? $"Fila revisada manualmente. Estado anterior: {previousStatus}."
+            : request.Notes.Trim();
+
+        row.UpdatedAt = DateTime.UtcNow;
+        row.UpdatedBy = changedBy;
+
+        await UpdateImportBatchCountersAsync(row.ImportBatchId, changedBy, cancellationToken);
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return Ok(new
+        {
+            row.Id,
+            row.ImportBatchId,
+            row.RowNumber,
+            row.InternalCode,
+            PreviousStatus = previousStatus,
+            row.ResultStatus,
+            row.Message,
+            row.UpdatedBy
+        });
+    }
+
+    [HttpPatch("rows/{rowId:guid}/mark-ignored")]
+    public async Task<IActionResult> MarkImportRowIgnored(Guid rowId, [FromBody] ImportRowActionRequest request, CancellationToken cancellationToken)
+    {
+        var row = await _context.ImportRows
+            .Include(x => x.ImportBatch)
+            .FirstOrDefaultAsync(x => x.Id == rowId, cancellationToken);
+
+        if (row is null)
+        {
+            return NotFound(new { Message = $"No se encontró la fila de importación con Id {rowId}." });
+        }
+
+        var changedBy = GetImportRowActionUser(request);
+        var previousStatus = row.ResultStatus;
+
+        row.ResultStatus = "Ignored";
+        row.Message = string.IsNullOrWhiteSpace(request.Notes)
+            ? $"Fila ignorada manualmente. Estado anterior: {previousStatus}."
+            : request.Notes.Trim();
+
+        row.UpdatedAt = DateTime.UtcNow;
+        row.UpdatedBy = changedBy;
+
+        await UpdateImportBatchCountersAsync(row.ImportBatchId, changedBy, cancellationToken);
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return Ok(new
+        {
+            row.Id,
+            row.ImportBatchId,
+            row.RowNumber,
+            row.InternalCode,
+            PreviousStatus = previousStatus,
+            row.ResultStatus,
+            row.Message,
+            row.UpdatedBy
+        });
+    }
+
+    [HttpPatch("rows/{rowId:guid}/link-to-tool/{toolId:guid}")]
+    public async Task<IActionResult> LinkImportRowToTool(Guid rowId, Guid toolId, [FromBody] ImportRowActionRequest request, CancellationToken cancellationToken)
+    {
+        var row = await _context.ImportRows
+            .Include(x => x.ImportBatch)
+            .FirstOrDefaultAsync(x => x.Id == rowId, cancellationToken);
+
+        if (row is null)
+        {
+            return NotFound(new { Message = $"No se encontró la fila de importación con Id {rowId}." });
+        }
+
+        var tool = await _context.ToolAssets
+            .FirstOrDefaultAsync(x => x.Id == toolId, cancellationToken);
+
+        if (tool is null)
+        {
+            return NotFound(new { Message = $"No se encontró la herramienta con Id {toolId}." });
+        }
+
+        var changedBy = GetImportRowActionUser(request);
+        var previousStatus = row.ResultStatus;
+
+        row.ResultStatus = "Linked";
+        row.Message = string.IsNullOrWhiteSpace(request.Notes)
+            ? $"Fila asociada manualmente a la herramienta NAVI {tool.InternalCode}. Estado anterior: {previousStatus}."
+            : request.Notes.Trim();
+
+        row.UpdatedAt = DateTime.UtcNow;
+        row.UpdatedBy = changedBy;
+
+        AddToolLifeCycleEvent(
+            tool.Id,
+            "ImportRowLinkedToTool",
+            "Fila de importación asociada a herramienta",
+            $"Fila {row.RowNumber} de la importación {row.ImportBatch?.ImportNumber} asociada manualmente a esta herramienta.",
+            previousStatus,
+            row.ResultStatus,
+            changedBy);
+
+        await UpdateImportBatchCountersAsync(row.ImportBatchId, changedBy, cancellationToken);
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return Ok(new
+        {
+            row.Id,
+            row.ImportBatchId,
+            row.RowNumber,
+            row.InternalCode,
+            PreviousStatus = previousStatus,
+            row.ResultStatus,
+            row.Message,
+            LinkedTool = new
+            {
+                tool.Id,
+                tool.InternalCode,
+                tool.Name
+            },
+            row.UpdatedBy
+        });
+    }
+
+    private static string GetImportRowActionUser(ImportRowActionRequest request)
+    {
+        return string.IsNullOrWhiteSpace(request.ActionBy)
+            ? "api"
+            : request.ActionBy.Trim();
+    }
+
+    private async Task UpdateImportBatchCountersAsync(Guid importBatchId, string changedBy, CancellationToken cancellationToken)
+    {
+        var importBatch = await _context.ImportBatches
+            .Include(x => x.Rows)
+            .FirstOrDefaultAsync(x => x.Id == importBatchId, cancellationToken);
+
+        if (importBatch is null)
+        {
+            return;
+        }
+
+        importBatch.TotalRows = importBatch.Rows.Count;
+        importBatch.ErrorRows = importBatch.Rows.Count(x => x.ResultStatus == "Error");
+        importBatch.ValidRows = importBatch.Rows.Count(x => x.ResultStatus != "Error");
+        importBatch.CreatedTools = importBatch.Rows.Count(x => x.ResultStatus == "Created");
+        importBatch.DuplicateRows = importBatch.Rows.Count(x => x.ResultStatus is "Existing" or "PossibleDuplicate" or "Linked");
+
+        importBatch.Status = importBatch.ErrorRows > 0
+            ? "ReviewedWithErrors"
+            : "Reviewed";
+
+        importBatch.Summary = $"Revisión de importación actualizada. Filas: {importBatch.TotalRows}. Creadas: {importBatch.CreatedTools}. Errores: {importBatch.ErrorRows}. Existentes/Duplicadas/Asociadas: {importBatch.DuplicateRows}.";
+        importBatch.UpdatedAt = DateTime.UtcNow;
+        importBatch.UpdatedBy = changedBy;
+    }
     private async Task AnalyzeImportRowAsync(ImportRow row, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(row.InternalCode)
@@ -762,6 +1023,13 @@ public class ImportsController : ControllerBase
     private sealed record ExcelHeader(int ColumnNumber, string Name, string NormalizedName);
 }
 
+public sealed class ImportRowActionRequest
+{
+    public string? ActionBy { get; set; }
+
+    public string? Notes { get; set; }
+}
+
 public sealed class ApplyImportCandidatesRequest
 {
     public string? DefaultBranchCode { get; set; }
@@ -791,5 +1059,6 @@ public sealed class ImportExcelRequest
 
     public string? ProcessedBy { get; set; }
 }
+
 
 
