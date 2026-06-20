@@ -1,5 +1,6 @@
 ﻿using Hangfire;
 using Hangfire.SqlServer;
+using Navi.ToolsAssets.Infrastructure.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,6 +8,8 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddAuthorization();
+
+builder.Services.AddInfrastructure(builder.Configuration);
 
 var connectionString = builder.Configuration.GetConnectionString("NaviToolsAssetsDb")
     ?? throw new InvalidOperationException("No se encontró la cadena de conexión 'NaviToolsAssetsDb'.");
@@ -49,6 +52,7 @@ app.MapGet("/", () => Results.Ok(new
 {
     App = "NAVI Herramientas API",
     Status = "Running",
+    Database = "NaviToolsAssetsDb",
     Hangfire = "/hangfire"
 }));
 
