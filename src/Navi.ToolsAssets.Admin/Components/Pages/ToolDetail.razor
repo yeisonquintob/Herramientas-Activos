@@ -63,6 +63,58 @@ else if (tool is not null)
 
     <div class="tool-detail-grid">
         <section class="tool-detail-panel">
+            <h2>Acciones rápidas</h2>
+
+            <div class="quick-actions">
+                <div>
+                    <label class="form-label">Cambiar estado operativo</label>
+                    <select class="form-select" @bind="selectedOperationalStatus">
+                        <option value="Available">Disponible</option>
+                        <option value="PendingValidation">Pendiente validación</option>
+                        <option value="Assigned">Asignada</option>
+                        <option value="Loaned">Prestada</option>
+                        <option value="InMaintenance">En mantenimiento</option>
+                        <option value="Damaged">Dañada</option>
+                        <option value="NotSuitable">No apta</option>
+                        <option value="Inconsistent">Inconsistente</option>
+                        <option value="NotLocated">No localizada</option>
+                        <option value="PendingDisposal">Pendiente de baja</option>
+                        <option value="Disposed">Dada de baja</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="form-label">Observación</label>
+                    <input class="form-control"
+                           placeholder="Motivo del cambio..."
+                           @bind="actionObservation" />
+                </div>
+
+                <div class="d-flex gap-2 flex-wrap">
+                    <button class="btn btn-primary btn-sm" @onclick="ChangeOperationalStatusAsync" disabled="@isSaving">
+                        @(isSaving ? "Guardando..." : "Guardar estado")
+                    </button>
+
+                    <button class="btn btn-outline-primary btn-sm" @onclick="ToggleSpecializedAsync" disabled="@isSaving">
+                        @(tool?.IsSpecialized == true ? "Marcar no especializada" : "Marcar especializada")
+                    </button>
+
+                    <a class="btn btn-outline-dark btn-sm" href="@($"/tools/{ToolId}/technical-life-record")">
+                        Ver hoja vida técnica
+                    </a>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(actionMessage))
+                {
+                    <div class="alert alert-success mb-0">
+                        @actionMessage
+                    </div>
+                }
+            </div>
+        </section>
+
+
+        <section class="tool-detail-panel">
             <h2>Datos principales</h2>
 
             <div class="detail-list">
@@ -136,6 +188,58 @@ else if (tool is not null)
     </div>
 
     <div class="tool-detail-grid">
+        <section class="tool-detail-panel">
+            <h2>Acciones rápidas</h2>
+
+            <div class="quick-actions">
+                <div>
+                    <label class="form-label">Cambiar estado operativo</label>
+                    <select class="form-select" @bind="selectedOperationalStatus">
+                        <option value="Available">Disponible</option>
+                        <option value="PendingValidation">Pendiente validación</option>
+                        <option value="Assigned">Asignada</option>
+                        <option value="Loaned">Prestada</option>
+                        <option value="InMaintenance">En mantenimiento</option>
+                        <option value="Damaged">Dañada</option>
+                        <option value="NotSuitable">No apta</option>
+                        <option value="Inconsistent">Inconsistente</option>
+                        <option value="NotLocated">No localizada</option>
+                        <option value="PendingDisposal">Pendiente de baja</option>
+                        <option value="Disposed">Dada de baja</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="form-label">Observación</label>
+                    <input class="form-control"
+                           placeholder="Motivo del cambio..."
+                           @bind="actionObservation" />
+                </div>
+
+                <div class="d-flex gap-2 flex-wrap">
+                    <button class="btn btn-primary btn-sm" @onclick="ChangeOperationalStatusAsync" disabled="@isSaving">
+                        @(isSaving ? "Guardando..." : "Guardar estado")
+                    </button>
+
+                    <button class="btn btn-outline-primary btn-sm" @onclick="ToggleSpecializedAsync" disabled="@isSaving">
+                        @(tool?.IsSpecialized == true ? "Marcar no especializada" : "Marcar especializada")
+                    </button>
+
+                    <a class="btn btn-outline-dark btn-sm" href="@($"/tools/{ToolId}/technical-life-record")">
+                        Ver hoja vida técnica
+                    </a>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(actionMessage))
+                {
+                    <div class="alert alert-success mb-0">
+                        @actionMessage
+                    </div>
+                }
+            </div>
+        </section>
+
+
         <section class="tool-detail-panel">
             <h2>Estados</h2>
 
@@ -240,6 +344,10 @@ else if (tool is not null)
     public Guid ToolId { get; set; }
 
     private bool isLoading;
+    private bool isSaving;
+    private string? actionMessage;
+    private string selectedOperationalStatus = "PendingValidation";
+    private string actionObservation = string.Empty;
     private string? errorMessage;
     private ToolDetailItem? tool;
     private List<LifeCycleEventItem> lifeCycleEvents = new();
@@ -259,6 +367,11 @@ else if (tool is not null)
             var client = HttpClientFactory.CreateClient("NaviApi");
 
             tool = await client.GetFromJsonAsync<ToolDetailItem>($"api/tools/{ToolId}");
+
+            if (tool is not null)
+            {
+                selectedOperationalStatus = tool.OperationalStatus;
+            }
             lifeCycleEvents = await client.GetFromJsonAsync<List<LifeCycleEventItem>>($"api/tools/{ToolId}/life-cycle-events") ?? new();
         }
         catch (Exception ex)
@@ -271,6 +384,99 @@ else if (tool is not null)
         }
     }
 
+    private async Task ChangeOperationalStatusAsync()
+    {
+        if (tool is null)
+        {
+            return;
+        }
+
+        try
+        {
+            isSaving = true;
+            actionMessage = null;
+            errorMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var payload = new
+            {
+                operationalStatus = selectedOperationalStatus,
+                changedBy = "yquinto",
+                updatedBy = "yquinto",
+                reason = actionObservation,
+                observation = actionObservation
+            };
+
+            var response = await client.PatchAsJsonAsync($"api/tools/{tool.Id}/operational-status", payload);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo cambiar el estado. Código: {(int)response.StatusCode}. Detalle: {detail}";
+                return;
+            }
+
+            actionMessage = "Estado operativo actualizado correctamente.";
+            actionObservation = string.Empty;
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo cambiar el estado. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task ToggleSpecializedAsync()
+    {
+        if (tool is null)
+        {
+            return;
+        }
+
+        try
+        {
+            isSaving = true;
+            actionMessage = null;
+            errorMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var payload = new
+            {
+                isSpecialized = !tool.IsSpecialized,
+                changedBy = "yquinto",
+                updatedBy = "yquinto",
+                reason = "Cambio de clasificación desde Admin."
+            };
+
+            var response = await client.PatchAsJsonAsync($"api/tools/{tool.Id}/classification", payload);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo cambiar la clasificación. Código: {(int)response.StatusCode}. Detalle: {detail}";
+                return;
+            }
+
+            actionMessage = "Clasificación actualizada correctamente.";
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo cambiar la clasificación. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
     private void GoBack()
     {
         NavigationManager.NavigateTo("/tools");
@@ -374,3 +580,5 @@ else if (tool is not null)
         public string? PerformedBy { get; set; }
     }
 }
+
+
