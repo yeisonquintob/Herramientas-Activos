@@ -1,3 +1,4 @@
+﻿using Navi.ToolsAssets.Admin.Services.Auth;
 using Navi.ToolsAssets.Admin.Components;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -9,6 +10,8 @@ builder.Services.AddHttpClient("NaviApi", client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["NaviApi:BaseUrl"] ?? "http://localhost:5218");
 });
+
+builder.Services.AddScoped<WebAuthSessionService>();
 
 var app = builder.Build();
 
@@ -27,3 +30,5 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+

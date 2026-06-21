@@ -1,0 +1,94 @@
+﻿@page "/login"
+@rendermode InteractiveServer
+@inject Navi.ToolsAssets.Admin.Services.Auth.WebAuthSessionService AuthSession
+@inject NavigationManager Navigation
+
+<PageTitle>Login - NAVI Herramientas</PageTitle>
+
+<div class="navi-login-page">
+    <section class="navi-login-left">
+        <div class="navi-login-left-content">
+            <h1>HERRAMIENTAS Y ACTIVOS</h1>
+
+            <div class="navi-login-company">
+                <strong>NAVITRANS</strong>
+                <span>Juntos hacemos el camino</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="navi-login-right">
+        <div class="navi-login-form-card">
+            <div class="navi-login-user-icon">
+                <span></span>
+            </div>
+
+            <h2>Iniciar sesión</h2>
+
+            <EditForm Model="loginModel" OnValidSubmit="LoginAsync">
+                <DataAnnotationsValidator />
+
+                <div class="navi-login-field">
+                    <InputText class="form-control" placeholder="Usuario" @bind-Value="loginModel.UserName" />
+                </div>
+
+                <div class="navi-login-field">
+                    <InputText type="password" class="form-control" placeholder="Contraseña" @bind-Value="loginModel.Password" />
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(errorMessage))
+                {
+                    <div class="alert alert-danger navi-login-alert">@errorMessage</div>
+                }
+
+                <button type="submit" class="btn btn-primary navi-login-button">
+                    Ingresar
+                </button>
+            </EditForm>
+        </div>
+    </section>
+</div>
+
+@code {
+    private readonly LoginModel loginModel = new()
+    {
+        UserName = string.Empty,
+        Password = string.Empty
+    };
+
+    private string errorMessage = string.Empty;
+
+    private Task LoginAsync()
+    {
+        errorMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(loginModel.UserName))
+        {
+            errorMessage = "Debes ingresar un usuario.";
+            return Task.CompletedTask;
+        }
+
+        if (string.IsNullOrWhiteSpace(loginModel.Password))
+        {
+            errorMessage = "Debes ingresar una contraseña.";
+            return Task.CompletedTask;
+        }
+
+        AuthSession.Login(
+            loginModel.UserName.Trim(),
+            "Administrador NAVI",
+            "Administrador",
+            "TODAS");
+
+        Navigation.NavigateTo("/dashboard");
+
+        return Task.CompletedTask;
+    }
+
+    private sealed class LoginModel
+    {
+        public string UserName { get; set; } = string.Empty;
+
+        public string Password { get; set; } = string.Empty;
+    }
+}

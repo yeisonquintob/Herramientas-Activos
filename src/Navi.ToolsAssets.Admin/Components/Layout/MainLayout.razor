@@ -1,29 +1,78 @@
-@inherits LayoutComponentBase
+ï»¿@inherits LayoutComponentBase
+@inject Navi.ToolsAssets.Admin.Services.Auth.WebAuthSessionService AuthSession
+@inject NavigationManager Navigation
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
-
-    <main>
-        <div class="top-row px-4">
-            <span class="top-title">Fenix365 · Gestión de herramientas y activos</span>
+@if (IsLoginPage)
+{
+    <main class="login-layout-only">
+        @Body
+    </main>
+}
+else
+{
+    <div class="page">
+        <div class="sidebar">
+            <NavMenu />
         </div>
 
-        <article class="content px-4">
-            @Body
-        </article>
-    </main>
-</div>
+        <main>
+            <div class="top-row px-4">
+                <span class="top-title">Fenix365 Â· GestiÃ³n de herramientas y activos</span>
+            </div>
 
-<footer class="navi-bottom-bar">
-    <span>Navitrans 40 años</span>
-    <span class="separator">·</span>
-    <span>Mockup diseñado por TI Soluciones</span>
-</footer>
+            <article class="content px-4">
+                <div class="navi-user-bar">
+                    @if (AuthSession.IsAuthenticated)
+                    {
+                        <div>
+                            <strong>@AuthSession.DisplayName</strong>
+                            <span>@AuthSession.Role Â· Sede @AuthSession.BranchCode</span>
+                        </div>
+
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="Logout">
+                            Salir
+                        </button>
+                    }
+                    else
+                    {
+                        <div>
+                            <strong>SesiÃ³n no iniciada</strong>
+                            <span>Ingresa para operar el mÃ³dulo de activos</span>
+                        </div>
+
+                        <a class="btn btn-sm btn-primary" href="/login">
+                            Ingresar
+                        </a>
+                    }
+                </div>
+
+                @Body
+            </article>
+        </main>
+    </div>
+
+    <footer class="navi-bottom-bar">
+        <span>Navitrans 40 aÃ±os</span>
+        <span class="separator">Â·</span>
+        <span>Mockup diseÃ±ado por TI Soluciones</span>
+    </footer>
+}
 
 <div id="blazor-error-ui">
     Ha ocurrido un error inesperado.
     <a href="" class="reload">Recargar</a>
-    <a class="dismiss">??</a>
+    <a class="dismiss">x</a>
 </div>
+
+@code {
+    private bool IsLoginPage =>
+        Navigation.ToBaseRelativePath(Navigation.Uri)
+            .Trim('/')
+            .Equals("login", StringComparison.OrdinalIgnoreCase);
+
+    private void Logout()
+    {
+        AuthSession.Logout();
+        Navigation.NavigateTo("/login");
+    }
+}
