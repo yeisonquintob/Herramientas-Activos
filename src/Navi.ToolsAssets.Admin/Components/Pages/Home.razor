@@ -1,7 +1,334 @@
-ï»¿@page "/"
+@page "/"
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
 
-<PageTitle>Home</PageTitle>
+<PageTitle>NAVI Herramientas - Dashboard</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="dashboard-header">
+    <div>
+        <h1>NAVI Herramientas</h1>
+        <p>Dashboard operativo de herramientas, activos, inventario físico, préstamos, mantenimiento y conciliación.</p>
+    </div>
 
-Welcome to your new app.
+    <button class="btn btn-primary" @onclick="LoadDashboardAsync" disabled="@isLoading">
+        @(isLoading ? "Actualizando..." : "Actualizar")
+    </button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">
+        <strong>Error:</strong> @errorMessage
+    </div>
+}
+else if (isLoading && summary is null)
+{
+    <div class="alert alert-info">
+        Cargando indicadores desde la API...
+    </div>
+}
+else if (summary is not null)
+{
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <span>Total herramientas</span>
+            <strong>@summary.TotalTools</strong>
+        </div>
+
+        <div class="kpi-card success">
+            <span>Disponibles</span>
+            <strong>@summary.AvailableTools</strong>
+        </div>
+
+        <div class="kpi-card warning">
+            <span>Pendientes validación</span>
+            <strong>@summary.PendingValidationTools</strong>
+        </div>
+
+        <div class="kpi-card">
+            <span>Prestadas</span>
+            <strong>@summary.LoanedTools</strong>
+        </div>
+
+        <div class="kpi-card">
+            <span>En mantenimiento</span>
+            <strong>@summary.InMaintenanceTools</strong>
+        </div>
+
+        <div class="kpi-card danger">
+            <span>Dañadas / no aptas</span>
+            <strong>@(summary.DamagedTools + summary.NotSuitableTools)</strong>
+        </div>
+
+        <div class="kpi-card danger">
+            <span>No localizadas</span>
+            <strong>@summary.NotLocatedTools</strong>
+        </div>
+
+        <div class="kpi-card">
+            <span>Especializadas</span>
+            <strong>@summary.SpecializedTools</strong>
+        </div>
+    </div>
+
+    <div class="dashboard-grid">
+        <section class="dashboard-panel">
+            <h2>Herramientas por estado</h2>
+
+            @if (toolsByStatus.Count == 0)
+            {
+                <p class="text-muted">No hay datos.</p>
+            }
+            else
+            {
+                <div class="bar-chart">
+                    @foreach (var item in toolsByStatus)
+                    {
+                        var percent = GetBarPercent(item.Count, GetMaxStatusCount());
+
+                        <div class="bar-row">
+                            <div class="bar-label">
+                                <span>@item.StatusLabel</span>
+                                <strong>@item.Count</strong>
+                            </div>
+
+                            <div class="bar-track">
+                                <div class="bar-fill" style="width:@percent%"></div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="dashboard-panel">
+            <h2>Herramientas por sede</h2>
+
+            @if (toolsByBranch.Any(x => x.TotalTools > 0))
+            {
+                <div class="bar-chart">
+                    @foreach (var branch in toolsByBranch.Where(x => x.TotalTools > 0))
+                    {
+                        var percent = GetBarPercent(branch.TotalTools, GetMaxBranchToolCount());
+
+                        <div class="bar-row">
+                            <div class="bar-label">
+                                <span>@branch.BranchCode - @branch.BranchName</span>
+                                <strong>@branch.TotalTools</strong>
+                            </div>
+
+                            <div class="bar-track">
+                                <div class="bar-fill branch" style="width:@percent%"></div>
+                            </div>
+
+                            <small class="text-muted">
+                                Disponibles: @branch.AvailableTools |
+                                Prestadas: @branch.LoanedTools |
+                                Mantenimiento: @branch.InMaintenanceTools |
+                                Dañadas: @branch.DamagedTools
+                            </small>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="text-muted">No hay herramientas por sede.</p>
+            }
+        </section>
+    </div>
+
+    <div class="dashboard-grid">
+        <section class="dashboard-panel">
+            <h2>Alertas</h2>
+
+            @if (alerts.Count == 0)
+            {
+                <p class="text-muted">No hay alertas activas.</p>
+            }
+            else
+            {
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Severidad</th>
+                            <th>Herramienta</th>
+                            <th>Mensaje</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var alert in alerts)
+                        {
+                            <tr>
+                                <td>@alert.Severity</td>
+                                <td>@alert.InternalCode</td>
+                                <td>@alert.Message</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </section>
+
+        <section class="dashboard-panel">
+            <h2>Actividad reciente</h2>
+
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Evento</th>
+                        <th>Herramienta</th>
+                        <th>Usuario</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var activity in recentActivity.Take(10))
+                    {
+                        <tr>
+                            <td>
+                                <strong>@activity.Title</strong>
+                                <br />
+                                <small class="text-muted">@activity.EventType</small>
+                            </td>
+                            <td>@activity.ToolInternalCode</td>
+                            <td>@activity.PerformedBy</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </section>
+    </div>
+
+    <p class="dashboard-footer">
+        Última actualización: @summary.LastUpdatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")
+    </p>
+}
+
+@code {
+    private bool isLoading;
+    private string? errorMessage;
+
+    private DashboardSummary? summary;
+    private List<ToolsByStatusItem> toolsByStatus = new();
+    private List<ToolsByBranchItem> toolsByBranch = new();
+    private List<DashboardAlert> alerts = new();
+    private List<RecentActivityItem> recentActivity = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardAsync();
+    }
+
+    private async Task LoadDashboardAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            summary = await client.GetFromJsonAsync<DashboardSummary>("api/dashboard/summary");
+            toolsByStatus = await client.GetFromJsonAsync<List<ToolsByStatusItem>>("api/dashboard/tools-by-status") ?? new();
+            toolsByBranch = await client.GetFromJsonAsync<List<ToolsByBranchItem>>("api/dashboard/tools-by-branch") ?? new();
+            alerts = await client.GetFromJsonAsync<List<DashboardAlert>>("api/dashboard/alerts") ?? new();
+            recentActivity = await client.GetFromJsonAsync<List<RecentActivityItem>>("api/dashboard/recent-activity") ?? new();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo cargar el dashboard. Valida que la API esté activa en http://localhost:5218. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private int GetMaxStatusCount()
+    {
+        return toolsByStatus.Count == 0 ? 1 : Math.Max(1, toolsByStatus.Max(x => x.Count));
+    }
+
+    private int GetMaxBranchToolCount()
+    {
+        return toolsByBranch.Count == 0 ? 1 : Math.Max(1, toolsByBranch.Max(x => x.TotalTools));
+    }
+
+    private static int GetBarPercent(int value, int maxValue)
+    {
+        if (value <= 0 || maxValue <= 0)
+        {
+            return 0;
+        }
+
+        return Math.Max(4, (int)Math.Round((decimal)value / maxValue * 100));
+    }
+
+    private sealed class DashboardSummary
+    {
+        public int TotalTools { get; set; }
+        public int AvailableTools { get; set; }
+        public int LoanedTools { get; set; }
+        public int InMaintenanceTools { get; set; }
+        public int DamagedTools { get; set; }
+        public int NotSuitableTools { get; set; }
+        public int NotLocatedTools { get; set; }
+        public int PendingValidationTools { get; set; }
+        public int DisposedTools { get; set; }
+        public int SpecializedTools { get; set; }
+        public int NonSpecializedTools { get; set; }
+        public int ReconciledTools { get; set; }
+        public int InconsistentTools { get; set; }
+        public int SyncErrorTools { get; set; }
+        public int PendingSyncTools { get; set; }
+        public DateTime LastUpdatedAt { get; set; }
+    }
+
+    private sealed class ToolsByStatusItem
+    {
+        public string Status { get; set; } = string.Empty;
+        public string StatusLabel { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
+    private sealed class ToolsByBranchItem
+    {
+        public string BranchCode { get; set; } = string.Empty;
+        public string BranchName { get; set; } = string.Empty;
+        public string? ZoneCode { get; set; }
+        public string? ZoneName { get; set; }
+        public int TotalTools { get; set; }
+        public int AvailableTools { get; set; }
+        public int LoanedTools { get; set; }
+        public int InMaintenanceTools { get; set; }
+        public int DamagedTools { get; set; }
+        public int NotLocatedTools { get; set; }
+    }
+
+    private sealed class DashboardAlert
+    {
+        public string Type { get; set; } = string.Empty;
+        public string Severity { get; set; } = string.Empty;
+        public Guid ToolId { get; set; }
+        public string InternalCode { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
+        public DateTime Date { get; set; }
+    }
+
+    private sealed class RecentActivityItem
+    {
+        public Guid Id { get; set; }
+        public Guid ToolAssetId { get; set; }
+        public string? ToolInternalCode { get; set; }
+        public string? ToolName { get; set; }
+        public string EventType { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string? PreviousValue { get; set; }
+        public string? NewValue { get; set; }
+        public DateTime EventDate { get; set; }
+        public string? PerformedBy { get; set; }
+    }
+}
