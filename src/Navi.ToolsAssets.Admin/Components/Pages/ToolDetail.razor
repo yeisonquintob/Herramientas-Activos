@@ -1,0 +1,376 @@
+@page "/tools/{ToolId:guid}"
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Detalle herramienta - NAVI Herramientas</PageTitle>
+
+<div class="page-header">
+    <div>
+        <button class="btn btn-outline-secondary btn-sm mb-2" @onclick="GoBack">
+            ? Volver al inventario
+        </button>
+
+        <h1>Detalle de herramienta</h1>
+        <p>Consulta visual de datos maestros y hoja de vida operativa.</p>
+    </div>
+
+    <button class="btn btn-primary" @onclick="LoadAsync" disabled="@isLoading">
+        @(isLoading ? "Actualizando..." : "Actualizar")
+    </button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">
+        <strong>Error:</strong> @errorMessage
+    </div>
+}
+else if (isLoading && tool is null)
+{
+    <div class="alert alert-info">
+        Cargando detalle de la herramienta...
+    </div>
+}
+else if (tool is not null)
+{
+    <section class="tool-detail-hero">
+        <div>
+            <span class="tool-code">@tool.InternalCode</span>
+            <h2>@tool.Name</h2>
+
+            @if (!string.IsNullOrWhiteSpace(tool.Description))
+            {
+                <p>@tool.Description</p>
+            }
+        </div>
+
+        <div class="tool-status-box">
+            <span class="@GetStatusBadgeClass(tool.OperationalStatus)">
+                @GetStatusLabel(tool.OperationalStatus)
+            </span>
+
+            @if (tool.IsSpecialized)
+            {
+                <span class="badge bg-primary">Especializada</span>
+            }
+            else
+            {
+                <span class="badge bg-secondary">No especializada</span>
+            }
+        </div>
+    </section>
+
+    <div class="tool-detail-grid">
+        <section class="tool-detail-panel">
+            <h2>Datos principales</h2>
+
+            <div class="detail-list">
+                <div>
+                    <span>Código interno</span>
+                    <strong>@tool.InternalCode</strong>
+                </div>
+
+                <div>
+                    <span>Serial</span>
+                    <strong>@ShowValue(tool.SerialNumber)</strong>
+                </div>
+
+                <div>
+                    <span>Activo fijo</span>
+                    <strong>@ShowValue(tool.FixedAssetCode)</strong>
+                </div>
+
+                <div>
+                    <span>Código Fenix365</span>
+                    <strong>@ShowValue(tool.FenixCode)</strong>
+                </div>
+
+                <div>
+                    <span>Marca</span>
+                    <strong>@ShowValue(tool.Brand)</strong>
+                </div>
+
+                <div>
+                    <span>Modelo</span>
+                    <strong>@ShowValue(tool.Model)</strong>
+                </div>
+            </div>
+        </section>
+
+        <section class="tool-detail-panel">
+            <h2>Ubicación y clasificación</h2>
+
+            <div class="detail-list">
+                <div>
+                    <span>Sede</span>
+                    <strong>@ShowValue(tool.BranchCode) - @ShowValue(tool.BranchName)</strong>
+                </div>
+
+                <div>
+                    <span>Ubicación</span>
+                    <strong>@ShowValue(tool.LocationCode) - @ShowValue(tool.LocationName)</strong>
+                </div>
+
+                <div>
+                    <span>Responsable</span>
+                    <strong>@ShowValue(tool.ResponsiblePersonName)</strong>
+                </div>
+
+                <div>
+                    <span>Tipo</span>
+                    <strong>@ShowValue(tool.ToolTypeName)</strong>
+                </div>
+
+                <div>
+                    <span>Categoría</span>
+                    <strong>@ShowValue(tool.ToolCategoryName)</strong>
+                </div>
+
+                <div>
+                    <span>Unidad / Cantidad</span>
+                    <strong>@ShowValue(tool.UnitOfMeasure) / @tool.Quantity</strong>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <div class="tool-detail-grid">
+        <section class="tool-detail-panel">
+            <h2>Estados</h2>
+
+            <div class="status-chip-grid">
+                <div>
+                    <span>Operativo</span>
+                    <strong>@GetStatusLabel(tool.OperationalStatus)</strong>
+                </div>
+
+                <div>
+                    <span>Físico</span>
+                    <strong>@ShowValue(tool.PhysicalStatus)</strong>
+                </div>
+
+                <div>
+                    <span>Custodia</span>
+                    <strong>@ShowValue(tool.CustodyStatus)</strong>
+                </div>
+
+                <div>
+                    <span>Conciliación</span>
+                    <strong>@ShowValue(tool.ReconciliationStatus)</strong>
+                </div>
+
+                <div>
+                    <span>Sincronización</span>
+                    <strong>@ShowValue(tool.SyncStatus)</strong>
+                </div>
+            </div>
+        </section>
+
+        <section class="tool-detail-panel">
+            <h2>Reglas operativas</h2>
+
+            <div class="status-chip-grid">
+                <div>
+                    <span>Mantenimiento</span>
+                    <strong>@BoolLabel(tool.RequiresMaintenance)</strong>
+                </div>
+
+                <div>
+                    <span>Preoperacional</span>
+                    <strong>@BoolLabel(tool.RequiresPreOperationalCheck)</strong>
+                </div>
+
+                <div>
+                    <span>Certificación</span>
+                    <strong>@BoolLabel(tool.RequiresCertification)</strong>
+                </div>
+
+                <div>
+                    <span>Vence certificación</span>
+                    <strong>@FormatDate(tool.CertificationExpirationDate)</strong>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <section class="tool-detail-panel">
+        <h2>Hoja de vida / Actividad reciente</h2>
+
+        @if (lifeCycleEvents.Count == 0)
+        {
+            <p class="text-muted">Esta herramienta aún no tiene eventos registrados.</p>
+        }
+        else
+        {
+            <div class="timeline">
+                @foreach (var item in lifeCycleEvents.OrderByDescending(x => x.EventDate))
+                {
+                    <div class="timeline-item">
+                        <div class="timeline-dot"></div>
+
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <strong>@item.Title</strong>
+                                <span>@item.EventDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
+                            </div>
+
+                            <small class="text-muted">@item.EventType</small>
+
+                            @if (!string.IsNullOrWhiteSpace(item.Description))
+                            {
+                                <p>@item.Description</p>
+                            }
+
+                            <div class="timeline-values">
+                                <span>Anterior: @ShowValue(item.PreviousValue)</span>
+                                <span>Nuevo: @ShowValue(item.NewValue)</span>
+                                <span>Usuario: @ShowValue(item.PerformedBy)</span>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+}
+
+@code {
+    [Parameter]
+    public Guid ToolId { get; set; }
+
+    private bool isLoading;
+    private string? errorMessage;
+    private ToolDetailItem? tool;
+    private List<LifeCycleEventItem> lifeCycleEvents = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            tool = await client.GetFromJsonAsync<ToolDetailItem>($"api/tools/{ToolId}");
+            lifeCycleEvents = await client.GetFromJsonAsync<List<LifeCycleEventItem>>($"api/tools/{ToolId}/life-cycle-events") ?? new();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo cargar el detalle. Valida que la API esté activa en http://localhost:5218. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/tools");
+    }
+
+    private static string ShowValue(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "-" : value;
+    }
+
+    private static string BoolLabel(bool value)
+    {
+        return value ? "Sí" : "No";
+    }
+
+    private static string FormatDate(DateTime? value)
+    {
+        return value.HasValue ? value.Value.ToString("dd/MM/yyyy") : "-";
+    }
+
+    private static string GetStatusLabel(string? status)
+    {
+        return status switch
+        {
+            "Available" => "Disponible",
+            "Assigned" => "Asignada",
+            "Loaned" => "Prestada",
+            "InMaintenance" => "En mantenimiento",
+            "Damaged" => "Dañada",
+            "NotSuitable" => "No apta",
+            "PendingValidation" => "Pendiente validación",
+            "Inconsistent" => "Inconsistente",
+            "NotLocated" => "No localizada",
+            "PendingDisposal" => "Pendiente de baja",
+            "Disposed" => "Dada de baja",
+            _ => string.IsNullOrWhiteSpace(status) ? "Sin estado" : status
+        };
+    }
+
+    private static string GetStatusBadgeClass(string? status)
+    {
+        return status switch
+        {
+            "Available" => "badge bg-success",
+            "PendingValidation" => "badge bg-warning text-dark",
+            "Loaned" => "badge bg-info text-dark",
+            "InMaintenance" => "badge bg-primary",
+            "Damaged" => "badge bg-danger",
+            "NotSuitable" => "badge bg-danger",
+            "NotLocated" => "badge bg-dark",
+            "Inconsistent" => "badge bg-danger",
+            "Disposed" => "badge bg-secondary",
+            _ => "badge bg-secondary"
+        };
+    }
+
+    private sealed class ToolDetailItem
+    {
+        public Guid Id { get; set; }
+        public string InternalCode { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string? Brand { get; set; }
+        public string? Model { get; set; }
+        public string? SerialNumber { get; set; }
+        public string? FixedAssetCode { get; set; }
+        public string? FenixCode { get; set; }
+        public string? UnitOfMeasure { get; set; }
+        public decimal Quantity { get; set; }
+        public bool IsSpecialized { get; set; }
+        public bool RequiresMaintenance { get; set; }
+        public bool RequiresPreOperationalCheck { get; set; }
+        public bool RequiresCertification { get; set; }
+        public DateTime? CertificationExpirationDate { get; set; }
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string? LocationCode { get; set; }
+        public string? LocationName { get; set; }
+        public string? ResponsiblePersonName { get; set; }
+        public string? ToolTypeCode { get; set; }
+        public string? ToolTypeName { get; set; }
+        public string? ToolCategoryCode { get; set; }
+        public string? ToolCategoryName { get; set; }
+        public string OperationalStatus { get; set; } = string.Empty;
+        public string PhysicalStatus { get; set; } = string.Empty;
+        public string CustodyStatus { get; set; } = string.Empty;
+        public string ReconciliationStatus { get; set; } = string.Empty;
+        public string SyncStatus { get; set; } = string.Empty;
+    }
+
+    private sealed class LifeCycleEventItem
+    {
+        public Guid Id { get; set; }
+        public Guid ToolAssetId { get; set; }
+        public string EventType { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string? PreviousValue { get; set; }
+        public string? NewValue { get; set; }
+        public DateTime EventDate { get; set; }
+        public string? PerformedBy { get; set; }
+    }
+}
