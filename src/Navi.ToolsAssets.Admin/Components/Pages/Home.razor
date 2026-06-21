@@ -5,16 +5,19 @@
 
 <PageTitle>NAVI Herramientas - Dashboard</PageTitle>
 
-<div class="dashboard-header">
+<section class="dashboard-tech-banner">
     <div>
-        <h1>NAVI Herramientas</h1>
+        <span class="dashboard-tech-pill">DASHBOARD</span>
+        <h2>NAVI Herramientas</h2>
         <p>Dashboard operativo de herramientas, activos, inventario físico, préstamos, mantenimiento y conciliación.</p>
     </div>
 
-    <button class="btn btn-primary" @onclick="LoadDashboardAsync" disabled="@isLoading">
-        @(isLoading ? "Actualizando..." : "Actualizar")
-    </button>
-</div>
+    <div class="dashboard-tech-side">
+        <button class="btn btn-sm btn-outline-light dashboard-refresh-button" @onclick="LoadDashboardAsync" disabled="@isLoading">
+            @(isLoading ? "Actualizando..." : "Actualizar")
+        </button>
+    </div>
+</section>
 
 @if (!string.IsNullOrWhiteSpace(errorMessage))
 {
@@ -30,7 +33,7 @@ else if (isLoading && summary is null)
 }
 else if (summary is not null)
 {
-    <div class="kpi-grid">
+    <div class="kpi-grid dashboard-kpi-compact">
         <div class="kpi-card">
             <span>Total herramientas</span>
             <strong>@summary.TotalTools</strong>
@@ -69,6 +72,36 @@ else if (summary is not null)
         <div class="kpi-card">
             <span>Especializadas</span>
             <strong>@summary.SpecializedTools</strong>
+        </div>
+
+        <div class="kpi-card">
+            <span>No especializadas</span>
+            <strong>@summary.NonSpecializedTools</strong>
+        </div>
+
+        <div class="kpi-card success">
+            <span>Conciliadas</span>
+            <strong>@summary.ReconciledTools</strong>
+        </div>
+
+        <div class="kpi-card warning">
+            <span>Inconsistentes</span>
+            <strong>@summary.InconsistentTools</strong>
+        </div>
+
+        <div class="kpi-card warning">
+            <span>Pendiente sync</span>
+            <strong>@summary.PendingSyncTools</strong>
+        </div>
+
+        <div class="kpi-card danger">
+            <span>Error sync</span>
+            <strong>@summary.SyncErrorTools</strong>
+        </div>
+
+        <div class="kpi-card">
+            <span>Bajas / retiradas</span>
+            <strong>@summary.DisposedTools</strong>
         </div>
     </div>
 
@@ -334,3 +367,341 @@ else if (summary is not null)
     }
 }
 
+
+<style>
+    /* DASHBOARD CORPORATE BANNER STYLE */
+
+    .dashboard-tech-banner {
+        background: linear-gradient(135deg, #050008 0%, #280032 45%, #5c006b 100%) !important;
+        color: #ffffff !important;
+        border-radius: 0.85rem !important;
+        padding: 1.25rem 1.4rem !important;
+        margin-bottom: 1rem !important;
+        min-height: 105px !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: stretch !important;
+        gap: 1rem !important;
+        box-shadow: 0 0.65rem 1.35rem rgba(75, 0, 92, 0.22) !important;
+        border: none !important;
+    }
+
+    .dashboard-tech-banner > div:first-child::before {
+        content: "DASHBOARD";
+        display: inline-flex;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        color: #ffffff;
+        border-radius: 999px;
+        padding: 0.22rem 0.65rem;
+        font-size: 0.7rem;
+        font-weight: 900;
+        letter-spacing: 0.04rem;
+        margin-bottom: 0.6rem;
+    }
+
+    .dashboard-tech-banner h1 {
+        font-size: 1.65rem !important;
+        font-weight: 950 !important;
+        margin: 0 !important;
+        color: #ffffff !important;
+    }
+
+    .dashboard-tech-banner p {
+        margin: 0.35rem 0 0 0 !important;
+        color: rgba(255, 255, 255, 0.78) !important;
+        font-size: 0.9rem !important;
+    }
+
+    .dashboard-tech-banner > div:last-child {
+        min-width: 170px;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: flex-end !important;
+        align-items: stretch !important;
+        gap: 0.65rem !important;
+    }
+
+    .dashboard-tech-banner > div:last-child::before {
+        content: "Indicadores activos";
+        display: grid;
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 0.65rem;
+        padding: 0.55rem 0.75rem;
+        text-align: right;
+        color: #ffffff;
+        font-size: 0.82rem;
+        font-weight: 900;
+    }
+
+    .dashboard-tech-banner .btn {
+        height: 32px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-size: 0.78rem !important;
+        font-weight: 800 !important;
+        border-color: rgba(255, 255, 255, 0.65) !important;
+        color: #ffffff !important;
+        background: rgba(255, 255, 255, 0.08) !important;
+    }
+
+    .dashboard-tech-banner .btn:hover {
+        color: #4b005c !important;
+        background: #ffffff !important;
+        border-color: #ffffff !important;
+    }
+
+    @@media (max-width: 1100px) {
+        .dashboard-tech-banner {
+            flex-direction: column !important;
+        }
+
+        .dashboard-tech-banner > div:last-child {
+            width: 100%;
+        }
+
+        .dashboard-tech-banner > div:last-child::before {
+            text-align: left;
+        }
+    }
+</style>
+
+<style>
+    /* DASHBOARD TECH BANNER STYLE */
+
+    .dashboard-tech-banner {
+        background: linear-gradient(135deg, #050008 0%, #280032 45%, #5c006b 100%);
+        color: #ffffff;
+        border-radius: 0.85rem;
+        padding: 1.25rem 1.4rem;
+        margin-bottom: 1rem;
+        min-height: 105px;
+        display: flex;
+        justify-content: space-between;
+        align-items: stretch;
+        gap: 1rem;
+        box-shadow: 0 0.65rem 1.35rem rgba(75, 0, 92, 0.22);
+    }
+
+    .dashboard-tech-pill {
+        display: inline-flex;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        color: #ffffff;
+        border-radius: 999px;
+        padding: 0.22rem 0.65rem;
+        font-size: 0.7rem;
+        font-weight: 900;
+        letter-spacing: 0.04rem;
+        margin-bottom: 0.6rem;
+    }
+
+    .dashboard-tech-banner h2 {
+        font-size: 1.65rem;
+        font-weight: 950;
+        margin: 0;
+        color: #ffffff;
+    }
+
+    .dashboard-tech-banner p {
+        margin: 0.35rem 0 0 0;
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 0.9rem;
+    }
+
+    .dashboard-tech-side {
+        min-width: 170px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: stretch;
+        gap: 0.65rem;
+    }
+
+    .dashboard-tech-status {
+        display: grid;
+        gap: 0.2rem;
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 0.65rem;
+        padding: 0.55rem 0.75rem;
+        text-align: right;
+    }
+
+    .dashboard-tech-status span {
+        color: #ffdd57;
+        font-weight: 900;
+        font-size: 0.75rem;
+    }
+
+    .dashboard-tech-status strong {
+        color: #ffffff;
+        font-size: 0.82rem;
+    }
+
+    .dashboard-refresh-button {
+        height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.78rem;
+        font-weight: 800;
+        border-color: rgba(255, 255, 255, 0.65);
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .dashboard-refresh-button:hover {
+        color: #4b005c;
+        background: #ffffff;
+        border-color: #ffffff;
+    }
+
+    @@media (max-width: 1100px) {
+        .dashboard-tech-banner {
+            flex-direction: column;
+        }
+
+        .dashboard-tech-side {
+            width: 100%;
+        }
+
+        .dashboard-tech-status {
+            text-align: left;
+        }
+    }
+</style>
+
+<style>
+    /* DASHBOARD CLEAN BANNER AND COMPACT KPIS */
+
+    .dashboard-tech-banner {
+        background: linear-gradient(135deg, #050008 0%, #280032 45%, #5c006b 100%) !important;
+        color: #ffffff !important;
+        border-radius: 0.85rem !important;
+        padding: 1.25rem 1.4rem !important;
+        margin-bottom: 0.75rem !important;
+        min-height: 105px !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: stretch !important;
+        gap: 1rem !important;
+        box-shadow: 0 0.65rem 1.35rem rgba(75, 0, 92, 0.22) !important;
+        border: none !important;
+    }
+
+    .dashboard-tech-banner > div:first-child::before,
+    .dashboard-tech-banner > div:last-child::before {
+        content: none !important;
+        display: none !important;
+    }
+
+    .dashboard-tech-pill {
+        display: inline-flex !important;
+        background: rgba(255, 255, 255, 0.12) !important;
+        border: 1px solid rgba(255, 255, 255, 0.35) !important;
+        color: #ffffff !important;
+        border-radius: 999px !important;
+        padding: 0.22rem 0.65rem !important;
+        font-size: 0.7rem !important;
+        font-weight: 900 !important;
+        letter-spacing: 0.04rem !important;
+        margin-bottom: 0.6rem !important;
+    }
+
+    .dashboard-tech-banner h2 {
+        font-size: 1.65rem !important;
+        font-weight: 950 !important;
+        margin: 0 !important;
+        color: #ffffff !important;
+    }
+
+    .dashboard-tech-banner p {
+        margin: 0.35rem 0 0 0 !important;
+        color: rgba(255, 255, 255, 0.78) !important;
+        font-size: 0.9rem !important;
+    }
+
+    .dashboard-tech-side {
+        min-width: 170px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: flex-end !important;
+        align-items: stretch !important;
+        gap: 0.65rem !important;
+    }
+
+    .dashboard-tech-status {
+        display: none !important;
+    }
+
+    .dashboard-refresh-button {
+        height: 32px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-size: 0.78rem !important;
+        font-weight: 800 !important;
+        border-color: rgba(255, 255, 255, 0.65) !important;
+        color: #ffffff !important;
+        background: rgba(255, 255, 255, 0.08) !important;
+    }
+
+    .dashboard-refresh-button:hover {
+        color: #4b005c !important;
+        background: #ffffff !important;
+        border-color: #ffffff !important;
+    }
+
+    .dashboard-kpi-compact {
+        display: grid !important;
+        grid-template-columns: repeat(7, minmax(130px, 1fr)) !important;
+        gap: 0.55rem !important;
+        margin-bottom: 0.75rem !important;
+    }
+
+    .dashboard-kpi-compact .kpi-card {
+        min-height: 66px !important;
+        padding: 0.55rem 0.7rem !important;
+        border-radius: 0.65rem !important;
+        border-left-width: 4px !important;
+        box-shadow: 0 0.18rem 0.5rem rgba(0, 0, 0, 0.035) !important;
+    }
+
+    .dashboard-kpi-compact .kpi-card span {
+        font-size: 0.72rem !important;
+        margin-bottom: 0.22rem !important;
+        line-height: 1.1 !important;
+    }
+
+    .dashboard-kpi-compact .kpi-card strong {
+        font-size: 1.28rem !important;
+        line-height: 1 !important;
+    }
+
+    @@media (max-width: 1500px) {
+        .dashboard-kpi-compact {
+            grid-template-columns: repeat(5, minmax(130px, 1fr)) !important;
+        }
+    }
+
+    @@media (max-width: 1100px) {
+        .dashboard-tech-banner {
+            flex-direction: column !important;
+        }
+
+        .dashboard-tech-side {
+            width: 100% !important;
+        }
+
+        .dashboard-kpi-compact {
+            grid-template-columns: repeat(3, minmax(130px, 1fr)) !important;
+        }
+    }
+
+    @@media (max-width: 700px) {
+        .dashboard-kpi-compact {
+            grid-template-columns: repeat(2, minmax(120px, 1fr)) !important;
+        }
+    }
+</style>

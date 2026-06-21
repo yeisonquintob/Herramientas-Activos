@@ -504,6 +504,194 @@ public class SettingsManagementController : ControllerBase
         return Ok(new { Message = "Almacén / taller eliminado correctamente." });
     }
 
+
+    // =========================================================
+    // ZONAS
+    // =========================================================
+
+    [HttpGet("zones")]
+    public async Task<IActionResult> GetZones(CancellationToken cancellationToken)
+    {
+        var zones = await _context.Zones
+            .AsNoTracking()
+            .Where(x => !x.IsDeleted)
+            .OrderBy(x => x.Code)
+            .Select(x => new
+            {
+                x.Id,
+                x.Code,
+                x.Name,
+                x.Description,
+                x.IsActive
+            })
+            .ToListAsync(cancellationToken);
+
+        return Ok(zones);
+    }
+
+    [HttpPost("zones")]
+    public async Task<IActionResult> CreateZone([FromBody] SaveZoneRequest request, CancellationToken cancellationToken)
+    {
+        var code = NormalizeCode(request.Code);
+
+        if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(request.Name))
+        {
+            return BadRequest(new { Message = "Código y nombre son obligatorios." });
+        }
+
+        var exists = await _context.Zones
+            .AnyAsync(x => x.Code == code && !x.IsDeleted, cancellationToken);
+
+        if (exists)
+        {
+            return Conflict(new { Message = $"Ya existe una zona con código {code}." });
+        }
+
+        var zone = new Zone
+        {
+            Code = code,
+            Name = request.Name.Trim(),
+            Description = request.Description?.Trim(),
+            IsActive = request.IsActive ?? true,
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = request.ChangedBy ?? "settings"
+        };
+
+        _context.Zones.Add(zone);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return Ok(new { zone.Id, Message = "Zona creada correctamente." });
+    }
+
+    [HttpPut("zones/{id:guid}")]
+    public async Task<IActionResult> UpdateZone(Guid id, [FromBody] SaveZoneRequest request, CancellationToken cancellationToken)
+    {
+        var zone = await _context.Zones
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
+
+        if (zone is null)
+        {
+            return NotFound(new { Message = "No se encontró la zona." });
+        }
+
+        var code = NormalizeCode(request.Code);
+
+        if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(request.Name))
+        {
+            return BadRequest(new { Message = "Código y nombre son obligatorios." });
+        }
+
+        var duplicated = await _context.Zones
+            .AnyAsync(x => x.Id != id && x.Code == code && !x.IsDeleted, cancellationToken);
+
+        if (duplicated)
+        {
+            return Conflict(new { Message = $"Ya existe otra zona con código {code}." });
+        }
+
+        zone.Code = code;
+        zone.Name = request.Name.Trim();
+        zone.Description = request.Description?.Trim();
+        zone.IsActive = request.IsActive ?? zone.IsActive;
+        zone.UpdatedAt = DateTime.UtcNow;
+        zone.UpdatedBy = request.ChangedBy ?? "settings";
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return Ok(new { Message = "Zona actualizada correctamente." });
+    }
+
+    [HttpDelete("zones/{id:guid}")]
+    public async Task<IActionResult> DeleteZone(Guid id, [FromQuery] string? changedBy, CancellationToken cancellationToken)
+    {
+        var zone = await _context.Zones
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
+
+        if (zone is null)
+        {
+            return NotFound(new { Message = "No se encontró la zona." });
+        }
+
+        var hasBranches = await _context.Branches
+            .AnyAsync(x => x.ZoneId == id && !x.IsDeleted, cancellationToken);
+
+        if (hasBranches)
+        {
+            return BadRequest(new { Message = "No se puede eliminar la zona porque tiene sedes asociadas." });
+        }
+
+        zone.IsDeleted = true;
+        zone.IsActive = false;
+        zone.UpdatedAt = DateTime.UtcNow;
+        zone.UpdatedBy = changedBy ?? "settings";
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return Ok(new { Message = "Zona eliminada correctamente." });
+    }
+
+    // =========================================================
+    // CONSULTAS DE SEDES Y ALMACENES
+    // =========================================================
+
+    [HttpGet("branches")]
+    public async Task<IActionResult> GetBranches(CancellationToken cancellationToken)
+    {
+        var branches = await _context.Branches
+            .AsNoTracking()
+            .Include(x => x.Zone)
+            .Where(x => !x.IsDeleted)
+            .OrderBy(x => x.Code)
+            .Select(x => new
+            {
+                x.Id,
+                x.Code,
+                x.Name,
+                x.City,
+                x.Address,
+                x.ZoneId,
+                Zone = x.Zone == null ? null : new
+                {
+                    x.Zone.Id,
+                    x.Zone.Code,
+                    x.Zone.Name
+                },
+                x.IsPilot,
+                x.IsActive
+            })
+            .ToListAsync(cancellationToken);
+
+        return Ok(branches);
+    }
+
+    [HttpGet("warehouses")]
+    public async Task<IActionResult> GetWarehouses(CancellationToken cancellationToken)
+    {
+        var warehouses = await _context.ToolLocations
+            .AsNoTracking()
+            .Include(x => x.Branch)
+            .Where(x => !x.IsDeleted)
+            .OrderBy(x => x.Branch == null ? "" : x.Branch.Code)
+            .ThenBy(x => x.Code)
+            .Select(x => new
+            {
+                x.Id,
+                x.Code,
+                x.Name,
+                x.Description,
+                x.BranchId,
+                Branch = x.Branch == null ? null : new
+                {
+                    x.Branch.Id,
+                    x.Branch.Code,
+                    x.Branch.Name
+                },
+                x.IsActive
+            })
+            .ToListAsync(cancellationToken);
+
+        return Ok(warehouses);
+    }
     private static string NormalizeCode(string? code)
     {
         return (code ?? string.Empty).Trim().ToUpperInvariant();
@@ -515,6 +703,15 @@ public class SettingsManagementController : ControllerBase
     }
 }
 
+
+public sealed class SaveZoneRequest
+{
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public bool? IsActive { get; set; }
+    public string? ChangedBy { get; set; }
+}
 public sealed class SaveRoleRequest
 {
     public string Code { get; set; } = string.Empty;
@@ -560,3 +757,4 @@ public sealed class SaveWarehouseRequest
     public bool? IsActive { get; set; }
     public string? ChangedBy { get; set; }
 }
+
