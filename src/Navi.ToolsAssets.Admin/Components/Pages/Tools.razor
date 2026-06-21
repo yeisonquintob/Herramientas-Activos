@@ -1,0 +1,295 @@
+@page "/tools"
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Inventario maestro - NAVI Herramientas</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Inventario maestro</h1>
+        <p>Consulta general de herramientas y activos registrados en NAVI.</p>
+    </div>
+
+    <button class="btn btn-primary" @onclick="LoadToolsAsync" disabled="@isLoading">
+        @(isLoading ? "Actualizando..." : "Actualizar")
+    </button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">
+        <strong>Error:</strong> @errorMessage
+    </div>
+}
+else if (isLoading && tools.Count == 0)
+{
+    <div class="alert alert-info">
+        Cargando inventario desde la API...
+    </div>
+}
+else
+{
+    <div class="inventory-summary">
+        <div class="inventory-summary-card">
+            <span>Total</span>
+            <strong>@tools.Count</strong>
+        </div>
+
+        <div class="inventory-summary-card success">
+            <span>Disponibles</span>
+            <strong>@tools.Count(x => x.OperationalStatus == "Available")</strong>
+        </div>
+
+        <div class="inventory-summary-card warning">
+            <span>Pendientes validación</span>
+            <strong>@tools.Count(x => x.OperationalStatus == "PendingValidation")</strong>
+        </div>
+
+        <div class="inventory-summary-card danger">
+            <span>Bloqueadas</span>
+            <strong>@tools.Count(IsBlocked)</strong>
+        </div>
+    </div>
+
+    <section class="inventory-panel">
+        <div class="inventory-toolbar">
+            <input class="form-control"
+                   placeholder="Buscar por código, nombre, serial, sede, tipo o categoría..."
+                   @bind="searchText"
+                   @bind:event="oninput" />
+
+            <select class="form-select" @bind="selectedStatus">
+                <option value="">Todos los estados</option>
+                @foreach (var status in tools.Select(x => x.OperationalStatus).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x))
+                {
+                    <option value="@status">@GetStatusLabel(status)</option>
+                }
+            </select>
+
+            <select class="form-select" @bind="selectedBranch">
+                <option value="">Todas las sedes</option>
+                @foreach (var branch in tools.Select(x => x.BranchCode).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x))
+                {
+                    <option value="@branch">@branch</option>
+                }
+            </select>
+        </div>
+
+        <div class="inventory-count">
+            Mostrando <strong>@FilteredTools.Count()</strong> de <strong>@tools.Count</strong> herramientas.
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle inventory-table">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Herramienta</th>
+                        <th>Sede</th>
+                        <th>Tipo</th>
+                        <th>Categoría</th>
+                        <th>Serial</th>
+                        <th>Estado</th>
+                        <th>Clase</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var tool in FilteredTools)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@tool.InternalCode</strong>
+                            </td>
+                            <td>
+                                <strong>@tool.Name</strong>
+                                @if (!string.IsNullOrWhiteSpace(tool.Description))
+                                {
+                                    <br />
+                                    <small class="text-muted">@tool.Description</small>
+                                }
+                            </td>
+                            <td>
+                                <span>@tool.BranchCode</span>
+                                @if (!string.IsNullOrWhiteSpace(tool.BranchName))
+                                {
+                                    <br />
+                                    <small class="text-muted">@tool.BranchName</small>
+                                }
+                            </td>
+                            <td>@ShowValue(tool.ToolTypeName)</td>
+                            <td>@ShowValue(tool.ToolCategoryName)</td>
+                            <td>@ShowValue(tool.SerialNumber)</td>
+                            <td>
+                                <span class="@GetStatusBadgeClass(tool.OperationalStatus)">
+                                    @GetStatusLabel(tool.OperationalStatus)
+                                </span>
+                            </td>
+                            <td>
+                                @if (tool.IsSpecialized)
+                                {
+                                    <span class="badge bg-primary">Especializada</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">No especializada</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+}
+
+@code {
+    private bool isLoading;
+    private string? errorMessage;
+    private string searchText = string.Empty;
+    private string selectedStatus = string.Empty;
+    private string selectedBranch = string.Empty;
+
+    private List<ToolListItem> tools = new();
+
+    private IEnumerable<ToolListItem> FilteredTools =>
+        tools
+            .Where(MatchesSearch)
+            .Where(x => string.IsNullOrWhiteSpace(selectedStatus) || x.OperationalStatus == selectedStatus)
+            .Where(x => string.IsNullOrWhiteSpace(selectedBranch) || x.BranchCode == selectedBranch)
+            .OrderBy(x => x.BranchCode)
+            .ThenBy(x => x.InternalCode);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadToolsAsync();
+    }
+
+    private async Task LoadToolsAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            tools = await client.GetFromJsonAsync<List<ToolListItem>>("api/tools") ?? new();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo cargar el inventario. Valida que la API esté activa en http://localhost:5218. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private bool MatchesSearch(ToolListItem tool)
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            return true;
+        }
+
+        var value = searchText.Trim();
+
+        return Contains(tool.InternalCode, value)
+            || Contains(tool.Name, value)
+            || Contains(tool.Description, value)
+            || Contains(tool.SerialNumber, value)
+            || Contains(tool.FixedAssetCode, value)
+            || Contains(tool.FenixCode, value)
+            || Contains(tool.BranchCode, value)
+            || Contains(tool.BranchName, value)
+            || Contains(tool.ToolTypeName, value)
+            || Contains(tool.ToolCategoryName, value)
+            || Contains(tool.OperationalStatus, value);
+    }
+
+    private static bool Contains(string? source, string value)
+    {
+        return !string.IsNullOrWhiteSpace(source)
+            && source.Contains(value, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsBlocked(ToolListItem tool)
+    {
+        return tool.OperationalStatus is "Damaged"
+            or "NotSuitable"
+            or "InMaintenance"
+            or "PendingDisposal"
+            or "Disposed"
+            or "NotLocated"
+            or "Inconsistent";
+    }
+
+    private static string ShowValue(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "-" : value;
+    }
+
+    private static string GetStatusLabel(string? status)
+    {
+        return status switch
+        {
+            "Available" => "Disponible",
+            "Assigned" => "Asignada",
+            "Loaned" => "Prestada",
+            "InMaintenance" => "En mantenimiento",
+            "Damaged" => "Dañada",
+            "NotSuitable" => "No apta",
+            "PendingValidation" => "Pendiente validación",
+            "Inconsistent" => "Inconsistente",
+            "NotLocated" => "No localizada",
+            "PendingDisposal" => "Pendiente de baja",
+            "Disposed" => "Dada de baja",
+            _ => string.IsNullOrWhiteSpace(status) ? "Sin estado" : status
+        };
+    }
+
+    private static string GetStatusBadgeClass(string? status)
+    {
+        return status switch
+        {
+            "Available" => "badge bg-success",
+            "PendingValidation" => "badge bg-warning text-dark",
+            "Loaned" => "badge bg-info text-dark",
+            "InMaintenance" => "badge bg-primary",
+            "Damaged" => "badge bg-danger",
+            "NotSuitable" => "badge bg-danger",
+            "NotLocated" => "badge bg-dark",
+            "Inconsistent" => "badge bg-danger",
+            "Disposed" => "badge bg-secondary",
+            _ => "badge bg-secondary"
+        };
+    }
+
+    private sealed class ToolListItem
+    {
+        public Guid Id { get; set; }
+        public string InternalCode { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string? Brand { get; set; }
+        public string? Model { get; set; }
+        public string? SerialNumber { get; set; }
+        public string? FixedAssetCode { get; set; }
+        public string? FenixCode { get; set; }
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string? LocationCode { get; set; }
+        public string? LocationName { get; set; }
+        public string? ResponsiblePersonName { get; set; }
+        public string? ToolTypeCode { get; set; }
+        public string? ToolTypeName { get; set; }
+        public string? ToolCategoryCode { get; set; }
+        public string? ToolCategoryName { get; set; }
+        public string OperationalStatus { get; set; } = string.Empty;
+        public string PhysicalStatus { get; set; } = string.Empty;
+        public string CustodyStatus { get; set; } = string.Empty;
+        public string ReconciliationStatus { get; set; } = string.Empty;
+        public string SyncStatus { get; set; } = string.Empty;
+        public bool IsSpecialized { get; set; }
+    }
+}
