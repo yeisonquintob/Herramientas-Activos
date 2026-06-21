@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Navi.ToolsAssets.Infrastructure.Persistence.Context;
 
@@ -11,9 +12,11 @@ using Navi.ToolsAssets.Infrastructure.Persistence.Context;
 namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(NaviToolsAssetsDbContext))]
-    partial class NaviToolsAssetsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260621004539_AddTechnicalLifeRecordDetails")]
+    partial class AddTechnicalLifeRecordDetails
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -335,12 +338,10 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Observation")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("Quantity")
                         .HasColumnType("int");
@@ -361,7 +362,7 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ToolAssetId");
 
-                    b.ToTable("ToolAccessories", "Inventory");
+                    b.ToTable("ToolAccessories");
                 });
 
             modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.Inventory.ToolAsset", b =>
@@ -423,9 +424,6 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<bool>("HasWarranty")
-                        .HasColumnType("bit");
-
                     b.Property<string>("InternalCode")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -439,20 +437,11 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
-                    b.Property<DateTime?>("LastMaintenanceDate")
-                        .HasColumnType("datetime2");
-
                     b.Property<DateTime?>("LastSyncAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("LoadCapacity")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<Guid?>("LocationId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<int?>("MaintenancePeriodMonths")
-                        .HasColumnType("int");
 
                     b.Property<string>("Model")
                         .HasMaxLength(150)
@@ -463,9 +452,6 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
                         .HasMaxLength(250)
                         .HasColumnType("nvarchar(250)");
 
-                    b.Property<DateTime?>("NextMaintenanceDate")
-                        .HasColumnType("datetime2");
-
                     b.Property<string>("OperationalStatus")
                         .IsRequired()
                         .HasMaxLength(80)
@@ -475,9 +461,6 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(80)
                         .HasColumnType("nvarchar(80)");
-
-                    b.Property<string>("Provider")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("Quantity")
                         .HasColumnType("decimal(18,2)");
@@ -526,20 +509,8 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
-                    b.Property<int?>("UsefulLifeDays")
-                        .HasColumnType("int");
-
                     b.Property<int?>("UsefulLifeMonths")
                         .HasColumnType("int");
-
-                    b.Property<DateTime?>("UsefulLifeStartDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Voltage")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("WarrantyType")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid>("ZoneId")
                         .HasColumnType("uniqueidentifier");
@@ -875,26 +846,11 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
-                    b.Property<Guid?>("EvidenceDocumentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ExecutionNotes")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<DateTime?>("FinishedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("InvoiceNumber")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
-
-                    b.Property<bool?>("IsToolOperational")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("MaintenanceActivities")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("MaintenanceNumber")
                         .IsRequired()
@@ -904,12 +860,6 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
                     b.Property<string>("Provider")
                         .HasMaxLength(250)
                         .HasColumnType("nvarchar(250)");
-
-                    b.Property<string>("ResponsibleName")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ResponsiblePosition")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Result")
                         .HasMaxLength(2000)
@@ -1355,8 +1305,7 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Description")
                         .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
@@ -1366,8 +1315,7 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("PracticeName")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("SortOrder")
                         .HasColumnType("int");
@@ -1385,7 +1333,7 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ToolAssetId");
 
-                    b.ToTable("ToolSafePractices", "Safety");
+                    b.ToTable("ToolSafePractices");
                 });
 
             modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.Sync.FenixReconciliationRecord", b =>
@@ -1494,7 +1442,7 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.Inventory.ToolAccessory", b =>
                 {
                     b.HasOne("Navi.ToolsAssets.Domain.Entities.Inventory.ToolAsset", "ToolAsset")
-                        .WithMany("Accessories")
+                        .WithMany()
                         .HasForeignKey("ToolAssetId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1663,7 +1611,7 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.Safety.ToolSafePractice", b =>
                 {
                     b.HasOne("Navi.ToolsAssets.Domain.Entities.Inventory.ToolAsset", "ToolAsset")
-                        .WithMany("SafePractices")
+                        .WithMany()
                         .HasForeignKey("ToolAssetId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1689,8 +1637,6 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.Inventory.ToolAsset", b =>
                 {
-                    b.Navigation("Accessories");
-
                     b.Navigation("DamageReports");
 
                     b.Navigation("Documents");
@@ -1704,8 +1650,6 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
                     b.Navigation("PhysicalCountItems");
 
                     b.Navigation("ReconciliationRecords");
-
-                    b.Navigation("SafePractices");
                 });
 
             modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.Inventory.ToolCategory", b =>

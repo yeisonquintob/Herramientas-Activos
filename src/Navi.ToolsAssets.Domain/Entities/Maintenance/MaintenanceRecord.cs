@@ -1,4 +1,4 @@
-﻿using Navi.ToolsAssets.Domain.Common.Base;
+using Navi.ToolsAssets.Domain.Common.Base;
 using Navi.ToolsAssets.Domain.Entities.Inventory;
 using Navi.ToolsAssets.Domain.Enums;
 
@@ -27,6 +27,20 @@ public class MaintenanceRecord : BaseEntity
     public string? Technician { get; set; }
 
     public string? Description { get; set; }
+
+    public string? MaintenanceActivities { get; set; }
+
+    public string? ExecutionNotes { get; set; }
+
+    public string? InvoiceNumber { get; set; }
+
+    public string? ResponsibleName { get; set; }
+
+    public string? ResponsiblePosition { get; set; }
+
+    public bool? IsToolOperational { get; set; }
+
+    public Guid? EvidenceDocumentId { get; set; }
 
     public decimal? Cost { get; set; }
 

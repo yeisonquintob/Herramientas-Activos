@@ -1,4 +1,4 @@
-﻿using Navi.ToolsAssets.Domain.Common.Base;
+using Navi.ToolsAssets.Domain.Common.Base;
 using Navi.ToolsAssets.Domain.Entities.Damages;
 using Navi.ToolsAssets.Domain.Entities.Documents;
 using Navi.ToolsAssets.Domain.Entities.LifeCycles;
@@ -6,6 +6,7 @@ using Navi.ToolsAssets.Domain.Entities.Loans;
 using Navi.ToolsAssets.Domain.Entities.Maintenance;
 using Navi.ToolsAssets.Domain.Entities.Organization;
 using Navi.ToolsAssets.Domain.Entities.PhysicalCounts;
+using Navi.ToolsAssets.Domain.Entities.Safety;
 using Navi.ToolsAssets.Domain.Entities.Sync;
 using Navi.ToolsAssets.Domain.Enums;
 
@@ -30,6 +31,26 @@ public class ToolAsset : BaseEntity
     public string? FenixCode { get; set; }
 
     public DateTime? AcquisitionDate { get; set; }
+
+    public string? Voltage { get; set; }
+
+    public string? LoadCapacity { get; set; }
+
+    public string? Provider { get; set; }
+
+    public bool HasWarranty { get; set; }
+
+    public string? WarrantyType { get; set; }
+
+    public DateTime? UsefulLifeStartDate { get; set; }
+
+    public int? UsefulLifeDays { get; set; }
+
+    public DateTime? LastMaintenanceDate { get; set; }
+
+    public DateTime? NextMaintenanceDate { get; set; }
+
+    public int? MaintenancePeriodMonths { get; set; }
 
     public int? UsefulLifeMonths { get; set; }
 
@@ -91,6 +112,10 @@ public class ToolAsset : BaseEntity
 
     public DateTime? LastSyncAt { get; set; }
 
+    public ICollection<ToolAccessory> Accessories { get; set; } = new List<ToolAccessory>();
+
+    public ICollection<ToolSafePractice> SafePractices { get; set; } = new List<ToolSafePractice>();
+
     public ICollection<ToolDocument> Documents { get; set; } = new List<ToolDocument>();
 
     public ICollection<ToolLifeCycleEvent> LifeCycleEvents { get; set; } = new List<ToolLifeCycleEvent>();
@@ -105,4 +130,5 @@ public class ToolAsset : BaseEntity
 
     public ICollection<FenixReconciliationRecord> ReconciliationRecords { get; set; } = new List<FenixReconciliationRecord>();
 }
+
 

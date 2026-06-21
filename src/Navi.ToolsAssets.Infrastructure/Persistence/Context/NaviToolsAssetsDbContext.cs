@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Navi.ToolsAssets.Domain.Entities.Damages;
 using Navi.ToolsAssets.Domain.Entities.Documents;
 using Navi.ToolsAssets.Domain.Entities.Inventory;
@@ -8,6 +8,7 @@ using Navi.ToolsAssets.Domain.Entities.Loans;
 using Navi.ToolsAssets.Domain.Entities.Maintenance;
 using Navi.ToolsAssets.Domain.Entities.Organization;
 using Navi.ToolsAssets.Domain.Entities.PhysicalCounts;
+using Navi.ToolsAssets.Domain.Entities.Safety;
 using Navi.ToolsAssets.Domain.Entities.Sync;
 
 namespace Navi.ToolsAssets.Infrastructure.Persistence.Context;
@@ -27,6 +28,10 @@ public class NaviToolsAssetsDbContext : DbContext
 
     public DbSet<ToolType> ToolTypes => Set<ToolType>();
     public DbSet<ToolCategory> ToolCategories => Set<ToolCategory>();
+    public DbSet<ToolAccessory> ToolAccessories => Set<ToolAccessory>();
+
+    public DbSet<ToolSafePractice> ToolSafePractices => Set<ToolSafePractice>();
+
     public DbSet<ToolAsset> ToolAssets => Set<ToolAsset>();
 
     public DbSet<ToolLifeCycleEvent> ToolLifeCycleEvents => Set<ToolLifeCycleEvent>();
@@ -242,6 +247,48 @@ public class NaviToolsAssetsDbContext : DbContext
             entity.HasQueryFilter(x => !x.IsDeleted);
         });
 
+        modelBuilder.Entity<ToolAccessory>(entity =>
+        {
+            entity.ToTable("ToolAccessories", "Inventory");
+
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Name)
+                .HasMaxLength(200)
+                .IsRequired();
+
+            entity.Property(x => x.Observation)
+                .HasMaxLength(500);
+
+            entity.HasQueryFilter(x => !x.IsDeleted && x.ToolAsset != null && !x.ToolAsset.IsDeleted);
+
+            entity.HasOne(x => x.ToolAsset)
+                .WithMany(x => x.Accessories)
+                .HasForeignKey(x => x.ToolAssetId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ToolSafePractice>(entity =>
+        {
+            entity.ToTable("ToolSafePractices", "Safety");
+
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.PracticeName)
+                .HasMaxLength(200)
+                .IsRequired();
+
+            entity.Property(x => x.Description)
+                .HasMaxLength(1000)
+                .IsRequired();
+
+            entity.HasQueryFilter(x => !x.IsDeleted && x.ToolAsset != null && !x.ToolAsset.IsDeleted);
+
+            entity.HasOne(x => x.ToolAsset)
+                .WithMany(x => x.SafePractices)
+                .HasForeignKey(x => x.ToolAssetId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
         modelBuilder.Entity<ToolAsset>(entity =>
         {
             entity.ToTable("ToolAssets", "Inventory");
@@ -509,5 +556,7 @@ public class NaviToolsAssetsDbContext : DbContext
         });
     }
 }
+
+
 
 
