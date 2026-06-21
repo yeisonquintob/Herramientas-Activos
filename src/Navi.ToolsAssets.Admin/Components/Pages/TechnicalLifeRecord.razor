@@ -1,0 +1,656 @@
+@page "/tools/{ToolId:guid}/technical-life-record"
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager NavigationManager
+@inject IConfiguration Configuration
+
+<PageTitle>Hoja de vida técnica - NAVI Herramientas</PageTitle>
+
+<div class="page-header">
+    <div>
+        <button class="btn btn-outline-secondary btn-sm mb-2" @onclick="GoBack">
+            ? Volver al inventario
+        </button>
+
+        <h1>Hoja de vida técnica</h1>
+        <p>Formato técnico de equipo, accesorios, mantenimiento, evidencias y prácticas seguras.</p>
+    </div>
+
+    <button class="btn btn-primary" @onclick="LoadAsync" disabled="@isLoading">
+        @(isLoading ? "Actualizando..." : "Actualizar")
+    </button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">
+        <strong>Error:</strong> @errorMessage
+    </div>
+}
+else if (isLoading && record is null)
+{
+    <div class="alert alert-info">
+        Cargando hoja de vida técnica...
+    </div>
+}
+else if (record is not null)
+{
+    <section class="life-record-cover">
+        <div>
+            <span class="life-record-label">Hoja de vida técnica</span>
+            <h2>@record.Summary.Name</h2>
+            <p>@record.Summary.InternalCode</p>
+        </div>
+
+        <div class="life-record-cover-status">
+            <span class="@GetStatusBadgeClass(record.Summary.OperationalStatus)">
+                @GetStatusLabel(record.Summary.OperationalStatus)
+            </span>
+
+            <span class="badge bg-light text-dark">
+                @(record.Summary.IsSpecialized ? "Especializada" : "No especializada")
+            </span>
+        </div>
+    </section>
+
+    <div class="life-record-grid">
+        <section class="life-record-section">
+            <div class="section-title">
+                <span>1</span>
+                <h2>Información del equipo</h2>
+            </div>
+
+            <div class="excel-grid two-columns">
+                <div><label>Código interno</label><strong>@Show(record.EquipmentInformation.InternalCode)</strong></div>
+                <div><label>Nombre</label><strong>@Show(record.EquipmentInformation.Name)</strong></div>
+                <div><label>Marca</label><strong>@Show(record.EquipmentInformation.Brand)</strong></div>
+                <div><label>Modelo</label><strong>@Show(record.EquipmentInformation.Model)</strong></div>
+                <div><label>Serial</label><strong>@Show(record.EquipmentInformation.SerialNumber)</strong></div>
+                <div><label>Activo fijo</label><strong>@Show(record.EquipmentInformation.FixedAssetCode)</strong></div>
+                <div><label>Código Fenix365</label><strong>@Show(record.EquipmentInformation.FenixCode)</strong></div>
+                <div><label>Fecha adquisición</label><strong>@DateText(record.EquipmentInformation.AcquisitionDate)</strong></div>
+                <div><label>Zona</label><strong>@Show(record.EquipmentInformation.ZoneCode) - @Show(record.EquipmentInformation.ZoneName)</strong></div>
+                <div><label>Sede</label><strong>@Show(record.EquipmentInformation.BranchCode) - @Show(record.EquipmentInformation.BranchName)</strong></div>
+                <div><label>Ubicación</label><strong>@Show(record.EquipmentInformation.LocationCode) - @Show(record.EquipmentInformation.LocationName)</strong></div>
+                <div><label>Responsable</label><strong>@Show(record.EquipmentInformation.ResponsibleName)</strong></div>
+                <div><label>Tipo</label><strong>@Show(record.EquipmentInformation.ToolTypeName)</strong></div>
+                <div><label>Categoría</label><strong>@Show(record.EquipmentInformation.ToolCategoryName)</strong></div>
+                <div><label>Unidad</label><strong>@Show(record.EquipmentInformation.UnitOfMeasure)</strong></div>
+                <div><label>Cantidad</label><strong>@record.EquipmentInformation.Quantity</strong></div>
+            </div>
+        </section>
+
+        <section class="life-record-section">
+            <div class="section-title">
+                <span>2</span>
+                <h2>Especificaciones técnicas</h2>
+            </div>
+
+            <div class="excel-grid two-columns">
+                <div><label>Voltaje</label><strong>@Show(record.TechnicalSpecifications.Voltage)</strong></div>
+                <div><label>Capacidad de carga</label><strong>@Show(record.TechnicalSpecifications.LoadCapacity)</strong></div>
+                <div><label>Proveedor</label><strong>@Show(record.TechnicalSpecifications.Provider)</strong></div>
+                <div><label>Requiere mantenimiento</label><strong>@BoolText(record.TechnicalSpecifications.RequiresMaintenance)</strong></div>
+                <div><label>Requiere preoperacional</label><strong>@BoolText(record.TechnicalSpecifications.RequiresPreOperationalCheck)</strong></div>
+                <div><label>Requiere certificación</label><strong>@BoolText(record.TechnicalSpecifications.RequiresCertification)</strong></div>
+                <div><label>Vence certificación</label><strong>@DateText(record.TechnicalSpecifications.CertificationExpirationDate)</strong></div>
+                <div><label>Garantía</label><strong>@BoolText(record.Warranty.HasWarranty)</strong></div>
+                <div><label>Tipo garantía</label><strong>@Show(record.Warranty.WarrantyType)</strong></div>
+            </div>
+        </section>
+    </div>
+
+    <div class="life-record-grid">
+        <section class="life-record-section">
+            <div class="section-title">
+                <span>3</span>
+                <h2>Vida útil</h2>
+            </div>
+
+            <div class="excel-grid two-columns">
+                <div><label>Fecha inicial vida útil</label><strong>@DateText(record.UsefulLife.StartDate)</strong></div>
+                <div><label>Fecha final vida útil</label><strong>@DateText(record.UsefulLife.EndDate)</strong></div>
+                <div><label>Vida útil meses</label><strong>@NumberText(record.UsefulLife.UsefulLifeMonths)</strong></div>
+                <div><label>Vida útil días</label><strong>@NumberText(record.UsefulLife.UsefulLifeDays)</strong></div>
+                <div><label>Días transcurridos</label><strong>@NumberText(record.UsefulLife.ElapsedDays)</strong></div>
+                <div><label>Días restantes</label><strong>@NumberText(record.UsefulLife.RemainingDays)</strong></div>
+            </div>
+
+            <div class="life-progress mt-3">
+                <div class="life-progress-header">
+                    <span>Uso de vida útil</span>
+                    <strong>@NumberText(record.UsefulLife.UsedPercentage)%</strong>
+                </div>
+                <div class="bar-track">
+                    <div class="bar-fill" style="width:@GetPercent(record.UsefulLife.UsedPercentage)%"></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="life-record-section">
+            <div class="section-title">
+                <span>4</span>
+                <h2>Plan de mantenimiento</h2>
+            </div>
+
+            <div class="excel-grid two-columns">
+                <div><label>Último mantenimiento</label><strong>@DateText(record.MaintenancePlan.LastMaintenanceDate)</strong></div>
+                <div><label>Próximo mantenimiento</label><strong>@DateText(record.MaintenancePlan.NextMaintenanceDate)</strong></div>
+                <div><label>Periodicidad meses</label><strong>@NumberText(record.MaintenancePlan.MaintenancePeriodMonths)</strong></div>
+                <div><label>Total mantenimientos</label><strong>@record.MaintenancePlan.TotalMaintenanceRecords</strong></div>
+                <div><label>Completados</label><strong>@record.MaintenancePlan.CompletedMaintenanceRecords</strong></div>
+                <div><label>Pendientes</label><strong>@record.MaintenancePlan.PendingMaintenanceRecords</strong></div>
+            </div>
+        </section>
+    </div>
+
+    <section class="life-record-section">
+        <div class="section-title">
+            <span>5</span>
+            <h2>Accesorios del equipo</h2>
+        </div>
+
+        @if (record.Accessories.Count == 0)
+        {
+            <p class="text-muted mb-0">No hay accesorios registrados para esta herramienta.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered excel-table">
+                    <thead>
+                        <tr>
+                            <th>Accesorio</th>
+                            <th>Cantidad</th>
+                            <th>Requiere mantenimiento</th>
+                            <th>Equipo de medición</th>
+                            <th>Observación</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in record.Accessories)
+                        {
+                            <tr>
+                                <td>@item.Name</td>
+                                <td>@item.Quantity</td>
+                                <td>@BoolText(item.RequiresMaintenance)</td>
+                                <td>@BoolText(item.IsMeasurementEquipment)</td>
+                                <td>@Show(item.Observation)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    <div class="life-record-grid">
+        <section class="life-record-section">
+            <div class="section-title">
+                <span>6</span>
+                <h2>Registro fotográfico</h2>
+            </div>
+
+            @if (record.Documents.PhotoRecords.Count == 0)
+            {
+                <p class="text-muted mb-0">No hay fotografías registradas.</p>
+            }
+            else
+            {
+                <div class="document-list">
+                    @foreach (var doc in record.Documents.PhotoRecords)
+                    {
+                        <a href="@BuildApiUrl(doc.DownloadUrl)" target="_blank" class="document-card">
+                            <strong>@doc.FileName</strong>
+                            <span>@doc.DocumentType</span>
+                        </a>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="life-record-section">
+            <div class="section-title">
+                <span>7</span>
+                <h2>Ficha técnica y documentos</h2>
+            </div>
+
+            @if (record.Documents.TechnicalDocuments.Count == 0 && record.Documents.AllDocuments.Count == 0)
+            {
+                <p class="text-muted mb-0">No hay documentos técnicos registrados.</p>
+            }
+            else
+            {
+                <div class="document-list">
+                    @foreach (var doc in record.Documents.TechnicalDocuments.Concat(record.Documents.AllDocuments).DistinctBy(x => x.Id))
+                    {
+                        <a href="@BuildApiUrl(doc.DownloadUrl)" target="_blank" class="document-card">
+                            <strong>@doc.FileName</strong>
+                            <span>@doc.DocumentType</span>
+                        </a>
+                    }
+                </div>
+            }
+        </section>
+    </div>
+
+    <section class="life-record-section">
+        <div class="section-title">
+            <span>8</span>
+            <h2>Cronograma de mantenimiento</h2>
+        </div>
+
+        @if (record.MaintenanceSchedule.Count == 0)
+        {
+            <p class="text-muted mb-0">No hay registros de mantenimiento.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered excel-table">
+                    <thead>
+                        <tr>
+                            <th>Número</th>
+                            <th>Tipo</th>
+                            <th>Estado</th>
+                            <th>Programado</th>
+                            <th>Proveedor</th>
+                            <th>Técnico</th>
+                            <th>Actividades</th>
+                            <th>Factura</th>
+                            <th>Responsable</th>
+                            <th>Cargo</th>
+                            <th>Operativa</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in record.MaintenanceSchedule)
+                        {
+                            <tr>
+                                <td>@item.MaintenanceNumber</td>
+                                <td>@item.Type</td>
+                                <td>@item.Status</td>
+                                <td>@DateText(item.ScheduledAt)</td>
+                                <td>@Show(item.Provider)</td>
+                                <td>@Show(item.Technician)</td>
+                                <td>@Show(item.MaintenanceActivities ?? item.Description)</td>
+                                <td>@Show(item.InvoiceNumber)</td>
+                                <td>@Show(item.ResponsibleName)</td>
+                                <td>@Show(item.ResponsiblePosition)</td>
+                                <td>@BoolText(item.IsToolOperational)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    <section class="life-record-section">
+        <div class="section-title">
+            <span>9</span>
+            <h2>Prácticas seguras</h2>
+        </div>
+
+        @if (record.SafePractices.Count == 0)
+        {
+            <p class="text-muted mb-0">No hay prácticas seguras registradas.</p>
+        }
+        else
+        {
+            <div class="safe-practices-grid">
+                @foreach (var item in record.SafePractices)
+                {
+                    <div class="safe-practice-card">
+                        <span>@item.SortOrder</span>
+                        <div>
+                            <strong>@item.PracticeName</strong>
+                            <p>@item.Description</p>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+
+    <section class="life-record-section">
+        <div class="section-title">
+            <span>10</span>
+            <h2>Eventos de hoja de vida</h2>
+        </div>
+
+        @if (record.LifeCycleEvents.Count == 0)
+        {
+            <p class="text-muted mb-0">No hay eventos registrados.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered excel-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Evento</th>
+                            <th>Título</th>
+                            <th>Anterior</th>
+                            <th>Nuevo</th>
+                            <th>Usuario</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in record.LifeCycleEvents)
+                        {
+                            <tr>
+                                <td>@DateTimeText(item.EventDate)</td>
+                                <td>@item.EventType</td>
+                                <td>@item.Title</td>
+                                <td>@Show(item.PreviousValue)</td>
+                                <td>@Show(item.NewValue)</td>
+                                <td>@Show(item.PerformedBy)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+}
+
+@code {
+    [Parameter]
+    public Guid ToolId { get; set; }
+
+    private bool isLoading;
+    private string? errorMessage;
+    private TechnicalLifeRecordModel? record;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            record = await client.GetFromJsonAsync<TechnicalLifeRecordModel>($"api/tools/{ToolId}/technical-life-record");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo cargar la hoja de vida técnica. Valida que la API esté activa en http://localhost:5218. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/tools");
+    }
+
+    private string BuildApiUrl(string? relativeUrl)
+    {
+        if (string.IsNullOrWhiteSpace(relativeUrl))
+        {
+            return "#";
+        }
+
+        if (relativeUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        {
+            return relativeUrl;
+        }
+
+        var baseUrl = Configuration["NaviApi:BaseUrl"] ?? "http://localhost:5218";
+
+        return $"{baseUrl.TrimEnd('/')}/{relativeUrl.TrimStart('/')}";
+    }
+
+    private static string Show(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "-" : value;
+    }
+
+    private static string NumberText(int? value)
+    {
+        return value.HasValue ? value.Value.ToString() : "-";
+    }
+
+    private static string BoolText(bool? value)
+    {
+        return value.HasValue ? BoolText(value.Value) : "-";
+    }
+
+    private static string BoolText(bool value)
+    {
+        return value ? "Sí" : "No";
+    }
+
+    private static string DateText(DateTime? value)
+    {
+        return value.HasValue ? value.Value.ToString("dd/MM/yyyy") : "-";
+    }
+
+    private static string DateTimeText(DateTime? value)
+    {
+        return value.HasValue ? value.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm") : "-";
+    }
+
+    private static int GetPercent(int? value)
+    {
+        return Math.Clamp(value ?? 0, 0, 100);
+    }
+
+    private static string GetStatusLabel(string? status)
+    {
+        return status switch
+        {
+            "Available" => "Disponible",
+            "Assigned" => "Asignada",
+            "Loaned" => "Prestada",
+            "InMaintenance" => "En mantenimiento",
+            "Damaged" => "Dañada",
+            "NotSuitable" => "No apta",
+            "PendingValidation" => "Pendiente validación",
+            "Inconsistent" => "Inconsistente",
+            "NotLocated" => "No localizada",
+            "PendingDisposal" => "Pendiente de baja",
+            "Disposed" => "Dada de baja",
+            _ => string.IsNullOrWhiteSpace(status) ? "Sin estado" : status
+        };
+    }
+
+    private static string GetStatusBadgeClass(string? status)
+    {
+        return status switch
+        {
+            "Available" => "badge bg-success",
+            "PendingValidation" => "badge bg-warning text-dark",
+            "Loaned" => "badge bg-info text-dark",
+            "InMaintenance" => "badge bg-primary",
+            "Damaged" => "badge bg-danger",
+            "NotSuitable" => "badge bg-danger",
+            "NotLocated" => "badge bg-dark",
+            "Inconsistent" => "badge bg-danger",
+            "Disposed" => "badge bg-secondary",
+            _ => "badge bg-secondary"
+        };
+    }
+
+    private sealed class TechnicalLifeRecordModel
+    {
+        public SummaryInfo Summary { get; set; } = new();
+        public EquipmentInfo EquipmentInformation { get; set; } = new();
+        public TechnicalInfo TechnicalSpecifications { get; set; } = new();
+        public WarrantyInfo Warranty { get; set; } = new();
+        public UsefulLifeInfo UsefulLife { get; set; } = new();
+        public MaintenancePlanInfo MaintenancePlan { get; set; } = new();
+        public List<AccessoryInfo> Accessories { get; set; } = new();
+        public List<SafePracticeInfo> SafePractices { get; set; } = new();
+        public DocumentGroupInfo Documents { get; set; } = new();
+        public List<MaintenanceScheduleInfo> MaintenanceSchedule { get; set; } = new();
+        public List<LifeCycleEventInfo> LifeCycleEvents { get; set; } = new();
+    }
+
+    private sealed class SummaryInfo
+    {
+        public Guid Id { get; set; }
+        public string InternalCode { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string OperationalStatus { get; set; } = string.Empty;
+        public string PhysicalStatus { get; set; } = string.Empty;
+        public string CustodyStatus { get; set; } = string.Empty;
+        public string ReconciliationStatus { get; set; } = string.Empty;
+        public string SyncStatus { get; set; } = string.Empty;
+        public bool IsSpecialized { get; set; }
+        public bool RequiresMaintenance { get; set; }
+        public bool RequiresPreOperationalCheck { get; set; }
+        public bool RequiresCertification { get; set; }
+    }
+
+    private sealed class EquipmentInfo
+    {
+        public string? InternalCode { get; set; }
+        public string? Name { get; set; }
+        public string? Description { get; set; }
+        public string? Brand { get; set; }
+        public string? Model { get; set; }
+        public string? SerialNumber { get; set; }
+        public string? FixedAssetCode { get; set; }
+        public string? FenixCode { get; set; }
+        public DateTime? AcquisitionDate { get; set; }
+        public string? UnitOfMeasure { get; set; }
+        public decimal Quantity { get; set; }
+        public string? ZoneCode { get; set; }
+        public string? ZoneName { get; set; }
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string? LocationCode { get; set; }
+        public string? LocationName { get; set; }
+        public string? ResponsibleName { get; set; }
+        public string? ToolTypeCode { get; set; }
+        public string? ToolTypeName { get; set; }
+        public string? ToolCategoryCode { get; set; }
+        public string? ToolCategoryName { get; set; }
+    }
+
+    private sealed class TechnicalInfo
+    {
+        public string? Voltage { get; set; }
+        public string? LoadCapacity { get; set; }
+        public string? Provider { get; set; }
+        public bool RequiresMaintenance { get; set; }
+        public bool RequiresPreOperationalCheck { get; set; }
+        public bool RequiresCertification { get; set; }
+        public DateTime? CertificationExpirationDate { get; set; }
+    }
+
+    private sealed class WarrantyInfo
+    {
+        public bool HasWarranty { get; set; }
+        public string? WarrantyType { get; set; }
+    }
+
+    private sealed class UsefulLifeInfo
+    {
+        public DateTime? StartDate { get; set; }
+        public DateTime? EndDate { get; set; }
+        public int? UsefulLifeMonths { get; set; }
+        public int? UsefulLifeDays { get; set; }
+        public int? ElapsedDays { get; set; }
+        public int? RemainingDays { get; set; }
+        public int? UsedPercentage { get; set; }
+    }
+
+    private sealed class MaintenancePlanInfo
+    {
+        public DateTime? LastMaintenanceDate { get; set; }
+        public DateTime? NextMaintenanceDate { get; set; }
+        public int? MaintenancePeriodMonths { get; set; }
+        public bool RequiresMaintenance { get; set; }
+        public int TotalMaintenanceRecords { get; set; }
+        public int CompletedMaintenanceRecords { get; set; }
+        public int PendingMaintenanceRecords { get; set; }
+    }
+
+    private sealed class AccessoryInfo
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public int Quantity { get; set; }
+        public bool RequiresMaintenance { get; set; }
+        public bool IsMeasurementEquipment { get; set; }
+        public string? Observation { get; set; }
+    }
+
+    private sealed class SafePracticeInfo
+    {
+        public Guid Id { get; set; }
+        public string PracticeName { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public int SortOrder { get; set; }
+    }
+
+    private sealed class DocumentGroupInfo
+    {
+        public List<DocumentInfo> PhotoRecords { get; set; } = new();
+        public List<DocumentInfo> TechnicalDocuments { get; set; } = new();
+        public List<DocumentInfo> MaintenanceEvidences { get; set; } = new();
+        public List<DocumentInfo> AllDocuments { get; set; } = new();
+    }
+
+    private sealed class DocumentInfo
+    {
+        public Guid Id { get; set; }
+        public string DocumentType { get; set; } = string.Empty;
+        public string FileName { get; set; } = string.Empty;
+        public string? ContentType { get; set; }
+        public long SizeBytes { get; set; }
+        public string? UploadedBy { get; set; }
+        public DateTime UploadedAt { get; set; }
+        public string? Description { get; set; }
+        public string? DownloadUrl { get; set; }
+    }
+
+    private sealed class MaintenanceScheduleInfo
+    {
+        public Guid Id { get; set; }
+        public string MaintenanceNumber { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public DateTime? ScheduledAt { get; set; }
+        public DateTime? StartedAt { get; set; }
+        public DateTime? FinishedAt { get; set; }
+        public string? Provider { get; set; }
+        public string? Technician { get; set; }
+        public string? Description { get; set; }
+        public string? MaintenanceActivities { get; set; }
+        public string? ExecutionNotes { get; set; }
+        public string? InvoiceNumber { get; set; }
+        public string? ResponsibleName { get; set; }
+        public string? ResponsiblePosition { get; set; }
+        public bool? IsToolOperational { get; set; }
+        public decimal? Cost { get; set; }
+        public string? Result { get; set; }
+    }
+
+    private sealed class LifeCycleEventInfo
+    {
+        public Guid Id { get; set; }
+        public string EventType { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string? PreviousValue { get; set; }
+        public string? NewValue { get; set; }
+        public string? PerformedBy { get; set; }
+        public DateTime? EventDate { get; set; }
+    }
+}
+
