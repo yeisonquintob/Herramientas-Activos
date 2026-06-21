@@ -1,0 +1,343 @@
+﻿@page "/tools/{ToolId:guid}/life-cycle-events"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Trazabilidad de hoja de vida</PageTitle>
+
+<div class="page-header">
+    <div>
+        <a class="btn btn-sm btn-outline-secondary" href="@($"/tools/{ToolId}/technical-life-record")">
+            Volver a hoja de vida
+        </a>
+
+        <h1>Trazabilidad de hoja de vida</h1>
+        <p>Consulta los eventos históricos registrados para la herramienta.</p>
+    </div>
+
+    <button class="btn btn-primary" @onclick="LoadAsync">
+        Recargar
+    </button>
+</div>
+
+@if (isLoading)
+{
+    <p>Cargando trazabilidad...</p>
+}
+else if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+else if (record is null)
+{
+    <div class="alert alert-warning">No se encontró información de la herramienta.</div>
+}
+else
+{
+    <section class="life-record-cover">
+        <div>
+            <span class="cover-tag">Trazabilidad</span>
+            <h2>@record.Summary.Name</h2>
+            <p>@record.Summary.InternalCode</p>
+        </div>
+
+        <div class="life-record-cover-status">
+            <span>@record.LifeCycleEvents.Count evento(s)</span>
+        </div>
+    </section>
+
+        <section class="traceability-toolbar traceability-toolbar-v2">
+        <div>
+            <label>Buscar evento</label>
+            <input class="form-control"
+                   value="@searchText"
+                   @oninput="OnSearchTextChanged"
+                   placeholder="Ej: documento, mantenimiento, evidencia, accesorio..." />
+        </div>
+
+        <div>
+            <label>Tipo de evento</label>
+            <select class="form-select"
+                    value="@selectedEventType"
+                    @onchange="OnEventTypeChanged">
+                <option value="">Todos</option>
+                @foreach (var type in EventTypes)
+                {
+                    <option value="@type">@TranslateEventType(type)</option>
+                }
+            </select>
+        </div>
+
+        <div class="traceability-counter">
+            <span>Mostrando</span>
+            <strong>@filteredEvents.Count</strong>
+        </div>
+
+        <div>
+            <label>&nbsp;</label>
+            <button class="btn btn-outline-secondary w-100 traceability-clear-button" @onclick="ClearFilters">
+                Limpiar filtros
+            </button>
+        </div>
+    </section>
+
+    
+
+    @if (filteredEvents.Count == 0)
+    {
+        <div class="alert alert-info">
+            No hay eventos que coincidan con los filtros seleccionados.
+        </div>
+    }
+    else
+    {
+        <section class="traceability-list">
+            @foreach (var item in filteredEvents)
+            {
+                <article class="traceability-card" @key="item.Id">
+                    <div class="traceability-date">
+                        <strong>@FormatDate(item.EventDate)</strong>
+                        <span>@FormatTime(item.EventDate)</span>
+                    </div>
+
+                    <div class="traceability-content">
+                        <div class="traceability-header">
+                            <span class="traceability-type">@TranslateEventType(item.EventType)</span>
+                            <strong>@Show(item.Title)</strong>
+                        </div>
+
+                        <p>@Show(item.Description)</p>
+
+                        <div class="traceability-values">
+                            <div>
+                                <span>Antes</span>
+                                <strong>@Show(item.PreviousValue)</strong>
+                            </div>
+
+                            <div>
+                                <span>Después</span>
+                                <strong>@Show(item.NewValue)</strong>
+                            </div>
+
+                            <div>
+                                <span>Registrado por</span>
+                                <strong>@Show(item.PerformedBy)</strong>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            }
+        </section>
+    }
+}
+
+@code {
+    [Parameter]
+    public Guid ToolId { get; set; }
+
+    private TechnicalLifeRecordModel? record;
+    private bool isLoading = true;
+    private string? errorMessage;
+    private string searchText = string.Empty;
+    private string selectedEventType = string.Empty;
+    private List<LifeCycleEventModel> filteredEvents = new();
+
+    private IEnumerable<string> EventTypes =>
+        record?.LifeCycleEvents
+            .Select(x => x.EventType)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => TranslateEventType(x))
+        ?? Enumerable.Empty<string>();
+
+    private IEnumerable<EventTypeOption> EventTypeOptions =>
+        record?.LifeCycleEvents
+            .Where(x => !string.IsNullOrWhiteSpace(x.EventType))
+            .GroupBy(x => x.EventType.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(x => new EventTypeOption
+            {
+                Value = x.Key,
+                Label = TranslateEventType(x.Key),
+                Count = x.Count()
+            })
+            .OrderBy(x => x.Label)
+        ?? Enumerable.Empty<EventTypeOption>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            record = await client.GetFromJsonAsync<TechnicalLifeRecordModel>(
+                $"api/tools/{ToolId}/technical-life-record");
+
+            ApplyFilters();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo cargar la trazabilidad. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OnSearchTextChanged(ChangeEventArgs args)
+    {
+        searchText = args.Value?.ToString() ?? string.Empty;
+        ApplyFilters();
+    }
+
+    private void OnEventTypeChanged(ChangeEventArgs args)
+    {
+        selectedEventType = args.Value?.ToString() ?? string.Empty;
+        ApplyFilters();
+    }
+
+    private void SelectEventType(string value)
+    {
+        selectedEventType = value;
+        ApplyFilters();
+    }
+
+    private void ApplyFilters()
+    {
+        var query = record?.LifeCycleEvents.AsEnumerable()
+            ?? Enumerable.Empty<LifeCycleEventModel>();
+
+        var eventTypeFilter = selectedEventType?.Trim() ?? string.Empty;
+        var textFilter = searchText?.Trim() ?? string.Empty;
+
+        if (!string.IsNullOrWhiteSpace(eventTypeFilter))
+        {
+            query = query.Where(x =>
+                string.Equals(x.EventType?.Trim(), eventTypeFilter, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(textFilter))
+        {
+            query = query.Where(x =>
+                Contains(x.EventType, textFilter) ||
+                Contains(TranslateEventType(x.EventType), textFilter) ||
+                Contains(x.Title, textFilter) ||
+                Contains(x.Description, textFilter) ||
+                Contains(x.PreviousValue, textFilter) ||
+                Contains(x.NewValue, textFilter) ||
+                Contains(x.PerformedBy, textFilter));
+        }
+
+        filteredEvents = query
+            .OrderByDescending(x => x.EventDate)
+            .ToList();
+
+        StateHasChanged();
+    }
+
+    private void ClearFilters()
+    {
+        searchText = string.Empty;
+        selectedEventType = string.Empty;
+        ApplyFilters();
+    }
+
+    private string GetFilterButtonClass(string value)
+    {
+        var isActive = string.Equals(
+            selectedEventType?.Trim() ?? string.Empty,
+            value?.Trim() ?? string.Empty,
+            StringComparison.OrdinalIgnoreCase);
+
+        return isActive
+            ? "traceability-filter-chip active"
+            : "traceability-filter-chip";
+    }
+
+    private static string TranslateEventType(string? value)
+    {
+        return value switch
+        {
+            "DefaultSafePracticesCreated" => "Prácticas seguras creadas",
+            "DocumentDeleted" => "Documento eliminado",
+            "DocumentUploaded" => "Documento cargado",
+            "MaintenanceEvidenceDocumentCleared" => "Evidencia limpiada",
+            "MaintenanceScheduleCreated" => "Mantenimiento creado",
+            "MaintenanceScheduleDeleted" => "Mantenimiento eliminado",
+            "MaintenanceScheduleUpdated" => "Mantenimiento actualizado",
+            "MockTechnicalLifeRecordDataApplied" => "Datos simulados aplicados",
+            "TechnicalDataUpdated" => "Datos técnicos actualizados",
+            "ToolAccessoryCreated" => "Accesorio creado",
+            "ToolAccessoryUpdated" => "Accesorio actualizado",
+            "ToolAccessoryDeleted" => "Accesorio eliminado",
+            "DefaultSafePracticesApplied" => "Prácticas aplicadas",
+            "ToolSafePracticeCreated" => "Práctica segura creada",
+            "ToolSafePracticeUpdated" => "Práctica segura actualizada",
+            "ToolSafePracticeDeleted" => "Práctica segura eliminada",
+            _ => string.IsNullOrWhiteSpace(value) ? "Sin tipo" : value
+        };
+    }
+
+    private static bool Contains(string? value, string filter)
+    {
+        return !string.IsNullOrWhiteSpace(value)
+            && value.Contains(filter, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Show(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "-" : value;
+    }
+
+    private static string FormatDate(DateTime value)
+    {
+        return value.ToString("dd/MM/yyyy");
+    }
+
+    private static string FormatTime(DateTime value)
+    {
+        return value.ToString("HH:mm");
+    }
+
+    private sealed class EventTypeOption
+    {
+        public string Value { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
+    private sealed class TechnicalLifeRecordModel
+    {
+        public SummaryModel Summary { get; set; } = new();
+        public List<LifeCycleEventModel> LifeCycleEvents { get; set; } = new();
+    }
+
+    private sealed class SummaryModel
+    {
+        public string InternalCode { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class LifeCycleEventModel
+    {
+        public Guid Id { get; set; }
+        public string EventType { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string? PreviousValue { get; set; }
+        public string? NewValue { get; set; }
+        public string? PerformedBy { get; set; }
+        public DateTime EventDate { get; set; }
+    }
+}
+
+

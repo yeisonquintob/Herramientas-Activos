@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JsRuntime
 @inject IConfiguration Configuration
 
 <PageTitle>Hoja de vida técnica - NAVI Herramientas</PageTitle>
@@ -58,6 +59,97 @@ else if (record is not null)
             </span>
         </div>
     </section>
+<section class="life-record-quick-actions">
+    <div class="quick-action-card">
+        <span>Datos técnicos</span>
+        <strong>Información base</strong>
+        <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{ToolId}/technical-life-record/edit")">
+            Editar
+        </a>
+    </div>
+
+    <div class="quick-action-card">
+        <span>Accesorios</span>
+        <strong>Partes y componentes</strong>
+        <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{ToolId}/accessories")">
+            Gestionar
+        </a>
+    </div>
+
+    <div class="quick-action-card">
+        <span>Documentos</span>
+        <strong>Fotos, fichas y evidencias</strong>
+        <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{ToolId}/documents")">
+            Gestionar
+        </a>
+    </div>
+
+    <div class="quick-action-card">
+        <span>Mantenimiento</span>
+        <strong>Cronograma y evidencias</strong>
+        <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{ToolId}/maintenance-schedule")">
+            Gestionar
+        </a>
+    </div>
+
+    <div class="quick-action-card">
+        <span>Seguridad</span>
+        <strong>Prácticas seguras</strong>
+        <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{ToolId}/safe-practices")">
+            Gestionar
+        </a>
+    </div>
+
+    <div class="quick-action-card">
+        <span>Trazabilidad</span>
+        <strong>Eventos de hoja de vida</strong>
+        <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{ToolId}/life-cycle-events")">
+            Ver eventos
+        </a>
+    </div>
+
+    <div class="quick-action-card">
+        <span>Exportar</span>
+        <strong>PDF / Excel</strong>
+        <div class="d-flex gap-1 flex-wrap">
+            <button class="btn btn-sm btn-outline-dark" @onclick="PrintLifeRecord">
+                PDF
+            </button>
+
+            <a class="btn btn-sm btn-outline-success"
+               href="@BuildApiUrl($"/api/tools/{ToolId}/technical-life-record/export-excel")"
+               target="_blank">
+                Excel
+            </a>
+        </div>
+    </div>
+</section>
+<section class="@GetMaintenanceAlertClass()">
+    <div>
+        <span>Estado de mantenimiento</span>
+        <strong>@GetMaintenanceAlertTitle()</strong>
+        <p>@GetMaintenanceAlertDescription()</p>
+    </div>
+
+    <div class="maintenance-alert-grid">
+        <div>
+            <span>Último mantenimiento</span>
+            <strong>@ShowDate(record.MaintenancePlan.LastMaintenanceDate)</strong>
+        </div>
+
+        <div>
+            <span>Próximo mantenimiento</span>
+            <strong>@ShowDate(record.MaintenancePlan.NextMaintenanceDate)</strong>
+        </div>
+
+        <div>
+            <span>Días restantes</span>
+            <strong>@GetMaintenanceDaysText()</strong>
+        </div>
+    </div>
+</section>
+
+
 
     <div class="life-record-grid">
         <section class="life-record-section">
@@ -396,6 +488,111 @@ else if (record is not null)
 }
 
 @code {
+    private string GetMaintenanceAlertClass()
+    {
+        var days = GetDaysUntilNextMaintenance();
+
+        if (!days.HasValue)
+        {
+            return "maintenance-alert maintenance-alert-neutral";
+        }
+
+        if (days.Value < 0)
+        {
+            return "maintenance-alert maintenance-alert-danger";
+        }
+
+        if (days.Value <= 30)
+        {
+            return "maintenance-alert maintenance-alert-warning";
+        }
+
+        return "maintenance-alert maintenance-alert-success";
+    }
+
+    private string GetMaintenanceAlertTitle()
+    {
+        var days = GetDaysUntilNextMaintenance();
+
+        if (!days.HasValue)
+        {
+            return "Sin fecha programada";
+        }
+
+        if (days.Value < 0)
+        {
+            return "Mantenimiento vencido";
+        }
+
+        if (days.Value <= 30)
+        {
+            return "Mantenimiento próximo";
+        }
+
+        return "Mantenimiento al día";
+    }
+
+    private string GetMaintenanceAlertDescription()
+    {
+        var days = GetDaysUntilNextMaintenance();
+
+        if (!days.HasValue)
+        {
+            return "La herramienta no tiene una fecha de próximo mantenimiento registrada.";
+        }
+
+        if (days.Value < 0)
+        {
+            return $"El mantenimiento está vencido hace {Math.Abs(days.Value)} día(s).";
+        }
+
+        if (days.Value == 0)
+        {
+            return "El mantenimiento está programado para hoy.";
+        }
+
+        if (days.Value <= 30)
+        {
+            return $"El mantenimiento está próximo. Faltan {days.Value} día(s).";
+        }
+
+        return $"La herramienta se encuentra al día. Faltan {days.Value} día(s) para el próximo mantenimiento.";
+    }
+
+    private string GetMaintenanceDaysText()
+    {
+        var days = GetDaysUntilNextMaintenance();
+
+        if (!days.HasValue)
+        {
+            return "-";
+        }
+
+        return days.Value < 0
+            ? $"Vencido {Math.Abs(days.Value)} día(s)"
+            : $"{days.Value} día(s)";
+    }
+
+    private int? GetDaysUntilNextMaintenance()
+    {
+        if (record?.MaintenancePlan?.NextMaintenanceDate is null)
+        {
+            return null;
+        }
+
+        var next = record.MaintenancePlan.NextMaintenanceDate.Value.Date;
+        var today = DateTime.Today;
+
+        return (next - today).Days;
+    }
+
+    private static string ShowDate(DateTime? value)
+    {
+        return value.HasValue
+            ? value.Value.ToString("dd/MM/yyyy")
+            : "-";
+    }
+
     [Parameter]
     public Guid ToolId { get; set; }
 
@@ -449,6 +646,11 @@ else if (record is not null)
         var baseUrl = Configuration["NaviApi:BaseUrl"] ?? "http://localhost:5218";
 
         return $"{baseUrl.TrimEnd('/')}/{relativeUrl.TrimStart('/')}";
+    }
+
+    private async Task PrintLifeRecord()
+    {
+        await JsRuntime.InvokeVoidAsync("window.print");
     }
 
     private static string Show(string? value)
@@ -695,6 +897,13 @@ else if (record is not null)
         public DateTime? EventDate { get; set; }
     }
 }
+
+
+
+
+
+
+
 
 
 

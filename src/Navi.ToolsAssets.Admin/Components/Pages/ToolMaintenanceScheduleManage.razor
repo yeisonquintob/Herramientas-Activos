@@ -235,7 +235,18 @@
                             <div><span>Factura:</span> @Show(item.InvoiceNumber)</div>
                             <div><span>Costo:</span> @FormatMoney(item.Cost)</div>
                             <div><span>Operativa:</span> @(item.IsToolOperational == true ? "Sí" : "No")</div>
-                            <div><span>Evidencia:</span> @GetEvidenceDisplay(item.EvidenceDocumentId)</div>
+                            <div>
+                                <span>Evidencia:</span> @GetEvidenceDisplay(item.EvidenceDocumentId)
+
+                                @if (HasEvidence(item.EvidenceDocumentId))
+                                {
+                                    <a class="btn btn-sm btn-outline-success maintenance-evidence-download"
+                                       href="@BuildEvidenceDownloadUrl(item.EvidenceDocumentId)"
+                                       target="_blank">
+                                        Descargar evidencia
+                                    </a>
+                                }
+                            </div>
                         </div>
 
                         <p class="maintenance-description">@Show(item.Description)</p>
@@ -539,6 +550,24 @@
             : fileName;
     }
 
+    private bool HasEvidence(Guid? documentId)
+    {
+        return documentId.HasValue && documents.Any(x => x.Id == documentId.Value);
+    }
+
+    private string BuildEvidenceDownloadUrl(Guid? documentId)
+    {
+        if (!documentId.HasValue)
+        {
+            return "#";
+        }
+
+        var client = HttpClientFactory.CreateClient("NaviApi");
+        var baseUrl = client.BaseAddress?.ToString().TrimEnd('/') ?? "http://localhost:5218";
+
+        return $"{baseUrl}/api/tools/documents/{documentId.Value}/download";
+    }
+
     private static string TranslateDocumentType(string? value)
     {
         return value switch
@@ -641,6 +670,8 @@
         public string Name { get; set; } = string.Empty;
     }
 }
+
+
 
 
 

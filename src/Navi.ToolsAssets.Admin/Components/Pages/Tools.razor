@@ -1,4 +1,4 @@
-@page "/tools"
+ï»¿@page "/tools"
 @rendermode InteractiveServer
 @inject IHttpClientFactory HttpClientFactory
 
@@ -41,7 +41,7 @@ else
         </div>
 
         <div class="inventory-summary-card warning">
-            <span>Pendientes validación</span>
+            <span>Pendientes validaciÃ³n</span>
             <strong>@tools.Count(x => x.OperationalStatus == "PendingValidation")</strong>
         </div>
 
@@ -51,10 +51,29 @@ else
         </div>
     </div>
 
+
+    <section class="inventory-status-filters">
+        <button type="button"
+                class="@GetStatusFilterChipClass(string.Empty)"
+                @onclick="@(() => SelectStatus(string.Empty))">
+            Todos
+            <span>@tools.Count</span>
+        </button>
+
+        @foreach (var option in StatusFilterOptions)
+        {
+            <button type="button"
+                    class="@GetStatusFilterChipClass(option.Value)"
+                    @onclick="@(() => SelectStatus(option.Value))">
+                @option.Label
+                <span>@option.Count</span>
+            </button>
+        }
+    </section>
     <section class="inventory-panel">
         <div class="inventory-toolbar">
             <input class="form-control"
-                   placeholder="Buscar por código, nombre, serial, sede, tipo o categoría..."
+                   placeholder="Buscar por cÃ³digo, nombre, serial, sede, tipo o categorÃ­a..."
                    @bind="searchText"
                    @bind:event="oninput" />
 
@@ -83,11 +102,11 @@ else
             <table class="table table-hover align-middle inventory-table">
                 <thead>
                     <tr>
-                        <th>Código</th>
+                        <th>CÃ³digo</th>
                         <th>Herramienta</th>
                         <th>Sede</th>
                         <th>Tipo</th>
-                        <th>Categoría</th>
+                        <th>CategorÃ­a</th>
                         <th>Serial</th>
                         <th>Estado</th>
                         <th>Clase</th>
@@ -121,18 +140,19 @@ else
                             <td>@ShowValue(tool.ToolCategoryName)</td>
                             <td>@ShowValue(tool.SerialNumber)</td>
                             <td>
-                                <span class="@GetStatusBadgeClass(tool.OperationalStatus)">
+                                <span class="@GetInventoryStatusClass(tool.OperationalStatus)">
+                                    <span class="inventory-status-dot"></span>
                                     @GetStatusLabel(tool.OperationalStatus)
                                 </span>
                             </td>
                             <td>
                                 @if (tool.IsSpecialized)
                                 {
-                                    <span class="badge bg-primary">Especializada</span>
+                                    <span class="inventory-class-badge specialized">Especializada</span>
                                 }
                                 else
                                 {
-                                    <span class="badge bg-secondary">No especializada</span>
+                                    <span class="inventory-class-badge normal">No especializada</span>
                                 }
                             </td>
                             <td>
@@ -163,6 +183,18 @@ else
 
     private List<ToolListItem> tools = new();
 
+    private IEnumerable<StatusFilterOption> StatusFilterOptions =>
+        tools
+            .Where(x => !string.IsNullOrWhiteSpace(x.OperationalStatus))
+            .GroupBy(x => x.OperationalStatus)
+            .Select(x => new StatusFilterOption
+            {
+                Value = x.Key,
+                Label = GetStatusLabel(x.Key),
+                Count = x.Count()
+            })
+            .OrderBy(x => x.Label);
+
     private IEnumerable<ToolListItem> FilteredTools =>
         tools
             .Where(MatchesSearch)
@@ -189,12 +221,29 @@ else
         }
         catch (Exception ex)
         {
-            errorMessage = $"No se pudo cargar el inventario. Valida que la API esté activa en http://localhost:5218. Detalle: {ex.Message}";
+            errorMessage = $"No se pudo cargar el inventario. Valida que la API estÃ© activa en http://localhost:5218. Detalle: {ex.Message}";
         }
         finally
         {
             isLoading = false;
         }
+    }
+
+    private void SelectStatus(string status)
+    {
+        selectedStatus = status;
+    }
+
+    private string GetStatusFilterChipClass(string status)
+    {
+        var isActive = string.Equals(
+            selectedStatus ?? string.Empty,
+            status ?? string.Empty,
+            StringComparison.OrdinalIgnoreCase);
+
+        return isActive
+            ? $"{GetInventoryStatusClass(status)} inventory-status-filter-chip active"
+            : $"{GetInventoryStatusClass(status)} inventory-status-filter-chip";
     }
 
     private bool MatchesSearch(ToolListItem tool)
@@ -249,14 +298,33 @@ else
             "Assigned" => "Asignada",
             "Loaned" => "Prestada",
             "InMaintenance" => "En mantenimiento",
-            "Damaged" => "Dañada",
+            "Damaged" => "DaÃ±ada",
             "NotSuitable" => "No apta",
-            "PendingValidation" => "Pendiente validación",
+            "PendingValidation" => "Pendiente validaciÃ³n",
             "Inconsistent" => "Inconsistente",
             "NotLocated" => "No localizada",
             "PendingDisposal" => "Pendiente de baja",
             "Disposed" => "Dada de baja",
             _ => string.IsNullOrWhiteSpace(status) ? "Sin estado" : status
+        };
+    }
+
+    private static string GetInventoryStatusClass(string? status)
+    {
+        return status switch
+        {
+            "Available" => "inventory-status-pill status-success",
+            "Assigned" => "inventory-status-pill status-success",
+            "Loaned" => "inventory-status-pill status-info",
+            "InMaintenance" => "inventory-status-pill status-warning",
+            "PendingValidation" => "inventory-status-pill status-warning",
+            "Damaged" => "inventory-status-pill status-danger",
+            "NotSuitable" => "inventory-status-pill status-danger",
+            "Inconsistent" => "inventory-status-pill status-danger",
+            "NotLocated" => "inventory-status-pill status-danger",
+            "PendingDisposal" => "inventory-status-pill status-danger",
+            "Disposed" => "inventory-status-pill status-neutral",
+            _ => "inventory-status-pill status-neutral"
         };
     }
 
@@ -275,6 +343,13 @@ else
             "Disposed" => "badge bg-secondary",
             _ => "badge bg-secondary"
         };
+    }
+
+    private sealed class StatusFilterOption
+    {
+        public string Value { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+        public int Count { get; set; }
     }
 
     private sealed class ToolListItem
@@ -305,5 +380,7 @@ else
         public bool IsSpecialized { get; set; }
     }
 }
+
+
 
 

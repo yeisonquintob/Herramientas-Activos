@@ -1,0 +1,401 @@
+﻿NAVI Herramientas & Activos — Entrega técnica MVP
+
+1. Resumen ejecutivo
+
+El MVP de NAVI Herramientas & Activos permite gestionar herramientas, activos de taller y su hoja de vida técnica, integrando inventario, documentos, mantenimientos, accesorios, prácticas seguras, trazabilidad y exportación de información.
+
+El sistema fue construido como una solución web basada en .NET 8, con API REST, panel administrativo en Blazor Server, almacenamiento documental en MinIO y persistencia en SQL Server.
+
+El objetivo principal del MVP es demostrar el flujo funcional completo para administrar herramientas de taller, tomando como referencia el comportamiento esperado en Dynamics/Fenix365 y adaptándolo a un módulo especializado para control operativo, técnico y documental.
+
+
+2. Stack tecnológico
+
+Backend: .NET 8 Web API
+Frontend administrativo: Blazor Server
+Base de datos: SQL Server
+ORM: Entity Framework Core
+Documentos: MinIO
+Exportación Excel: ClosedXML
+Jobs / procesos futuros: Hangfire
+Documentación API: Swagger
+Control de versiones: Git / GitHub
+
+
+3. Servicios locales del MVP
+
+API: http://localhost:5218
+Admin: http://localhost:5264
+MinIO API: http://localhost:9100
+MinIO Console: http://localhost:9101
+
+
+4. Solución y proyectos
+
+Solución principal:
+
+Navitrans.ToolsAssets.Management.sln
+
+Proyectos principales:
+
+src/Navi.ToolsAssets.Domain
+src/Navi.ToolsAssets.Application
+src/Navi.ToolsAssets.Infrastructure
+src/Navi.ToolsAssets.Shared
+src/Navi.ToolsAssets.Api
+src/Navi.ToolsAssets.Admin
+src/Navi.ToolsAssets.MobilePwa
+src/Navi.ToolsAssets.Worker
+
+
+5. Módulos funcionales implementados
+
+5.1 Inventario maestro
+
+Funcionalidades:
+
+- Consulta general de herramientas y activos.
+- Búsqueda por código, nombre, serial, sede, tipo o categoría.
+- Filtro por estado operativo.
+- Filtro por sede.
+- Semáforos visuales de estado.
+- Filtros rápidos por estado.
+- Acceso a detalle de herramienta.
+- Acceso a hoja de vida técnica.
+
+Ruta Admin:
+
+/tools
+
+Endpoint principal:
+
+GET /api/tools
+
+
+5.2 Detalle de herramienta
+
+Funcionalidades:
+
+- Consulta de información general.
+- Cambio de estado operativo.
+- Marcación como herramienta especializada o no especializada.
+- Registro de cambios en trazabilidad.
+
+Ruta Admin:
+
+/tools/{toolId}
+
+
+5.3 Hoja de vida técnica
+
+Funcionalidades:
+
+- Información general del equipo.
+- Especificaciones técnicas.
+- Garantía.
+- Vida útil.
+- Plan de mantenimiento.
+- Accesorios.
+- Registro documental.
+- Cronograma de mantenimiento.
+- Prácticas seguras.
+- Eventos de hoja de vida.
+- Alerta visual de mantenimiento.
+- Accesos rápidos a gestión.
+- Exportación PDF mediante impresión.
+- Exportación Excel .xlsx.
+
+Ruta Admin:
+
+/tools/{toolId}/technical-life-record
+
+Endpoints:
+
+GET /api/tools/{id}/technical-life-record
+GET /api/tools/by-code/{internalCode}/technical-life-record
+GET /api/tools/{id}/technical-life-record/export-excel
+GET /api/tools/by-code/{internalCode}/technical-life-record/export-excel
+
+
+5.4 Gestión de datos técnicos
+
+Funcionalidades:
+
+- Edición de marca, modelo, serial, activo fijo y código Fenix365.
+- Edición de voltaje, capacidad, proveedor, garantía y vida útil.
+- Actualización de fechas de mantenimiento.
+- Registro de evento técnico.
+
+Ruta Admin:
+
+/tools/{toolId}/technical-life-record/edit
+
+Endpoints:
+
+PATCH /api/tools/{id}/technical-data
+PATCH /api/tools/by-code/{internalCode}/technical-data
+
+
+5.5 Gestión documental
+
+Funcionalidades:
+
+- Carga de documentos.
+- Clasificación por tipo.
+- Descarga de documentos.
+- Eliminación lógica de documentos.
+- Limpieza automática de evidencia cuando un documento eliminado estaba asociado a un mantenimiento.
+- Registro de eventos DocumentUploaded, DocumentDeleted y MaintenanceEvidenceDocumentCleared.
+
+Ruta Admin:
+
+/tools/{toolId}/documents
+
+Endpoints:
+
+GET /api/tools/{id}/documents
+GET /api/tools/by-code/{internalCode}/documents
+POST /api/tools/{id}/documents
+POST /api/tools/by-code/{internalCode}/documents
+GET /api/tools/documents/{documentId}/download
+DELETE /api/tools/documents/{documentId}
+
+
+5.6 Gestión de mantenimientos
+
+Funcionalidades:
+
+- Creación de mantenimientos.
+- Edición de mantenimientos.
+- Eliminación o desactivación lógica.
+- Asociación de evidencia documental.
+- Descarga directa de evidencia desde mantenimiento.
+- Visualización de evidencia en hoja de vida técnica.
+- Registro de eventos de mantenimiento.
+
+Ruta Admin:
+
+/tools/{toolId}/maintenance-schedule
+
+Endpoints:
+
+GET /api/tools/{id}/maintenance-schedule
+GET /api/tools/by-code/{internalCode}/maintenance-schedule
+POST /api/tools/{id}/maintenance-schedule
+POST /api/tools/by-code/{internalCode}/maintenance-schedule
+PUT /api/tools/maintenance-schedule/{maintenanceId}
+DELETE /api/tools/maintenance-schedule/{maintenanceId}
+
+
+5.7 Gestión de accesorios
+
+Funcionalidades:
+
+- Consulta de accesorios.
+- Creación de accesorios.
+- Edición de accesorios.
+- Desactivación lógica.
+- Registro de eventos.
+
+Ruta Admin:
+
+/tools/{toolId}/accessories
+
+Endpoints:
+
+GET /api/tools/{id}/accessories
+GET /api/tools/by-code/{internalCode}/accessories
+POST /api/tools/{id}/accessories
+POST /api/tools/by-code/{internalCode}/accessories
+PUT /api/tools/accessories/{accessoryId}
+DELETE /api/tools/accessories/{accessoryId}
+
+
+5.8 Gestión de prácticas seguras
+
+Funcionalidades:
+
+- Consulta de prácticas seguras.
+- Creación manual.
+- Edición.
+- Desactivación lógica.
+- Carga de prácticas por defecto según tipo de herramienta.
+- Registro de eventos.
+
+Ruta Admin:
+
+/tools/{toolId}/safe-practices
+
+Endpoints:
+
+GET /api/tools/{id}/safe-practices
+GET /api/tools/by-code/{internalCode}/safe-practices
+POST /api/tools/{id}/safe-practices
+POST /api/tools/by-code/{internalCode}/safe-practices
+POST /api/tools/{id}/safe-practices/defaults
+POST /api/tools/by-code/{internalCode}/safe-practices/defaults
+PUT /api/tools/safe-practices/{safePracticeId}
+DELETE /api/tools/safe-practices/{safePracticeId}
+
+
+5.9 Trazabilidad de hoja de vida
+
+Funcionalidades:
+
+- Consulta de eventos históricos.
+- Filtro por texto.
+- Filtro por tipo de evento en español.
+- Limpieza de filtros.
+- Visualización de valor anterior, valor nuevo, responsable y fecha.
+
+Ruta Admin:
+
+/tools/{toolId}/life-cycle-events
+
+Fuente de datos:
+
+GET /api/tools/{id}/technical-life-record
+
+
+6. Herramienta piloto validada
+
+ID: b7eb9929-0be2-4627-9b9b-7f25fcfa2fdf
+Código interno: AGU-COMPUTADOR-ESCANER-006
+Nombre: COMPUTADOR ESCÁNER 6 AGU
+Estado operativo: PendingValidation
+Especializada: Sí
+
+
+7. Evidencias de validación técnica
+
+Durante la validación se confirmó:
+
+- El inventario cargó correctamente.
+- La hoja de vida técnica respondió correctamente.
+- La gestión documental listó documentos activos.
+- El cronograma de mantenimiento listó mantenimientos.
+- Un mantenimiento quedó asociado a evidencia documental.
+- La trazabilidad registró eventos de documentos y mantenimientos.
+- La exportación Excel generó archivo .xlsx.
+
+Archivo generado durante validación:
+
+validacion-hoja-vida.xlsx
+
+Tamaño observado:
+
+15464 bytes
+
+
+8. Eventos registrados en trazabilidad
+
+Eventos confirmados:
+
+DocumentDeleted
+MaintenanceEvidenceDocumentCleared
+MaintenanceScheduleUpdated
+DocumentUploaded
+MaintenanceScheduleCreated
+MaintenanceScheduleDeleted
+
+Estos eventos permiten auditar cambios relevantes sobre la hoja de vida técnica.
+
+
+9. Comandos principales de ejecución
+
+Levantar API:
+
+dotnet run --project "src\Navi.ToolsAssets.Api\Navi.ToolsAssets.Api.csproj" --urls "http://localhost:5218"
+
+Levantar Admin:
+
+dotnet run --project "src\Navi.ToolsAssets.Admin\Navi.ToolsAssets.Admin.csproj" --urls "http://localhost:5264"
+
+Compilar solución:
+
+dotnet build "Navitrans.ToolsAssets.Management.sln"
+
+Abrir Admin:
+
+Start-Process "http://localhost:5264/tools"
+
+
+10. Validación rápida por API
+
+$toolId = "b7eb9929-0be2-4627-9b9b-7f25fcfa2fdf"
+
+Invoke-RestMethod "http://localhost:5218/api/tools"
+
+Invoke-RestMethod "http://localhost:5218/api/tools/$toolId/technical-life-record"
+
+Invoke-RestMethod "http://localhost:5218/api/tools/$toolId/documents"
+
+Invoke-RestMethod "http://localhost:5218/api/tools/$toolId/maintenance-schedule"
+
+
+11. Exportar Excel
+
+Invoke-WebRequest `
+  -Uri "http://localhost:5218/api/tools/$toolId/technical-life-record/export-excel" `
+  -OutFile ".\validacion-hoja-vida.xlsx"
+
+
+12. Alcance cubierto por el MVP
+
+El MVP cubre:
+
+- Administración base de herramientas.
+- Consulta de inventario.
+- Gestión visual de estados.
+- Hoja de vida técnica.
+- Gestión técnica.
+- Gestión documental.
+- Gestión de mantenimientos.
+- Evidencias documentales.
+- Accesorios.
+- Prácticas seguras.
+- Trazabilidad.
+- Exportación PDF.
+- Exportación Excel.
+
+
+13. Pendientes recomendados para versión posterior
+
+Integraciones:
+
+- Integración directa con Dynamics/Fenix365.
+- Sincronización automática de maestros.
+- Sincronización de responsables, sedes, zonas y ubicaciones.
+- Publicación de eventos hacia otros sistemas.
+
+Seguridad:
+
+- Autenticación y autorización por roles.
+- Permisos por sede, zona o rol.
+- Auditoría por usuario autenticado real.
+
+Operación:
+
+- Dashboard gerencial.
+- Alertas automáticas por vencimiento de mantenimiento.
+- Notificaciones por correo.
+- Flujo de aprobación para bajas, daños y préstamos.
+- Preoperacionales desde móvil.
+
+Técnica:
+
+- Pruebas automatizadas.
+- Pipeline CI/CD.
+- Ambientes Dev, Test y Producción.
+- Manejo formal de secretos.
+- Observabilidad con logs centralizados.
+
+
+14. Conclusión
+
+El MVP de NAVI Herramientas & Activos queda funcional para validar el flujo completo de administración de herramientas y activos de taller.
+
+La solución permite consultar inventario, administrar hoja de vida técnica, cargar y descargar documentos, asociar evidencias a mantenimientos, gestionar accesorios, prácticas seguras y visualizar trazabilidad completa de eventos.
+
+El sistema queda preparado como base para evolucionar hacia una solución integrada con Dynamics/Fenix365 y con capacidades operativas para escritorio y móvil.
+
