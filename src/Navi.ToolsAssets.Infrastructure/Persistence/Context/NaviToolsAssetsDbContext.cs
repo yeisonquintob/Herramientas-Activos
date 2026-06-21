@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Navi.ToolsAssets.Domain.Entities.Damages;
 using Navi.ToolsAssets.Domain.Entities.Documents;
 using Navi.ToolsAssets.Domain.Entities.Inventory;
@@ -9,6 +9,7 @@ using Navi.ToolsAssets.Domain.Entities.Maintenance;
 using Navi.ToolsAssets.Domain.Entities.Organization;
 using Navi.ToolsAssets.Domain.Entities.PhysicalCounts;
 using Navi.ToolsAssets.Domain.Entities.Safety;
+using Navi.ToolsAssets.Domain.Entities.Security;
 using Navi.ToolsAssets.Domain.Entities.Sync;
 
 namespace Navi.ToolsAssets.Infrastructure.Persistence.Context;
@@ -19,6 +20,9 @@ public class NaviToolsAssetsDbContext : DbContext
         : base(options)
     {
     }
+
+    public DbSet<AppRole> AppRoles => Set<AppRole>();
+    public DbSet<AppUser> AppUsers => Set<AppUser>();
 
     public DbSet<SystemParameter> SystemParameters => Set<SystemParameter>();
     public DbSet<Zone> Zones => Set<Zone>();
@@ -556,6 +560,7 @@ public class NaviToolsAssetsDbContext : DbContext
         });
     }
 }
+
 
 
 

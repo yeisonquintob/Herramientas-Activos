@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Navi.ToolsAssets.Infrastructure.Persistence.Context;
 
@@ -11,9 +12,11 @@ using Navi.ToolsAssets.Infrastructure.Persistence.Context;
 namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(NaviToolsAssetsDbContext))]
-    partial class NaviToolsAssetsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260621222750_AddSettingsUsersAndRoles")]
+    partial class AddSettingsUsersAndRoles
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
