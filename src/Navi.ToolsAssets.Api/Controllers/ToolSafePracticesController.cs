@@ -1,4 +1,4 @@
-Ôªøusing Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Navi.ToolsAssets.Domain.Entities.Inventory;
 using Navi.ToolsAssets.Domain.Entities.LifeCycles;
@@ -18,6 +18,77 @@ public class ToolSafePracticesController : ControllerBase
         _context = context;
     }
 
+
+    [HttpGet("{id:guid}/safe-practices")]
+    public async Task<IActionResult> GetSafePracticesByToolId(Guid id, CancellationToken cancellationToken)
+    {
+        var toolExists = await _context.ToolAssets
+            .AnyAsync(x => x.Id == id, cancellationToken);
+
+        if (!toolExists)
+        {
+            return NotFound(new { Message = "No se encontrÛ la herramienta." });
+        }
+
+        var practices = await _context.ToolSafePractices
+            .AsNoTracking()
+            .Where(x => x.ToolAssetId == id && x.IsActive)
+            .OrderBy(x => x.SortOrder)
+            .ThenBy(x => x.PracticeName)
+            .Select(x => new
+            {
+                x.Id,
+                x.ToolAssetId,
+                x.PracticeName,
+                x.Description,
+                x.SortOrder,
+                x.IsActive,
+                x.CreatedAt,
+                x.CreatedBy,
+                x.UpdatedAt,
+                x.UpdatedBy
+            })
+            .ToListAsync(cancellationToken);
+
+        return Ok(practices);
+    }
+
+    [HttpGet("by-code/{internalCode}/safe-practices")]
+    public async Task<IActionResult> GetSafePracticesByToolCode(string internalCode, CancellationToken cancellationToken)
+    {
+        var normalizedCode = internalCode.Trim().ToUpperInvariant();
+
+        var tool = await _context.ToolAssets
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.InternalCode == normalizedCode, cancellationToken);
+
+        if (tool is null)
+        {
+            return NotFound(new { Message = "No se encontrÛ la herramienta." });
+        }
+
+        var practices = await _context.ToolSafePractices
+            .AsNoTracking()
+            .Where(x => x.ToolAssetId == tool.Id && x.IsActive)
+            .OrderBy(x => x.SortOrder)
+            .ThenBy(x => x.PracticeName)
+            .Select(x => new
+            {
+                x.Id,
+                x.ToolAssetId,
+                x.PracticeName,
+                x.Description,
+                x.SortOrder,
+                x.IsActive,
+                x.CreatedAt,
+                x.CreatedBy,
+                x.UpdatedAt,
+                x.UpdatedBy
+            })
+            .ToListAsync(cancellationToken);
+
+        return Ok(practices);
+    }
     [HttpPost("{id:guid}/safe-practices")]
     public async Task<IActionResult> Create(Guid id, [FromBody] CreateToolSafePracticeRequest request, CancellationToken cancellationToken)
     {
@@ -26,7 +97,7 @@ public class ToolSafePracticesController : ControllerBase
 
         if (tool is null)
         {
-            return NotFound(new { Message = "No se encontr√≥ la herramienta." });
+            return NotFound(new { Message = "No se encontrÛ la herramienta." });
         }
 
         return await CreateSafePracticeAsync(tool, request, cancellationToken);
@@ -42,7 +113,7 @@ public class ToolSafePracticesController : ControllerBase
 
         if (tool is null)
         {
-            return NotFound(new { Message = "No se encontr√≥ la herramienta." });
+            return NotFound(new { Message = "No se encontrÛ la herramienta." });
         }
 
         return await CreateSafePracticeAsync(tool, request, cancellationToken);
@@ -55,7 +126,7 @@ public class ToolSafePracticesController : ControllerBase
 
         if (tool is null)
         {
-            return NotFound(new { Message = "No se encontr√≥ la herramienta." });
+            return NotFound(new { Message = "No se encontrÛ la herramienta." });
         }
 
         return await CreateDefaultSafePracticesAsync(tool, cancellationToken);
@@ -74,12 +145,109 @@ public class ToolSafePracticesController : ControllerBase
 
         if (tool is null)
         {
-            return NotFound(new { Message = "No se encontr√≥ la herramienta." });
+            return NotFound(new { Message = "No se encontrÛ la herramienta." });
         }
 
         return await CreateDefaultSafePracticesAsync(tool, cancellationToken);
     }
 
+
+    [HttpPut("safe-practices/{safePracticeId:guid}")]
+    public async Task<IActionResult> UpdateSafePractice(Guid safePracticeId, [FromBody] UpdateToolSafePracticeRequest request, CancellationToken cancellationToken)
+    {
+        var practice = await _context.ToolSafePractices
+            .FirstOrDefaultAsync(x => x.Id == safePracticeId, cancellationToken);
+
+        if (practice is null)
+        {
+            return NotFound(new { Message = "No se encontrÛ la pr·ctica segura." });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.PracticeName))
+        {
+            return BadRequest(new { Message = "El nombre de la pr·ctica segura es obligatorio." });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Description))
+        {
+            return BadRequest(new { Message = "La descripciÛn de la pr·ctica segura es obligatoria." });
+        }
+
+        var user = string.IsNullOrWhiteSpace(request.UpdatedBy) ? "yquinto" : request.UpdatedBy.Trim();
+
+        var previousValue = $"{practice.SortOrder}. {practice.PracticeName}";
+
+        practice.PracticeName = request.PracticeName.Trim();
+        practice.Description = request.Description.Trim();
+        practice.SortOrder = request.SortOrder;
+        practice.UpdatedAt = DateTime.UtcNow;
+        practice.UpdatedBy = user;
+
+        _context.Set<ToolLifeCycleEvent>().Add(new ToolLifeCycleEvent
+        {
+            ToolAssetId = practice.ToolAssetId,
+            EventType = "SafePracticeUpdated",
+            Title = "Pr·ctica segura actualizada",
+            Description = $"Se actualizÛ la pr·ctica segura: {practice.PracticeName}.",
+            PreviousValue = previousValue,
+            NewValue = $"{practice.SortOrder}. {practice.PracticeName}",
+            RegisteredBy = user,
+            CreatedBy = user
+        });
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return Ok(new
+        {
+            Message = "Pr·ctica segura actualizada correctamente.",
+            practice.Id,
+            practice.ToolAssetId,
+            practice.PracticeName,
+            practice.Description,
+            practice.SortOrder
+        });
+    }
+
+    [HttpDelete("safe-practices/{safePracticeId:guid}")]
+    public async Task<IActionResult> DeleteSafePractice(Guid safePracticeId, [FromQuery] string? deletedBy, CancellationToken cancellationToken)
+    {
+        var practice = await _context.ToolSafePractices
+            .FirstOrDefaultAsync(x => x.Id == safePracticeId, cancellationToken);
+
+        if (practice is null)
+        {
+            return NotFound(new { Message = "No se encontrÛ la pr·ctica segura." });
+        }
+
+        var user = string.IsNullOrWhiteSpace(deletedBy) ? "yquinto" : deletedBy.Trim();
+
+        practice.IsActive = false;
+        practice.IsDeleted = true;
+        practice.UpdatedAt = DateTime.UtcNow;
+        practice.UpdatedBy = user;
+
+        _context.Set<ToolLifeCycleEvent>().Add(new ToolLifeCycleEvent
+        {
+            ToolAssetId = practice.ToolAssetId,
+            EventType = "SafePracticeDeleted",
+            Title = "Pr·ctica segura desactivada",
+            Description = $"Se desactivÛ la pr·ctica segura: {practice.PracticeName}.",
+            PreviousValue = practice.PracticeName,
+            NewValue = "Desactivada",
+            RegisteredBy = user,
+            CreatedBy = user
+        });
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return Ok(new
+        {
+            Message = "Pr·ctica segura desactivada correctamente.",
+            practice.Id,
+            practice.ToolAssetId,
+            practice.PracticeName
+        });
+    }
     private async Task<ToolAsset?> GetToolWithSafePracticesAsync(Guid id, CancellationToken cancellationToken)
     {
         return await _context.ToolAssets
@@ -93,12 +261,12 @@ public class ToolSafePracticesController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(request.PracticeName))
         {
-            return BadRequest(new { Message = "El nombre de la pr√°ctica segura es obligatorio." });
+            return BadRequest(new { Message = "El nombre de la pr·ctica segura es obligatorio." });
         }
 
         if (string.IsNullOrWhiteSpace(request.Description))
         {
-            return BadRequest(new { Message = "La descripci√≥n de la pr√°ctica segura es obligatoria." });
+            return BadRequest(new { Message = "La descripciÛn de la pr·ctica segura es obligatoria." });
         }
 
         var practice = new ToolSafePractice
@@ -116,8 +284,8 @@ public class ToolSafePracticesController : ControllerBase
         {
             ToolAssetId = tool.Id,
             EventType = "SafePracticeCreated",
-            Title = "Pr√°ctica segura registrada",
-            Description = $"Se registr√≥ la pr√°ctica segura: {practice.PracticeName}.",
+            Title = "Pr·ctica segura registrada",
+            Description = $"Se registrÛ la pr·ctica segura: {practice.PracticeName}.",
             NewValue = practice.PracticeName,
             RegisteredBy = practice.CreatedBy,
             CreatedBy = practice.CreatedBy
@@ -127,7 +295,7 @@ public class ToolSafePracticesController : ControllerBase
 
         return Ok(new
         {
-            Message = "Pr√°ctica segura creada correctamente.",
+            Message = "Pr·ctica segura creada correctamente.",
             practice.Id,
             practice.ToolAssetId,
             practice.PracticeName,
@@ -175,8 +343,8 @@ public class ToolSafePracticesController : ControllerBase
             {
                 ToolAssetId = tool.Id,
                 EventType = "DefaultSafePracticesCreated",
-                Title = "Pr√°cticas seguras predeterminadas registradas",
-                Description = $"Se registraron {created.Count} pr√°cticas seguras predeterminadas.",
+                Title = "Pr·cticas seguras predeterminadas registradas",
+                Description = $"Se registraron {created.Count} pr·cticas seguras predeterminadas.",
                 NewValue = string.Join(", ", created.Select(x => x.PracticeName)),
                 RegisteredBy = "yquinto",
                 CreatedBy = "yquinto"
@@ -188,8 +356,8 @@ public class ToolSafePracticesController : ControllerBase
         return Ok(new
         {
             Message = created.Count == 0
-                ? "La herramienta ya ten√≠a registradas las pr√°cticas seguras predeterminadas."
-                : "Pr√°cticas seguras predeterminadas creadas correctamente.",
+                ? "La herramienta ya tenÌa registradas las pr·cticas seguras predeterminadas."
+                : "Pr·cticas seguras predeterminadas creadas correctamente.",
             ToolId = tool.Id,
             tool.InternalCode,
             CreatedCount = created.Count,
@@ -210,48 +378,48 @@ public class ToolSafePracticesController : ControllerBase
     {
         var text = $"{tool.InternalCode} {tool.Name} {tool.Description} {tool.ToolType?.Name} {tool.ToolCategory?.Name}".ToUpperInvariant();
 
-        if (text.Contains("COMPUTADOR") || text.Contains("ESCANER") || text.Contains("ESC√ÅNER") || text.Contains("SCANNER"))
+        if (text.Contains("COMPUTADOR") || text.Contains("ESCANER") || text.Contains("ESC¡NER") || text.Contains("SCANNER"))
         {
             return new List<DefaultSafePracticeItem>
             {
-                new(1, "Protecci√≥n contra sobrecalentamiento", "Asegurar que el computador tenga suficiente ventilaci√≥n y no se bloquee su sistema de refrigeraci√≥n."),
-                new(2, "Uso en superficies planas", "Colocar el equipo en superficies estables y planas para evitar ca√≠das o da√±os."),
-                new(3, "Conexi√≥n segura a redes", "Usar conexiones Wi-Fi seguras o cables certificados para evitar interferencias o p√©rdida de datos durante el escaneo."),
-                new(4, "Protecci√≥n contra descargas el√©ctricas", "Utilizar protector de sobrecarga para evitar da√±os por picos de corriente."),
-                new(5, "Evitar exposici√≥n a l√≠quidos", "Mantener el computador alejado de l√≠quidos y polvo que puedan da√±ar sus componentes."),
+                new(1, "ProtecciÛn contra sobrecalentamiento", "Asegurar que el computador tenga suficiente ventilaciÛn y no se bloquee su sistema de refrigeraciÛn."),
+                new(2, "Uso en superficies planas", "Colocar el equipo en superficies estables y planas para evitar caÌdas o daÒos."),
+                new(3, "ConexiÛn segura a redes", "Usar conexiones Wi-Fi seguras o cables certificados para evitar interferencias o pÈrdida de datos durante el escaneo."),
+                new(4, "ProtecciÛn contra descargas elÈctricas", "Utilizar protector de sobrecarga para evitar daÒos por picos de corriente."),
+                new(5, "Evitar exposiciÛn a lÌquidos", "Mantener el computador alejado de lÌquidos y polvo que puedan daÒar sus componentes."),
                 new(6, "Uso de antivirus y software de seguridad", "Instalar y actualizar regularmente software antivirus para proteger los datos escaneados."),
-                new(7, "Copia de seguridad de datos", "Realizar copias de seguridad peri√≥dicas de los datos escaneados para evitar p√©rdidas."),
+                new(7, "Copia de seguridad de datos", "Realizar copias de seguridad periÛdicas de los datos escaneados para evitar pÈrdidas."),
                 new(8, "Mantenimiento regular", "Limpiar y revisar el equipo regularmente para asegurar su buen funcionamiento y prevenir fallas."),
-                new(9, "Protecci√≥n de la pantalla", "Utilizar protectores de pantalla o fundas para evitar rayaduras y da√±os f√≠sicos."),
-                new(10, "Carga adecuada", "Utilizar cargadores certificados y evitar sobrecargar la bater√≠a."),
-                new(11, "Desconexi√≥n segura de dispositivos", "Desconectar adecuadamente esc√°neres, memorias USB u otros dispositivos externos para evitar da√±os."),
-                new(12, "Revisi√≥n de software y actualizaciones", "Mantener actualizado el software del esc√°ner y del sistema operativo para un rendimiento √≥ptimo.")
+                new(9, "ProtecciÛn de la pantalla", "Utilizar protectores de pantalla o fundas para evitar rayaduras y daÒos fÌsicos."),
+                new(10, "Carga adecuada", "Utilizar cargadores certificados y evitar sobrecargar la baterÌa."),
+                new(11, "DesconexiÛn segura de dispositivos", "Desconectar adecuadamente esc·neres, memorias USB u otros dispositivos externos para evitar daÒos."),
+                new(12, "RevisiÛn de software y actualizaciones", "Mantener actualizado el software del esc·ner y del sistema operativo para un rendimiento Ûptimo.")
             };
         }
 
-        if (text.Contains("GATO") || text.Contains("PLUMA") || text.Contains("HIDRAULICO") || text.Contains("HIDR√ÅULICO"))
+        if (text.Contains("GATO") || text.Contains("PLUMA") || text.Contains("HIDRAULICO") || text.Contains("HIDR¡ULICO"))
         {
             return new List<DefaultSafePracticeItem>
             {
-                new(1, "Inspecci√≥n previa al uso", "Verifica el estado de herramientas, mangueras y conexiones para detectar grietas, fugas o desgaste antes de usarlas."),
-                new(2, "Uso de EPP", "Usa gafas de seguridad, guantes resistentes al aceite, protecci√≥n auditiva y calzado con punta reforzada y suela antideslizante."),
-                new(3, "Procedimientos de operaci√≥n", "Aseg√∫rate de que las conexiones est√©n firmes, no excedas la presi√≥n recomendada y mant√©n las mangueras alejadas de bordes afilados o superficies calientes."),
-                new(4, "Posici√≥n segura", "Mant√©n una postura estable, limpia tu √°rea de trabajo y evita colocarte frente a herramientas presurizadas."),
-                new(5, "Mantenimiento regular", "Realiza inspecciones peri√≥dicas, reemplaza componentes desgastados y utiliza repuestos recomendados por el fabricante."),
-                new(6, "Prevenci√≥n de fugas", "Nunca uses las manos para buscar fugas; utiliza cart√≥n o papel y rep√°ralas solo cuando el sistema est√© despresurizado."),
-                new(7, "Capacitaci√≥n y se√±alizaci√≥n", "Capacita al personal en el uso seguro de herramientas y coloca se√±alizaci√≥n de advertencia en las √°reas de trabajo."),
-                new(8, "Despresurizaci√≥n al finalizar", "Antes de desconectar herramientas, libera la presi√≥n del sistema. Nunca realices ajustes mientras el equipo est√© presurizado."),
+                new(1, "InspecciÛn previa al uso", "Verifica el estado de herramientas, mangueras y conexiones para detectar grietas, fugas o desgaste antes de usarlas."),
+                new(2, "Uso de EPP", "Usa gafas de seguridad, guantes resistentes al aceite, protecciÛn auditiva y calzado con punta reforzada y suela antideslizante."),
+                new(3, "Procedimientos de operaciÛn", "Aseg˙rate de que las conexiones estÈn firmes, no excedas la presiÛn recomendada y mantÈn las mangueras alejadas de bordes afilados o superficies calientes."),
+                new(4, "PosiciÛn segura", "MantÈn una postura estable, limpia tu ·rea de trabajo y evita colocarte frente a herramientas presurizadas."),
+                new(5, "Mantenimiento regular", "Realiza inspecciones periÛdicas, reemplaza componentes desgastados y utiliza repuestos recomendados por el fabricante."),
+                new(6, "PrevenciÛn de fugas", "Nunca uses las manos para buscar fugas; utiliza cartÛn o papel y rep·ralas solo cuando el sistema estÈ despresurizado."),
+                new(7, "CapacitaciÛn y seÒalizaciÛn", "Capacita al personal en el uso seguro de herramientas y coloca seÒalizaciÛn de advertencia en las ·reas de trabajo."),
+                new(8, "DespresurizaciÛn al finalizar", "Antes de desconectar herramientas, libera la presiÛn del sistema. Nunca realices ajustes mientras el equipo estÈ presurizado."),
                 new(9, "Almacenamiento adecuado", "Guarda herramientas y mangueras en un lugar limpio y seco, evitando doblarlas de forma incorrecta.")
             };
         }
 
         return new List<DefaultSafePracticeItem>
         {
-            new(1, "Inspecci√≥n previa al uso", "Verificar el estado general de la herramienta antes de utilizarla."),
-            new(2, "Uso de elementos de protecci√≥n personal", "Utilizar los elementos de protecci√≥n personal requeridos para la operaci√≥n."),
-            new(3, "Uso correcto de la herramienta", "Operar la herramienta √∫nicamente para las actividades para las que fue dise√±ada."),
-            new(4, "Reporte de novedades", "Reportar da√±os, fallas o condiciones inseguras antes y despu√©s del uso."),
-            new(5, "Limpieza y almacenamiento", "Limpiar la herramienta despu√©s del uso y almacenarla en el lugar asignado.")
+            new(1, "InspecciÛn previa al uso", "Verificar el estado general de la herramienta antes de utilizarla."),
+            new(2, "Uso de elementos de protecciÛn personal", "Utilizar los elementos de protecciÛn personal requeridos para la operaciÛn."),
+            new(3, "Uso correcto de la herramienta", "Operar la herramienta ˙nicamente para las actividades para las que fue diseÒada."),
+            new(4, "Reporte de novedades", "Reportar daÒos, fallas o condiciones inseguras antes y despuÈs del uso."),
+            new(5, "Limpieza y almacenamiento", "Limpiar la herramienta despuÈs del uso y almacenarla en el lugar asignado.")
         };
     }
 
@@ -267,4 +435,16 @@ public sealed class CreateToolSafePracticeRequest
     public int SortOrder { get; set; }
 
     public string? CreatedBy { get; set; }
+}
+
+
+public sealed class UpdateToolSafePracticeRequest
+{
+    public string PracticeName { get; set; } = string.Empty;
+
+    public string Description { get; set; } = string.Empty;
+
+    public int SortOrder { get; set; }
+
+    public string? UpdatedBy { get; set; }
 }

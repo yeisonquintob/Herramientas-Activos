@@ -1,0 +1,400 @@
+@page "/tools/{ToolId:guid}/accessories"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Accesorios - NAVI Herramientas</PageTitle>
+
+<div class="page-header">
+    <div>
+        <button class="btn btn-outline-secondary btn-sm mb-2" @onclick="GoBack">
+            ? Volver a hoja de vida
+        </button>
+
+        <h1>Gestión de accesorios</h1>
+        <p>Agrega, edita o desactiva accesorios asociados a la herramienta.</p>
+    </div>
+
+    <button class="btn btn-outline-primary" @onclick="LoadAsync" disabled="@isLoading">
+        @(isLoading ? "Cargando..." : "Recargar")
+    </button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">
+        <strong>Error:</strong> @errorMessage
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(successMessage))
+{
+    <div class="alert alert-success">
+        @successMessage
+    </div>
+}
+
+<section class="life-record-cover">
+    <div>
+        <span class="life-record-label">Accesorios</span>
+        <h2>@toolName</h2>
+        <p>@internalCode</p>
+    </div>
+
+    <div class="life-record-cover-status">
+        <span class="badge bg-light text-dark">@accessories.Count accesorio(s)</span>
+    </div>
+</section>
+
+<div class="accessories-manage-grid">
+    <section class="life-record-section">
+        <div class="section-title">
+            <span>1</span>
+            <h2>@(editingAccessoryId.HasValue ? "Editar accesorio" : "Nuevo accesorio")</h2>
+        </div>
+
+        <EditForm Model="formModel" OnValidSubmit="SaveAsync">
+            <div class="edit-form-grid">
+                <div>
+                    <label>Nombre del accesorio</label>
+                    <InputText class="form-control" @bind-Value="formModel.Name" placeholder="Ej: CARGADOR" />
+                </div>
+
+                <div>
+                    <label>Cantidad</label>
+                    <InputNumber class="form-control" @bind-Value="formModel.Quantity" />
+                </div>
+
+                <div class="form-check-row">
+                    <InputCheckbox class="form-check-input" @bind-Value="formModel.RequiresMaintenance" />
+                    <label>Requiere mantenimiento</label>
+                </div>
+
+                <div class="form-check-row">
+                    <InputCheckbox class="form-check-input" @bind-Value="formModel.IsMeasurementEquipment" />
+                    <label>Equipo de medición</label>
+                </div>
+            </div>
+
+            <div class="mt-3">
+                <label>Observación</label>
+                <InputTextArea class="form-control technical-observation"
+                               @bind-Value="formModel.Observation"
+                               placeholder="Observación del accesorio..." />
+            </div>
+
+            <div class="technical-edit-actions static-actions mt-3">
+                @if (editingAccessoryId.HasValue)
+                {
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CancelEdit">
+                        Cancelar edición
+                    </button>
+                }
+
+                <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                    @(isSaving ? "Guardando..." : editingAccessoryId.HasValue ? "Actualizar accesorio" : "Crear accesorio")
+                </button>
+            </div>
+        </EditForm>
+    </section>
+
+    <section class="life-record-section">
+        <div class="section-title">
+            <span>2</span>
+            <h2>Accesorios registrados</h2>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="alert alert-info mb-0">Cargando accesorios...</div>
+        }
+        else if (accessories.Count == 0)
+        {
+            <p class="text-muted mb-0">No hay accesorios registrados para esta herramienta.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered excel-table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Accesorio</th>
+                            <th>Cantidad</th>
+                            <th>Mantenimiento</th>
+                            <th>Medición</th>
+                            <th>Observación</th>
+                            <th style="width: 170px;">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in accessories)
+                        {
+                            <tr>
+                                <td><strong>@item.Name</strong></td>
+                                <td>@item.Quantity</td>
+                                <td>@BoolText(item.RequiresMaintenance)</td>
+                                <td>@BoolText(item.IsMeasurementEquipment)</td>
+                                <td>@Show(item.Observation)</td>
+                                <td>
+                                    <div class="d-flex gap-1 flex-wrap">
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => StartEdit(item)">
+                                            Editar
+                                        </button>
+
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(item)">
+                                            Desactivar
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    [Parameter]
+    public Guid ToolId { get; set; }
+
+    private bool isLoading;
+    private bool isSaving;
+    private string? errorMessage;
+    private string? successMessage;
+    private string internalCode = string.Empty;
+    private string toolName = string.Empty;
+    private Guid? editingAccessoryId;
+
+    private AccessoryFormModel formModel = new();
+    private List<AccessoryItemModel> accessories = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var record = await client.GetFromJsonAsync<TechnicalLifeRecordHeaderModel>($"api/tools/{ToolId}/technical-life-record");
+
+            if (record is not null)
+            {
+                internalCode = record.Summary.InternalCode;
+                toolName = record.Summary.Name;
+            }
+
+            accessories = await client.GetFromJsonAsync<List<AccessoryItemModel>>($"api/tools/{ToolId}/accessories") ?? new();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudieron cargar los accesorios. Valida que la API esté activa. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            isSaving = true;
+            errorMessage = null;
+            successMessage = null;
+
+            if (string.IsNullOrWhiteSpace(formModel.Name))
+            {
+                errorMessage = "El nombre del accesorio es obligatorio.";
+                return;
+            }
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            HttpResponseMessage response;
+
+            if (editingAccessoryId.HasValue)
+            {
+                var payload = new
+                {
+                    name = formModel.Name,
+                    quantity = formModel.Quantity <= 0 ? 1 : formModel.Quantity,
+                    requiresMaintenance = formModel.RequiresMaintenance,
+                    isMeasurementEquipment = formModel.IsMeasurementEquipment,
+                    observation = formModel.Observation,
+                    updatedBy = "yquinto"
+                };
+
+                response = await client.PutAsJsonAsync($"api/tools/accessories/{editingAccessoryId.Value}", payload);
+            }
+            else
+            {
+                var payload = new
+                {
+                    name = formModel.Name,
+                    quantity = formModel.Quantity <= 0 ? 1 : formModel.Quantity,
+                    requiresMaintenance = formModel.RequiresMaintenance,
+                    isMeasurementEquipment = formModel.IsMeasurementEquipment,
+                    observation = formModel.Observation,
+                    createdBy = "yquinto"
+                };
+
+                response = await client.PostAsJsonAsync($"api/tools/{ToolId}/accessories", payload);
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo guardar el accesorio. Código: {(int)response.StatusCode}. Detalle: {detail}";
+                return;
+            }
+
+            successMessage = editingAccessoryId.HasValue
+                ? "Accesorio actualizado correctamente."
+                : "Accesorio creado correctamente.";
+
+            CancelEdit();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo guardar el accesorio. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void StartEdit(AccessoryItemModel item)
+    {
+        editingAccessoryId = item.Id;
+
+        formModel = new AccessoryFormModel
+        {
+            Name = item.Name,
+            Quantity = item.Quantity,
+            RequiresMaintenance = item.RequiresMaintenance,
+            IsMeasurementEquipment = item.IsMeasurementEquipment,
+            Observation = item.Observation
+        };
+
+        successMessage = null;
+        errorMessage = null;
+    }
+
+    private void CancelEdit()
+    {
+        editingAccessoryId = null;
+
+        formModel = new AccessoryFormModel
+        {
+            Quantity = 1
+        };
+    }
+
+    private async Task DeleteAsync(AccessoryItemModel item)
+    {
+        try
+        {
+            isSaving = true;
+            errorMessage = null;
+            successMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var response = await client.DeleteAsync($"api/tools/accessories/{item.Id}?deletedBy=yquinto");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo desactivar el accesorio. Código: {(int)response.StatusCode}. Detalle: {detail}";
+                return;
+            }
+
+            successMessage = $"Accesorio desactivado correctamente: {item.Name}.";
+
+            if (editingAccessoryId == item.Id)
+            {
+                CancelEdit();
+            }
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo desactivar el accesorio. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo($"/tools/{ToolId}/technical-life-record");
+    }
+
+    private static string Show(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "-" : value;
+    }
+
+    private static string BoolText(bool value)
+    {
+        return value ? "Sí" : "No";
+    }
+
+    private sealed class AccessoryFormModel
+    {
+        public string? Name { get; set; }
+
+        public int Quantity { get; set; } = 1;
+
+        public bool RequiresMaintenance { get; set; }
+
+        public bool IsMeasurementEquipment { get; set; }
+
+        public string? Observation { get; set; }
+    }
+
+    private sealed class AccessoryItemModel
+    {
+        public Guid Id { get; set; }
+
+        public Guid ToolAssetId { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+
+        public int Quantity { get; set; }
+
+        public bool RequiresMaintenance { get; set; }
+
+        public bool IsMeasurementEquipment { get; set; }
+
+        public string? Observation { get; set; }
+    }
+
+    private sealed class TechnicalLifeRecordHeaderModel
+    {
+        public SummaryInfo Summary { get; set; } = new();
+    }
+
+    private sealed class SummaryInfo
+    {
+        public string InternalCode { get; set; } = string.Empty;
+
+        public string Name { get; set; } = string.Empty;
+    }
+}

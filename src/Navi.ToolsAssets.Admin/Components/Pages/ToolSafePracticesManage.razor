@@ -1,0 +1,421 @@
+@page "/tools/{ToolId:guid}/safe-practices"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Prácticas seguras - NAVI Herramientas</PageTitle>
+
+<div class="page-header">
+    <div>
+        <button class="btn btn-outline-secondary btn-sm mb-2" @onclick="GoBack">
+            ? Volver a hoja de vida
+        </button>
+
+        <h1>Gestión de prácticas seguras</h1>
+        <p>Agrega, edita o desactiva prácticas seguras asociadas a la herramienta.</p>
+    </div>
+
+    <button class="btn btn-outline-primary" @onclick="LoadAsync" disabled="@isLoading">
+        @(isLoading ? "Cargando..." : "Recargar")
+    </button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">
+        <strong>Error:</strong> @errorMessage
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(successMessage))
+{
+    <div class="alert alert-success">
+        @successMessage
+    </div>
+}
+
+<section class="life-record-cover">
+    <div>
+        <span class="life-record-label">Prácticas seguras</span>
+        <h2>@toolName</h2>
+        <p>@internalCode</p>
+    </div>
+
+    <div class="life-record-cover-status">
+        <span class="badge bg-light text-dark">@safePractices.Count práctica(s)</span>
+    </div>
+</section>
+
+<div class="safe-practices-manage-grid">
+    <section class="life-record-section">
+        <div class="section-title">
+            <span>1</span>
+            <h2>@(editingSafePracticeId.HasValue ? "Editar práctica segura" : "Nueva práctica segura")</h2>
+        </div>
+
+        <EditForm Model="formModel" OnValidSubmit="SaveAsync">
+            <div class="edit-form-grid">
+                <div>
+                    <label>Orden</label>
+                    <InputNumber class="form-control" @bind-Value="formModel.SortOrder" />
+                </div>
+
+                <div>
+                    <label>Nombre de la práctica</label>
+                    <InputText class="form-control" @bind-Value="formModel.PracticeName" placeholder="Ej: Uso de EPP" />
+                </div>
+            </div>
+
+            <div class="mt-3">
+                <label>Descripción</label>
+                <InputTextArea class="form-control technical-observation"
+                               @bind-Value="formModel.Description"
+                               placeholder="Describe la práctica segura..." />
+            </div>
+
+            <div class="technical-edit-actions static-actions mt-3">
+                @if (editingSafePracticeId.HasValue)
+                {
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CancelEdit">
+                        Cancelar edición
+                    </button>
+                }
+
+                <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                    @GetSaveButtonText()
+                </button>
+            </div>
+        </EditForm>
+    </section>
+
+    <section class="life-record-section">
+        <div class="section-title section-title-actions">
+            <div class="section-title-main">
+                <span>2</span>
+                <h2>Prácticas registradas</h2>
+            </div>
+
+            <button class="btn btn-sm btn-outline-dark" @onclick="CreateDefaultsAsync" disabled="@isSaving">
+                Cargar predeterminadas
+            </button>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="alert alert-info mb-0">Cargando prácticas seguras...</div>
+        }
+        else if (safePractices.Count == 0)
+        {
+            <p class="text-muted mb-0">No hay prácticas seguras registradas para esta herramienta.</p>
+        }
+        else
+        {
+            <div class="safe-practices-list-admin">
+                @foreach (var item in safePractices)
+                {
+                    <div class="safe-practice-admin-card">
+                        <div class="safe-practice-order">@item.SortOrder</div>
+
+                        <div>
+                            <strong>@item.PracticeName</strong>
+                            <p>@item.Description</p>
+
+                            <div class="d-flex gap-1 flex-wrap mt-2">
+                                <button class="btn btn-sm btn-outline-primary" @onclick="() => StartEdit(item)">
+                                    Editar
+                                </button>
+
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(item)">
+                                    Desactivar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    [Parameter]
+    public Guid ToolId { get; set; }
+
+    private bool isLoading;
+    private bool isSaving;
+    private string? errorMessage;
+    private string? successMessage;
+    private string internalCode = string.Empty;
+    private string toolName = string.Empty;
+    private Guid? editingSafePracticeId;
+
+    private SafePracticeFormModel formModel = new()
+    {
+        SortOrder = 1
+    };
+
+    private List<SafePracticeItemModel> safePractices = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var record = await client.GetFromJsonAsync<TechnicalLifeRecordHeaderModel>($"api/tools/{ToolId}/technical-life-record");
+
+            if (record is not null)
+            {
+                internalCode = record.Summary.InternalCode;
+                toolName = record.Summary.Name;
+            }
+
+            safePractices = await client.GetFromJsonAsync<List<SafePracticeItemModel>>($"api/tools/{ToolId}/safe-practices") ?? new();
+
+            if (!editingSafePracticeId.HasValue && safePractices.Count > 0 && formModel.SortOrder <= 1)
+            {
+                formModel.SortOrder = safePractices.Max(x => x.SortOrder) + 1;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudieron cargar las prácticas seguras. Valida que la API esté activa. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            isSaving = true;
+            errorMessage = null;
+            successMessage = null;
+
+            if (string.IsNullOrWhiteSpace(formModel.PracticeName))
+            {
+                errorMessage = "El nombre de la práctica segura es obligatorio.";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(formModel.Description))
+            {
+                errorMessage = "La descripción de la práctica segura es obligatoria.";
+                return;
+            }
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            HttpResponseMessage response;
+
+            if (editingSafePracticeId.HasValue)
+            {
+                var payload = new
+                {
+                    practiceName = formModel.PracticeName,
+                    description = formModel.Description,
+                    sortOrder = formModel.SortOrder,
+                    updatedBy = "yquinto"
+                };
+
+                response = await client.PutAsJsonAsync($"api/tools/safe-practices/{editingSafePracticeId.Value}", payload);
+            }
+            else
+            {
+                var payload = new
+                {
+                    practiceName = formModel.PracticeName,
+                    description = formModel.Description,
+                    sortOrder = formModel.SortOrder,
+                    createdBy = "yquinto"
+                };
+
+                response = await client.PostAsJsonAsync($"api/tools/{ToolId}/safe-practices", payload);
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo guardar la práctica segura. Código: {(int)response.StatusCode}. Detalle: {detail}";
+                return;
+            }
+
+            successMessage = editingSafePracticeId.HasValue
+                ? "Práctica segura actualizada correctamente."
+                : "Práctica segura creada correctamente.";
+
+            CancelEdit();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo guardar la práctica segura. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task CreateDefaultsAsync()
+    {
+        try
+        {
+            isSaving = true;
+            errorMessage = null;
+            successMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var response = await client.PostAsync($"api/tools/{ToolId}/safe-practices/defaults", null);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudieron cargar prácticas predeterminadas. Código: {(int)response.StatusCode}. Detalle: {detail}";
+                return;
+            }
+
+            successMessage = "Prácticas seguras predeterminadas cargadas correctamente.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudieron cargar prácticas predeterminadas. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void StartEdit(SafePracticeItemModel item)
+    {
+        editingSafePracticeId = item.Id;
+
+        formModel = new SafePracticeFormModel
+        {
+            PracticeName = item.PracticeName,
+            Description = item.Description,
+            SortOrder = item.SortOrder
+        };
+
+        successMessage = null;
+        errorMessage = null;
+    }
+
+    private void CancelEdit()
+    {
+        editingSafePracticeId = null;
+
+        var nextOrder = safePractices.Count == 0
+            ? 1
+            : safePractices.Max(x => x.SortOrder) + 1;
+
+        formModel = new SafePracticeFormModel
+        {
+            SortOrder = nextOrder
+        };
+    }
+
+    private async Task DeleteAsync(SafePracticeItemModel item)
+    {
+        try
+        {
+            isSaving = true;
+            errorMessage = null;
+            successMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var response = await client.DeleteAsync($"api/tools/safe-practices/{item.Id}?deletedBy=yquinto");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo desactivar la práctica segura. Código: {(int)response.StatusCode}. Detalle: {detail}";
+                return;
+            }
+
+            successMessage = $"Práctica segura desactivada correctamente: {item.PracticeName}.";
+
+            if (editingSafePracticeId == item.Id)
+            {
+                CancelEdit();
+            }
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo desactivar la práctica segura. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo($"/tools/{ToolId}/technical-life-record");
+    }
+
+    private string GetSaveButtonText()
+    {
+        if (isSaving)
+        {
+            return "Guardando...";
+        }
+
+        return editingSafePracticeId.HasValue
+            ? "Actualizar práctica"
+            : "Crear práctica";
+    }
+
+    private sealed class SafePracticeFormModel
+    {
+        public string? PracticeName { get; set; }
+
+        public string? Description { get; set; }
+
+        public int SortOrder { get; set; }
+    }
+
+    private sealed class SafePracticeItemModel
+    {
+        public Guid Id { get; set; }
+
+        public Guid ToolAssetId { get; set; }
+
+        public string PracticeName { get; set; } = string.Empty;
+
+        public string Description { get; set; } = string.Empty;
+
+        public int SortOrder { get; set; }
+    }
+
+    private sealed class TechnicalLifeRecordHeaderModel
+    {
+        public SummaryInfo Summary { get; set; } = new();
+    }
+
+    private sealed class SummaryInfo
+    {
+        public string InternalCode { get; set; } = string.Empty;
+
+        public string Name { get; set; } = string.Empty;
+    }
+}

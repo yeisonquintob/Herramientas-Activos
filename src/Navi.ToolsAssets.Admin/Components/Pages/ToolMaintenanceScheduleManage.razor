@@ -1,0 +1,647 @@
+﻿@page "/tools/{ToolId:guid}/maintenance-schedule"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Cronograma mantenimiento - NAVI Herramientas</PageTitle>
+
+<div class="page-header">
+    <div>
+        <button class="btn btn-outline-secondary btn-sm mb-2" @onclick="GoBack">
+            ? Volver a hoja de vida
+        </button>
+
+        <h1>Cronograma de mantenimiento</h1>
+        <p>Registra, actualiza o desactiva mantenimientos preventivos, correctivos y de calibración.</p>
+    </div>
+
+    <button class="btn btn-outline-primary" @onclick="LoadAsync" disabled="@isLoading">
+        @(isLoading ? "Cargando..." : "Recargar")
+    </button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">
+        <strong>Error:</strong> @errorMessage
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(successMessage))
+{
+    <div class="alert alert-success">
+        @successMessage
+    </div>
+}
+
+<section class="life-record-cover">
+    <div>
+        <span class="life-record-label">Mantenimiento</span>
+        <h2>@toolName</h2>
+        <p>@internalCode</p>
+    </div>
+
+    <div class="life-record-cover-status">
+        <span class="badge bg-light text-dark">@maintenanceRecords.Count registro(s)</span>
+    </div>
+</section>
+
+<div class="maintenance-schedule-manage-grid">
+    <section class="life-record-section">
+        <div class="section-title">
+            <span>1</span>
+            <h2>@(editingMaintenanceId.HasValue ? "Editar mantenimiento" : "Nuevo mantenimiento")</h2>
+        </div>
+
+        <EditForm Model="formModel" OnValidSubmit="SaveAsync">
+            <div class="edit-form-grid">
+                <div>
+                    <label>Número mantenimiento</label>
+                    <InputText class="form-control" @bind-Value="formModel.MaintenanceNumber" placeholder="Ej: MTTO-AGU-001" />
+                </div>
+
+                <div>
+                    <label>Fecha programada</label>
+                    <InputDate class="form-control" @bind-Value="formModel.ScheduledAt" />
+                </div>
+
+                <div>
+                    <label>Tipo</label>
+                    <InputSelect class="form-select" @bind-Value="formModel.Type">
+                        <option value="Preventive">Preventivo</option>
+                        <option value="Corrective">Correctivo</option>
+                        <option value="Calibration">Calibración</option>
+                        <option value="Inspection">Inspección</option>
+                    </InputSelect>
+                </div>
+
+                <div>
+                    <label>Estado</label>
+                    <InputSelect class="form-select" @bind-Value="formModel.Status">
+                        <option value="Scheduled">Programado</option>
+                        <option value="InProgress">En proceso</option>
+                        <option value="Completed">Completado</option>
+                        <option value="Cancelled">Cancelado</option>
+                    </InputSelect>
+                </div>
+
+                <div>
+                    <label>Proveedor</label>
+                    <InputText class="form-control" @bind-Value="formModel.Provider" />
+                </div>
+
+                <div>
+                    <label>Técnico</label>
+                    <InputText class="form-control" @bind-Value="formModel.Technician" />
+                </div>
+
+                <div>
+                    <label>Responsable</label>
+                    <InputText class="form-control" @bind-Value="formModel.ResponsibleName" />
+                </div>
+
+                <div>
+                    <label>Cargo responsable</label>
+                    <InputText class="form-control" @bind-Value="formModel.ResponsiblePosition" />
+                </div>
+
+                <div>
+                    <label>Factura</label>
+                    <InputText class="form-control" @bind-Value="formModel.InvoiceNumber" />
+                </div>
+
+                <div>
+                    <label>Costo</label>
+                    <InputNumber class="form-control" @bind-Value="formModel.Cost" />
+                </div>
+
+                <div>
+                    <label>Documento evidencia</label>
+                    <InputSelect class="form-select" @bind-Value="formModel.EvidenceDocumentIdText">
+                        <option value="">Sin evidencia</option>
+                        @foreach (var doc in documents)
+                        {
+                            <option value="@doc.Id">@doc.FileName - @TranslateDocumentType(doc.DocumentType)</option>
+                        }
+                    </InputSelect>
+
+                    <div class="maintenance-evidence-actions">
+                        <a class="btn btn-sm btn-outline-primary"
+                           href="@($"/tools/{ToolId}/documents")">
+                            Cargar evidencia / documentos
+                        </a>
+
+                        <button type="button"
+                                class="btn btn-sm btn-outline-secondary"
+                                @onclick="LoadAsync">
+                            Recargar documentos
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <label>Fecha inicio</label>
+                    <InputDate class="form-control" @bind-Value="formModel.StartedAt" />
+                </div>
+
+                <div>
+                    <label>Fecha finalización</label>
+                    <InputDate class="form-control" @bind-Value="formModel.FinishedAt" />
+                </div>
+
+                <div class="form-check-row">
+                    <InputCheckbox class="form-check-input" @bind-Value="formModel.IsToolOperational" />
+                    <label>Herramienta operativa</label>
+                </div>
+            </div>
+
+            <div class="mt-3">
+                <label>Descripción</label>
+                <InputTextArea class="form-control technical-observation"
+                               @bind-Value="formModel.Description"
+                               placeholder="Descripción general del mantenimiento..." />
+            </div>
+
+            <div class="mt-3">
+                <label>Actividades realizadas / programadas</label>
+                <InputTextArea class="form-control technical-observation"
+                               @bind-Value="formModel.MaintenanceActivities"
+                               placeholder="Ej: Limpieza | Inspección | Verificación funcional" />
+            </div>
+
+            <div class="mt-3">
+                <label>Notas de ejecución</label>
+                <InputTextArea class="form-control technical-observation"
+                               @bind-Value="formModel.ExecutionNotes"
+                               placeholder="Notas o hallazgos del mantenimiento..." />
+            </div>
+
+            <div class="mt-3">
+                <label>Resultado</label>
+                <InputTextArea class="form-control technical-observation"
+                               @bind-Value="formModel.Result"
+                               placeholder="Resultado final o pendiente..." />
+            </div>
+
+            <div class="technical-edit-actions static-actions mt-3">
+                @if (editingMaintenanceId.HasValue)
+                {
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CancelEdit">
+                        Cancelar edición
+                    </button>
+                }
+
+                <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                    @GetSaveButtonText()
+                </button>
+            </div>
+        </EditForm>
+    </section>
+
+    <section class="life-record-section">
+        <div class="section-title">
+            <span>2</span>
+            <h2>Registros de mantenimiento</h2>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="alert alert-info mb-0">Cargando cronograma...</div>
+        }
+        else if (maintenanceRecords.Count == 0)
+        {
+            <p class="text-muted mb-0">No hay mantenimientos registrados para esta herramienta.</p>
+        }
+        else
+        {
+            <div class="maintenance-card-list">
+                @foreach (var item in maintenanceRecords)
+                {
+                    <div class="maintenance-card">
+                        <div class="maintenance-card-header">
+                            <div>
+                                <strong>@item.MaintenanceNumber</strong>
+                                <p>@FormatDate(item.ScheduledAt) · @TranslateType(item.Type)</p>
+                            </div>
+
+                            <span class="maintenance-status">@TranslateStatus(item.Status)</span>
+                        </div>
+
+                        <div class="maintenance-card-body">
+                            <div><span>Proveedor:</span> @Show(item.Provider)</div>
+                            <div><span>Técnico:</span> @Show(item.Technician)</div>
+                            <div><span>Responsable:</span> @Show(item.ResponsibleName)</div>
+                            <div><span>Factura:</span> @Show(item.InvoiceNumber)</div>
+                            <div><span>Costo:</span> @FormatMoney(item.Cost)</div>
+                            <div><span>Operativa:</span> @(item.IsToolOperational == true ? "Sí" : "No")</div>
+                            <div><span>Evidencia:</span> @GetEvidenceDisplay(item.EvidenceDocumentId)</div>
+                        </div>
+
+                        <p class="maintenance-description">@Show(item.Description)</p>
+
+                        <div class="d-flex gap-1 flex-wrap mt-2">
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => StartEdit(item)">
+                                Editar
+                            </button>
+
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(item)">
+                                Desactivar
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    [Parameter]
+    public Guid ToolId { get; set; }
+
+    private bool isLoading;
+    private bool isSaving;
+    private string? errorMessage;
+    private string? successMessage;
+    private string internalCode = string.Empty;
+    private string toolName = string.Empty;
+    private Guid? editingMaintenanceId;
+
+    private MaintenanceFormModel formModel = new()
+    {
+        Type = "Preventive",
+        Status = "Scheduled",
+        ScheduledAt = DateTime.Today.AddDays(30),
+        IsToolOperational = true
+    };
+
+    private List<MaintenanceItemModel> maintenanceRecords = new();
+    private List<DocumentItemModel> documents = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var record = await client.GetFromJsonAsync<TechnicalLifeRecordHeaderModel>($"api/tools/{ToolId}/technical-life-record");
+
+            if (record is not null)
+            {
+                internalCode = record.Summary.InternalCode;
+                toolName = record.Summary.Name;
+            }
+
+            maintenanceRecords = await client.GetFromJsonAsync<List<MaintenanceItemModel>>($"api/tools/{ToolId}/maintenance-schedule") ?? new();
+            documents = await client.GetFromJsonAsync<List<DocumentItemModel>>($"api/tools/{ToolId}/documents") ?? new();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo cargar el cronograma. Valida que la API esté activa. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            isSaving = true;
+            errorMessage = null;
+            successMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            HttpResponseMessage response;
+
+            if (editingMaintenanceId.HasValue)
+            {
+                var payload = BuildPayload("updated");
+                response = await client.PutAsJsonAsync($"api/tools/maintenance-schedule/{editingMaintenanceId.Value}", payload);
+            }
+            else
+            {
+                var payload = BuildPayload("created");
+                response = await client.PostAsJsonAsync($"api/tools/{ToolId}/maintenance-schedule", payload);
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo guardar el mantenimiento. Código: {(int)response.StatusCode}. Detalle: {detail}";
+                return;
+            }
+
+            successMessage = editingMaintenanceId.HasValue
+                ? "Mantenimiento actualizado correctamente."
+                : "Mantenimiento creado correctamente.";
+
+            CancelEdit();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo guardar el mantenimiento. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private object BuildPayload(string mode)
+    {
+        return new
+        {
+            maintenanceNumber = string.IsNullOrWhiteSpace(formModel.MaintenanceNumber)
+                ? null
+                : formModel.MaintenanceNumber,
+
+            type = formModel.Type,
+            status = formModel.Status,
+            scheduledAt = formModel.ScheduledAt,
+            startedAt = formModel.StartedAt,
+            finishedAt = formModel.FinishedAt,
+            provider = formModel.Provider,
+            technician = formModel.Technician,
+            description = formModel.Description,
+            maintenanceActivities = formModel.MaintenanceActivities,
+            executionNotes = formModel.ExecutionNotes,
+            invoiceNumber = formModel.InvoiceNumber,
+            responsibleName = formModel.ResponsibleName,
+            responsiblePosition = formModel.ResponsiblePosition,
+            isToolOperational = formModel.IsToolOperational,
+            evidenceDocumentId = GetSelectedEvidenceDocumentId(),
+            cost = formModel.Cost,
+            result = formModel.Result,
+            createdBy = mode == "created" ? "yquinto" : null,
+            updatedBy = mode == "updated" ? "yquinto" : null
+        };
+    }
+
+    private void StartEdit(MaintenanceItemModel item)
+    {
+        editingMaintenanceId = item.Id;
+
+        formModel = new MaintenanceFormModel
+        {
+            MaintenanceNumber = item.MaintenanceNumber,
+            Type = item.Type,
+            Status = item.Status,
+            ScheduledAt = item.ScheduledAt.Date,
+            StartedAt = item.StartedAt?.Date,
+            FinishedAt = item.FinishedAt?.Date,
+            Provider = item.Provider,
+            Technician = item.Technician,
+            Description = item.Description,
+            MaintenanceActivities = item.MaintenanceActivities,
+            ExecutionNotes = item.ExecutionNotes,
+            InvoiceNumber = item.InvoiceNumber,
+            ResponsibleName = item.ResponsibleName,
+            ResponsiblePosition = item.ResponsiblePosition,
+            IsToolOperational = item.IsToolOperational ?? true,
+            EvidenceDocumentIdText = item.EvidenceDocumentId?.ToString(),
+            Cost = item.Cost,
+            Result = item.Result
+        };
+
+        successMessage = null;
+        errorMessage = null;
+    }
+
+    private void CancelEdit()
+    {
+        editingMaintenanceId = null;
+
+        formModel = new MaintenanceFormModel
+        {
+            Type = "Preventive",
+            Status = "Scheduled",
+            ScheduledAt = DateTime.Today.AddDays(30),
+            IsToolOperational = true
+        };
+    }
+
+    private async Task DeleteAsync(MaintenanceItemModel item)
+    {
+        try
+        {
+            isSaving = true;
+            errorMessage = null;
+            successMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var response = await client.DeleteAsync($"api/tools/maintenance-schedule/{item.Id}?deletedBy=yquinto");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo desactivar el mantenimiento. Código: {(int)response.StatusCode}. Detalle: {detail}";
+                return;
+            }
+
+            successMessage = $"Mantenimiento desactivado correctamente: {item.MaintenanceNumber}.";
+
+            if (editingMaintenanceId == item.Id)
+            {
+                CancelEdit();
+            }
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo desactivar el mantenimiento. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo($"/tools/{ToolId}/technical-life-record");
+    }
+
+    private string GetSaveButtonText()
+    {
+        if (isSaving)
+        {
+            return "Guardando...";
+        }
+
+        return editingMaintenanceId.HasValue
+            ? "Actualizar mantenimiento"
+            : "Crear mantenimiento";
+    }
+
+    private static string Show(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "-" : value;
+    }
+
+    private static string FormatDate(DateTime value)
+    {
+        return value.ToString("dd/MM/yyyy");
+    }
+
+    private static string FormatMoney(decimal? value)
+    {
+        return value.HasValue ? value.Value.ToString("C0") : "-";
+    }
+
+    private Guid? GetSelectedEvidenceDocumentId()
+    {
+        if (string.IsNullOrWhiteSpace(formModel.EvidenceDocumentIdText))
+        {
+            return null;
+        }
+
+        return Guid.TryParse(formModel.EvidenceDocumentIdText, out var documentId)
+            ? documentId
+            : null;
+    }
+
+    private string GetEvidenceFileName(Guid? documentId)
+    {
+        if (!documentId.HasValue)
+        {
+            return "-";
+        }
+
+        var document = documents.FirstOrDefault(x => x.Id == documentId.Value);
+
+        return document is null
+            ? "-"
+            : document.FileName;
+    }
+
+    private string GetEvidenceDisplay(Guid? documentId)
+    {
+        var fileName = GetEvidenceFileName(documentId);
+
+        return fileName == "-"
+            ? "-"
+            : fileName;
+    }
+
+    private static string TranslateDocumentType(string? value)
+    {
+        return value switch
+        {
+            "TechnicalDocument" => "Documento técnico",
+            "PhotographicRecord" => "Registro fotográfico",
+            "MaintenanceEvidence" => "Evidencia mantenimiento",
+            "Other" => "Otro",
+            _ => value ?? "-"
+        };
+    }
+
+    private static string TranslateType(string? value)
+    {
+        return value switch
+        {
+            "Preventive" => "Preventivo",
+            "Corrective" => "Correctivo",
+            "Calibration" => "Calibración",
+            "Inspection" => "Inspección",
+            _ => value ?? "-"
+        };
+    }
+
+    private static string TranslateStatus(string? value)
+    {
+        return value switch
+        {
+            "Scheduled" => "Programado",
+            "InProgress" => "En proceso",
+            "Completed" => "Completado",
+            "Cancelled" => "Cancelado",
+            _ => value ?? "-"
+        };
+    }
+
+    private sealed class MaintenanceFormModel
+    {
+        public string? MaintenanceNumber { get; set; }
+        public string Type { get; set; } = "Preventive";
+        public string Status { get; set; } = "Scheduled";
+        public DateTime ScheduledAt { get; set; }
+        public DateTime? StartedAt { get; set; }
+        public DateTime? FinishedAt { get; set; }
+        public string? Provider { get; set; }
+        public string? Technician { get; set; }
+        public string? Description { get; set; }
+        public string? MaintenanceActivities { get; set; }
+        public string? ExecutionNotes { get; set; }
+        public string? InvoiceNumber { get; set; }
+        public string? ResponsibleName { get; set; }
+        public string? ResponsiblePosition { get; set; }
+        public bool IsToolOperational { get; set; } = true;
+                public string? EvidenceDocumentIdText { get; set; }
+        public decimal? Cost { get; set; }
+        public string? Result { get; set; }
+    }
+
+    private sealed class MaintenanceItemModel
+    {
+        public Guid Id { get; set; }
+        public Guid ToolAssetId { get; set; }
+        public string MaintenanceNumber { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public DateTime ScheduledAt { get; set; }
+        public DateTime? StartedAt { get; set; }
+        public DateTime? FinishedAt { get; set; }
+        public string? Provider { get; set; }
+        public string? Technician { get; set; }
+        public string? Description { get; set; }
+        public string? MaintenanceActivities { get; set; }
+        public string? ExecutionNotes { get; set; }
+        public string? InvoiceNumber { get; set; }
+        public string? ResponsibleName { get; set; }
+        public string? ResponsiblePosition { get; set; }
+        public bool? IsToolOperational { get; set; }
+        public Guid? EvidenceDocumentId { get; set; }
+        public decimal? Cost { get; set; }
+        public string? Result { get; set; }
+    }
+
+    private sealed class DocumentItemModel
+    {
+        public Guid Id { get; set; }
+
+        public string DocumentType { get; set; } = string.Empty;
+
+        public string FileName { get; set; } = string.Empty;
+    }
+
+    private sealed class TechnicalLifeRecordHeaderModel
+    {
+        public SummaryInfo Summary { get; set; } = new();
+    }
+
+    private sealed class SummaryInfo
+    {
+        public string InternalCode { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+    }
+}
+
+
+
+

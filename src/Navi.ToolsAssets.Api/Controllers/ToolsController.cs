@@ -477,7 +477,7 @@ public class ToolsController : ControllerBase
 
 
 
-    [HttpPost("{id:guid}/documents")]
+    [HttpPost("{id:guid}/documents-legacy")]
     public async Task<IActionResult> UploadToolDocument(
         Guid id,
         IFormFile file,
@@ -575,7 +575,7 @@ public class ToolsController : ControllerBase
         });
     }
 
-    [HttpGet("{id:guid}/documents")]
+    [HttpGet("{id:guid}/documents-legacy")]
     public async Task<IActionResult> GetToolDocuments(Guid id)
     {
         var exists = await _context.ToolAssets.AnyAsync(x => x.Id == id);
@@ -610,7 +610,7 @@ public class ToolsController : ControllerBase
         return Ok(documents);
     }
 
-    [HttpGet("documents/{documentId:guid}/download")]
+    [HttpGet("documents/{documentId:guid}/download-legacy")]
     public async Task<IActionResult> DownloadToolDocument(Guid documentId)
     {
         var document = await _context.ToolDocuments
@@ -1272,6 +1272,8 @@ public class ToolsController : ControllerBase
         public string? ToolCategoryName { get; set; }
     }
 }
+
+
 
 
 

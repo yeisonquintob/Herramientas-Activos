@@ -1,0 +1,445 @@
+@page "/tools/{ToolId:guid}/documents"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@using System.Net.Http.Headers
+@using Microsoft.AspNetCore.Components.Forms
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Documentos - NAVI Herramientas</PageTitle>
+
+<div class="page-header">
+    <div>
+        <button class="btn btn-outline-secondary btn-sm mb-2" @onclick="GoBack">
+            ? Volver a hoja de vida
+        </button>
+
+        <h1>Gestión de documentos</h1>
+        <p>Carga fichas técnicas, fotografías, evidencias y documentos asociados a la herramienta.</p>
+    </div>
+
+    <button class="btn btn-outline-primary" @onclick="LoadAsync" disabled="@isLoading">
+        @(isLoading ? "Cargando..." : "Recargar")
+    </button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">
+        <strong>Error:</strong> @errorMessage
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(successMessage))
+{
+    <div class="alert alert-success">
+        @successMessage
+    </div>
+}
+
+<section class="life-record-cover">
+    <div>
+        <span class="life-record-label">Documentos</span>
+        <h2>@toolName</h2>
+        <p>@internalCode</p>
+    </div>
+
+    <div class="life-record-cover-status">
+        <span class="badge bg-light text-dark">@documents.Count documento(s)</span>
+    </div>
+</section>
+
+<div class="documents-manage-grid">
+    <section class="life-record-section">
+        <div class="section-title">
+            <span>1</span>
+            <h2>Cargar documento</h2>
+        </div>
+
+        <div class="edit-form-grid">
+            <div>
+                <label>Tipo de documento</label>
+                <InputSelect class="form-select" @bind-Value="formModel.DocumentType">
+                    <option value="TechnicalDocument">Ficha técnica / Documento técnico</option>
+                    <option value="PhotographicRecord">Registro fotográfico</option>
+                    <option value="MaintenanceEvidence">Evidencia de mantenimiento</option>
+                    <option value="Other">Otro</option>
+                </InputSelect>
+            </div>
+
+            <div>
+                <label>Archivo</label>
+                <InputFile class="form-control" OnChange="OnFileSelected" />
+            </div>
+        </div>
+
+        <div class="mt-3">
+            <label>Descripción</label>
+            <InputTextArea class="form-control technical-observation"
+                           @bind-Value="formModel.Description"
+                           placeholder="Ej: Ficha técnica del equipo, evidencia de mantenimiento, foto del estado actual..." />
+        </div>
+
+        @if (selectedFile is not null)
+        {
+            <div class="selected-file-box mt-3">
+                <strong>Archivo seleccionado:</strong> @selectedFile.Name<br />
+                <span>Tamaño: @FormatBytes(selectedFile.Size)</span>
+            </div>
+        }
+
+        <div class="technical-edit-actions static-actions mt-3">
+            <button type="button" class="btn btn-primary" @onclick="UploadAsync" disabled="@isSaving">
+                @(isSaving ? "Cargando..." : "Cargar documento")
+            </button>
+        </div>
+
+        <div class="alert alert-info mt-3 mb-0">
+            Extensiones permitidas: PDF, JPG, JPEG, PNG, XLSX, XLS y DOCX. Tamaño máximo: 50 MB.
+        </div>
+    </section>
+
+    <section class="life-record-section">
+        <div class="section-title">
+            <span>2</span>
+            <h2>Documentos registrados</h2>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="alert alert-info mb-0">Cargando documentos...</div>
+        }
+        else if (documents.Count == 0)
+        {
+            <p class="text-muted mb-0">No hay documentos registrados para esta herramienta.</p>
+        }
+        else
+        {
+            <div class="document-card-list">
+                @foreach (var item in documents)
+                {
+                    <div class="document-admin-card">
+                        <div class="document-icon">
+                            @GetDocumentIcon(item.DocumentType)
+                        </div>
+
+                        <div>
+                            <div class="document-admin-header">
+                                <div>
+                                    <strong>@item.FileName</strong>
+                                    <p>@TranslateDocumentType(item.DocumentType) · @FormatBytes(item.SizeBytes)</p>
+                                </div>
+
+                                <span class="document-type-pill">@TranslateDocumentType(item.DocumentType)</span>
+                            </div>
+
+                            <p class="document-description">@Show(item.Description)</p>
+
+                            <div class="document-meta">
+                                <span>Subido por: @Show(item.UploadedBy)</span>
+                                <span>Fecha: @FormatDate(item.UploadedAt)</span>
+                            </div>
+
+                            <div class="d-flex gap-1 flex-wrap mt-2">
+                                <a class="btn btn-sm btn-outline-primary"
+                                   href="@BuildDownloadUrl(item.DownloadUrl)"
+                                   target="_blank">
+                                    Descargar
+                                </a>
+
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(item)">
+                                    Desactivar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    [Parameter]
+    public Guid ToolId { get; set; }
+
+    private const long MaxFileSize = 50 * 1024 * 1024;
+
+    private bool isLoading;
+    private bool isSaving;
+    private string? errorMessage;
+    private string? successMessage;
+    private string internalCode = string.Empty;
+    private string toolName = string.Empty;
+    private string apiBaseUrl = string.Empty;
+
+    private IBrowserFile? selectedFile;
+
+    private DocumentUploadFormModel formModel = new()
+    {
+        DocumentType = "TechnicalDocument"
+    };
+
+    private List<DocumentItemModel> documents = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+            apiBaseUrl = client.BaseAddress?.ToString().TrimEnd('/') ?? "http://localhost:5218";
+
+            var record = await client.GetFromJsonAsync<TechnicalLifeRecordHeaderModel>($"api/tools/{ToolId}/technical-life-record");
+
+            if (record is not null)
+            {
+                internalCode = record.Summary.InternalCode;
+                toolName = record.Summary.Name;
+            }
+
+            documents = await client.GetFromJsonAsync<List<DocumentItemModel>>($"api/tools/{ToolId}/documents") ?? new();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudieron cargar los documentos. Valida que la API esté activa. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OnFileSelected(InputFileChangeEventArgs e)
+    {
+        selectedFile = e.File;
+        successMessage = null;
+        errorMessage = null;
+    }
+
+    private async Task UploadAsync()
+    {
+        if (selectedFile is null)
+        {
+            errorMessage = "Debe seleccionar un archivo.";
+            return;
+        }
+
+        try
+        {
+            isSaving = true;
+            errorMessage = null;
+            successMessage = null;
+
+            var extension = Path.GetExtension(selectedFile.Name).ToLowerInvariant();
+            var allowedExtensions = new[] { ".pdf", ".jpg", ".jpeg", ".png", ".xlsx", ".xls", ".docx" };
+
+            if (!allowedExtensions.Contains(extension))
+            {
+                errorMessage = "Tipo de archivo no permitido. Use PDF, JPG, JPEG, PNG, XLSX, XLS o DOCX.";
+                return;
+            }
+
+            if (selectedFile.Size > MaxFileSize)
+            {
+                errorMessage = "El archivo supera el tamaño máximo permitido de 50 MB.";
+                return;
+            }
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            using var form = new MultipartFormDataContent();
+
+            await using var fileStream = selectedFile.OpenReadStream(MaxFileSize);
+            using var fileContent = new StreamContent(fileStream);
+
+            fileContent.Headers.ContentType = new MediaTypeHeaderValue(
+                string.IsNullOrWhiteSpace(selectedFile.ContentType)
+                    ? "application/octet-stream"
+                    : selectedFile.ContentType);
+
+            form.Add(fileContent, "file", selectedFile.Name);
+            form.Add(new StringContent(formModel.DocumentType ?? "Other"), "documentType");
+            form.Add(new StringContent(formModel.Description ?? string.Empty), "description");
+            form.Add(new StringContent("yquinto"), "uploadedBy");
+
+            var response = await client.PostAsync($"api/tools/{ToolId}/documents", form);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo cargar el documento. Código: {(int)response.StatusCode}. Detalle: {detail}";
+                return;
+            }
+
+            successMessage = "Documento cargado correctamente.";
+
+            selectedFile = null;
+            formModel = new DocumentUploadFormModel
+            {
+                DocumentType = "TechnicalDocument"
+            };
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo cargar el documento. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task DeleteAsync(DocumentItemModel item)
+    {
+        try
+        {
+            isSaving = true;
+            errorMessage = null;
+            successMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var response = await client.DeleteAsync($"api/tools/documents/{item.Id}?deletedBy=yquinto");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo desactivar el documento. Código: {(int)response.StatusCode}. Detalle: {detail}";
+                return;
+            }
+
+            successMessage = $"Documento desactivado correctamente: {item.FileName}.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo desactivar el documento. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo($"/tools/{ToolId}/technical-life-record");
+    }
+
+    private string BuildDownloadUrl(string? downloadUrl)
+    {
+        if (string.IsNullOrWhiteSpace(downloadUrl))
+        {
+            return "#";
+        }
+
+        if (downloadUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        {
+            return downloadUrl;
+        }
+
+        return $"{apiBaseUrl}{downloadUrl}";
+    }
+
+    private static string TranslateDocumentType(string? value)
+    {
+        return value switch
+        {
+            "TechnicalDocument" => "Documento técnico",
+            "PhotographicRecord" => "Registro fotográfico",
+            "MaintenanceEvidence" => "Evidencia mantenimiento",
+            "Other" => "Otro",
+            _ => value ?? "-"
+        };
+    }
+
+    private static string GetDocumentIcon(string? value)
+    {
+        return value switch
+        {
+            "PhotographicRecord" => "???",
+            "MaintenanceEvidence" => "??",
+            "TechnicalDocument" => "??",
+            _ => "??"
+        };
+    }
+
+    private static string Show(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "-" : value;
+    }
+
+    private static string FormatDate(DateTime value)
+    {
+        return value.ToString("dd/MM/yyyy HH:mm");
+    }
+
+    private static string FormatBytes(long value)
+    {
+        if (value >= 1024 * 1024)
+        {
+            return $"{value / 1024d / 1024d:0.00} MB";
+        }
+
+        if (value >= 1024)
+        {
+            return $"{value / 1024d:0.00} KB";
+        }
+
+        return $"{value} bytes";
+    }
+
+    private sealed class DocumentUploadFormModel
+    {
+        public string? DocumentType { get; set; }
+
+        public string? Description { get; set; }
+    }
+
+    private sealed class DocumentItemModel
+    {
+        public Guid Id { get; set; }
+
+        public Guid ToolAssetId { get; set; }
+
+        public string DocumentType { get; set; } = string.Empty;
+
+        public string FileName { get; set; } = string.Empty;
+
+        public string? ObjectKey { get; set; }
+
+        public string? ContentType { get; set; }
+
+        public long SizeBytes { get; set; }
+
+        public string? UploadedBy { get; set; }
+
+        public DateTime UploadedAt { get; set; }
+
+        public string? Description { get; set; }
+
+        public string? DownloadUrl { get; set; }
+    }
+
+    private sealed class TechnicalLifeRecordHeaderModel
+    {
+        public SummaryInfo Summary { get; set; } = new();
+    }
+
+    private sealed class SummaryInfo
+    {
+        public string InternalCode { get; set; } = string.Empty;
+
+        public string Name { get; set; } = string.Empty;
+    }
+}
