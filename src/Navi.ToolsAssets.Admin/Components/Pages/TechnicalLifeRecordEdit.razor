@@ -1,0 +1,441 @@
+@page "/tools/{ToolId:guid}/technical-life-record/edit"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Editar datos técnicos - NAVI Herramientas</PageTitle>
+
+<div class="page-header">
+    <div>
+        <button class="btn btn-outline-secondary btn-sm mb-2" @onclick="GoBack">
+            ? Volver a hoja de vida
+        </button>
+
+        <h1>Editar datos técnicos</h1>
+        <p>Actualiza la información técnica, garantía, vida útil y plan de mantenimiento de la herramienta.</p>
+    </div>
+
+    <button class="btn btn-outline-primary" @onclick="LoadAsync" disabled="@isLoading">
+        @(isLoading ? "Cargando..." : "Recargar")
+    </button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">
+        <strong>Error:</strong> @errorMessage
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(successMessage))
+{
+    <div class="alert alert-success">
+        @successMessage
+    </div>
+}
+
+@if (isLoading && editModel is null)
+{
+    <div class="alert alert-info">
+        Cargando datos técnicos...
+    </div>
+}
+else if (editModel is not null)
+{
+    <section class="life-record-cover">
+        <div>
+            <span class="life-record-label">Edición técnica</span>
+            <h2>@toolName</h2>
+            <p>@internalCode</p>
+        </div>
+
+        <div class="life-record-cover-status">
+            <span class="badge bg-light text-dark">Formulario Admin</span>
+        </div>
+    </section>
+
+    <EditForm Model="editModel" OnValidSubmit="SaveAsync">
+        <div class="technical-edit-grid">
+            <section class="life-record-section">
+                <div class="section-title">
+                    <span>1</span>
+                    <h2>Información del equipo</h2>
+                </div>
+
+                <div class="edit-form-grid">
+                    <div>
+                        <label>Marca</label>
+                        <InputText class="form-control" @bind-Value="editModel.Brand" />
+                    </div>
+
+                    <div>
+                        <label>Modelo</label>
+                        <InputText class="form-control" @bind-Value="editModel.Model" />
+                    </div>
+
+                    <div>
+                        <label>Serial</label>
+                        <InputText class="form-control" @bind-Value="editModel.SerialNumber" />
+                    </div>
+
+                    <div>
+                        <label>Activo fijo</label>
+                        <InputText class="form-control" @bind-Value="editModel.FixedAssetCode" />
+                    </div>
+
+                    <div>
+                        <label>Código Fenix365</label>
+                        <InputText class="form-control" @bind-Value="editModel.FenixCode" />
+                    </div>
+
+                    <div>
+                        <label>Fecha adquisición</label>
+                        <InputDate class="form-control" @bind-Value="editModel.AcquisitionDate" />
+                    </div>
+                </div>
+            </section>
+
+            <section class="life-record-section">
+                <div class="section-title">
+                    <span>2</span>
+                    <h2>Especificaciones técnicas</h2>
+                </div>
+
+                <div class="edit-form-grid">
+                    <div>
+                        <label>Voltaje</label>
+                        <InputText class="form-control" @bind-Value="editModel.Voltage" />
+                    </div>
+
+                    <div>
+                        <label>Capacidad de carga</label>
+                        <InputText class="form-control" @bind-Value="editModel.LoadCapacity" />
+                    </div>
+
+                    <div>
+                        <label>Proveedor</label>
+                        <InputText class="form-control" @bind-Value="editModel.Provider" />
+                    </div>
+
+                    <div class="form-check-row">
+                        <InputCheckbox class="form-check-input" @bind-Value="editModel.RequiresMaintenance" />
+                        <label>Requiere mantenimiento</label>
+                    </div>
+
+                    <div class="form-check-row">
+                        <InputCheckbox class="form-check-input" @bind-Value="editModel.RequiresPreOperationalCheck" />
+                        <label>Requiere preoperacional</label>
+                    </div>
+
+                    <div class="form-check-row">
+                        <InputCheckbox class="form-check-input" @bind-Value="editModel.RequiresCertification" />
+                        <label>Requiere certificación</label>
+                    </div>
+
+                    <div>
+                        <label>Fecha vencimiento certificación</label>
+                        <InputDate class="form-control" @bind-Value="editModel.CertificationExpirationDate" />
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div class="technical-edit-grid">
+            <section class="life-record-section">
+                <div class="section-title">
+                    <span>3</span>
+                    <h2>Garantía</h2>
+                </div>
+
+                <div class="edit-form-grid">
+                    <div class="form-check-row">
+                        <InputCheckbox class="form-check-input" @bind-Value="editModel.HasWarranty" />
+                        <label>Tiene garantía</label>
+                    </div>
+
+                    <div>
+                        <label>Tipo de garantía</label>
+                        <InputText class="form-control" @bind-Value="editModel.WarrantyType" />
+                    </div>
+                </div>
+            </section>
+
+            <section class="life-record-section">
+                <div class="section-title">
+                    <span>4</span>
+                    <h2>Vida útil</h2>
+                </div>
+
+                <div class="edit-form-grid">
+                    <div>
+                        <label>Fecha inicial vida útil</label>
+                        <InputDate class="form-control" @bind-Value="editModel.UsefulLifeStartDate" />
+                    </div>
+
+                    <div>
+                        <label>Vida útil meses</label>
+                        <InputNumber class="form-control" @bind-Value="editModel.UsefulLifeMonths" />
+                    </div>
+
+                    <div>
+                        <label>Vida útil días</label>
+                        <InputNumber class="form-control" @bind-Value="editModel.UsefulLifeDays" />
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <section class="life-record-section">
+            <div class="section-title">
+                <span>5</span>
+                <h2>Plan de mantenimiento</h2>
+            </div>
+
+            <div class="edit-form-grid three-columns">
+                <div>
+                    <label>Último mantenimiento</label>
+                    <InputDate class="form-control" @bind-Value="editModel.LastMaintenanceDate" />
+                </div>
+
+                <div>
+                    <label>Próximo mantenimiento</label>
+                    <InputDate class="form-control" @bind-Value="editModel.NextMaintenanceDate" />
+                </div>
+
+                <div>
+                    <label>Periodicidad meses</label>
+                    <InputNumber class="form-control" @bind-Value="editModel.MaintenancePeriodMonths" />
+                </div>
+            </div>
+        </section>
+
+        <section class="life-record-section">
+            <div class="section-title">
+                <span>6</span>
+                <h2>Observación del cambio</h2>
+            </div>
+
+            <InputTextArea class="form-control technical-observation"
+                           @bind-Value="editModel.Observation"
+                           placeholder="Describe el motivo de la actualización..." />
+        </section>
+
+        <div class="technical-edit-actions">
+            <button type="button" class="btn btn-outline-secondary" @onclick="GoBack">
+                Cancelar
+            </button>
+
+            <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                @(isSaving ? "Guardando..." : "Guardar datos técnicos")
+            </button>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public Guid ToolId { get; set; }
+
+    private bool isLoading;
+    private bool isSaving;
+    private string? errorMessage;
+    private string? successMessage;
+    private string internalCode = string.Empty;
+    private string toolName = string.Empty;
+    private TechnicalEditModel? editModel;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+            successMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var record = await client.GetFromJsonAsync<TechnicalLifeRecordForEditModel>($"api/tools/{ToolId}/technical-life-record");
+
+            if (record is null)
+            {
+                errorMessage = "No se encontró información técnica para la herramienta.";
+                return;
+            }
+
+            internalCode = record.Summary.InternalCode;
+            toolName = record.Summary.Name;
+
+            editModel = new TechnicalEditModel
+            {
+                Brand = record.EquipmentInformation.Brand,
+                Model = record.EquipmentInformation.Model,
+                SerialNumber = record.EquipmentInformation.SerialNumber,
+                FixedAssetCode = record.EquipmentInformation.FixedAssetCode,
+                FenixCode = record.EquipmentInformation.FenixCode,
+                AcquisitionDate = record.EquipmentInformation.AcquisitionDate?.Date,
+
+                Voltage = record.TechnicalSpecifications.Voltage,
+                LoadCapacity = record.TechnicalSpecifications.LoadCapacity,
+                Provider = record.TechnicalSpecifications.Provider,
+                RequiresMaintenance = record.TechnicalSpecifications.RequiresMaintenance,
+                RequiresPreOperationalCheck = record.TechnicalSpecifications.RequiresPreOperationalCheck,
+                RequiresCertification = record.TechnicalSpecifications.RequiresCertification,
+                CertificationExpirationDate = record.TechnicalSpecifications.CertificationExpirationDate?.Date,
+
+                HasWarranty = record.Warranty.HasWarranty,
+                WarrantyType = record.Warranty.WarrantyType,
+
+                UsefulLifeStartDate = record.UsefulLife.StartDate?.Date,
+                UsefulLifeMonths = record.UsefulLife.UsefulLifeMonths,
+                UsefulLifeDays = record.UsefulLife.UsefulLifeDays,
+
+                LastMaintenanceDate = record.MaintenancePlan.LastMaintenanceDate?.Date,
+                NextMaintenanceDate = record.MaintenancePlan.NextMaintenanceDate?.Date,
+                MaintenancePeriodMonths = record.MaintenancePlan.MaintenancePeriodMonths,
+
+                UpdatedBy = "yquinto",
+                Observation = "Actualización de datos técnicos desde Admin."
+            };
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo cargar la información técnica. Valida que la API esté activa. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (editModel is null)
+        {
+            return;
+        }
+
+        try
+        {
+            isSaving = true;
+            errorMessage = null;
+            successMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var response = await client.PatchAsJsonAsync($"api/tools/{ToolId}/technical-data", editModel);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudieron actualizar los datos técnicos. Código: {(int)response.StatusCode}. Detalle: {detail}";
+                return;
+            }
+
+            successMessage = "Datos técnicos actualizados correctamente.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudieron actualizar los datos técnicos. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo($"/tools/{ToolId}/technical-life-record");
+    }
+
+    private sealed class TechnicalEditModel
+    {
+        public string? Brand { get; set; }
+        public string? Model { get; set; }
+        public string? SerialNumber { get; set; }
+        public string? FixedAssetCode { get; set; }
+        public string? FenixCode { get; set; }
+        public DateTime? AcquisitionDate { get; set; }
+        public string? Voltage { get; set; }
+        public string? LoadCapacity { get; set; }
+        public string? Provider { get; set; }
+        public bool HasWarranty { get; set; }
+        public string? WarrantyType { get; set; }
+        public DateTime? UsefulLifeStartDate { get; set; }
+        public int? UsefulLifeMonths { get; set; }
+        public int? UsefulLifeDays { get; set; }
+        public DateTime? LastMaintenanceDate { get; set; }
+        public DateTime? NextMaintenanceDate { get; set; }
+        public int? MaintenancePeriodMonths { get; set; }
+        public bool RequiresMaintenance { get; set; }
+        public bool RequiresPreOperationalCheck { get; set; }
+        public bool RequiresCertification { get; set; }
+        public DateTime? CertificationExpirationDate { get; set; }
+        public string? UpdatedBy { get; set; }
+        public string? Observation { get; set; }
+    }
+
+    private sealed class TechnicalLifeRecordForEditModel
+    {
+        public SummaryInfo Summary { get; set; } = new();
+        public EquipmentInfo EquipmentInformation { get; set; } = new();
+        public TechnicalInfo TechnicalSpecifications { get; set; } = new();
+        public WarrantyInfo Warranty { get; set; } = new();
+        public UsefulLifeInfo UsefulLife { get; set; } = new();
+        public MaintenancePlanInfo MaintenancePlan { get; set; } = new();
+    }
+
+    private sealed class SummaryInfo
+    {
+        public string InternalCode { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class EquipmentInfo
+    {
+        public string? Brand { get; set; }
+        public string? Model { get; set; }
+        public string? SerialNumber { get; set; }
+        public string? FixedAssetCode { get; set; }
+        public string? FenixCode { get; set; }
+        public DateTime? AcquisitionDate { get; set; }
+    }
+
+    private sealed class TechnicalInfo
+    {
+        public string? Voltage { get; set; }
+        public string? LoadCapacity { get; set; }
+        public string? Provider { get; set; }
+        public bool RequiresMaintenance { get; set; }
+        public bool RequiresPreOperationalCheck { get; set; }
+        public bool RequiresCertification { get; set; }
+        public DateTime? CertificationExpirationDate { get; set; }
+    }
+
+    private sealed class WarrantyInfo
+    {
+        public bool HasWarranty { get; set; }
+        public string? WarrantyType { get; set; }
+    }
+
+    private sealed class UsefulLifeInfo
+    {
+        public DateTime? StartDate { get; set; }
+        public int? UsefulLifeMonths { get; set; }
+        public int? UsefulLifeDays { get; set; }
+    }
+
+    private sealed class MaintenancePlanInfo
+    {
+        public DateTime? LastMaintenanceDate { get; set; }
+        public DateTime? NextMaintenanceDate { get; set; }
+        public int? MaintenancePeriodMonths { get; set; }
+    }
+}
