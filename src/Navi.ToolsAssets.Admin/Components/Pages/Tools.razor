@@ -4,17 +4,24 @@
 
 <PageTitle>Inventario maestro - NAVI Herramientas</PageTitle>
 
-<div class="page-header">
+<section class="inventory-hero-banner">
     <div>
-        <h1>Inventario maestro</h1>
-        <p>Consulta general de herramientas y activos registrados en NAVI.</p>
+        <span class="inventory-hero-pill">ACTIVOS FIJOS</span>
+        <h2>Inventario de AF</h2>
+        <p>Consulta general de herramientas y activos fijos registrados en NAVI.</p>
     </div>
 
-    <button class="btn btn-primary" @onclick="LoadToolsAsync" disabled="@isLoading">
-        @(isLoading ? "Actualizando..." : "Actualizar")
-    </button>
-</div>
+    <div class="inventory-hero-side">
+        <div class="inventory-hero-status">
+            <span>Total activos</span>
+            <strong>@tools.Count registrados</strong>
+        </div>
 
+        <button class="btn btn-sm btn-outline-light inventory-hero-refresh" @onclick="LoadToolsAsync" disabled="@isLoading">
+            @(isLoading ? "Actualizando..." : "Actualizar")
+        </button>
+    </div>
+</section>
 @if (!string.IsNullOrWhiteSpace(errorMessage))
 {
     <div class="alert alert-danger">
@@ -29,30 +36,29 @@ else if (isLoading && tools.Count == 0)
 }
 else
 {
-    <div class="inventory-summary">
-        <div class="inventory-summary-card">
-            <span>Total</span>
+    <section class="inventory-kpi-grid">
+        <article class="inventory-kpi-card total">
+            <span>Total AF</span>
             <strong>@tools.Count</strong>
-        </div>
+        </article>
 
-        <div class="inventory-summary-card success">
+        <article class="inventory-kpi-card success">
             <span>Disponibles</span>
             <strong>@tools.Count(x => x.OperationalStatus == "Available")</strong>
-        </div>
+        </article>
 
-        <div class="inventory-summary-card warning">
+        <article class="inventory-kpi-card warning">
             <span>Pendientes validación</span>
             <strong>@tools.Count(x => x.OperationalStatus == "PendingValidation")</strong>
-        </div>
+        </article>
 
-        <div class="inventory-summary-card danger">
+        <article class="inventory-kpi-card danger">
             <span>Bloqueadas</span>
             <strong>@tools.Count(IsBlocked)</strong>
-        </div>
-    </div>
+        </article>
+    </section>
 
-
-    <section class="inventory-status-filters">
+    <section class="inventory-status-filters inventory-status-filters-modern">
         <button type="button"
                 class="@GetStatusFilterChipClass(string.Empty)"
                 @onclick="@(() => SelectStatus(string.Empty))">
@@ -70,6 +76,7 @@ else
             </button>
         }
     </section>
+
     <section class="inventory-panel">
         <div class="inventory-toolbar">
             <input class="form-control"
@@ -103,7 +110,7 @@ else
                 <thead>
                     <tr>
                         <th>Código</th>
-                        <th>Herramienta</th>
+                        <th>HERRAMIENTA / ACTIVO</th>
                         <th>Sede</th>
                         <th>Tipo</th>
                         <th>Categoría</th>
@@ -156,15 +163,7 @@ else
                                 }
                             </td>
                             <td>
-                                <div class="d-flex gap-1 flex-wrap">
-                                    <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{tool.Id}")">
-                                        Ver
-                                    </a>
-
-                                    <a class="btn btn-sm btn-outline-dark" href="@($"/tools/{tool.Id}/technical-life-record")">
-                                        Hoja vida
-                                    </a>
-                                </div>
+                                <a class="btn-inventory-detail" href="@($"/tools/{tool.Id}")">Detalle</a>
                             </td>
                         </tr>
                     }
@@ -384,3 +383,187 @@ else
 
 
 
+
+
+<style>
+    .inventory-hero-banner {
+        background: linear-gradient(135deg, #050008 0%, #280032 45%, #5c006b 100%);
+        color: #ffffff;
+        border-radius: 0.85rem;
+        padding: 1.25rem 1.4rem;
+        margin-bottom: 0.85rem;
+        min-height: 105px;
+        display: flex;
+        justify-content: space-between;
+        align-items: stretch;
+        gap: 1rem;
+        box-shadow: 0 0.65rem 1.35rem rgba(75, 0, 92, 0.22);
+    }
+
+    .inventory-hero-pill {
+        display: inline-flex;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        color: #ffffff;
+        border-radius: 999px;
+        padding: 0.22rem 0.65rem;
+        font-size: 0.7rem;
+        font-weight: 900;
+        letter-spacing: 0.04rem;
+        margin-bottom: 0.6rem;
+    }
+
+    .inventory-hero-banner h2 {
+        font-size: 1.75rem;
+        font-weight: 950;
+        margin: 0;
+        color: #ffffff;
+    }
+
+    .inventory-hero-banner p {
+        margin: 0.35rem 0 0 0;
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 0.9rem;
+    }
+
+    .inventory-hero-side {
+        min-width: 190px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: stretch;
+        gap: 0.65rem;
+    }
+
+    .inventory-hero-status {
+        display: grid;
+        gap: 0.2rem;
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 0.65rem;
+        padding: 0.55rem 0.75rem;
+        text-align: right;
+    }
+
+    .inventory-hero-status span {
+        color: #ffdd57;
+        font-weight: 900;
+        font-size: 0.75rem;
+    }
+
+    .inventory-hero-status strong {
+        color: #ffffff;
+        font-size: 0.82rem;
+    }
+
+    .inventory-hero-refresh {
+        height: 32px;
+        font-size: 0.78rem;
+        font-weight: 800;
+        border-color: rgba(255, 255, 255, 0.65);
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .inventory-hero-refresh:hover {
+        color: #4b005c;
+        background: #ffffff;
+        border-color: #ffffff;
+    }
+
+    .inventory-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(150px, 1fr));
+        gap: 0.65rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .inventory-kpi-card {
+        background: #ffffff;
+        border: 1px solid #dfe3e8;
+        border-radius: 0.75rem;
+        padding: 0.65rem 0.8rem;
+        min-height: 66px;
+        box-shadow: 0 0.25rem 0.65rem rgba(0, 0, 0, 0.04);
+        border-left: 4px solid #4b005c;
+    }
+
+    .inventory-kpi-card.success {
+        border-left-color: #198754;
+    }
+
+    .inventory-kpi-card.warning {
+        border-left-color: #ffc107;
+    }
+
+    .inventory-kpi-card.danger {
+        border-left-color: #dc3545;
+    }
+
+    .inventory-kpi-card span {
+        display: block;
+        color: #657083;
+        font-size: 0.72rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .inventory-kpi-card strong {
+        display: block;
+        color: #22102b;
+        font-size: 1.35rem;
+        font-weight: 950;
+        line-height: 1.1;
+    }
+
+    .inventory-status-filters-modern {
+        margin-bottom: 0.85rem !important;
+        background: #ffffff;
+        border: 1px solid #dfe3e8;
+        border-radius: 0.75rem;
+        padding: 0.55rem;
+        box-shadow: 0 0.25rem 0.65rem rgba(0, 0, 0, 0.035);
+    }
+
+    .btn-inventory-detail {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 76px;
+        height: 31px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #4b005c 0%, #7b0d8e 100%);
+        color: #ffffff !important;
+        font-size: 0.76rem;
+        font-weight: 900;
+        text-decoration: none;
+        box-shadow: 0 0.25rem 0.6rem rgba(75, 0, 92, 0.25);
+        border: 1px solid rgba(75, 0, 92, 0.25);
+        white-space: nowrap;
+    }
+
+    .btn-inventory-detail:hover {
+        color: #ffffff !important;
+        filter: brightness(1.08);
+        transform: translateY(-1px);
+    }
+
+    @@media (max-width: 1100px) {
+        .inventory-hero-banner {
+            flex-direction: column;
+        }
+
+        .inventory-hero-side {
+            width: 100%;
+        }
+
+        .inventory-kpi-grid {
+            grid-template-columns: repeat(2, minmax(140px, 1fr));
+        }
+    }
+
+    @@media (max-width: 700px) {
+        .inventory-kpi-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>

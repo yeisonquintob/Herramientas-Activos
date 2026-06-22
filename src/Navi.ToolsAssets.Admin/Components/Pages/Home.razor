@@ -1,19 +1,25 @@
 ﻿@page "/"
 @page "/dashboard"
 @rendermode InteractiveServer
+@using System.Net.Http.Json
 @inject IHttpClientFactory HttpClientFactory
 
-<PageTitle>NAVI Herramientas - Dashboard</PageTitle>
+<PageTitle>Dashboard - NAVI</PageTitle>
 
-<section class="dashboard-tech-banner">
+<section class="dash-hero">
     <div>
-        <span class="dashboard-tech-pill">DASHBOARD</span>
-        <h2>NAVI Herramientas</h2>
-        <p>Dashboard operativo de herramientas, activos, inventario físico, préstamos, mantenimiento y conciliación.</p>
+        <span class="dash-pill">NAVI HERRAMIENTAS Y ACTIVOS</span>
+        <h2>Dashboard general</h2>
+        <p>Vista ejecutiva del local de herramientas, activos fijos, disponibilidad, mantenimiento, hojas de vida, documentos, solicitudes e historial.</p>
     </div>
 
-    <div class="dashboard-tech-side">
-        <button class="btn btn-sm btn-outline-light dashboard-refresh-button" @onclick="LoadDashboardAsync" disabled="@isLoading">
+    <div class="dash-hero-side">
+        <div class="dash-hero-box">
+            <span>Última actualización</span>
+            <strong>@ShowDateTime(dashboard?.GeneratedAt)</strong>
+        </div>
+
+        <button class="btn btn-sm btn-outline-light" @onclick="LoadDashboardAsync" disabled="@isLoading">
             @(isLoading ? "Actualizando..." : "Actualizar")
         </button>
     </div>
@@ -21,202 +27,302 @@
 
 @if (!string.IsNullOrWhiteSpace(errorMessage))
 {
-    <div class="alert alert-danger">
-        <strong>Error:</strong> @errorMessage
-    </div>
+    <div class="alert alert-danger">@errorMessage</div>
 }
-else if (isLoading && summary is null)
+else if (isLoading && dashboard is null)
 {
-    <div class="alert alert-info">
-        Cargando indicadores desde la API...
-    </div>
+    <div class="alert alert-info">Cargando dashboard...</div>
 }
-else if (summary is not null)
+else if (dashboard is not null)
 {
-    <div class="kpi-grid dashboard-kpi-compact">
-        <div class="kpi-card">
+    <section class="kpi-grid">
+        <article class="kpi-card blue">
             <span>Total herramientas</span>
-            <strong>@summary.TotalTools</strong>
-        </div>
+            <strong>@dashboard.Summary.TotalTools</strong>
+            <small>Inventario registrado</small>
+        </article>
 
-        <div class="kpi-card success">
+        <article class="kpi-card green">
             <span>Disponibles</span>
-            <strong>@summary.AvailableTools</strong>
-        </div>
+            <strong>@dashboard.Summary.AvailableTools</strong>
+            <small>Listas para uso</small>
+        </article>
 
-        <div class="kpi-card warning">
+        <article class="kpi-card yellow">
             <span>Pendientes validación</span>
-            <strong>@summary.PendingValidationTools</strong>
-        </div>
+            <strong>@dashboard.Summary.PendingValidationTools</strong>
+            <small>Por revisar</small>
+        </article>
 
-        <div class="kpi-card">
-            <span>Prestadas</span>
-            <strong>@summary.LoanedTools</strong>
-        </div>
+        <article class="kpi-card purple">
+            <span>Activos fijos</span>
+            <strong>@dashboard.Summary.FixedAssets</strong>
+            <small>Con código AF</small>
+        </article>
 
-        <div class="kpi-card">
-            <span>En mantenimiento</span>
-            <strong>@summary.InMaintenanceTools</strong>
-        </div>
+        <article class="kpi-card purple">
+            <span>Especializados</span>
+            <strong>@dashboard.Summary.SpecializedTools</strong>
+            <small>Control especial</small>
+        </article>
 
-        <div class="kpi-card danger">
-            <span>Dañadas / no aptas</span>
-            <strong>@(summary.DamagedTools + summary.NotSuitableTools)</strong>
-        </div>
+        <article class="kpi-card cyan">
+            <span>Con mantenimiento</span>
+            <strong>@dashboard.Summary.RequiresMaintenance</strong>
+            <small>Requieren plan</small>
+        </article>
 
-        <div class="kpi-card danger">
-            <span>No localizadas</span>
-            <strong>@summary.NotLocatedTools</strong>
-        </div>
+        <article class="kpi-card blue">
+            <span>Responsables</span>
+            <strong>@dashboard.Summary.ActiveResponsibles</strong>
+            <small>@dashboard.Summary.InactiveResponsibles inactivos</small>
+        </article>
 
-        <div class="kpi-card">
-            <span>Especializadas</span>
-            <strong>@summary.SpecializedTools</strong>
-        </div>
+        <article class="kpi-card orange">
+            <span>Sedes activas</span>
+            <strong>@dashboard.Summary.ActiveBranches</strong>
+            <small>@dashboard.Summary.InactiveBranches desactivadas</small>
+        </article>
+    </section>
 
-        <div class="kpi-card">
-            <span>No especializadas</span>
-            <strong>@summary.NonSpecializedTools</strong>
-        </div>
-
-        <div class="kpi-card success">
-            <span>Conciliadas</span>
-            <strong>@summary.ReconciledTools</strong>
-        </div>
-
-        <div class="kpi-card warning">
-            <span>Inconsistentes</span>
-            <strong>@summary.InconsistentTools</strong>
-        </div>
-
-        <div class="kpi-card warning">
-            <span>Pendiente sync</span>
-            <strong>@summary.PendingSyncTools</strong>
-        </div>
-
-        <div class="kpi-card danger">
-            <span>Error sync</span>
-            <strong>@summary.SyncErrorTools</strong>
-        </div>
-
-        <div class="kpi-card">
-            <span>Bajas / retiradas</span>
-            <strong>@summary.DisposedTools</strong>
-        </div>
-    </div>
-
-    <div class="dashboard-grid">
-        <section class="dashboard-panel">
-            <h2>Herramientas por estado</h2>
-
-            @if (toolsByStatus.Count == 0)
-            {
-                <p class="text-muted">No hay datos.</p>
-            }
-            else
-            {
-                <div class="bar-chart">
-                    @foreach (var item in toolsByStatus)
-                    {
-                        var percent = GetBarPercent(item.Count, GetMaxStatusCount());
-
-                        <div class="bar-row">
-                            <div class="bar-label">
-                                <span>@item.StatusLabel</span>
-                                <strong>@item.Count</strong>
-                            </div>
-
-                            <div class="bar-track">
-                                <div class="bar-fill" style="width:@percent%"></div>
-                            </div>
-                        </div>
-                    }
+    <section class="dashboard-layout">
+        <article class="dash-card span-2">
+            <div class="card-head">
+                <div>
+                    <h3>Local de herramientas</h3>
+                    <p>Resumen operativo de disponibilidad.</p>
                 </div>
-            }
-        </section>
+            </div>
 
-        <section class="dashboard-panel">
-            <h2>Herramientas por sede</h2>
+            <div class="status-grid">
+                <div><span>Disponibles</span><strong>@dashboard.Summary.AvailableTools</strong></div>
+                <div><span>Asignadas</span><strong>@dashboard.Summary.AssignedTools</strong></div>
+                <div><span>Prestadas</span><strong>@dashboard.Summary.LoanedTools</strong></div>
+                <div><span>En mantenimiento</span><strong>@dashboard.Summary.InMaintenanceTools</strong></div>
+                <div><span>Dañadas / no aptas</span><strong>@dashboard.Summary.DamagedTools</strong></div>
+                <div><span>No localizadas</span><strong>@dashboard.Summary.NotLocatedTools</strong></div>
+            </div>
+        </article>
 
-            @if (toolsByBranch.Any(x => x.TotalTools > 0))
-            {
-                <div class="bar-chart">
-                    @foreach (var branch in toolsByBranch.Where(x => x.TotalTools > 0))
-                    {
-                        var percent = GetBarPercent(branch.TotalTools, GetMaxBranchToolCount());
-
-                        <div class="bar-row">
-                            <div class="bar-label">
-                                <span>@branch.BranchCode - @branch.BranchName</span>
-                                <strong>@branch.TotalTools</strong>
-                            </div>
-
-                            <div class="bar-track">
-                                <div class="bar-fill branch" style="width:@percent%"></div>
-                            </div>
-
-                            <small class="text-muted">
-                                Disponibles: @branch.AvailableTools |
-                                Prestadas: @branch.LoanedTools |
-                                Mantenimiento: @branch.InMaintenanceTools |
-                                Dañadas: @branch.DamagedTools
-                            </small>
-                        </div>
-                    }
+        <article class="dash-card">
+            <div class="card-head">
+                <div>
+                    <h3>Herramientas vs activos</h3>
+                    <p>Clasificación general.</p>
                 </div>
-            }
-            else
-            {
-                <p class="text-muted">No hay herramientas por sede.</p>
-            }
-        </section>
-    </div>
+            </div>
 
-    <div class="dashboard-grid">
-        <section class="dashboard-panel">
-            <h2>Alertas</h2>
+            <div class="split-metric">
+                <div><span>Herramientas</span><strong>@dashboard.Summary.ToolsOnly</strong></div>
+                <div><span>Otros activos</span><strong>@dashboard.Summary.NonToolAssets</strong></div>
+                <div><span>Sin código AF</span><strong>@dashboard.Summary.ToolsWithoutFixedAssetCode</strong></div>
+            </div>
+        </article>
 
-            @if (alerts.Count == 0)
-            {
-                <p class="text-muted">No hay alertas activas.</p>
-            }
-            else
-            {
-                <table class="table table-sm">
-                    <thead>
-                        <tr>
-                            <th>Severidad</th>
-                            <th>Herramienta</th>
-                            <th>Mensaje</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var alert in alerts)
-                        {
-                            <tr>
-                                <td>@alert.Severity</td>
-                                <td>@alert.InternalCode</td>
-                                <td>@alert.Message</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            }
-        </section>
+        <article class="dash-card">
+            <div class="card-head">
+                <div>
+                    <h3>Hojas de vida</h3>
+                    <p>Cobertura y calidad.</p>
+                </div>
+            </div>
 
-        <section class="dashboard-panel">
-            <h2>Actividad reciente</h2>
+            <div class="life-summary">
+                <div><span>Con hoja de vida</span><strong>@dashboard.Summary.WithLifeRecord</strong></div>
+                <div><span>Sin hoja de vida</span><strong>@dashboard.Summary.WithoutLifeRecord</strong></div>
+                <div><span>Datos incompletos</span><strong>@dashboard.LifeRecordCoverage.MissingTechnicalData</strong></div>
+            </div>
+        </article>
 
-            <table class="table table-sm">
+        <article class="dash-card span-2">
+            <div class="card-head">
+                <div>
+                    <h3>Mantenimientos por mes</h3>
+                    <p>Actividad de los últimos meses.</p>
+                </div>
+                <strong class="mini-total">@dashboard.MaintenanceSummary.Total total</strong>
+            </div>
+
+            <div class="bars-list">
+                @foreach (var item in dashboard.MaintenanceByMonth)
+                {
+                    <div class="bar-row">
+                        <span>@item.Label</span>
+                        <div class="bar-track">
+                            <div class="bar-fill purple" style="@($"width: {GetPercent(item.Count, GetMaxMonthMaintenance())}%")"></div>
+                        </div>
+                        <strong>@item.Count</strong>
+                    </div>
+                }
+            </div>
+        </article>
+
+        <article class="dash-card span-2">
+            <div class="card-head">
+                <div>
+                    <h3>Mantenimientos por día</h3>
+                    <p>Últimos 14 días.</p>
+                </div>
+                <strong class="mini-total">@dashboard.MaintenanceSummary.Today hoy</strong>
+            </div>
+
+            <div class="day-grid">
+                @foreach (var item in dashboard.MaintenanceByDay)
+                {
+                    <div>
+                        <span>@item.Label</span>
+                        <strong>@item.Count</strong>
+                    </div>
+                }
+            </div>
+        </article>
+
+        <article class="dash-card span-2">
+            <div class="card-head">
+                <div>
+                    <h3>Herramientas por sede</h3>
+                    <p>Distribución por sede.</p>
+                </div>
+            </div>
+
+            <div class="bars-list">
+                @foreach (var item in dashboard.ToolsByBranch)
+                {
+                    <div class="bar-row">
+                        <span>@item.BranchCode</span>
+                        <div class="bar-track">
+                            <div class="bar-fill blue" style="@($"width: {GetPercent(item.Total, GetMaxBranch())}%")"></div>
+                        </div>
+                        <strong>@item.Total</strong>
+                    </div>
+                }
+            </div>
+        </article>
+
+        <article class="dash-card span-2">
+            <div class="card-head">
+                <div>
+                    <h3>Herramientas por estado</h3>
+                    <p>Conteo por estado operativo.</p>
+                </div>
+            </div>
+
+            <div class="bars-list">
+                @foreach (var item in dashboard.ToolsByStatus)
+                {
+                    <div class="bar-row">
+                        <span>@GetStatusLabel(item.Status)</span>
+                        <div class="bar-track">
+                            <div class="bar-fill green" style="@($"width: {GetPercent(item.Count, GetMaxStatus())}%")"></div>
+                        </div>
+                        <strong>@item.Count</strong>
+                    </div>
+                }
+            </div>
+        </article>
+
+        <article class="dash-card span-2">
+            <div class="card-head">
+                <div>
+                    <h3>Solicitudes de compra AF</h3>
+                    <p>Indicador preparado para el módulo de compras.</p>
+                </div>
+                <span class="module-pill">@dashboard.PurchaseSummary.ModuleStatus</span>
+            </div>
+
+            <div class="purchase-grid">
+                <div><span>Solicitudes creadas</span><strong>@dashboard.PurchaseSummary.Total</strong></div>
+                <div><span>Realizadas</span><strong>@dashboard.PurchaseSummary.Completed</strong></div>
+                <div><span>Pendientes</span><strong>@dashboard.PurchaseSummary.Pending</strong></div>
+                <div><span>Rechazadas</span><strong>@dashboard.PurchaseSummary.Rejected</strong></div>
+            </div>
+
+            <p class="note">@dashboard.PurchaseSummary.Note</p>
+        </article>
+
+        <article class="dash-card span-2">
+            <div class="card-head">
+                <div>
+                    <h3>Documentos y evidencias</h3>
+                    <p>Soportes recientes cargados al sistema.</p>
+                </div>
+                <strong class="mini-total">@dashboard.DocumentSummary.Total docs</strong>
+            </div>
+
+            <table class="table table-sm compact-table">
                 <thead>
                     <tr>
-                        <th>Evento</th>
-                        <th>Herramienta</th>
+                        <th>Documento</th>
+                        <th>Tipo</th>
+                        <th>Fecha</th>
                         <th>Usuario</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var activity in recentActivity.Take(10))
+                    @foreach (var doc in dashboard.DocumentSummary.Recent)
+                    {
+                        <tr>
+                            <td>@doc.FileName</td>
+                            <td>@doc.DocumentType</td>
+                            <td>@ShowDate(doc.UploadedAt)</td>
+                            <td>@Show(doc.UploadedBy)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </article>
+
+        <article class="dash-card span-2">
+            <div class="card-head">
+                <div>
+                    <h3>Hojas de vida incompletas</h3>
+                    <p>Activos que requieren completar información base.</p>
+                </div>
+            </div>
+
+            <table class="table table-sm compact-table">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Activo</th>
+                        <th>Sede</th>
+                        <th>Falta</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in dashboard.LifeRecordCoverage.MissingTechnicalDataItems)
+                    {
+                        <tr>
+                            <td><strong>@item.InternalCode</strong></td>
+                            <td>@item.Name</td>
+                            <td>@Show(item.BranchCode)</td>
+                            <td>@Show(item.Missing)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </article>
+
+        <article class="dash-card span-4">
+            <div class="card-head">
+                <div>
+                    <h3>Actividad reciente del historial</h3>
+                    <p>Últimos eventos registrados en trazabilidad.</p>
+                </div>
+            </div>
+
+            <table class="table table-sm compact-table">
+                <thead>
+                    <tr>
+                        <th>Evento</th>
+                        <th>Herramienta / Activo</th>
+                        <th>Detalle</th>
+                        <th>Usuario</th>
+                        <th>Fecha</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var activity in dashboard.RecentActivity)
                     {
                         <tr>
                             <td>
@@ -224,29 +330,328 @@ else if (summary is not null)
                                 <br />
                                 <small class="text-muted">@activity.EventType</small>
                             </td>
-                            <td>@activity.ToolInternalCode</td>
-                            <td>@activity.PerformedBy</td>
+                            <td>@Show(activity.ToolInternalCode)</td>
+                            <td>@Show(activity.Description)</td>
+                            <td>@Show(activity.User)</td>
+                            <td>@ShowDateTime(activity.RegisteredAt)</td>
                         </tr>
                     }
                 </tbody>
             </table>
-        </section>
-    </div>
-
-    <p class="dashboard-footer">
-        Última actualización: @summary.LastUpdatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")
-    </p>
+        </article>
+    </section>
 }
+
+<style>
+    .dash-hero {
+        background: linear-gradient(135deg, #050008 0%, #280032 45%, #5c006b 100%);
+        color: #fff;
+        border-radius: .85rem;
+        padding: 1.25rem 1.4rem;
+        margin-bottom: 1rem;
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        box-shadow: 0 .65rem 1.35rem rgba(75,0,92,.22);
+    }
+
+    .dash-pill {
+        display: inline-flex;
+        background: rgba(255,255,255,.12);
+        border: 1px solid rgba(255,255,255,.35);
+        border-radius: 999px;
+        padding: .22rem .65rem;
+        font-size: .7rem;
+        font-weight: 900;
+        margin-bottom: .6rem;
+    }
+
+    .dash-hero h2 {
+        color: #fff;
+        font-weight: 950;
+        margin: 0;
+        font-size: 1.8rem;
+    }
+
+    .dash-hero p {
+        color: rgba(255,255,255,.78);
+        margin: .35rem 0 0;
+        font-size: .9rem;
+    }
+
+    .dash-hero-side {
+        min-width: 210px;
+        display: grid;
+        gap: .65rem;
+    }
+
+    .dash-hero-box {
+        background: rgba(255,255,255,.12);
+        border-radius: .65rem;
+        padding: .55rem .75rem;
+        text-align: right;
+    }
+
+    .dash-hero-box span {
+        display: block;
+        color: #ffdd57;
+        font-size: .73rem;
+        font-weight: 900;
+    }
+
+    .dash-hero-box strong {
+        color: #fff;
+        font-size: .82rem;
+    }
+
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(8, minmax(125px, 1fr));
+        gap: .65rem;
+        margin-bottom: 1rem;
+    }
+
+    .kpi-card {
+        background: #fff;
+        border: 1px solid #dfe3e8;
+        border-left: 4px solid #4b005c;
+        border-radius: .75rem;
+        padding: .7rem .75rem;
+        box-shadow: 0 .25rem .65rem rgba(0,0,0,.04);
+    }
+
+    .kpi-card.green { border-left-color: #198754; }
+    .kpi-card.yellow { border-left-color: #ffc107; }
+    .kpi-card.blue { border-left-color: #0d6efd; }
+    .kpi-card.purple { border-left-color: #7b0d8e; }
+    .kpi-card.cyan { border-left-color: #0dcaf0; }
+    .kpi-card.orange { border-left-color: #fd7e14; }
+
+    .kpi-card span {
+        display: block;
+        color: #657083;
+        font-size: .68rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .kpi-card strong {
+        display: block;
+        color: #17111c;
+        font-size: 1.45rem;
+        font-weight: 950;
+        line-height: 1.1;
+    }
+
+    .kpi-card small {
+        color: #657083;
+        font-size: .68rem;
+    }
+
+    .dashboard-layout {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: .85rem;
+    }
+
+    .dash-card {
+        background: #fff;
+        border: 1px solid #dfe3e8;
+        border-radius: .85rem;
+        padding: .95rem;
+        box-shadow: 0 .28rem .7rem rgba(0,0,0,.04);
+    }
+
+    .span-2 { grid-column: span 2; }
+    .span-4 { grid-column: span 4; }
+
+    .card-head {
+        display: flex;
+        justify-content: space-between;
+        gap: .75rem;
+        margin-bottom: .75rem;
+    }
+
+    .card-head h3 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 950;
+        color: #17111c;
+    }
+
+    .card-head p {
+        margin: .18rem 0 0;
+        color: #657083;
+        font-size: .76rem;
+    }
+
+    .mini-total,
+    .module-pill {
+        height: 27px;
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        background: #f3ecf7;
+        color: #4b005c;
+        padding: 0 .6rem;
+        font-size: .72rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .status-grid,
+    .purchase-grid,
+    .split-metric,
+    .life-summary {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: .55rem;
+    }
+
+    .status-grid div,
+    .purchase-grid div,
+    .split-metric div,
+    .life-summary div {
+        background: #f8fafc;
+        border: 1px solid #edf1f5;
+        border-radius: .65rem;
+        padding: .65rem;
+    }
+
+    .status-grid span,
+    .purchase-grid span,
+    .split-metric span,
+    .life-summary span {
+        display: block;
+        color: #657083;
+        font-size: .68rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .status-grid strong,
+    .purchase-grid strong,
+    .split-metric strong,
+    .life-summary strong {
+        display: block;
+        color: #17111c;
+        font-size: 1.25rem;
+        font-weight: 950;
+    }
+
+    .bars-list {
+        display: grid;
+        gap: .5rem;
+    }
+
+    .bar-row {
+        display: grid;
+        grid-template-columns: 120px 1fr 35px;
+        gap: .55rem;
+        align-items: center;
+        font-size: .76rem;
+    }
+
+    .bar-track {
+        height: 8px;
+        background: #e9edf3;
+        border-radius: 999px;
+        overflow: hidden;
+    }
+
+    .bar-fill {
+        height: 100%;
+        border-radius: 999px;
+    }
+
+    .bar-fill.green { background: #198754; }
+    .bar-fill.blue { background: #0d6efd; }
+    .bar-fill.purple { background: #7b0d8e; }
+
+    .day-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: .45rem;
+    }
+
+    .day-grid div {
+        background: #f8fafc;
+        border: 1px solid #edf1f5;
+        border-radius: .55rem;
+        padding: .45rem;
+        text-align: center;
+    }
+
+    .day-grid span {
+        display: block;
+        font-size: .68rem;
+        color: #657083;
+        font-weight: 900;
+    }
+
+    .day-grid strong {
+        font-size: 1rem;
+        color: #17111c;
+        font-weight: 950;
+    }
+
+    .compact-table {
+        font-size: .78rem;
+    }
+
+    .compact-table th,
+    .compact-table td {
+        padding: .42rem .5rem;
+        vertical-align: middle;
+    }
+
+    .note {
+        margin: .65rem 0 0;
+        color: #657083;
+        font-size: .76rem;
+    }
+
+    @@media (max-width: 1400px) {
+        .kpi-grid {
+            grid-template-columns: repeat(4, 1fr);
+        }
+
+        .dashboard-layout {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .span-2,
+        .span-4 {
+            grid-column: span 2;
+        }
+    }
+
+    @@media (max-width: 850px) {
+        .dash-hero,
+        .card-head {
+            flex-direction: column;
+        }
+
+        .kpi-grid,
+        .dashboard-layout,
+        .status-grid,
+        .purchase-grid,
+        .split-metric,
+        .life-summary {
+            grid-template-columns: 1fr;
+        }
+
+        .span-2,
+        .span-4 {
+            grid-column: span 1;
+        }
+    }
+</style>
 
 @code {
     private bool isLoading;
     private string? errorMessage;
-
-    private DashboardSummary? summary;
-    private List<ToolsByStatusItem> toolsByStatus = new();
-    private List<ToolsByBranchItem> toolsByBranch = new();
-    private List<DashboardAlert> alerts = new();
-    private List<RecentActivityItem> recentActivity = new();
+    private ExecutiveDashboard? dashboard;
 
     protected override async Task OnInitializedAsync()
     {
@@ -261,12 +666,7 @@ else if (summary is not null)
             errorMessage = null;
 
             var client = HttpClientFactory.CreateClient("NaviApi");
-
-            summary = await client.GetFromJsonAsync<DashboardSummary>("api/dashboard/summary");
-            toolsByStatus = await client.GetFromJsonAsync<List<ToolsByStatusItem>>("api/dashboard/tools-by-status") ?? new();
-            toolsByBranch = await client.GetFromJsonAsync<List<ToolsByBranchItem>>("api/dashboard/tools-by-branch") ?? new();
-            alerts = await client.GetFromJsonAsync<List<DashboardAlert>>("api/dashboard/alerts") ?? new();
-            recentActivity = await client.GetFromJsonAsync<List<RecentActivityItem>>("api/dashboard/recent-activity") ?? new();
+            dashboard = await client.GetFromJsonAsync<ExecutiveDashboard>("api/dashboard/executive");
         }
         catch (Exception ex)
         {
@@ -278,430 +678,187 @@ else if (summary is not null)
         }
     }
 
-    private int GetMaxStatusCount()
+    private int GetMaxStatus()
     {
-        return toolsByStatus.Count == 0 ? 1 : Math.Max(1, toolsByStatus.Max(x => x.Count));
+        if (dashboard is null || dashboard.ToolsByStatus.Count == 0)
+        {
+            return 1;
+        }
+
+        return Math.Max(1, dashboard.ToolsByStatus.Max(x => x.Count));
     }
 
-    private int GetMaxBranchToolCount()
+    private int GetMaxBranch()
     {
-        return toolsByBranch.Count == 0 ? 1 : Math.Max(1, toolsByBranch.Max(x => x.TotalTools));
+        if (dashboard is null || dashboard.ToolsByBranch.Count == 0)
+        {
+            return 1;
+        }
+
+        return Math.Max(1, dashboard.ToolsByBranch.Max(x => x.Total));
     }
 
-    private static int GetBarPercent(int value, int maxValue)
+    private int GetMaxMonthMaintenance()
     {
-        if (value <= 0 || maxValue <= 0)
+        if (dashboard is null || dashboard.MaintenanceByMonth.Count == 0)
+        {
+            return 1;
+        }
+
+        return Math.Max(1, dashboard.MaintenanceByMonth.Max(x => x.Count));
+    }
+
+    private static int GetPercent(int value, int max)
+    {
+        if (value <= 0 || max <= 0)
         {
             return 0;
         }
 
-        return Math.Max(4, (int)Math.Round((decimal)value / maxValue * 100));
+        return Math.Max(5, (int)Math.Round((decimal)value / max * 100));
+    }
+
+    private static string Show(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "—" : value;
+    }
+
+    private static string ShowDate(DateTime? value)
+    {
+        return value.HasValue ? value.Value.ToLocalTime().ToString("dd/MM/yyyy") : "—";
+    }
+
+    private static string ShowDateTime(DateTime? value)
+    {
+        return value.HasValue ? value.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm") : "—";
+    }
+
+    private static string GetStatusLabel(string status) => status switch
+    {
+        "Available" => "Disponible",
+        "Assigned" => "Asignada",
+        "Loaned" => "Prestada",
+        "InMaintenance" => "En mantenimiento",
+        "Damaged" => "Dañada",
+        "NotSuitable" => "No apta",
+        "PendingValidation" => "Pendiente validación",
+        "NotLocated" => "No localizada",
+        "PendingDisposal" => "Pendiente baja",
+        "Disposed" => "Dada de baja",
+        _ => status
+    };
+
+    private sealed class ExecutiveDashboard
+    {
+        public DateTime GeneratedAt { get; set; }
+        public DashboardSummary Summary { get; set; } = new();
+        public List<StatusItem> ToolsByStatus { get; set; } = new();
+        public List<BranchItem> ToolsByBranch { get; set; } = new();
+        public List<MaintenancePeriodItem> MaintenanceByMonth { get; set; } = new();
+        public List<MaintenancePeriodItem> MaintenanceByDay { get; set; } = new();
+        public LifeRecordCoverage LifeRecordCoverage { get; set; } = new();
+        public MaintenanceSummary MaintenanceSummary { get; set; } = new();
+        public DocumentSummary DocumentSummary { get; set; } = new();
+        public PurchaseSummary PurchaseSummary { get; set; } = new();
+        public List<RecentActivityItem> RecentActivity { get; set; } = new();
     }
 
     private sealed class DashboardSummary
     {
         public int TotalTools { get; set; }
         public int AvailableTools { get; set; }
+        public int PendingValidationTools { get; set; }
+        public int AssignedTools { get; set; }
         public int LoanedTools { get; set; }
         public int InMaintenanceTools { get; set; }
         public int DamagedTools { get; set; }
-        public int NotSuitableTools { get; set; }
         public int NotLocatedTools { get; set; }
-        public int PendingValidationTools { get; set; }
         public int DisposedTools { get; set; }
+        public int FixedAssets { get; set; }
+        public int ToolsWithoutFixedAssetCode { get; set; }
+        public int ToolsOnly { get; set; }
+        public int NonToolAssets { get; set; }
         public int SpecializedTools { get; set; }
-        public int NonSpecializedTools { get; set; }
-        public int ReconciledTools { get; set; }
-        public int InconsistentTools { get; set; }
-        public int SyncErrorTools { get; set; }
-        public int PendingSyncTools { get; set; }
-        public DateTime LastUpdatedAt { get; set; }
+        public int RequiresMaintenance { get; set; }
+        public int ActiveResponsibles { get; set; }
+        public int InactiveResponsibles { get; set; }
+        public int ActiveBranches { get; set; }
+        public int InactiveBranches { get; set; }
+        public int WithLifeRecord { get; set; }
+        public int WithoutLifeRecord { get; set; }
     }
 
-    private sealed class ToolsByStatusItem
+    private sealed class StatusItem
     {
         public string Status { get; set; } = string.Empty;
-        public string StatusLabel { get; set; } = string.Empty;
         public int Count { get; set; }
     }
 
-    private sealed class ToolsByBranchItem
+    private sealed class BranchItem
     {
         public string BranchCode { get; set; } = string.Empty;
         public string BranchName { get; set; } = string.Empty;
-        public string? ZoneCode { get; set; }
-        public string? ZoneName { get; set; }
-        public int TotalTools { get; set; }
-        public int AvailableTools { get; set; }
-        public int LoanedTools { get; set; }
-        public int InMaintenanceTools { get; set; }
-        public int DamagedTools { get; set; }
-        public int NotLocatedTools { get; set; }
+        public int Total { get; set; }
     }
 
-    private sealed class DashboardAlert
+    private sealed class MaintenancePeriodItem
     {
-        public string Type { get; set; } = string.Empty;
-        public string Severity { get; set; } = string.Empty;
-        public Guid ToolId { get; set; }
+        public string Label { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
+    private sealed class LifeRecordCoverage
+    {
+        public int MissingTechnicalData { get; set; }
+        public List<MissingTechnicalItem> MissingTechnicalDataItems { get; set; } = new();
+    }
+
+    private sealed class MissingTechnicalItem
+    {
         public string InternalCode { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
-        public string Status { get; set; } = string.Empty;
-        public string Message { get; set; } = string.Empty;
-        public DateTime Date { get; set; }
+        public string? BranchCode { get; set; }
+        public string? Missing { get; set; }
+    }
+
+    private sealed class MaintenanceSummary
+    {
+        public int Total { get; set; }
+        public int ThisMonth { get; set; }
+        public int Today { get; set; }
+    }
+
+    private sealed class DocumentSummary
+    {
+        public int Total { get; set; }
+        public List<DocumentItem> Recent { get; set; } = new();
+    }
+
+    private sealed class DocumentItem
+    {
+        public string FileName { get; set; } = string.Empty;
+        public string DocumentType { get; set; } = string.Empty;
+        public DateTime UploadedAt { get; set; }
+        public string? UploadedBy { get; set; }
+    }
+
+    private sealed class PurchaseSummary
+    {
+        public int Total { get; set; }
+        public int Completed { get; set; }
+        public int Pending { get; set; }
+        public int Rejected { get; set; }
+        public string ModuleStatus { get; set; } = string.Empty;
+        public string Note { get; set; } = string.Empty;
     }
 
     private sealed class RecentActivityItem
     {
-        public Guid Id { get; set; }
-        public Guid ToolAssetId { get; set; }
-        public string? ToolInternalCode { get; set; }
-        public string? ToolName { get; set; }
         public string EventType { get; set; } = string.Empty;
         public string Title { get; set; } = string.Empty;
         public string? Description { get; set; }
-        public string? PreviousValue { get; set; }
-        public string? NewValue { get; set; }
-        public DateTime EventDate { get; set; }
-        public string? PerformedBy { get; set; }
+        public string? ToolInternalCode { get; set; }
+        public DateTime RegisteredAt { get; set; }
+        public string? User { get; set; }
     }
 }
-
-
-<style>
-    /* DASHBOARD CORPORATE BANNER STYLE */
-
-    .dashboard-tech-banner {
-        background: linear-gradient(135deg, #050008 0%, #280032 45%, #5c006b 100%) !important;
-        color: #ffffff !important;
-        border-radius: 0.85rem !important;
-        padding: 1.25rem 1.4rem !important;
-        margin-bottom: 1rem !important;
-        min-height: 105px !important;
-        display: flex !important;
-        justify-content: space-between !important;
-        align-items: stretch !important;
-        gap: 1rem !important;
-        box-shadow: 0 0.65rem 1.35rem rgba(75, 0, 92, 0.22) !important;
-        border: none !important;
-    }
-
-    .dashboard-tech-banner > div:first-child::before {
-        content: "DASHBOARD";
-        display: inline-flex;
-        background: rgba(255, 255, 255, 0.12);
-        border: 1px solid rgba(255, 255, 255, 0.35);
-        color: #ffffff;
-        border-radius: 999px;
-        padding: 0.22rem 0.65rem;
-        font-size: 0.7rem;
-        font-weight: 900;
-        letter-spacing: 0.04rem;
-        margin-bottom: 0.6rem;
-    }
-
-    .dashboard-tech-banner h1 {
-        font-size: 1.65rem !important;
-        font-weight: 950 !important;
-        margin: 0 !important;
-        color: #ffffff !important;
-    }
-
-    .dashboard-tech-banner p {
-        margin: 0.35rem 0 0 0 !important;
-        color: rgba(255, 255, 255, 0.78) !important;
-        font-size: 0.9rem !important;
-    }
-
-    .dashboard-tech-banner > div:last-child {
-        min-width: 170px;
-        display: flex !important;
-        flex-direction: column !important;
-        justify-content: flex-end !important;
-        align-items: stretch !important;
-        gap: 0.65rem !important;
-    }
-
-    .dashboard-tech-banner > div:last-child::before {
-        content: "Indicadores activos";
-        display: grid;
-        background: rgba(255, 255, 255, 0.12);
-        border-radius: 0.65rem;
-        padding: 0.55rem 0.75rem;
-        text-align: right;
-        color: #ffffff;
-        font-size: 0.82rem;
-        font-weight: 900;
-    }
-
-    .dashboard-tech-banner .btn {
-        height: 32px !important;
-        display: inline-flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        font-size: 0.78rem !important;
-        font-weight: 800 !important;
-        border-color: rgba(255, 255, 255, 0.65) !important;
-        color: #ffffff !important;
-        background: rgba(255, 255, 255, 0.08) !important;
-    }
-
-    .dashboard-tech-banner .btn:hover {
-        color: #4b005c !important;
-        background: #ffffff !important;
-        border-color: #ffffff !important;
-    }
-
-    @@media (max-width: 1100px) {
-        .dashboard-tech-banner {
-            flex-direction: column !important;
-        }
-
-        .dashboard-tech-banner > div:last-child {
-            width: 100%;
-        }
-
-        .dashboard-tech-banner > div:last-child::before {
-            text-align: left;
-        }
-    }
-</style>
-
-<style>
-    /* DASHBOARD TECH BANNER STYLE */
-
-    .dashboard-tech-banner {
-        background: linear-gradient(135deg, #050008 0%, #280032 45%, #5c006b 100%);
-        color: #ffffff;
-        border-radius: 0.85rem;
-        padding: 1.25rem 1.4rem;
-        margin-bottom: 1rem;
-        min-height: 105px;
-        display: flex;
-        justify-content: space-between;
-        align-items: stretch;
-        gap: 1rem;
-        box-shadow: 0 0.65rem 1.35rem rgba(75, 0, 92, 0.22);
-    }
-
-    .dashboard-tech-pill {
-        display: inline-flex;
-        background: rgba(255, 255, 255, 0.12);
-        border: 1px solid rgba(255, 255, 255, 0.35);
-        color: #ffffff;
-        border-radius: 999px;
-        padding: 0.22rem 0.65rem;
-        font-size: 0.7rem;
-        font-weight: 900;
-        letter-spacing: 0.04rem;
-        margin-bottom: 0.6rem;
-    }
-
-    .dashboard-tech-banner h2 {
-        font-size: 1.65rem;
-        font-weight: 950;
-        margin: 0;
-        color: #ffffff;
-    }
-
-    .dashboard-tech-banner p {
-        margin: 0.35rem 0 0 0;
-        color: rgba(255, 255, 255, 0.78);
-        font-size: 0.9rem;
-    }
-
-    .dashboard-tech-side {
-        min-width: 170px;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        align-items: stretch;
-        gap: 0.65rem;
-    }
-
-    .dashboard-tech-status {
-        display: grid;
-        gap: 0.2rem;
-        background: rgba(255, 255, 255, 0.12);
-        border-radius: 0.65rem;
-        padding: 0.55rem 0.75rem;
-        text-align: right;
-    }
-
-    .dashboard-tech-status span {
-        color: #ffdd57;
-        font-weight: 900;
-        font-size: 0.75rem;
-    }
-
-    .dashboard-tech-status strong {
-        color: #ffffff;
-        font-size: 0.82rem;
-    }
-
-    .dashboard-refresh-button {
-        height: 32px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 0.78rem;
-        font-weight: 800;
-        border-color: rgba(255, 255, 255, 0.65);
-        color: #ffffff;
-        background: rgba(255, 255, 255, 0.08);
-    }
-
-    .dashboard-refresh-button:hover {
-        color: #4b005c;
-        background: #ffffff;
-        border-color: #ffffff;
-    }
-
-    @@media (max-width: 1100px) {
-        .dashboard-tech-banner {
-            flex-direction: column;
-        }
-
-        .dashboard-tech-side {
-            width: 100%;
-        }
-
-        .dashboard-tech-status {
-            text-align: left;
-        }
-    }
-</style>
-
-<style>
-    /* DASHBOARD CLEAN BANNER AND COMPACT KPIS */
-
-    .dashboard-tech-banner {
-        background: linear-gradient(135deg, #050008 0%, #280032 45%, #5c006b 100%) !important;
-        color: #ffffff !important;
-        border-radius: 0.85rem !important;
-        padding: 1.25rem 1.4rem !important;
-        margin-bottom: 0.75rem !important;
-        min-height: 105px !important;
-        display: flex !important;
-        justify-content: space-between !important;
-        align-items: stretch !important;
-        gap: 1rem !important;
-        box-shadow: 0 0.65rem 1.35rem rgba(75, 0, 92, 0.22) !important;
-        border: none !important;
-    }
-
-    .dashboard-tech-banner > div:first-child::before,
-    .dashboard-tech-banner > div:last-child::before {
-        content: none !important;
-        display: none !important;
-    }
-
-    .dashboard-tech-pill {
-        display: inline-flex !important;
-        background: rgba(255, 255, 255, 0.12) !important;
-        border: 1px solid rgba(255, 255, 255, 0.35) !important;
-        color: #ffffff !important;
-        border-radius: 999px !important;
-        padding: 0.22rem 0.65rem !important;
-        font-size: 0.7rem !important;
-        font-weight: 900 !important;
-        letter-spacing: 0.04rem !important;
-        margin-bottom: 0.6rem !important;
-    }
-
-    .dashboard-tech-banner h2 {
-        font-size: 1.65rem !important;
-        font-weight: 950 !important;
-        margin: 0 !important;
-        color: #ffffff !important;
-    }
-
-    .dashboard-tech-banner p {
-        margin: 0.35rem 0 0 0 !important;
-        color: rgba(255, 255, 255, 0.78) !important;
-        font-size: 0.9rem !important;
-    }
-
-    .dashboard-tech-side {
-        min-width: 170px !important;
-        display: flex !important;
-        flex-direction: column !important;
-        justify-content: flex-end !important;
-        align-items: stretch !important;
-        gap: 0.65rem !important;
-    }
-
-    .dashboard-tech-status {
-        display: none !important;
-    }
-
-    .dashboard-refresh-button {
-        height: 32px !important;
-        display: inline-flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        font-size: 0.78rem !important;
-        font-weight: 800 !important;
-        border-color: rgba(255, 255, 255, 0.65) !important;
-        color: #ffffff !important;
-        background: rgba(255, 255, 255, 0.08) !important;
-    }
-
-    .dashboard-refresh-button:hover {
-        color: #4b005c !important;
-        background: #ffffff !important;
-        border-color: #ffffff !important;
-    }
-
-    .dashboard-kpi-compact {
-        display: grid !important;
-        grid-template-columns: repeat(7, minmax(130px, 1fr)) !important;
-        gap: 0.55rem !important;
-        margin-bottom: 0.75rem !important;
-    }
-
-    .dashboard-kpi-compact .kpi-card {
-        min-height: 66px !important;
-        padding: 0.55rem 0.7rem !important;
-        border-radius: 0.65rem !important;
-        border-left-width: 4px !important;
-        box-shadow: 0 0.18rem 0.5rem rgba(0, 0, 0, 0.035) !important;
-    }
-
-    .dashboard-kpi-compact .kpi-card span {
-        font-size: 0.72rem !important;
-        margin-bottom: 0.22rem !important;
-        line-height: 1.1 !important;
-    }
-
-    .dashboard-kpi-compact .kpi-card strong {
-        font-size: 1.28rem !important;
-        line-height: 1 !important;
-    }
-
-    @@media (max-width: 1500px) {
-        .dashboard-kpi-compact {
-            grid-template-columns: repeat(5, minmax(130px, 1fr)) !important;
-        }
-    }
-
-    @@media (max-width: 1100px) {
-        .dashboard-tech-banner {
-            flex-direction: column !important;
-        }
-
-        .dashboard-tech-side {
-            width: 100% !important;
-        }
-
-        .dashboard-kpi-compact {
-            grid-template-columns: repeat(3, minmax(130px, 1fr)) !important;
-        }
-    }
-
-    @@media (max-width: 700px) {
-        .dashboard-kpi-compact {
-            grid-template-columns: repeat(2, minmax(120px, 1fr)) !important;
-        }
-    }
-</style>

@@ -1,42 +1,402 @@
 ﻿@page "/settings/locations"
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
 
-<PageTitle>Ubicaciones - Configuraci&oacute;n</PageTitle>
+<PageTitle>Ubicaciones - Configuración</PageTitle>
 
-<div class="page-header">
+<section class="settings-entity-banner">
     <div>
-        <h1>Ubicaciones</h1>
-        <p>Administrar ubicaciones físicas dentro de sedes, almacenes o talleres.</p>
+        <span class="settings-entity-pill">ORGANIZACIÓN</span>
+        <h2>Ubicaciones internas</h2>
+        <p>Administra estantes, bahías, zonas internas, puestos técnicos y ubicaciones físicas dentro de sedes, almacenes o talleres.</p>
     </div>
 
-    <div>
-        <a class="btn btn-outline-secondary" href="/settings">Volver a Configuraci&oacute;n</a>
-    </div>
-</div>
-
-<section class="module-placeholder">
-    <div class="module-placeholder-badge">Configuraci&oacute;n</div>
-
-    <h2>M&oacute;dulo en construcci&oacute;n</h2>
-
-    <p>
-        Esta pantalla queda creada para administrar <strong>Ubicaciones</strong>.
-        El siguiente paso ser&aacute; conectar esta vista con base de datos, permisos, formularios y reglas de negocio.
-    </p>
-
-    <div class="module-placeholder-grid">
-        <div>
-            <span>Estado</span>
-            <strong>Pendiente CRUD funcional</strong>
+    <div class="settings-entity-side">
+        <div class="settings-entity-status">
+            <span>Ubicaciones</span>
+            <strong>@locations.Count registradas</strong>
         </div>
 
-        <div>
-            <span>Tipo</span>
-            <strong>Configuraci&oacute;n administrativa</strong>
-        </div>
-
-        <div>
-            <span>Impacto</span>
-            <strong>Usuarios, activos y operaci&oacute;n</strong>
-        </div>
+        <a class="btn btn-sm btn-outline-light settings-entity-back" href="/settings">
+            Volver a Configuración
+        </a>
     </div>
 </section>
+
+<section class="settings-crud-layout">
+    <div class="settings-crud-form">
+        <h2>@(editingId is null ? "Crear ubicación" : "Editar ubicación")</h2>
+
+        <EditForm Model="formModel" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+
+            <div class="mb-3">
+                <label class="form-label">Código</label>
+                <InputText class="form-control" @bind-Value="formModel.Code" placeholder="AGU-EST-A1, AGU-BAHIA-03" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Nombre</label>
+                <InputText class="form-control" @bind-Value="formModel.Name" placeholder="Estante A1, Bahía 03, Zona eléctrica" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Sede</label>
+                <InputSelect class="form-select" @bind-Value="formModel.BranchId">
+                    <option value="">Seleccione sede</option>
+                    @foreach (var branch in branches)
+                    {
+                        <option value="@branch.Id">@branch.Code - @branch.Name</option>
+                    }
+                </InputSelect>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Descripción</label>
+                <InputTextArea class="form-control" @bind-Value="formModel.Description" rows="3" placeholder="Ubicación interna dentro de un almacén, taller o zona operativa." />
+            </div>
+
+            <div class="form-check mb-3">
+                <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive" />
+                <label class="form-check-label">Activa</label>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(message))
+            {
+                <div class="@messageClass">@message</div>
+            }
+
+            <div class="settings-crud-actions">
+                <button class="btn btn-primary" type="submit">Guardar</button>
+                <button class="btn btn-outline-secondary" type="button" @onclick="ClearForm">Limpiar</button>
+            </div>
+        </EditForm>
+    </div>
+
+    <div class="settings-crud-table">
+        <div class="settings-table-header">
+            <h2>Ubicaciones registradas</h2>
+            <button class="btn btn-sm btn-outline-primary" @onclick="LoadAsync">Actualizar</button>
+        </div>
+
+        @if (isLoading)
+        {
+            <p>Cargando ubicaciones...</p>
+        }
+        else if (locations.Count == 0)
+        {
+            <div class="alert alert-info">No hay ubicaciones registradas.</div>
+        }
+        else
+        {
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Nombre</th>
+                        <th>Sede</th>
+                        <th>Descripción</th>
+                        <th>Estado</th>
+                        <th class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var location in locations)
+                    {
+                        <tr>
+                            <td><strong>@location.Code</strong></td>
+                            <td>@location.Name</td>
+                            <td>@(location.Branch is null ? "Sin sede" : $"{location.Branch.Code} - {location.Branch.Name}")</td>
+                            <td>
+                                <span class="settings-description-cell">
+                                    @location.Description
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge @(location.IsActive ? "bg-success" : "bg-secondary")">
+                                    @(location.IsActive ? "Activa" : "Inactiva")
+                                </span>
+                            </td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(location)">Editar</button>
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(location.Id)">Eliminar</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</section>
+
+<style>
+    .settings-entity-banner {
+        background: linear-gradient(135deg, #050008 0%, #280032 45%, #5c006b 100%);
+        color: #ffffff;
+        border-radius: 0.85rem;
+        padding: 1.25rem 1.4rem;
+        margin-bottom: 1rem;
+        min-height: 105px;
+        display: flex;
+        justify-content: space-between;
+        align-items: stretch;
+        gap: 1rem;
+        box-shadow: 0 0.65rem 1.35rem rgba(75, 0, 92, 0.22);
+    }
+
+    .settings-entity-pill {
+        display: inline-flex;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        color: #ffffff;
+        border-radius: 999px;
+        padding: 0.22rem 0.65rem;
+        font-size: 0.7rem;
+        font-weight: 900;
+        letter-spacing: 0.04rem;
+        margin-bottom: 0.6rem;
+    }
+
+    .settings-entity-banner h2 {
+        font-size: 1.65rem;
+        font-weight: 950;
+        margin: 0;
+        color: #ffffff;
+    }
+
+    .settings-entity-banner p {
+        margin: 0.35rem 0 0 0;
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 0.9rem;
+    }
+
+    .settings-entity-side {
+        min-width: 185px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: stretch;
+        gap: 0.65rem;
+    }
+
+    .settings-entity-status {
+        display: grid;
+        gap: 0.2rem;
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 0.65rem;
+        padding: 0.55rem 0.75rem;
+        text-align: right;
+    }
+
+    .settings-entity-status span {
+        color: #ffdd57;
+        font-weight: 900;
+        font-size: 0.75rem;
+    }
+
+    .settings-entity-status strong {
+        color: #ffffff;
+        font-size: 0.82rem;
+    }
+
+    .settings-entity-back {
+        height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.78rem;
+        font-weight: 800;
+        border-color: rgba(255, 255, 255, 0.65);
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .settings-entity-back:hover {
+        color: #4b005c;
+        background: #ffffff;
+        border-color: #ffffff;
+    }
+
+    .settings-description-cell {
+        display: inline-block;
+        max-width: 360px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: #5f5963;
+        font-size: 0.82rem;
+    }
+
+    @@media (max-width: 1100px) {
+        .settings-entity-banner {
+            flex-direction: column;
+        }
+
+        .settings-entity-side {
+            width: 100%;
+        }
+
+        .settings-entity-status {
+            text-align: left;
+        }
+    }
+</style>
+
+@code {
+    private HttpClient Api => HttpClientFactory.CreateClient("NaviApi");
+
+    private List<LocationDto> locations = new();
+    private List<BranchDto> branches = new();
+    private LocationFormModel formModel = new();
+    private Guid? editingId;
+    private bool isLoading;
+    private string message = string.Empty;
+    private string messageClass = "alert alert-info";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        message = string.Empty;
+
+        try
+        {
+            locations = await Api.GetFromJsonAsync<List<LocationDto>>("api/settings/warehouses") ?? new();
+            branches = await Api.GetFromJsonAsync<List<BranchDto>>("api/settings/branches") ?? new();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"No se pudieron cargar las ubicaciones: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(formModel.Code) ||
+            string.IsNullOrWhiteSpace(formModel.Name) ||
+            formModel.BranchId is null)
+        {
+            ShowError("Código, nombre y sede son obligatorios.");
+            return;
+        }
+
+        var request = new
+        {
+            code = formModel.Code,
+            name = formModel.Name,
+            description = formModel.Description,
+            branchId = formModel.BranchId.Value,
+            isActive = formModel.IsActive,
+            changedBy = "admin-web"
+        };
+
+        try
+        {
+            HttpResponseMessage response = editingId is null
+                ? await Api.PostAsJsonAsync("api/settings/warehouses", request)
+                : await Api.PutAsJsonAsync($"api/settings/warehouses/{editingId}", request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ShowError(await response.Content.ReadAsStringAsync());
+                return;
+            }
+
+            ShowSuccess(editingId is null ? "Ubicación creada correctamente." : "Ubicación actualizada correctamente.");
+            ClearForm();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Error guardando ubicación: {ex.Message}");
+        }
+    }
+
+    private void Edit(LocationDto location)
+    {
+        editingId = location.Id;
+
+        formModel = new LocationFormModel
+        {
+            Code = location.Code,
+            Name = location.Name,
+            Description = location.Description,
+            BranchId = location.BranchId,
+            IsActive = location.IsActive
+        };
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        try
+        {
+            var response = await Api.DeleteAsync($"api/settings/warehouses/{id}?changedBy=admin-web");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ShowError(await response.Content.ReadAsStringAsync());
+                return;
+            }
+
+            ShowSuccess("Ubicación eliminada correctamente.");
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Error eliminando ubicación: {ex.Message}");
+        }
+    }
+
+    private void ClearForm()
+    {
+        editingId = null;
+        formModel = new LocationFormModel();
+    }
+
+    private void ShowSuccess(string value)
+    {
+        message = value;
+        messageClass = "alert alert-success";
+    }
+
+    private void ShowError(string value)
+    {
+        message = value;
+        messageClass = "alert alert-danger";
+    }
+
+    private sealed class LocationDto
+    {
+        public Guid Id { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public Guid BranchId { get; set; }
+        public BranchDto? Branch { get; set; }
+        public bool IsActive { get; set; }
+    }
+
+    private sealed class BranchDto
+    {
+        public Guid Id { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class LocationFormModel
+    {
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public Guid? BranchId { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+}

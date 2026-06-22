@@ -1,20 +1,17 @@
-﻿@page "/settings/zones"
-@rendermode InteractiveServer
+﻿@rendermode InteractiveServer
 @inject IHttpClientFactory HttpClientFactory
-
-<PageTitle>Zonas - Configuración</PageTitle>
 
 <section class="settings-entity-banner">
     <div>
-        <span class="settings-entity-pill">ORGANIZACIÓN</span>
-        <h2>Zonas</h2>
-        <p>Administra zonas, regionales o agrupaciones administrativas que organizan las sedes del sistema.</p>
+        <span class="settings-entity-pill">@Pill</span>
+        <h2>@Title</h2>
+        <p>@Description</p>
     </div>
 
     <div class="settings-entity-side">
         <div class="settings-entity-status">
-            <span>Zonas</span>
-            <strong>@zones.Count registradas</strong>
+            <span>@CountLabel</span>
+            <strong>@items.Count registrados</strong>
         </div>
 
         <a class="btn btn-sm btn-outline-light settings-entity-back" href="/settings">
@@ -25,29 +22,29 @@
 
 <section class="settings-crud-layout">
     <div class="settings-crud-form">
-        <h2>@(editingId is null ? "Crear zona" : "Editar zona")</h2>
+        <h2>@(editingId is null ? $"Crear {Title.ToLowerInvariant()}" : $"Editar {Title.ToLowerInvariant()}")</h2>
 
         <EditForm Model="formModel" OnValidSubmit="SaveAsync">
             <DataAnnotationsValidator />
 
             <div class="mb-3">
                 <label class="form-label">Código</label>
-                <InputText class="form-control" @bind-Value="formModel.Code" placeholder="ANT, CUN, VAL, NOR" />
+                <InputText class="form-control" @bind-Value="formModel.Code" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Nombre</label>
-                <InputText class="form-control" @bind-Value="formModel.Name" placeholder="Antioquia, Cundinamarca, Valle" />
+                <InputText class="form-control" @bind-Value="formModel.Name" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Descripción</label>
-                <InputTextArea class="form-control" @bind-Value="formModel.Description" rows="3" placeholder="Regional, zona operativa o agrupación administrativa." />
+                <InputTextArea class="form-control" @bind-Value="formModel.Description" rows="3" />
             </div>
 
             <div class="form-check mb-3">
                 <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive" />
-                <label class="form-check-label">Activa</label>
+                <label class="form-check-label">Activo</label>
             </div>
 
             @if (!string.IsNullOrWhiteSpace(message))
@@ -64,17 +61,21 @@
 
     <div class="settings-crud-table">
         <div class="settings-table-header">
-            <h2>Zonas registradas</h2>
+            <h2>@Title registrados</h2>
             <button class="btn btn-sm btn-outline-primary" @onclick="LoadAsync">Actualizar</button>
         </div>
 
         @if (isLoading)
         {
-            <p>Cargando zonas...</p>
+            <p>Cargando...</p>
         }
-        else if (zones.Count == 0)
+        else if (items.Count == 0)
         {
-            <div class="alert alert-info">No hay zonas registradas.</div>
+            <div class="alert alert-info">No hay registros configurados para este catálogo.</div>
+        }
+        else if (items.Count == 0)
+        {
+            <div class="alert alert-info">No hay registros configurados para este catálogo.</div>
         }
         else
         {
@@ -89,24 +90,22 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var zone in zones)
+                    @foreach (var item in items)
                     {
                         <tr>
-                            <td><strong>@zone.Code</strong></td>
-                            <td>@zone.Name</td>
+                            <td><strong>@item.Code</strong></td>
+                            <td>@item.Name</td>
                             <td>
-                                <span class="settings-description-cell">
-                                    @zone.Description
-                                </span>
+                                <span class="settings-description-cell">@item.Description</span>
                             </td>
                             <td>
-                                <span class="badge @(zone.IsActive ? "bg-success" : "bg-secondary")">
-                                    @(zone.IsActive ? "Activa" : "Inactiva")
+                                <span class="badge @(item.IsActive ? "bg-success" : "bg-secondary")">
+                                    @(item.IsActive ? "Activo" : "Inactivo")
                                 </span>
                             </td>
                             <td class="text-end">
-                                <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(zone)">Editar</button>
-                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(zone.Id)">Eliminar</button>
+                                <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(item)">Editar</button>
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(item.Id)">Eliminar</button>
                             </td>
                         </tr>
                     }
@@ -213,27 +212,19 @@
         color: #5f5963;
         font-size: 0.82rem;
     }
-
-    @@media (max-width: 1100px) {
-        .settings-entity-banner {
-            flex-direction: column;
-        }
-
-        .settings-entity-side {
-            width: 100%;
-        }
-
-        .settings-entity-status {
-            text-align: left;
-        }
-    }
 </style>
 
 @code {
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public string Pill { get; set; } = string.Empty;
+    [Parameter] public string Description { get; set; } = string.Empty;
+    [Parameter] public string CountLabel { get; set; } = string.Empty;
+    [Parameter] public string Endpoint { get; set; } = string.Empty;
+
     private HttpClient Api => HttpClientFactory.CreateClient("NaviApi");
 
-    private List<ZoneDto> zones = new();
-    private ZoneFormModel formModel = new();
+    private List<CatalogDto> items = new();
+    private CatalogFormModel formModel = new();
     private Guid? editingId;
     private bool isLoading;
     private string message = string.Empty;
@@ -251,11 +242,11 @@
 
         try
         {
-            zones = await Api.GetFromJsonAsync<List<ZoneDto>>("api/settings/zones") ?? new();
+            items = await Api.GetFromJsonAsync<List<CatalogDto>>(Endpoint) ?? new();
         }
         catch (Exception ex)
         {
-            ShowError($"No se pudieron cargar las zonas: {ex.Message}");
+            ShowError($"No se pudieron cargar los datos: {ex.Message}");
         }
         finally
         {
@@ -284,8 +275,8 @@
         try
         {
             HttpResponseMessage response = editingId is null
-                ? await Api.PostAsJsonAsync("api/settings/zones", request)
-                : await Api.PutAsJsonAsync($"api/settings/zones/{editingId}", request);
+                ? await Api.PostAsJsonAsync(Endpoint, request)
+                : await Api.PutAsJsonAsync($"{Endpoint}/{editingId}", request);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -293,26 +284,26 @@
                 return;
             }
 
-            ShowSuccess(editingId is null ? "Zona creada correctamente." : "Zona actualizada correctamente.");
+            ShowSuccess(editingId is null ? "Registro creado correctamente." : "Registro actualizado correctamente.");
             ClearForm();
             await LoadAsync();
         }
         catch (Exception ex)
         {
-            ShowError($"Error guardando zona: {ex.Message}");
+            ShowError($"Error guardando registro: {ex.Message}");
         }
     }
 
-    private void Edit(ZoneDto zone)
+    private void Edit(CatalogDto item)
     {
-        editingId = zone.Id;
+        editingId = item.Id;
 
-        formModel = new ZoneFormModel
+        formModel = new CatalogFormModel
         {
-            Code = zone.Code,
-            Name = zone.Name,
-            Description = zone.Description,
-            IsActive = zone.IsActive
+            Code = item.Code,
+            Name = item.Name,
+            Description = item.Description,
+            IsActive = item.IsActive
         };
     }
 
@@ -320,7 +311,7 @@
     {
         try
         {
-            var response = await Api.DeleteAsync($"api/settings/zones/{id}?changedBy=admin-web");
+            var response = await Api.DeleteAsync($"{Endpoint}/{id}?changedBy=admin-web");
 
             if (!response.IsSuccessStatusCode)
             {
@@ -328,19 +319,19 @@
                 return;
             }
 
-            ShowSuccess("Zona eliminada correctamente.");
+            ShowSuccess("Registro eliminado correctamente.");
             await LoadAsync();
         }
         catch (Exception ex)
         {
-            ShowError($"Error eliminando zona: {ex.Message}");
+            ShowError($"Error eliminando registro: {ex.Message}");
         }
     }
 
     private void ClearForm()
     {
         editingId = null;
-        formModel = new ZoneFormModel();
+        formModel = new CatalogFormModel();
     }
 
     private void ShowSuccess(string value)
@@ -355,7 +346,7 @@
         messageClass = "alert alert-danger";
     }
 
-    private sealed class ZoneDto
+    private sealed class CatalogDto
     {
         public Guid Id { get; set; }
         public string Code { get; set; } = string.Empty;
@@ -364,7 +355,7 @@
         public bool IsActive { get; set; }
     }
 
-    private sealed class ZoneFormModel
+    private sealed class CatalogFormModel
     {
         public string Code { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
@@ -372,3 +363,5 @@
         public bool IsActive { get; set; } = true;
     }
 }
+
+

@@ -7,26 +7,7 @@
 
 <PageTitle>Hoja de vida técnica - NAVI Herramientas</PageTitle>
 
-<div class="page-header">
-    <div>
-        <button class="btn btn-outline-secondary btn-sm mb-2" @onclick="GoBack">
-            ? Volver al inventario
-        </button>
 
-        <h1>Hoja de vida técnica</h1>
-        <p>Formato técnico de equipo, accesorios, mantenimiento, evidencias y prácticas seguras.</p>
-    </div>
-
-    <div class="d-flex gap-2 flex-wrap">
-        <a class="btn btn-outline-primary" href="@($"/tools/{ToolId}/technical-life-record/edit")">
-            Editar datos técnicos
-        </a>
-
-        <button class="btn btn-primary" @onclick="LoadAsync" disabled="@isLoading">
-            @(isLoading ? "Actualizando..." : "Actualizar")
-        </button>
-    </div>
-</div>
 
 @if (!string.IsNullOrWhiteSpace(errorMessage))
 {
@@ -42,21 +23,53 @@ else if (isLoading && record is null)
 }
 else if (record is not null)
 {
-    <section class="life-record-cover">
-        <div>
-            <span class="life-record-label">Hoja de vida técnica</span>
+        <section class="life-hero-banner">
+        <div class="life-hero-main">
+            <div class="life-hero-top-actions">
+                <button class="btn-life-back" @onclick="GoBack">
+                    @BackButtonText
+                </button>
+            </div>
+
+            <span class="life-hero-pill">HOJA DE VIDA TÉCNICA</span>
+
             <h2>@record.Summary.Name</h2>
-            <p>@record.Summary.InternalCode</p>
+
+            <div class="life-hero-code">
+                @record.Summary.InternalCode
+            </div>
+
+            <p>Formato técnico del activo fijo con datos generales, accesorios, documentos, mantenimiento, evidencias, prácticas seguras y trazabilidad.</p>
         </div>
 
-        <div class="life-record-cover-status">
-            <span class="@GetStatusBadgeClass(record.Summary.OperationalStatus)">
-                @GetStatusLabel(record.Summary.OperationalStatus)
-            </span>
+        <div class="life-hero-side">
+            <div class="life-hero-status-card">
+                <span>Estado operativo</span>
+                <strong>@GetStatusLabel(record.Summary.OperationalStatus)</strong>
+            </div>
 
-            <span class="badge bg-light text-dark">
-                @(record.Summary.IsSpecialized ? "Especializada" : "No especializada")
-            </span>
+            <div class="life-hero-badges">
+                <span class="@GetStatusBadgeClass(record.Summary.OperationalStatus)">
+                    @GetStatusLabel(record.Summary.OperationalStatus)
+                </span>
+
+                <span class="badge bg-light text-dark">
+                    @(record.Summary.IsSpecialized ? "Especializada" : "No especializada")
+                </span>
+            </div>
+
+            <div class="life-hero-buttons">
+                <a class="btn btn-sm btn-outline-light life-hero-edit"
+                   href="@($"/tools/{ToolId}/technical-life-record/edit")">
+                    Editar datos técnicos
+                </a>
+
+                <button class="btn btn-sm btn-outline-light life-hero-refresh"
+                        @onclick="LoadAsync"
+                        disabled="@isLoading">
+                    @(isLoading ? "Actualizando..." : "Actualizar")
+                </button>
+            </div>
         </div>
     </section>
 <section class="life-record-quick-actions">
@@ -598,10 +611,13 @@ else if (record is not null)
 
     private bool isLoading;
     private string? errorMessage;
+    private string BackButtonText { get; set; } = "← Volver al inventario";
+    private string BackUrl { get; set; } = "/tools";
     private TechnicalLifeRecordModel? record;
 
     protected override async Task OnInitializedAsync()
     {
+        ConfigureBackNavigation();
         await LoadAsync();
     }
 
@@ -626,9 +642,25 @@ else if (record is not null)
         }
     }
 
+
+    private void ConfigureBackNavigation()
+    {
+        var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
+        var query = uri.Query ?? string.Empty;
+
+        if (query.Contains("from=life-records", StringComparison.OrdinalIgnoreCase))
+        {
+            BackButtonText = "← Volver a hoja de vidas del AF";
+            BackUrl = "/technical-life-records";
+            return;
+        }
+
+        BackButtonText = "← Volver al inventario";
+        BackUrl = "/tools";
+    }
     private void GoBack()
     {
-        NavigationManager.NavigateTo("/tools");
+        NavigationManager.NavigateTo(BackUrl);
     }
 
     private string BuildApiUrl(string? relativeUrl)
@@ -911,3 +943,247 @@ else if (record is not null)
 
 
 
+
+
+
+<style>
+    .life-hero-banner {
+        background: linear-gradient(135deg, #050008 0%, #280032 45%, #5c006b 100%);
+        color: #ffffff;
+        border-radius: 0.85rem;
+        padding: 1.15rem 1.35rem;
+        margin-bottom: 0.75rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: stretch;
+        gap: 1rem;
+        box-shadow: 0 0.65rem 1.35rem rgba(75, 0, 92, 0.22);
+    }
+
+    .life-hero-main {
+        min-width: 0;
+    }
+
+    .life-hero-top-actions {
+        margin-bottom: 0.55rem;
+    }
+
+    .btn-life-back {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 30px;
+        border-radius: 999px;
+        padding: 0 0.75rem;
+        border: 1px solid rgba(255, 255, 255, 0.42);
+        background: rgba(255, 255, 255, 0.10);
+        color: #ffffff;
+        font-size: 0.76rem;
+        font-weight: 850;
+    }
+
+    .btn-life-back:hover {
+        background: #ffffff;
+        color: #4b005c;
+    }
+
+    .life-hero-pill {
+        display: inline-flex;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        color: #ffffff;
+        border-radius: 999px;
+        padding: 0.22rem 0.65rem;
+        font-size: 0.7rem;
+        font-weight: 900;
+        letter-spacing: 0.04rem;
+        margin-bottom: 0.55rem;
+    }
+
+    .life-hero-banner h2 {
+        color: #ffffff;
+        margin: 0;
+        font-size: 1.7rem;
+        font-weight: 950;
+        line-height: 1.1;
+        text-transform: uppercase;
+    }
+
+    .life-hero-code {
+        display: inline-flex;
+        margin-top: 0.4rem;
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 999px;
+        padding: 0.2rem 0.7rem;
+        color: #ffffff;
+        font-size: 0.76rem;
+        font-weight: 900;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+    }
+
+    .life-hero-banner p {
+        margin: 0.5rem 0 0 0;
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 0.88rem;
+    }
+
+    .life-hero-side {
+        min-width: 245px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: stretch;
+        gap: 0.55rem;
+    }
+
+    .life-hero-status-card {
+        display: grid;
+        gap: 0.15rem;
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 0.65rem;
+        padding: 0.55rem 0.75rem;
+        text-align: right;
+    }
+
+    .life-hero-status-card span {
+        color: #ffdd57;
+        font-size: 0.74rem;
+        font-weight: 900;
+    }
+
+    .life-hero-status-card strong {
+        color: #ffffff;
+        font-size: 0.86rem;
+        font-weight: 950;
+    }
+
+    .life-hero-badges {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 0.35rem;
+    }
+
+    .life-hero-buttons {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.4rem;
+    }
+
+    .life-hero-edit,
+    .life-hero-refresh {
+        height: 32px;
+        font-size: 0.76rem;
+        font-weight: 800;
+        border-color: rgba(255, 255, 255, 0.65);
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .life-hero-edit:hover,
+    .life-hero-refresh:hover {
+        color: #4b005c;
+        background: #ffffff;
+        border-color: #ffffff;
+    }
+
+    .life-record-quick-actions {
+        display: grid !important;
+        grid-template-columns: repeat(7, minmax(135px, 1fr)) !important;
+        gap: 0.55rem !important;
+        margin-bottom: 0.75rem !important;
+        align-items: stretch !important;
+    }
+
+    .quick-action-card {
+        min-height: 82px !important;
+        padding: 0.65rem !important;
+        border-radius: 0.65rem !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
+        gap: 0.35rem !important;
+    }
+
+    .quick-action-card span {
+        font-size: 0.67rem !important;
+        line-height: 1 !important;
+        font-weight: 900 !important;
+        text-transform: uppercase !important;
+        color: #657083 !important;
+    }
+
+    .quick-action-card strong {
+        font-size: 0.78rem !important;
+        line-height: 1.1 !important;
+        font-weight: 900 !important;
+        color: #17111c !important;
+        min-height: 18px !important;
+    }
+
+    .quick-action-card .btn,
+    .quick-action-card a.btn {
+        height: 28px !important;
+        padding: 0.18rem 0.45rem !important;
+        font-size: 0.72rem !important;
+        font-weight: 800 !important;
+        border-radius: 0.35rem !important;
+    }
+
+    .quick-action-card .d-flex {
+        gap: 0.25rem !important;
+    }
+
+    .quick-action-card .d-flex .btn {
+        min-width: 50px !important;
+    }
+
+    .maintenance-alert {
+        margin-top: 0.25rem !important;
+        margin-bottom: 0.75rem !important;
+        padding: 0.7rem 0.85rem !important;
+    }
+
+    .maintenance-alert-grid > div {
+        min-height: 54px !important;
+        padding: 0.55rem 0.7rem !important;
+    }
+
+    @@media (max-width: 1500px) {
+        .life-record-quick-actions {
+            grid-template-columns: repeat(4, minmax(145px, 1fr)) !important;
+        }
+    }
+
+    @@media (max-width: 1100px) {
+        .life-hero-banner {
+            flex-direction: column;
+        }
+
+        .life-hero-side {
+            min-width: 0;
+        }
+
+        .life-hero-status-card {
+            text-align: left;
+        }
+
+        .life-hero-badges {
+            justify-content: flex-start;
+        }
+
+        .life-record-quick-actions {
+            grid-template-columns: repeat(2, minmax(145px, 1fr)) !important;
+        }
+    }
+
+    @@media (max-width: 700px) {
+        .life-hero-buttons {
+            grid-template-columns: 1fr;
+        }
+
+        .life-record-quick-actions {
+            grid-template-columns: 1fr !important;
+        }
+    }
+</style>

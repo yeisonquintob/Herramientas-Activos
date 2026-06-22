@@ -1,42 +1,373 @@
 ﻿@page "/settings/responsibles"
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
 
-<PageTitle>Responsables - Configuraci&oacute;n</PageTitle>
+<PageTitle>Responsables - Configuración</PageTitle>
 
-<div class="page-header">
+<section class="settings-entity-banner">
     <div>
-        <h1>Responsables</h1>
-        <p>Administrar técnicos, herramienteros, jefes, coordinadores y responsables de activos.</p>
+        <span class="settings-entity-pill">RESPONSABLES</span>
+        <h2>Responsables</h2>
+        <p>Administra técnicos, herramienteros, jefes, coordinadores y responsables asociados a activos.</p>
     </div>
 
-    <div>
-        <a class="btn btn-outline-secondary" href="/settings">Volver a Configuraci&oacute;n</a>
-    </div>
-</div>
-
-<section class="module-placeholder">
-    <div class="module-placeholder-badge">Configuraci&oacute;n</div>
-
-    <h2>M&oacute;dulo en construcci&oacute;n</h2>
-
-    <p>
-        Esta pantalla queda creada para administrar <strong>Responsables</strong>.
-        El siguiente paso ser&aacute; conectar esta vista con base de datos, permisos, formularios y reglas de negocio.
-    </p>
-
-    <div class="module-placeholder-grid">
-        <div>
-            <span>Estado</span>
-            <strong>Pendiente CRUD funcional</strong>
+    <div class="settings-entity-side">
+        <div class="settings-entity-status">
+            <span>Responsables</span>
+            <strong>@items.Count registrados</strong>
         </div>
 
-        <div>
-            <span>Tipo</span>
-            <strong>Configuraci&oacute;n administrativa</strong>
-        </div>
-
-        <div>
-            <span>Impacto</span>
-            <strong>Usuarios, activos y operaci&oacute;n</strong>
-        </div>
+        <a class="btn btn-sm btn-outline-light settings-entity-back" href="/settings">
+            Volver a Configuración
+        </a>
     </div>
 </section>
+
+<section class="settings-crud-layout">
+    <div class="settings-crud-form">
+        <h2>@(editingId is null ? "Crear responsable" : "Editar responsable")</h2>
+
+        <EditForm Model="formModel" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+
+            <div class="mb-3">
+                <label class="form-label">Código empleado</label>
+                <InputText class="form-control" @bind-Value="formModel.EmployeeCode" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Documento</label>
+                <InputText class="form-control" @bind-Value="formModel.DocumentNumber" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Nombre completo</label>
+                <InputText class="form-control" @bind-Value="formModel.FullName" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Correo</label>
+                <InputText class="form-control" @bind-Value="formModel.Email" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Cargo</label>
+                <InputText class="form-control" @bind-Value="formModel.Position" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Área</label>
+                <InputText class="form-control" @bind-Value="formModel.Area" />
+            </div>
+
+            <div class="form-check mb-3">
+                <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive" />
+                <label class="form-check-label">Activo</label>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(message))
+            {
+                <div class="@messageClass">@message</div>
+            }
+
+            <div class="settings-crud-actions">
+                <button class="btn btn-primary" type="submit">Guardar</button>
+                <button class="btn btn-outline-secondary" type="button" @onclick="ClearForm">Limpiar</button>
+            </div>
+        </EditForm>
+    </div>
+
+    <div class="settings-crud-table">
+        <div class="settings-table-header">
+            <h2>Responsables registrados</h2>
+            <button class="btn btn-sm btn-outline-primary" @onclick="LoadAsync">Actualizar</button>
+        </div>
+
+        @if (isLoading)
+        {
+            <p>Cargando responsables...</p>
+        }
+        else
+        {
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Nombre</th>
+                        <th>Cargo</th>
+                        <th>Área</th>
+                        <th>Estado</th>
+                        <th class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in items)
+                    {
+                        <tr>
+                            <td><strong>@item.EmployeeCode</strong></td>
+                            <td>
+                                <div>@item.FullName</div>
+                                <small class="text-muted">@item.Email</small>
+                            </td>
+                            <td>@item.Position</td>
+                            <td>@item.Area</td>
+                            <td>
+                                <span class="badge @(item.IsActive ? "bg-success" : "bg-secondary")">
+                                    @(item.IsActive ? "Activo" : "Inactivo")
+                                </span>
+                            </td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(item)">Editar</button>
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(item.Id)">Eliminar</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</section>
+
+<style>
+    .settings-entity-banner {
+        background: linear-gradient(135deg, #050008 0%, #280032 45%, #5c006b 100%);
+        color: #ffffff;
+        border-radius: 0.85rem;
+        padding: 1.25rem 1.4rem;
+        margin-bottom: 1rem;
+        min-height: 105px;
+        display: flex;
+        justify-content: space-between;
+        align-items: stretch;
+        gap: 1rem;
+        box-shadow: 0 0.65rem 1.35rem rgba(75, 0, 92, 0.22);
+    }
+
+    .settings-entity-pill {
+        display: inline-flex;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        color: #ffffff;
+        border-radius: 999px;
+        padding: 0.22rem 0.65rem;
+        font-size: 0.7rem;
+        font-weight: 900;
+        letter-spacing: 0.04rem;
+        margin-bottom: 0.6rem;
+    }
+
+    .settings-entity-banner h2 {
+        font-size: 1.65rem;
+        font-weight: 950;
+        margin: 0;
+        color: #ffffff;
+    }
+
+    .settings-entity-banner p {
+        margin: 0.35rem 0 0 0;
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 0.9rem;
+    }
+
+    .settings-entity-side {
+        min-width: 185px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: stretch;
+        gap: 0.65rem;
+    }
+
+    .settings-entity-status {
+        display: grid;
+        gap: 0.2rem;
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 0.65rem;
+        padding: 0.55rem 0.75rem;
+        text-align: right;
+    }
+
+    .settings-entity-status span {
+        color: #ffdd57;
+        font-weight: 900;
+        font-size: 0.75rem;
+    }
+
+    .settings-entity-status strong {
+        color: #ffffff;
+        font-size: 0.82rem;
+    }
+
+    .settings-entity-back {
+        height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.78rem;
+        font-weight: 800;
+        border-color: rgba(255, 255, 255, 0.65);
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .settings-entity-back:hover {
+        color: #4b005c;
+        background: #ffffff;
+        border-color: #ffffff;
+    }
+</style>
+
+@code {
+    private HttpClient Api => HttpClientFactory.CreateClient("NaviApi");
+
+    private List<ResponsibleDto> items = new();
+    private ResponsibleFormModel formModel = new();
+    private Guid? editingId;
+    private bool isLoading;
+    private string message = string.Empty;
+    private string messageClass = "alert alert-info";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        message = string.Empty;
+
+        try
+        {
+            items = await Api.GetFromJsonAsync<List<ResponsibleDto>>("api/settings/responsibles") ?? new();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"No se pudieron cargar los responsables: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(formModel.FullName))
+        {
+            ShowError("El nombre completo es obligatorio.");
+            return;
+        }
+
+        var request = new
+        {
+            employeeCode = formModel.EmployeeCode,
+            documentNumber = formModel.DocumentNumber,
+            fullName = formModel.FullName,
+            email = formModel.Email,
+            position = formModel.Position,
+            area = formModel.Area,
+            isActive = formModel.IsActive,
+            changedBy = "admin-web"
+        };
+
+        try
+        {
+            HttpResponseMessage response = editingId is null
+                ? await Api.PostAsJsonAsync("api/settings/responsibles", request)
+                : await Api.PutAsJsonAsync($"api/settings/responsibles/{editingId}", request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ShowError(await response.Content.ReadAsStringAsync());
+                return;
+            }
+
+            ShowSuccess(editingId is null ? "Responsable creado correctamente." : "Responsable actualizado correctamente.");
+            ClearForm();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Error guardando responsable: {ex.Message}");
+        }
+    }
+
+    private void Edit(ResponsibleDto item)
+    {
+        editingId = item.Id;
+
+        formModel = new ResponsibleFormModel
+        {
+            EmployeeCode = item.EmployeeCode,
+            DocumentNumber = item.DocumentNumber,
+            FullName = item.FullName,
+            Email = item.Email,
+            Position = item.Position,
+            Area = item.Area,
+            IsActive = item.IsActive
+        };
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        try
+        {
+            var response = await Api.DeleteAsync($"api/settings/responsibles/{id}?changedBy=admin-web");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ShowError(await response.Content.ReadAsStringAsync());
+                return;
+            }
+
+            ShowSuccess("Responsable eliminado correctamente.");
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Error eliminando responsable: {ex.Message}");
+        }
+    }
+
+    private void ClearForm()
+    {
+        editingId = null;
+        formModel = new ResponsibleFormModel();
+    }
+
+    private void ShowSuccess(string value)
+    {
+        message = value;
+        messageClass = "alert alert-success";
+    }
+
+    private void ShowError(string value)
+    {
+        message = value;
+        messageClass = "alert alert-danger";
+    }
+
+    private sealed class ResponsibleDto
+    {
+        public Guid Id { get; set; }
+        public string? EmployeeCode { get; set; }
+        public string? DocumentNumber { get; set; }
+        public string FullName { get; set; } = string.Empty;
+        public string? Email { get; set; }
+        public string? Position { get; set; }
+        public string? Area { get; set; }
+        public bool IsActive { get; set; }
+    }
+
+    private sealed class ResponsibleFormModel
+    {
+        public string? EmployeeCode { get; set; }
+        public string? DocumentNumber { get; set; }
+        public string FullName { get; set; } = string.Empty;
+        public string? Email { get; set; }
+        public string? Position { get; set; }
+        public string? Area { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+}

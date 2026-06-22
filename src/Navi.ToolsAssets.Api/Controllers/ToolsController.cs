@@ -3,6 +3,7 @@ using Navi.ToolsAssets.Application.Documents;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Navi.ToolsAssets.Domain.Entities.Inventory;
+using Navi.ToolsAssets.Domain.Entities.Organization;
 using Navi.ToolsAssets.Domain.Enums;
 using Navi.ToolsAssets.Infrastructure.Persistence.Context;
 
@@ -288,6 +289,383 @@ public class ToolsController : ControllerBase
         return Ok(response);
     }
 
+
+
+
+    [HttpGet("assignment-history")]
+    public async Task<IActionResult> GetAssignmentHistory([FromQuery] Guid? responsiblePersonId)
+    {
+        var assignmentEvents = await _context.ToolLifeCycleEvents
+            .AsNoTracking()
+            .Include(x => x.ToolAsset)
+                .ThenInclude(x => x.Branch)
+            .Include(x => x.ToolAsset)
+                .ThenInclude(x => x.Location)
+            .Include(x => x.ToolAsset)
+                .ThenInclude(x => x.ResponsiblePerson)
+            .Where(x =>
+                !x.IsDeleted &&
+                x.EventType == "FixedAssetAssignedToResponsible")
+            .OrderByDescending(x => x.RegisteredAt)
+            .ThenByDescending(x => x.CreatedAt)
+            .Select(x => new
+            {
+                x.Id,
+                x.ToolAssetId,
+                ToolInternalCode = x.ToolAsset != null ? x.ToolAsset.InternalCode : string.Empty,
+                ToolName = x.ToolAsset != null ? x.ToolAsset.Name : string.Empty,
+                ToolSerialNumber = x.ToolAsset != null ? x.ToolAsset.SerialNumber : null,
+                CurrentBranchCode = x.ToolAsset != null && x.ToolAsset.Branch != null ? x.ToolAsset.Branch.Code : null,
+                CurrentLocationName = x.ToolAsset != null && x.ToolAsset.Location != null ? x.ToolAsset.Location.Name : null,
+                CurrentResponsiblePersonId = x.ToolAsset != null ? x.ToolAsset.ResponsiblePersonId : null,
+                CurrentResponsibleName = x.ToolAsset != null && x.ToolAsset.ResponsiblePerson != null ? x.ToolAsset.ResponsiblePerson.FullName : null,
+                CurrentStatus = x.ToolAsset != null ? x.ToolAsset.OperationalStatus.ToString() : null,
+                x.Title,
+                x.Description,
+                x.PreviousValue,
+                x.NewValue,
+                x.RegisteredAt,
+                x.CreatedAt,
+                x.CreatedBy
+            })
+            .ToListAsync();
+
+        if (responsiblePersonId.HasValue)
+        {
+            var responsible = await _context.ResponsiblePeople
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == responsiblePersonId.Value);
+
+            if (responsible is null)
+            {
+                return Ok(new List<object>());
+            }
+
+            var responsibleName = responsible.FullName ?? string.Empty;
+
+            assignmentEvents = assignmentEvents
+                .Where(x =>
+                    x.CurrentResponsiblePersonId == responsiblePersonId.Value ||
+                    (!string.IsNullOrWhiteSpace(responsibleName) &&
+                     (x.NewValue ?? string.Empty).Contains(responsibleName, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrWhiteSpace(responsibleName) &&
+                     (x.Description ?? string.Empty).Contains(responsibleName, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+        }
+
+        var returnEvents = await _context.ToolLifeCycleEvents
+            .AsNoTracking()
+            .Where(x =>
+                !x.IsDeleted &&
+                x.EventType == "FixedAssetAssignedToWarehouse")
+            .OrderBy(x => x.RegisteredAt)
+            .ThenBy(x => x.CreatedAt)
+            .Select(x => new
+            {
+                x.ToolAssetId,
+                x.RegisteredAt,
+                x.CreatedAt,
+                x.Description,
+                x.NewValue,
+                x.CreatedBy
+            })
+            .ToListAsync();
+
+        var result = assignmentEvents
+            .Select(x =>
+            {
+                var assignedAt = x.RegisteredAt == default ? x.CreatedAt : x.RegisteredAt;
+
+                var returned = returnEvents
+                    .Where(r => r.ToolAssetId == x.ToolAssetId)
+                    .Where(r => (r.RegisteredAt == default ? r.CreatedAt : r.RegisteredAt) >= assignedAt)
+                    .OrderBy(r => r.RegisteredAt == default ? r.CreatedAt : r.RegisteredAt)
+                    .FirstOrDefault();
+
+                return new
+                {
+                    x.Id,
+                    x.ToolAssetId,
+                    x.ToolInternalCode,
+                    x.ToolName,
+                    x.ToolSerialNumber,
+                    x.CurrentBranchCode,
+                    x.CurrentLocationName,
+                    x.CurrentResponsiblePersonId,
+                    x.CurrentResponsibleName,
+                    x.CurrentStatus,
+                    AssignedAt = assignedAt,
+                    ReturnedAt = returned == null
+                        ? (DateTime?)null
+                        : (returned.RegisteredAt == default ? returned.CreatedAt : returned.RegisteredAt),
+                    ReturnDetail = returned == null ? null : returned.Description,
+                    Detail = x.Description,
+                    x.PreviousValue,
+                    x.NewValue,
+                    x.CreatedBy
+                };
+            })
+            .OrderByDescending(x => x.AssignedAt)
+            .ToList();
+
+        return Ok(result);
+    }
+    [HttpGet("assignment-board")]
+    public async Task<IActionResult> GetAssignmentBoard()
+    {
+        var items = await _context.ToolAssets
+            .AsNoTracking()
+            .Include(x => x.Branch)
+            .Include(x => x.Location)
+            .Include(x => x.ResponsiblePerson)
+            .Where(x => !x.IsDeleted)
+            .OrderBy(x => x.InternalCode)
+            .Select(x => new
+            {
+                x.Id,
+                x.InternalCode,
+                x.Name,
+                x.SerialNumber,
+                x.FixedAssetCode,
+                x.BranchId,
+                BranchCode = x.Branch != null ? x.Branch.Code : null,
+                BranchName = x.Branch != null ? x.Branch.Name : null,
+                x.LocationId,
+                LocationCode = x.Location != null ? x.Location.Code : null,
+                LocationName = x.Location != null ? x.Location.Name : null,
+                x.ResponsiblePersonId,
+                ResponsiblePersonName = x.ResponsiblePerson != null ? x.ResponsiblePerson.FullName : null,
+                ResponsiblePosition = x.ResponsiblePerson != null ? x.ResponsiblePerson.Position : null,
+                OperationalStatus = x.OperationalStatus.ToString(),
+                CustodyStatus = x.CustodyStatus.ToString(),
+                x.CreatedAt,
+                x.UpdatedAt,
+                LastAssignmentDate = _context.ToolLifeCycleEvents
+                    .Where(e => e.ToolAssetId == x.Id &&
+                                e.EventType == "FixedAssetAssignedToResponsible" &&
+                                !e.IsDeleted)
+                    .OrderByDescending(e => e.RegisteredAt)
+                    .Select(e => (DateTime?)e.RegisteredAt)
+                    .FirstOrDefault(),
+                LastReturnDate = _context.ToolLifeCycleEvents
+                    .Where(e => e.ToolAssetId == x.Id &&
+                                e.EventType == "FixedAssetAssignedToWarehouse" &&
+                                !e.IsDeleted)
+                    .OrderByDescending(e => e.RegisteredAt)
+                    .Select(e => (DateTime?)e.RegisteredAt)
+                    .FirstOrDefault()
+            })
+            .ToListAsync();
+
+        return Ok(items);
+    }
+    [HttpPatch("{id:guid}/availability-location")]
+    public async Task<IActionResult> UpdateAvailabilityLocation(Guid id, [FromBody] UpdateAvailabilityLocationRequest request)
+    {
+        var tool = await _context.ToolAssets
+            .Include(x => x.Branch)
+            .Include(x => x.Location)
+            .Include(x => x.ResponsiblePerson)
+            .FirstOrDefaultAsync(x => x.Id == id);
+
+        if (tool is null)
+        {
+            return NotFound(new { Message = $"No se encontró el activo con Id {id}." });
+        }
+
+        var branch = await _context.Branches.FirstOrDefaultAsync(x => x.Id == request.BranchId);
+
+        if (branch is null)
+        {
+            return BadRequest(new { Message = "La sede seleccionada no existe." });
+        }
+
+        ToolLocation? location = null;
+
+        if (request.LocationId.HasValue)
+        {
+            location = await _context.ToolLocations.FirstOrDefaultAsync(x =>
+                x.Id == request.LocationId.Value &&
+                x.BranchId == branch.Id);
+
+            if (location is null)
+            {
+                return BadRequest(new { Message = "La ubicación seleccionada no pertenece a la sede indicada." });
+            }
+        }
+
+        if (!TryParseOperationalStatus(request.OperationalStatus, out var newStatus))
+        {
+            return BadRequest(new { Message = $"Estado operativo inválido: {request.OperationalStatus}" });
+        }
+
+        var previousValue = $"Sede={tool.Branch?.Code}; Ubicación={tool.Location?.Code}; Estado={tool.OperationalStatus}; Responsable={tool.ResponsiblePerson?.FullName}";
+
+        tool.ZoneId = branch.ZoneId;
+        tool.BranchId = branch.Id;
+        tool.LocationId = location?.Id;
+        tool.OperationalStatus = newStatus;
+
+        if (newStatus == ToolOperationalStatus.Available)
+        {
+            tool.CustodyStatus = ToolCustodyStatus.InWarehouse;
+        }
+        else if (newStatus == ToolOperationalStatus.NotLocated)
+        {
+            tool.CustodyStatus = ToolCustodyStatus.NotLocated;
+        }
+
+        tool.UpdatedAt = DateTime.UtcNow;
+        tool.UpdatedBy = string.IsNullOrWhiteSpace(request.ChangedBy) ? "admin-web" : request.ChangedBy.Trim();
+
+        var newValue = $"Sede={branch.Code}; Ubicación={location?.Code}; Estado={tool.OperationalStatus}; Responsable={tool.ResponsiblePerson?.FullName}";
+
+        _context.ToolLifeCycleEvents.Add(new()
+        {
+            ToolAssetId = tool.Id,
+            EventType = "AvailabilityLocationUpdated",
+            Title = "Disponibilidad y ubicación actualizadas",
+            Description = string.IsNullOrWhiteSpace(request.Observation)
+                ? "Se actualizó la disponibilidad y ubicación del activo."
+                : request.Observation.Trim(),
+            PreviousValue = previousValue,
+            NewValue = newValue,
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = tool.UpdatedBy
+        });
+
+        await _context.SaveChangesAsync();
+
+        var response = await BuildToolQuery().FirstAsync(x => x.Id == tool.Id);
+        return Ok(response);
+    }
+
+    [HttpPatch("{id:guid}/assign-fixed-asset")]
+    public async Task<IActionResult> AssignFixedAsset(Guid id, [FromBody] AssignFixedAssetRequest request)
+    {
+        var tool = await _context.ToolAssets
+            .Include(x => x.Branch)
+            .Include(x => x.Location)
+            .Include(x => x.ResponsiblePerson)
+            .FirstOrDefaultAsync(x => x.Id == id);
+
+        if (tool is null)
+        {
+            return NotFound(new { Message = $"No se encontró el activo con Id {id}." });
+        }
+
+        var assignmentType = (request.AssignmentType ?? string.Empty).Trim();
+
+        if (assignmentType.Equals("Responsible", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!request.ResponsiblePersonId.HasValue)
+            {
+                return BadRequest(new { Message = "Debe seleccionar un usuario/responsable." });
+            }
+
+            var responsible = await _context.ResponsiblePeople
+                .FirstOrDefaultAsync(x => x.Id == request.ResponsiblePersonId.Value);
+
+            if (responsible is null)
+            {
+                return BadRequest(new { Message = "El responsable seleccionado no existe." });
+            }
+
+            var previousValue = $"Responsable={tool.ResponsiblePerson?.FullName}; Ubicación={tool.Location?.Code}; Estado={tool.OperationalStatus}; Custodia={tool.CustodyStatus}";
+
+            tool.ResponsiblePersonId = responsible.Id;
+            tool.OperationalStatus = ToolOperationalStatus.Assigned;
+            tool.CustodyStatus = ToolCustodyStatus.AssignedToResponsible;
+            tool.UpdatedAt = DateTime.UtcNow;
+            tool.UpdatedBy = string.IsNullOrWhiteSpace(request.ChangedBy) ? "admin-web" : request.ChangedBy.Trim();
+
+            _context.ToolLifeCycleEvents.Add(new()
+            {
+                ToolAssetId = tool.Id,
+                EventType = "FixedAssetAssignedToResponsible",
+                Title = "Activo asignado a responsable",
+                Description = string.IsNullOrWhiteSpace(request.Observation)
+                    ? $"Activo asignado a {responsible.FullName}."
+                    : request.Observation.Trim(),
+                PreviousValue = previousValue,
+                NewValue = $"Responsable={responsible.FullName}; Estado={tool.OperationalStatus}; Custodia={tool.CustodyStatus}",
+                RegisteredAt = request.AssignmentDate ?? DateTime.UtcNow,CreatedAt = DateTime.UtcNow,
+                CreatedBy = tool.UpdatedBy
+            });
+        }
+        else if (assignmentType.Equals("Warehouse", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!request.BranchId.HasValue || !request.LocationId.HasValue)
+            {
+                return BadRequest(new { Message = "Debe seleccionar sede y almacén/taller." });
+            }
+
+            var branch = await _context.Branches.FirstOrDefaultAsync(x => x.Id == request.BranchId.Value);
+
+            if (branch is null)
+            {
+                return BadRequest(new { Message = "La sede seleccionada no existe." });
+            }
+
+            var location = await _context.ToolLocations.FirstOrDefaultAsync(x =>
+                x.Id == request.LocationId.Value &&
+                x.BranchId == branch.Id);
+
+            if (location is null)
+            {
+                return BadRequest(new { Message = "El almacén/taller seleccionado no pertenece a la sede indicada." });
+            }
+
+            var previousValue = $"Responsable={tool.ResponsiblePerson?.FullName}; Sede={tool.Branch?.Code}; Ubicación={tool.Location?.Code}; Estado={tool.OperationalStatus}; Custodia={tool.CustodyStatus}";
+
+            tool.ZoneId = branch.ZoneId;
+            tool.BranchId = branch.Id;
+            tool.LocationId = location.Id;
+            tool.ResponsiblePersonId = null;
+            tool.OperationalStatus = ToolOperationalStatus.Available;
+            tool.CustodyStatus = ToolCustodyStatus.InWarehouse;
+            tool.UpdatedAt = DateTime.UtcNow;
+            tool.UpdatedBy = string.IsNullOrWhiteSpace(request.ChangedBy) ? "admin-web" : request.ChangedBy.Trim();
+
+            _context.ToolLifeCycleEvents.Add(new()
+            {
+                ToolAssetId = tool.Id,
+                EventType = "FixedAssetAssignedToWarehouse",
+                Title = "Activo asignado a almacén/taller",
+                Description = string.IsNullOrWhiteSpace(request.Observation)
+                    ? $"Activo ubicado en {location.Code} - {location.Name}."
+                    : request.Observation.Trim(),
+                PreviousValue = previousValue,
+                NewValue = $"Sede={branch.Code}; Ubicación={location.Code}; Estado={tool.OperationalStatus}; Custodia={tool.CustodyStatus}",
+                RegisteredAt = request.AssignmentDate ?? DateTime.UtcNow,CreatedAt = DateTime.UtcNow,
+                CreatedBy = tool.UpdatedBy
+            });
+        }
+        else
+        {
+            return BadRequest(new { Message = "Tipo de asignación inválido. Use Responsible o Warehouse." });
+        }
+
+        await _context.SaveChangesAsync();
+
+        var response = await BuildToolQuery().FirstAsync(x => x.Id == tool.Id);
+        return Ok(response);
+    }
+
+    private static bool TryParseOperationalStatus(string? value, out ToolOperationalStatus status)
+    {
+        status = ToolOperationalStatus.PendingValidation;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            status = ToolOperationalStatus.Available;
+            return true;
+        }
+
+        var text = value.Trim();
+
+        return Enum.TryParse(text, ignoreCase: true, out status);
+    }
     private async Task<IActionResult?> ValidateCreateRequestAsync(CreateToolRequest request)
     {
         var basicValidation = ValidateBasicRequest(request.InternalCode, request.Name, request.BranchCode);
@@ -1215,6 +1593,26 @@ public class ToolsController : ControllerBase
     {
     }
 
+
+    public sealed class UpdateAvailabilityLocationRequest
+    {
+        public Guid BranchId { get; set; }
+        public Guid? LocationId { get; set; }
+        public string? OperationalStatus { get; set; }
+        public string? Observation { get; set; }
+        public string? ChangedBy { get; set; }
+    }
+
+    public sealed class AssignFixedAssetRequest
+    {
+        public string? AssignmentType { get; set; }
+        public Guid? ResponsiblePersonId { get; set; }
+        public Guid? BranchId { get; set; }
+        public Guid? LocationId { get; set; }
+        public DateTime? AssignmentDate { get; set; }
+        public string? Observation { get; set; }
+        public string? ChangedBy { get; set; }
+    }
     public sealed class UpdateToolClassificationRequest
     {
         public bool IsSpecialized { get; set; }
@@ -1272,6 +1670,16 @@ public class ToolsController : ControllerBase
         public string? ToolCategoryName { get; set; }
     }
 }
+
+
+
+
+
+
+
+
+
+
 
 
 

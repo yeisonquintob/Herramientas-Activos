@@ -1,0 +1,408 @@
+﻿@page "/asset-assignment-history"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Historial de asignaciones - NAVI</PageTitle>
+
+<section class="history-hero">
+    <div>
+        <button class="btn-history-back" @onclick="@(() => NavigationManager.NavigateTo("/asset-assignment"))">
+            ← Volver a Asignar AF
+        </button>
+
+        <span class="history-pill">HISTORIAL</span>
+        <h2>Historial de asignaciones</h2>
+        <p>Consulta herramientas asignadas por usuario, fecha de entrega, fecha de regreso y detalle del movimiento.</p>
+    </div>
+
+    <div class="history-hero-side">
+        <div class="history-status-box">
+            <span>Movimientos</span>
+            <strong>@FilteredHistory.Count() visibles</strong>
+        </div>
+
+        <button class="btn btn-sm btn-outline-light" @onclick="LoadHistoryAsync">
+            Actualizar
+        </button>
+    </div>
+</section>
+
+<section class="history-filter-panel">
+    <div>
+        <label class="form-label">Usuario / Responsable</label>
+        <select class="form-select form-select-sm" @bind="selectedResponsibleId">
+            <option value="">Todos los usuarios</option>
+            @foreach (var responsible in responsibles.OrderBy(x => x.FullName))
+            {
+                <option value="@responsible.Id">@responsible.FullName</option>
+            }
+        </select>
+    </div>
+
+    <div>
+        <label class="form-label">Buscar</label>
+        <input class="form-control form-control-sm"
+               placeholder="Código, herramienta, serial, detalle o usuario..."
+               @bind="search"
+               @bind:event="oninput" />
+    </div>
+
+    <div class="history-filter-actions">
+        <button class="btn btn-primary btn-sm" @onclick="LoadHistoryAsync">
+            Filtrar
+        </button>
+
+        <button class="btn btn-outline-secondary btn-sm" @onclick="ClearFilters">
+            Limpiar
+        </button>
+    </div>
+</section>
+
+<section class="history-card">
+    <div class="history-table-header">
+        <div>
+            <h3>Resultado del historial</h3>
+            <p>Se muestran las asignaciones y regresos encontrados según los filtros aplicados.</p>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <p>Cargando historial...</p>
+    }
+    else if (!FilteredHistory.Any())
+    {
+        <div class="alert alert-info">No hay movimientos para mostrar.</div>
+    }
+    else
+    {
+        <table class="table table-hover align-middle history-table">
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Herramienta / Activo</th>
+                    <th>Usuario actual</th>
+                    <th>Sede / ubicación</th>
+                    <th>Estado</th>
+                    <th>Fecha entrega</th>
+                    <th>Fecha regreso</th>
+                    <th>Detalle</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                @foreach (var item in FilteredHistory)
+                {
+                    <tr>
+                        <td><strong>@item.ToolInternalCode</strong></td>
+
+                        <td>
+                            <div>@item.ToolName</div>
+                            <small class="text-muted">@Show(item.ToolSerialNumber)</small>
+                        </td>
+
+                        <td>@Show(item.CurrentResponsibleName)</td>
+
+                        <td>
+                            <div>@Show(item.CurrentBranchCode)</div>
+                            <small class="text-muted">@Show(item.CurrentLocationName)</small>
+                        </td>
+
+                        <td>
+                            <span class="@GetStatusBadge(item.CurrentStatus ?? string.Empty)">
+                                @GetStatusLabel(item.CurrentStatus ?? string.Empty)
+                            </span>
+                        </td>
+
+                        <td>@ShowDate(item.AssignedAt)</td>
+
+                        <td>@ShowDate(item.ReturnedAt)</td>
+
+                        <td>
+                            <div>@Show(item.Detail)</div>
+
+                            @if (!string.IsNullOrWhiteSpace(item.ReturnDetail))
+                            {
+                                <small class="text-muted">Regreso: @item.ReturnDetail</small>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+<style>
+    .history-hero {
+        background: linear-gradient(135deg, #050008 0%, #280032 45%, #5c006b 100%);
+        color: #ffffff;
+        border-radius: .85rem;
+        padding: 1.25rem 1.4rem;
+        margin-bottom: 1rem;
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        box-shadow: 0 .65rem 1.35rem rgba(75,0,92,.22);
+    }
+
+    .btn-history-back {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 30px;
+        border-radius: 999px;
+        padding: 0 .75rem;
+        border: 1px solid rgba(255,255,255,.42);
+        background: rgba(255,255,255,.10);
+        color: #ffffff;
+        font-size: .76rem;
+        font-weight: 850;
+        margin-bottom: .55rem;
+    }
+
+    .btn-history-back:hover {
+        background: #ffffff;
+        color: #4b005c;
+    }
+
+    .history-pill {
+        display: inline-flex;
+        background: rgba(255,255,255,.12);
+        border: 1px solid rgba(255,255,255,.35);
+        border-radius: 999px;
+        padding: .22rem .65rem;
+        font-size: .7rem;
+        font-weight: 900;
+        margin-bottom: .55rem;
+    }
+
+    .history-hero h2 {
+        color: #ffffff;
+        font-size: 1.7rem;
+        font-weight: 950;
+        margin: 0;
+    }
+
+    .history-hero p {
+        color: rgba(255,255,255,.78);
+        margin: .35rem 0 0;
+        font-size: .9rem;
+    }
+
+    .history-hero-side {
+        min-width: 190px;
+        display: grid;
+        gap: .65rem;
+    }
+
+    .history-status-box {
+        background: rgba(255,255,255,.12);
+        border-radius: .65rem;
+        padding: .55rem .75rem;
+        text-align: right;
+    }
+
+    .history-status-box span {
+        display: block;
+        color: #ffdd57;
+        font-size: .75rem;
+        font-weight: 900;
+    }
+
+    .history-status-box strong {
+        color: #ffffff;
+        font-size: .86rem;
+        font-weight: 950;
+    }
+
+    .history-filter-panel {
+        background: #ffffff;
+        border: 1px solid #dfe3e8;
+        border-radius: .85rem;
+        padding: .85rem;
+        display: grid;
+        grid-template-columns: 280px minmax(320px, 1fr) auto;
+        gap: .75rem;
+        align-items: end;
+        margin-bottom: 1rem;
+        box-shadow: 0 .25rem .65rem rgba(0,0,0,.04);
+    }
+
+    .history-filter-actions {
+        display: inline-flex;
+        gap: .35rem;
+    }
+
+    .history-card {
+        background: #ffffff;
+        border: 1px solid #dfe3e8;
+        border-radius: .85rem;
+        padding: 1rem;
+        box-shadow: 0 .3rem .75rem rgba(0,0,0,.045);
+    }
+
+    .history-table-header h3 {
+        font-size: 1.05rem;
+        font-weight: 900;
+        margin: 0;
+    }
+
+    .history-table-header p {
+        margin: .2rem 0 .75rem;
+        color: #657083;
+        font-size: .8rem;
+    }
+
+    .history-table {
+        font-size: .82rem;
+    }
+
+    .history-table th,
+    .history-table td {
+        padding: .48rem .55rem;
+        vertical-align: middle;
+    }
+
+    @@media (max-width: 1100px) {
+        .history-hero {
+            flex-direction: column;
+        }
+
+        .history-filter-panel {
+            grid-template-columns: 1fr;
+        }
+
+        .history-filter-actions {
+            width: 100%;
+        }
+
+        .history-filter-actions .btn {
+            width: 100%;
+        }
+    }
+</style>
+
+@code {
+    [SupplyParameterFromQuery(Name = "responsiblePersonId")]
+    public Guid? ResponsiblePersonId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "q")]
+    public string? Query { get; set; }
+
+    private HttpClient Api => HttpClientFactory.CreateClient("NaviApi");
+
+    private List<ResponsibleItem> responsibles = new();
+    private List<AssignmentHistoryItem> historyItems = new();
+
+    private bool isLoading;
+    private string selectedResponsibleId = string.Empty;
+    private string search = string.Empty;
+
+    private IEnumerable<AssignmentHistoryItem> FilteredHistory =>
+        historyItems
+            .Where(x => string.IsNullOrWhiteSpace(search) ||
+                        x.ToolInternalCode.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                        x.ToolName.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                        (x.ToolSerialNumber ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                        (x.Detail ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                        (x.ReturnDetail ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                        (x.CurrentResponsibleName ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(x => x.AssignedAt);
+
+    protected override async Task OnInitializedAsync()
+    {
+        selectedResponsibleId = ResponsiblePersonId?.ToString() ?? string.Empty;
+        search = Query ?? string.Empty;
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        responsibles = await Api.GetFromJsonAsync<List<ResponsibleItem>>("api/settings/responsibles") ?? new();
+        await LoadHistoryAsync();
+    }
+
+    private async Task LoadHistoryAsync()
+    {
+        isLoading = true;
+
+        try
+        {
+            var endpoint = string.IsNullOrWhiteSpace(selectedResponsibleId)
+                ? "api/tools/assignment-history"
+                : $"api/tools/assignment-history?responsiblePersonId={selectedResponsibleId}";
+
+            historyItems = await Api.GetFromJsonAsync<List<AssignmentHistoryItem>>(endpoint) ?? new();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ClearFilters()
+    {
+        selectedResponsibleId = string.Empty;
+        search = string.Empty;
+        await LoadHistoryAsync();
+    }
+
+    private static string Show(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+
+    private static string ShowDate(DateTime? value)
+    {
+        return value.HasValue ? value.Value.ToLocalTime().ToString("dd/MM/yyyy") : "—";
+    }
+
+    private static string GetStatusLabel(string status) => status switch
+    {
+        "Available" => "Disponible",
+        "Assigned" => "Asignada",
+        "Loaned" => "Prestada",
+        "InMaintenance" => "En mantenimiento",
+        "Damaged" => "Dañada",
+        "NotLocated" => "No localizada",
+        "PendingValidation" => "Pendiente validación",
+        _ => status
+    };
+
+    private static string GetStatusBadge(string status) => status switch
+    {
+        "Available" => "badge bg-success",
+        "Assigned" => "badge bg-warning text-dark",
+        "Loaned" => "badge bg-info text-dark",
+        "InMaintenance" => "badge bg-primary",
+        "Damaged" => "badge bg-danger",
+        "NotLocated" => "badge bg-dark",
+        "PendingValidation" => "badge bg-secondary",
+        _ => "badge bg-secondary"
+    };
+
+    private sealed class ResponsibleItem
+    {
+        public Guid Id { get; set; }
+        public string FullName { get; set; } = string.Empty;
+    }
+
+    private sealed class AssignmentHistoryItem
+    {
+        public Guid Id { get; set; }
+        public Guid ToolAssetId { get; set; }
+        public string ToolInternalCode { get; set; } = string.Empty;
+        public string ToolName { get; set; } = string.Empty;
+        public string? ToolSerialNumber { get; set; }
+        public string? CurrentBranchCode { get; set; }
+        public string? CurrentLocationName { get; set; }
+        public Guid? CurrentResponsiblePersonId { get; set; }
+        public string? CurrentResponsibleName { get; set; }
+        public string? CurrentStatus { get; set; }
+        public DateTime? AssignedAt { get; set; }
+        public DateTime? ReturnedAt { get; set; }
+        public string? ReturnDetail { get; set; }
+        public string? Detail { get; set; }
+    }
+}

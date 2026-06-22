@@ -5,20 +5,7 @@
 
 <PageTitle>Detalle herramienta - NAVI Herramientas</PageTitle>
 
-<div class="page-header">
-    <div>
-        <button class="btn btn-outline-secondary btn-sm mb-2" @onclick="GoBack">
-            ? Volver al inventario
-        </button>
 
-        <h1>Detalle de herramienta</h1>
-        <p>Consulta visual de datos maestros y hoja de vida operativa.</p>
-    </div>
-
-    <button class="btn btn-primary" @onclick="LoadAsync" disabled="@isLoading">
-        @(isLoading ? "Actualizando..." : "Actualizar")
-    </button>
-</div>
 
 @if (!string.IsNullOrWhiteSpace(errorMessage))
 {
@@ -34,30 +21,56 @@ else if (isLoading && tool is null)
 }
 else if (tool is not null)
 {
-    <section class="tool-detail-hero">
-        <div>
-            <span class="tool-code">@tool!.InternalCode</span>
+        <section class="detail-hero-banner">
+        <div class="detail-hero-main">
+            <div class="detail-hero-actions">
+                <button class="btn-detail-back" @onclick="GoBack">
+                    ← Volver al inventario
+                </button>
+            </div>
+
+            <span class="detail-hero-pill">DETALLE DE ACTIVO FIJO</span>
+
             <h2>@tool!.Name</h2>
+
+            <div class="detail-hero-code">
+                @tool!.InternalCode
+            </div>
 
             @if (!string.IsNullOrWhiteSpace(tool.Description))
             {
                 <p>@tool!.Description</p>
             }
-        </div>
-
-        <div class="tool-status-box">
-            <span class="@GetStatusBadgeClass(tool.OperationalStatus)">
-                @GetStatusLabel(tool.OperationalStatus)
-            </span>
-
-            @if (tool.IsSpecialized)
-            {
-                <span class="badge bg-primary">Especializada</span>
-            }
             else
             {
-                <span class="badge bg-secondary">No especializada</span>
+                <p>Consulta visual de datos maestros, ubicación, clasificación, estados y hoja de vida operativa.</p>
             }
+        </div>
+
+        <div class="detail-hero-side">
+            <div class="detail-hero-status-card">
+                <span>Estado operativo</span>
+                <strong>@GetStatusLabel(tool.OperationalStatus)</strong>
+            </div>
+
+            <div class="detail-hero-badges">
+                <span class="@GetStatusBadgeClass(tool.OperationalStatus)">
+                    @GetStatusLabel(tool.OperationalStatus)
+                </span>
+
+                @if (tool.IsSpecialized)
+                {
+                    <span class="badge bg-primary">Especializada</span>
+                }
+                else
+                {
+                    <span class="badge bg-secondary">No especializada</span>
+                }
+            </div>
+
+            <button class="btn btn-sm btn-outline-light detail-hero-refresh" @onclick="LoadAsync" disabled="@isLoading">
+                @(isLoading ? "Actualizando..." : "Actualizar")
+            </button>
         </div>
     </section>
 
@@ -531,4 +544,158 @@ else if (tool is not null)
 
 
 
+
+
+
+<style>
+    .detail-hero-banner {
+        background: linear-gradient(135deg, #050008 0%, #280032 45%, #5c006b 100%);
+        color: #ffffff;
+        border-radius: 0.85rem;
+        padding: 1.25rem 1.4rem;
+        margin-bottom: 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: stretch;
+        gap: 1rem;
+        box-shadow: 0 0.65rem 1.35rem rgba(75, 0, 92, 0.22);
+    }
+
+    .detail-hero-main {
+        min-width: 0;
+    }
+
+    .detail-hero-actions {
+        margin-bottom: 0.6rem;
+    }
+
+    .btn-detail-back {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 30px;
+        border-radius: 999px;
+        padding: 0 0.75rem;
+        border: 1px solid rgba(255, 255, 255, 0.42);
+        background: rgba(255, 255, 255, 0.10);
+        color: #ffffff;
+        font-size: 0.76rem;
+        font-weight: 850;
+    }
+
+    .btn-detail-back:hover {
+        background: #ffffff;
+        color: #4b005c;
+    }
+
+    .detail-hero-pill {
+        display: inline-flex;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        color: #ffffff;
+        border-radius: 999px;
+        padding: 0.22rem 0.65rem;
+        font-size: 0.7rem;
+        font-weight: 900;
+        letter-spacing: 0.04rem;
+        margin-bottom: 0.6rem;
+    }
+
+    .detail-hero-banner h2 {
+        color: #ffffff;
+        margin: 0;
+        font-size: 1.75rem;
+        font-weight: 950;
+        line-height: 1.1;
+        text-transform: uppercase;
+    }
+
+    .detail-hero-code {
+        display: inline-flex;
+        margin-top: 0.45rem;
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 999px;
+        padding: 0.22rem 0.7rem;
+        color: #ffffff;
+        font-size: 0.78rem;
+        font-weight: 900;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+    }
+
+    .detail-hero-banner p {
+        margin: 0.55rem 0 0 0;
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 0.9rem;
+    }
+
+    .detail-hero-side {
+        min-width: 215px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: stretch;
+        gap: 0.65rem;
+    }
+
+    .detail-hero-status-card {
+        display: grid;
+        gap: 0.15rem;
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 0.65rem;
+        padding: 0.6rem 0.75rem;
+        text-align: right;
+    }
+
+    .detail-hero-status-card span {
+        color: #ffdd57;
+        font-size: 0.75rem;
+        font-weight: 900;
+    }
+
+    .detail-hero-status-card strong {
+        color: #ffffff;
+        font-size: 0.86rem;
+        font-weight: 950;
+    }
+
+    .detail-hero-badges {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 0.35rem;
+    }
+
+    .detail-hero-refresh {
+        height: 32px;
+        font-size: 0.78rem;
+        font-weight: 800;
+        border-color: rgba(255, 255, 255, 0.65);
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .detail-hero-refresh:hover {
+        color: #4b005c;
+        background: #ffffff;
+        border-color: #ffffff;
+    }
+
+    @@media (max-width: 992px) {
+        .detail-hero-banner {
+            flex-direction: column;
+        }
+
+        .detail-hero-side {
+            min-width: 0;
+        }
+
+        .detail-hero-status-card {
+            text-align: left;
+        }
+
+        .detail-hero-badges {
+            justify-content: flex-start;
+        }
+    }
+</style>
 

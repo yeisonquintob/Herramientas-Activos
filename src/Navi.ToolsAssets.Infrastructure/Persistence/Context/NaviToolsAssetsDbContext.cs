@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Navi.ToolsAssets.Domain.Entities.Configuration;
 using Navi.ToolsAssets.Domain.Entities.Damages;
 using Navi.ToolsAssets.Domain.Entities.Documents;
 using Navi.ToolsAssets.Domain.Entities.Inventory;
@@ -25,6 +26,7 @@ public class NaviToolsAssetsDbContext : DbContext
     public DbSet<AppUser> AppUsers => Set<AppUser>();
 
     public DbSet<SystemParameter> SystemParameters => Set<SystemParameter>();
+    public DbSet<SettingCatalogItem> SettingCatalogItems => Set<SettingCatalogItem>();
     public DbSet<Zone> Zones => Set<Zone>();
     public DbSet<Branch> Branches => Set<Branch>();
     public DbSet<ToolLocation> ToolLocations => Set<ToolLocation>();
@@ -54,6 +56,32 @@ public class NaviToolsAssetsDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+
+        modelBuilder.Entity<SettingCatalogItem>(entity =>
+        {
+            entity.ToTable("SettingCatalogItems", "Organization");
+
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.CatalogType)
+                .HasMaxLength(80)
+                .IsRequired();
+
+            entity.Property(x => x.Code)
+                .HasMaxLength(80)
+                .IsRequired();
+
+            entity.Property(x => x.Name)
+                .HasMaxLength(180)
+                .IsRequired();
+
+            entity.Property(x => x.Description)
+                .HasMaxLength(500);
+
+            entity.HasIndex(x => new { x.CatalogType, x.Code })
+                .IsUnique()
+                .HasFilter("[IsDeleted] = 0");
+        });
         modelBuilder.Entity<ImportBatch>(entity =>
         {
             entity.ToTable("ImportBatches", "Imports");
@@ -560,6 +588,7 @@ public class NaviToolsAssetsDbContext : DbContext
         });
     }
 }
+
 
 
 
