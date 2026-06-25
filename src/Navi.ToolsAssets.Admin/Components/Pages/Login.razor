@@ -1,94 +1,317 @@
 ﻿@page "/login"
 @rendermode InteractiveServer
-@inject Navi.ToolsAssets.Admin.Services.Auth.WebAuthSessionService AuthSession
+@using System.ComponentModel.DataAnnotations
+@using System.Net.Http.Json
+@using System.Text.Json
+@using Microsoft.JSInterop
+@using Navi.ToolsAssets.Admin.Services.Auth
+@inject IHttpClientFactory HttpClientFactory
+@inject WebAuthSessionService AuthSession
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <PageTitle>Login - NAVI Herramientas</PageTitle>
 
-<div class="navi-login-page">
-    <section class="navi-login-left">
-        <div class="navi-login-left-content">
-            <h1>HERRAMIENTAS Y ACTIVOS</h1>
-
-            <div class="navi-login-company">
-                <strong>NAVITRANS</strong>
-                <span>Juntos hacemos el camino</span>
+<div class="login-shell">
+    <section class="login-card">
+        <div class="login-brand">
+            <div class="login-logo">N</div>
+            <div>
+                <h1>NAVI Herramientas</h1>
+                <p>Seguridad real por usuario, rol, sede y permisos</p>
             </div>
         </div>
-    </section>
 
-    <section class="navi-login-right">
-        <div class="navi-login-form-card">
-            <div class="navi-login-user-icon">
-                <span></span>
+        <EditForm Model="loginModel" OnValidSubmit="LoginAsync">
+            <DataAnnotationsValidator />
+
+            <div class="form-group mb-3">
+                <label>Usuario</label>
+                <InputText class="form-control"
+                           @bind-Value="loginModel.UserName"
+                           placeholder="admin, herramientero, tecnico..." />
+                <ValidationMessage For="@(() => loginModel.UserName)" />
             </div>
 
-            <h2>Iniciar sesión</h2>
+            <div class="form-group mb-3">
+                <label>Contraseña</label>
+                <InputText type="password"
+                           class="form-control"
+                           @bind-Value="loginModel.Password"
+                           placeholder="Por ahora cualquier contraseña no vacía" />
+                <ValidationMessage For="@(() => loginModel.Password)" />
+                <small class="text-muted">MVP: valida usuario activo en base de datos y contraseña no vacía.</small>
+            </div>
 
-            <EditForm Model="loginModel" OnValidSubmit="LoginAsync">
-                <DataAnnotationsValidator />
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="alert alert-danger">@errorMessage</div>
+            }
 
-                <div class="navi-login-field">
-                    <InputText class="form-control" placeholder="Usuario" @bind-Value="loginModel.UserName" />
-                </div>
+            @if (!string.IsNullOrWhiteSpace(infoMessage))
+            {
+                <div class="alert alert-info">@infoMessage</div>
+            }
 
-                <div class="navi-login-field">
-                    <InputText type="password" class="form-control" placeholder="Contraseña" @bind-Value="loginModel.Password" />
-                </div>
+            <button type="submit" class="btn btn-primary w-100" disabled="@isLoading">
+                @(isLoading ? "Ingresando..." : "Ingresar")
+            </button>
+        </EditForm>
 
-                @if (!string.IsNullOrWhiteSpace(errorMessage))
-                {
-                    <div class="alert alert-danger navi-login-alert">@errorMessage</div>
-                }
-
-                <button type="submit" class="btn btn-primary navi-login-button">
-                    Ingresar
-                </button>
-            </EditForm>
+        <div class="login-demo-users">
+            <span>Usuarios demo:</span>
+            <button type="button" @onclick='() => UseDemo("admin")'>Admin</button>
+            <button type="button" @onclick='() => UseDemo("herramientero")'>Herramientero</button>
+            <button type="button" @onclick='() => UseDemo("tecnico")'>Técnico</button>
+            <button type="button" @onclick='() => UseDemo("auditor")'>Auditor</button>
+            <button type="button" @onclick='() => UseDemo("gerencial")'>Gerencial</button>
+            <button type="button" @onclick='() => UseDemo("sede")'>Sede</button>
         </div>
     </section>
 </div>
 
-@code {
-    private readonly LoginModel loginModel = new()
-    {
-        UserName = string.Empty,
-        Password = string.Empty
-    };
-
-    private string errorMessage = string.Empty;
-
-    private Task LoginAsync()
-    {
-        errorMessage = string.Empty;
-
-        if (string.IsNullOrWhiteSpace(loginModel.UserName))
-        {
-            errorMessage = "Debes ingresar un usuario.";
-            return Task.CompletedTask;
-        }
-
-        if (string.IsNullOrWhiteSpace(loginModel.Password))
-        {
-            errorMessage = "Debes ingresar una contraseña.";
-            return Task.CompletedTask;
-        }
-
-        AuthSession.Login(
-            loginModel.UserName.Trim(),
-            "Administrador NAVI",
-            "Administrador",
-            "TODAS");
-
-        Navigation.NavigateTo("/dashboard");
-
-        return Task.CompletedTask;
+<style>
+    .login-shell {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background:
+            radial-gradient(circle at top left, rgba(140, 17, 159, .30), transparent 35%),
+            linear-gradient(135deg, #050008 0%, #280032 45%, #5c006b 100%);
+        padding: 1.5rem;
     }
 
-    private sealed class LoginModel
+    .login-card {
+        width: min(460px, 100%);
+        background: #ffffff;
+        border-radius: 1rem;
+        padding: 1.4rem;
+        box-shadow: 0 1.2rem 2.5rem rgba(0, 0, 0, .28);
+    }
+
+    .login-brand {
+        display: flex;
+        align-items: center;
+        gap: .85rem;
+        margin-bottom: 1.2rem;
+    }
+
+    .login-logo {
+        width: 52px;
+        height: 52px;
+        border-radius: 1rem;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(135deg, #4b005c 0%, #8c119f 100%);
+        color: #ffffff;
+        font-size: 1.5rem;
+        font-weight: 950;
+        box-shadow: 0 .45rem 1rem rgba(75, 0, 92, .25);
+    }
+
+    .login-brand h1 {
+        margin: 0;
+        color: #17111c;
+        font-size: 1.35rem;
+        font-weight: 950;
+    }
+
+    .login-brand p {
+        margin: .15rem 0 0;
+        color: #657083;
+        font-size: .82rem;
+        line-height: 1.25;
+    }
+
+    .form-group label {
+        font-weight: 850;
+        color: #17111c;
+        font-size: .82rem;
+        margin-bottom: .25rem;
+    }
+
+    .login-demo-users {
+        margin-top: 1rem;
+        border-top: 1px solid #edf1f5;
+        padding-top: .8rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: .35rem;
+        align-items: center;
+    }
+
+    .login-demo-users span {
+        width: 100%;
+        color: #657083;
+        font-size: .72rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .login-demo-users button {
+        border: 1px solid #dfe3e8;
+        background: #f8fafc;
+        color: #4b005c;
+        border-radius: 999px;
+        padding: .25rem .6rem;
+        font-size: .74rem;
+        font-weight: 850;
+    }
+
+    .login-demo-users button:hover {
+        background: #f3ecf7;
+        border-color: #8c119f;
+    }
+</style>
+
+@code {
+    private const string StorageKey = "navi-auth-session";
+
+    private readonly LoginForm loginModel = new();
+    private bool isLoading;
+    private string? errorMessage;
+    private string? infoMessage;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        if (AuthSession.IsAuthenticated)
+        {
+            Navigation.NavigateTo(GetHomeUrl(AuthSession.Permissions), forceLoad: true);
+            return;
+        }
+
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", StorageKey);
+
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return;
+            }
+
+            var user = JsonSerializer.Deserialize<AuthSessionUser>(
+                json,
+                new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+            if (user is not null && !string.IsNullOrWhiteSpace(user.UserName))
+            {
+                AuthSession.Login(user);
+                Navigation.NavigateTo(GetHomeUrl(user.Permissions), forceLoad: true);
+            }
+        }
+        catch
+        {
+            await JS.InvokeVoidAsync("localStorage.removeItem", StorageKey);
+        }
+    }
+
+    private async Task LoginAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+        infoMessage = null;
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var response = await client.PostAsJsonAsync("api/auth/login", new
+            {
+                userName = loginModel.UserName,
+                password = loginModel.Password
+            });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var apiError = await response.Content.ReadFromJsonAsync<ApiError>();
+                errorMessage = apiError?.Message ?? "No fue posible iniciar sesión.";
+                return;
+            }
+
+            var sessionUser = await response.Content.ReadFromJsonAsync<AuthSessionUser>();
+
+            if (sessionUser is null)
+            {
+                errorMessage = "La API no devolvió información de sesión.";
+                return;
+            }
+
+            AuthSession.Login(sessionUser);
+
+            var sessionJson = JsonSerializer.Serialize(sessionUser);
+            await JS.InvokeVoidAsync("localStorage.setItem", StorageKey, sessionJson);
+
+            Navigation.NavigateTo(GetHomeUrl(sessionUser.Permissions), forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo conectar con la API. Valida que esté activa en http://localhost:5218. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private static string GetHomeUrl(IEnumerable<string>? permissions)
+    {
+        var list = permissions?.ToList() ?? new();
+
+        if (list.Contains("Dashboard.View", StringComparer.OrdinalIgnoreCase))
+        {
+            return "/dashboard";
+        }
+
+        if (list.Contains("Tools.View", StringComparer.OrdinalIgnoreCase))
+        {
+            return "/tools";
+        }
+
+        if (list.Contains("AssetAssignment.History", StringComparer.OrdinalIgnoreCase))
+        {
+            return "/asset-assignment-history";
+        }
+
+        if (list.Contains("TechnicalLifeRecord.View", StringComparer.OrdinalIgnoreCase))
+        {
+            return "/technical-life-records";
+        }
+
+        if (list.Contains("Documents.View", StringComparer.OrdinalIgnoreCase))
+        {
+            return "/documents";
+        }
+
+        return "/access-denied";
+    }
+
+    private void UseDemo(string userName)
+    {
+        loginModel.UserName = userName;
+        loginModel.Password = "123456";
+        errorMessage = null;
+        infoMessage = $"Usuario demo seleccionado: {userName}. Presiona Ingresar.";
+    }
+
+    private sealed class LoginForm
+    {
+        [Required(ErrorMessage = "El usuario es obligatorio.")]
         public string UserName { get; set; } = string.Empty;
 
+        [Required(ErrorMessage = "La contraseña es obligatoria.")]
         public string Password { get; set; } = string.Empty;
+    }
+
+    private sealed class ApiError
+    {
+        public string? Message { get; set; }
     }
 }

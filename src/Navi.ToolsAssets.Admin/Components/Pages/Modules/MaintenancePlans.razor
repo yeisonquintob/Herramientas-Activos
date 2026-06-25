@@ -1,26 +1,532 @@
 ﻿@page "/maintenance-plans"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@using Navi.ToolsAssets.Admin.Components.Security
+@using Navi.ToolsAssets.Admin.Services.Auth
+@inject IHttpClientFactory HttpClientFactory
+@inject WebAuthSessionService AuthSession
 
 <PageTitle>Planes de Mantenimiento</PageTitle>
 
-<div class="page-header">
+<PermissionGuard Permission="Maintenance.View" ModuleName="Planes de Mantenimiento">
+
+<section class="plans-hero">
     <div>
-        <h1>Planes de Mantenimiento</h1>
-        <p>Administración de planes, frecuencias y cronogramas de mantenimiento.</p>
+        <span class="plans-pill">OPERACIONES · PLANES</span>
+        <h2>Planes de mantenimiento</h2>
+        <p>Controla periodicidad, vencimientos, mantenimientos pendientes y cobertura por activo fijo o herramienta.</p>
     </div>
-</div>
 
-<section class="module-placeholder">
-    <div class="module-placeholder-badge">Activos fijos</div>
+    <div class="plans-side">
+        <div class="plans-status-box">
+            <span>Activos</span>
+            <strong>@plans.Count visibles</strong>
+        </div>
 
-    <h2>M&oacute;dulo en construcci&oacute;n</h2>
-
-    <p>
-        Esta pantalla queda creada como punto de navegaci&oacute;n del m&oacute;dulo <strong>Planes de Mantenimiento</strong>.
-        El siguiente paso ser&aacute; conectar esta vista con API, reglas de negocio y permisos.
-    </p>
-
-    <div class="module-placeholder-actions">
-        <a class="btn btn-outline-primary" href="/tools">Ir a inventario</a>
-        <a class="btn btn-outline-secondary" href="/dashboard">Ir a Dashboard</a>
+        <button class="plans-outline-btn" type="button" @onclick="LoadAsync">
+            Actualizar
+        </button>
     </div>
 </section>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+<section class="plans-kpi-grid">
+    <article class="plans-kpi-card">
+        <span>Total activos</span>
+        <strong>@plans.Count</strong>
+        <small>Con seguimiento</small>
+    </article>
+
+    <article class="plans-kpi-card success">
+        <span>Al día</span>
+        <strong>@plans.Count(x => x.PlanStatus == "OnTime")</strong>
+        <small>Sin vencimiento cercano</small>
+    </article>
+
+    <article class="plans-kpi-card warning">
+        <span>Por vencer</span>
+        <strong>@plans.Count(x => x.PlanStatus == "DueSoon")</strong>
+        <small>Próximos 30 días</small>
+    </article>
+
+    <article class="plans-kpi-card danger">
+        <span>Vencidos</span>
+        <strong>@plans.Count(x => x.PlanStatus == "Overdue")</strong>
+        <small>Requieren atención</small>
+    </article>
+
+    <article class="plans-kpi-card purple">
+        <span>Pendientes</span>
+        <strong>@plans.Sum(x => x.PendingRequests)</strong>
+        <small>Solicitudes abiertas</small>
+    </article>
+</section>
+
+<section class="plans-card">
+    <div class="plans-card-title">
+        <div>
+            <h3>Tablero de planes</h3>
+            <p>Consulta el estado de mantenimiento por activo y entra al cronograma técnico.</p>
+        </div>
+
+        <div class="plans-filters">
+            <select class="form-select" @bind="selectedStatus">
+                <option value="">Todos los estados</option>
+                <option value="OnTime">Al día</option>
+                <option value="DueSoon">Por vencer</option>
+                <option value="Overdue">Vencido</option>
+            </select>
+
+            <input class="form-control"
+                   placeholder="Buscar código, activo, sede, responsable..."
+                   @bind="searchText"
+                   @bind:event="oninput" />
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="plans-empty">Cargando planes...</div>
+    }
+    else if (!FilteredPlans.Any())
+    {
+        <div class="plans-empty">No hay planes con los filtros aplicados.</div>
+    }
+    else
+    {
+        <div class="plans-table-wrapper">
+            <table class="plans-table">
+                <thead>
+                    <tr>
+                        <th>Activo</th>
+                        <th>Sede / ubicación</th>
+                        <th>Responsable</th>
+                        <th>Periodicidad</th>
+                        <th>Último mantenimiento</th>
+                        <th>Próximo mantenimiento</th>
+                        <th>Estado</th>
+                        <th>Indicadores</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in FilteredPlans)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@item.InternalCode</strong>
+                                <small>@item.Name</small>
+                            </td>
+
+                            <td>
+                                <strong>@(item.BranchCode ?? "—")</strong>
+                                <small>@(item.LocationName ?? item.BranchName ?? "Sin ubicación")</small>
+                            </td>
+
+                            <td>@(item.ResponsibleName ?? "—")</td>
+
+                            <td>
+                                <strong>@item.PeriodMonths mes(es)</strong>
+                                <small>Periodicidad base</small>
+                            </td>
+
+                            <td>
+                                <strong>@FormatDate(item.LastMaintenanceAt)</strong>
+                                <small>@(item.LastMaintenanceNumber ?? "Sin registro previo")</small>
+                            </td>
+
+                            <td>
+                                <strong>@FormatDate(item.NextMaintenanceAt)</strong>
+                                <small>@GetDaysText(item.DaysRemaining)</small>
+                            </td>
+
+                            <td>
+                                <span class="@GetPlanClass(item.PlanStatus)">
+                                    @GetPlanLabel(item.PlanStatus)
+                                </span>
+                            </td>
+
+                            <td>
+                                <small>Total: @item.TotalMaintenances</small>
+                                <small>Completados: @item.CompletedMaintenances</small>
+                                <small>Programados: @item.ScheduledMaintenances</small>
+                                <small>Solicitudes abiertas: @item.PendingRequests</small>
+                            </td>
+
+                            <td>
+                                <div class="row-actions">
+                                    <a class="btn btn-sm btn-outline-secondary" href="@($"/tools/{item.ToolAssetId}/technical-life-record")">
+                                        Hoja vida
+                                    </a>
+
+                                    <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{item.ToolAssetId}/maintenance-schedule")">
+                                        Cronograma
+                                    </a>
+
+                                    <a class="btn btn-sm btn-success" href="/maintenance-request">
+                                        Solicitar
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+</PermissionGuard>
+
+<style>
+    .plans-hero {
+        margin-bottom: .8rem;
+        padding: 1rem 1.15rem;
+        border-radius: 1rem;
+        background: radial-gradient(circle at top right, rgba(255,255,255,.16), transparent 34%),
+            linear-gradient(135deg, #100015 0%, #4b005c 58%, #7b0d8e 100%);
+        color: white;
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        box-shadow: 0 .65rem 1.5rem rgba(75,0,92,.22);
+    }
+
+    .plans-pill {
+        display: inline-flex;
+        padding: .18rem .6rem;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,.35);
+        background: rgba(255,255,255,.10);
+        font-size: .68rem;
+        font-weight: 950;
+    }
+
+    .plans-hero h2 {
+        margin: .45rem 0 .2rem;
+        font-size: 1.5rem;
+        font-weight: 950;
+    }
+
+    .plans-hero p {
+        margin: 0;
+        color: rgba(255,255,255,.88);
+    }
+
+    .plans-side {
+        display: flex;
+        flex-direction: column;
+        gap: .5rem;
+        min-width: 190px;
+        align-items: flex-end;
+    }
+
+    .plans-status-box {
+        width: 190px;
+        padding: .65rem .85rem;
+        border-radius: .85rem;
+        background: rgba(255,255,255,.12);
+        text-align: right;
+    }
+
+    .plans-status-box span {
+        display: block;
+        color: #ffdd57;
+        font-size: .72rem;
+        font-weight: 950;
+    }
+
+    .plans-outline-btn {
+        width: 190px;
+        min-height: 34px;
+        border-radius: .55rem;
+        border: 1px solid rgba(255,255,255,.7);
+        background: rgba(255,255,255,.06);
+        color: white;
+        font-weight: 950;
+    }
+
+    .plans-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(130px, 1fr));
+        gap: .55rem;
+        margin-bottom: .75rem;
+    }
+
+    .plans-kpi-card {
+        border: 1px solid #dfe3e8;
+        border-left: 4px solid #0d6efd;
+        border-radius: .75rem;
+        padding: .62rem;
+        background: white;
+    }
+
+    .plans-kpi-card.success { border-left-color: #198754; }
+    .plans-kpi-card.warning { border-left-color: #ffc107; }
+    .plans-kpi-card.danger { border-left-color: #dc3545; }
+    .plans-kpi-card.purple { border-left-color: #7b0d8e; }
+
+    .plans-kpi-card span {
+        display: block;
+        color: #526071;
+        font-size: .65rem;
+        font-weight: 950;
+        text-transform: uppercase;
+    }
+
+    .plans-kpi-card strong {
+        display: block;
+        font-size: 1.25rem;
+        font-weight: 950;
+        color: #06111f;
+    }
+
+    .plans-card {
+        background: white;
+        border: 1px solid #dfe3e8;
+        border-radius: .95rem;
+        padding: .9rem;
+        box-shadow: 0 .35rem .9rem rgba(0,0,0,.04);
+    }
+
+    .plans-card-title {
+        display: flex;
+        justify-content: space-between;
+        gap: .75rem;
+        align-items: flex-start;
+        margin-bottom: .7rem;
+    }
+
+    .plans-card-title h3 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 950;
+    }
+
+    .plans-card-title p {
+        margin: .1rem 0 0;
+        color: #657083;
+        font-size: .78rem;
+    }
+
+    .plans-filters {
+        display: grid;
+        grid-template-columns: 190px minmax(300px, 1fr);
+        gap: .5rem;
+        min-width: 560px;
+    }
+
+    .plans-table {
+        width: 100%;
+        table-layout: fixed;
+        border-collapse: collapse;
+        font-size: .72rem;
+    }
+
+    .plans-table th {
+        border-bottom: 1px solid #17111c;
+        padding: .42rem .35rem;
+        font-size: .63rem;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .plans-table td {
+        border-bottom: 1px solid #e5e8ef;
+        padding: .45rem .35rem;
+        vertical-align: middle;
+    }
+
+    .plans-table td strong,
+    .plans-table td small {
+        display: block;
+        line-height: 1.2;
+    }
+
+    .plans-table td small {
+        color: #657083;
+        font-size: .64rem;
+    }
+
+    .plan-pill {
+        display: inline-flex;
+        border-radius: 999px;
+        padding: .18rem .42rem;
+        font-size: .65rem;
+        font-weight: 950;
+        white-space: nowrap;
+    }
+
+    .plan-pill.ontime { background: #d1e7dd; color: #0f5132; }
+    .plan-pill.duesoon { background: #fff3cd; color: #7a5200; }
+    .plan-pill.overdue { background: #f8d7da; color: #842029; }
+
+    .row-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .28rem;
+    }
+
+    .row-actions .btn {
+        font-size: .68rem;
+        padding: .22rem .42rem;
+        min-height: 27px;
+    }
+
+    .plans-empty {
+        padding: .9rem;
+        border-radius: .75rem;
+        background: #f8fafc;
+        color: #526071;
+        font-weight: 850;
+    }
+
+    @@media (max-width: 1100px) {
+        .plans-table-wrapper {
+            overflow-x: auto;
+        }
+
+        .plans-table {
+            min-width: 1100px;
+        }
+
+        .plans-card-title {
+            flex-direction: column;
+        }
+
+        .plans-filters {
+            min-width: 0;
+            width: 100%;
+            grid-template-columns: 1fr;
+        }
+
+        .plans-kpi-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+
+@code {
+    private List<MaintenancePlanItem> plans = new();
+    private bool isLoading;
+    private string selectedStatus = string.Empty;
+    private string searchText = string.Empty;
+    private string? errorMessage;
+
+    private IEnumerable<MaintenancePlanItem> FilteredPlans =>
+        plans
+            .Where(x => string.IsNullOrWhiteSpace(selectedStatus) || x.PlanStatus == selectedStatus)
+            .Where(MatchesSearch)
+            .OrderBy(x => x.DaysRemaining);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private HttpClient CreateApiClient()
+    {
+        var api = HttpClientFactory.CreateClient("NaviApi");
+
+        api.DefaultRequestHeaders.Remove("X-Navi-User");
+        api.DefaultRequestHeaders.Remove("X-Navi-Role");
+        api.DefaultRequestHeaders.Remove("X-Navi-Role-Code");
+        api.DefaultRequestHeaders.Remove("X-Navi-Permissions");
+
+        api.DefaultRequestHeaders.Add("X-Navi-User", string.IsNullOrWhiteSpace(AuthSession.UserName) ? "admin" : AuthSession.UserName);
+        api.DefaultRequestHeaders.Add("X-Navi-Role", string.IsNullOrWhiteSpace(AuthSession.RoleName) ? "Administrador" : AuthSession.RoleName);
+        api.DefaultRequestHeaders.Add("X-Navi-Role-Code", string.IsNullOrWhiteSpace(AuthSession.RoleCode) ? "ADMIN" : AuthSession.RoleCode);
+        api.DefaultRequestHeaders.Add("X-Navi-Permissions", string.Join(";", AuthSession.Permissions ?? new List<string>()));
+
+        return api;
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var api = CreateApiClient();
+            plans = await api.GetFromJsonAsync<List<MaintenancePlanItem>>("api/maintenance-requests/plans-board") ?? new();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudieron cargar los planes: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private bool MatchesSearch(MaintenancePlanItem item)
+    {
+        if (string.IsNullOrWhiteSpace(searchText)) return true;
+
+        var value = searchText.Trim();
+
+        return Contains(item.InternalCode, value) ||
+               Contains(item.Name, value) ||
+               Contains(item.BranchCode, value) ||
+               Contains(item.BranchName, value) ||
+               Contains(item.LocationName, value) ||
+               Contains(item.ResponsibleName, value);
+    }
+
+    private static bool Contains(string? source, string value) =>
+        !string.IsNullOrWhiteSpace(source) && source.Contains(value, StringComparison.OrdinalIgnoreCase);
+
+    private static string FormatDate(DateTime? value) => value.HasValue ? value.Value.ToString("dd/MM/yyyy") : "—";
+
+    private static string GetDaysText(int days)
+    {
+        if (days < 0) return $"Vencido hace {Math.Abs(days)} día(s)";
+        if (days == 0) return "Vence hoy";
+        return $"Faltan {days} día(s)";
+    }
+
+    private static string GetPlanClass(string status) => status switch
+    {
+        "OnTime" => "plan-pill ontime",
+        "DueSoon" => "plan-pill duesoon",
+        "Overdue" => "plan-pill overdue",
+        _ => "plan-pill"
+    };
+
+    private static string GetPlanLabel(string status) => status switch
+    {
+        "OnTime" => "Al día",
+        "DueSoon" => "Por vencer",
+        "Overdue" => "Vencido",
+        _ => status
+    };
+
+    private sealed class MaintenancePlanItem
+    {
+        public Guid ToolAssetId { get; set; }
+        public string InternalCode { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string? LocationName { get; set; }
+        public string? ResponsibleName { get; set; }
+        public int PeriodMonths { get; set; }
+        public DateTime? LastMaintenanceAt { get; set; }
+        public DateTime NextMaintenanceAt { get; set; }
+        public int DaysRemaining { get; set; }
+        public string PlanStatus { get; set; } = string.Empty;
+        public int TotalMaintenances { get; set; }
+        public int CompletedMaintenances { get; set; }
+        public int ScheduledMaintenances { get; set; }
+        public int PendingRequests { get; set; }
+        public string? LastMaintenanceNumber { get; set; }
+        public string? LastTechnician { get; set; }
+        public string? LastProvider { get; set; }
+    }
+}

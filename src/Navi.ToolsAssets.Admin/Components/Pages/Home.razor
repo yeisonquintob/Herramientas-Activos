@@ -2,9 +2,12 @@
 @page "/dashboard"
 @rendermode InteractiveServer
 @using System.Net.Http.Json
+@using Navi.ToolsAssets.Admin.Components.Shared
 @inject IHttpClientFactory HttpClientFactory
 
 <PageTitle>Dashboard - NAVI</PageTitle>
+
+<PermissionGuard Permission="Dashboard.View" ModuleName="Dashboard">
 
 <section class="dash-hero">
     <div>
@@ -24,6 +27,8 @@
         </button>
     </div>
 </section>
+
+<MaintenanceDashboardPanel />
 
 @if (!string.IsNullOrWhiteSpace(errorMessage))
 {
@@ -341,6 +346,8 @@ else if (dashboard is not null)
         </article>
     </section>
 }
+
+</PermissionGuard>
 
 <style>
     .dash-hero {
@@ -862,3 +869,5 @@ else if (dashboard is not null)
         public string? User { get; set; }
     }
 }
+
+

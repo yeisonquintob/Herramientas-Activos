@@ -1,11 +1,19 @@
 ﻿@page "/tools/{ToolId:guid}"
 @rendermode InteractiveServer
+@using System.Net.Http.Json
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager NavigationManager
 
 <PageTitle>Detalle herramienta - NAVI Herramientas</PageTitle>
 
 
+
+@if (!string.IsNullOrWhiteSpace(successMessage))
+{
+    <div class="alert alert-success">
+        @successMessage
+    </div>
+}
 
 @if (!string.IsNullOrWhiteSpace(errorMessage))
 {
@@ -74,7 +82,206 @@ else if (tool is not null)
         </div>
     </section>
 
-    <div class="tool-detail-grid"><section class="tool-detail-panel">
+    
+    <section class="tool-detail-panel tool-admin-control">
+        <div class="admin-control-header">
+            <div>
+                <h2>Control administrativo del activo</h2>
+                <p>Permite editar datos maestros, guardar cambios, cancelar edición o anular el activo.</p>
+            </div>
+
+            <div class="admin-control-actions">
+                @if (!isEditingMasterData)
+                {
+                    <button class="btn btn-primary" type="button" @onclick="StartMasterDataEdit">
+                        Editar
+                    </button>
+
+                    <button class="btn btn-outline-danger" type="button" @onclick="VoidCurrentToolAsync">
+                        Anular activo
+                    </button>
+                }
+                else
+                {
+                    <button class="btn btn-success" type="button" @onclick="SaveMasterDataAsync">
+                        Guardar
+                    </button>
+
+                    <button class="btn btn-outline-secondary" type="button" @onclick="CancelMasterDataEdit">
+                        Cancelar
+                    </button>
+
+                    <button class="btn btn-outline-danger" type="button" @onclick="VoidCurrentToolAsync">
+                        Anular activo
+                    </button>
+                }
+            </div>
+        </div>
+
+        @if (isEditingMasterData)
+        {
+            <div class="admin-edit-grid">
+                <div>
+                    <label>Código interno</label>
+                    <input class="form-control" @bind="editModel.InternalCode" />
+                </div>
+
+                <div>
+                    <label>Nombre</label>
+                    <input class="form-control" @bind="editModel.Name" />
+                </div>
+
+                <div>
+                    <label>Serial</label>
+                    <input class="form-control" @bind="editModel.SerialNumber" />
+                </div>
+
+                <div>
+                    <label>Activo fijo</label>
+                    <input class="form-control" @bind="editModel.FixedAssetCode" />
+                </div>
+
+                <div>
+                    <label>Código Fenix365</label>
+                    <input class="form-control" @bind="editModel.FenixCode" />
+                </div>
+
+                <div>
+                    <label>Marca</label>
+                    <input class="form-control" @bind="editModel.Brand" />
+                </div>
+
+                <div>
+                    <label>Modelo</label>
+                    <input class="form-control" @bind="editModel.Model" />
+                </div>
+
+                <div>
+                    <label>Estado operativo</label>
+                    <select class="form-select" @bind="editModel.OperationalStatus">
+                        <option value="Available">Disponible</option>
+                        <option value="Assigned">Asignado</option>
+                        <option value="Loaned">Prestado</option>
+                        <option value="InMaintenance">En mantenimiento</option>
+                        <option value="Damaged">Dañado</option>
+                        <option value="NotSuitable">No apto</option>
+                        <option value="PendingValidation">Pendiente validación</option>
+                        <option value="Inconsistent">Inconsistente</option>
+                        <option value="NotLocated">No localizado</option>
+                        <option value="PendingDisposal">Pendiente baja</option>
+                        <option value="Disposed">Dado de baja</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label>Estado físico</label>
+                    <select class="form-select" @bind="editModel.PhysicalStatus">
+                        <option value="Good">Bueno</option>
+                        <option value="Regular">Regular</option>
+                        <option value="Damaged">Dañado</option>
+                        <option value="Lost">Perdido</option>
+                        <option value="Incomplete">Incompleto</option>
+                    </select>
+                </div>
+
+                <div class="admin-check">
+                    <input type="checkbox" class="form-check-input" @bind="editModel.IsSpecialized" />
+                    <label>Activo especializado</label>
+                </div>
+
+                <div class="admin-check">
+                    <input type="checkbox" class="form-check-input" @bind="editModel.RequiresMaintenance" />
+                    <label>Requiere mantenimiento</label>
+                </div>
+
+                <div class="admin-check">
+                    <input type="checkbox" class="form-check-input" @bind="editModel.RequiresPreOperationalCheck" />
+                    <label>Requiere preoperacional</label>
+                </div>
+
+                <div class="admin-check">
+                    <input type="checkbox" class="form-check-input" @bind="editModel.RequiresCertification" />
+                    <label>Requiere certificación</label>
+                </div>
+
+                <div>
+                    <label>Vence certificación</label>
+                    <InputDate class="form-control" @bind-Value="editModel.CertificationExpirationDate" />
+                </div>
+
+                <div>
+                    <label>Periodo mantenimiento meses</label>
+                    <input type="number" class="form-control" @bind="editModel.MaintenancePeriodMonths" min="0" />
+                </div>
+
+                <div class="admin-edit-full">
+                    <label>Descripción / observación</label>
+                    <textarea class="form-control" rows="3" @bind="editModel.Description"></textarea>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="admin-readonly-note">
+                <strong>Modo lectura.</strong> Presiona <b>Editar</b> para modificar datos del activo. Usa <b>Anular activo</b> solo si el activo no debe permanecer en Inventario de AF.
+            </div>
+        }
+    </section>
+
+
+    @if (reportedSource?.HasSource == true)
+    {
+        <section class="tool-detail-panel tool-source-panel">
+            <div class="source-header">
+                <div>
+                    <span class="source-pill">ORIGEN DEL ACTIVO</span>
+                    <h2>Origen desde toma física</h2>
+                    <p>Este activo fue creado desde un registro reportado durante una toma física.</p>
+                </div>
+            </div>
+
+            <div class="source-grid">
+                <div>
+                    <span>Toma física</span>
+                    <strong>@DisplaySourceValue(reportedSource.PhysicalCountNumber)</strong>
+                </div>
+
+                <div>
+                    <span>Participante / reportante</span>
+                    <strong>@DisplaySourceValue(reportedSource.ParticipantName)</strong>
+                    <small>@DisplaySourceValue(reportedSource.ParticipantUserName)</small>
+                </div>
+
+                <div>
+                    <span>Código reportado</span>
+                    <strong>@DisplaySourceValue(reportedSource.ReportedCode)</strong>
+                </div>
+
+                <div>
+                    <span>Nombre reportado</span>
+                    <strong>@DisplaySourceValue(reportedSource.ReportedName)</strong>
+                </div>
+
+                <div>
+                    <span>Ubicación encontrada</span>
+                    <strong>@DisplaySourceValue(reportedSource.FoundLocation)</strong>
+                </div>
+
+                <div>
+                    <span>Estado conciliación</span>
+                    <strong>@DisplaySourceValue(reportedSource.ReconciliationStatus)</strong>
+                    <small>@DisplaySourceValue(reportedSource.ReconciliationObservation)</small>
+                </div>
+
+                <div class="source-full">
+                    <span>Observación del reporte</span>
+                    <strong>@DisplaySourceValue(reportedSource.Observation)</strong>
+                </div>
+            </div>
+        </section>
+    }
+
+<div class="tool-detail-grid"><section class="tool-detail-panel">
             <h2>Datos principales</h2>
 
             <div class="detail-list">
@@ -147,7 +354,60 @@ else if (tool is not null)
         </section>
     </div>
 
-    <div class="tool-detail-grid">
+
+    @if (reportedSource?.HasSource == true)
+    {
+        <section class="tool-detail-panel tool-source-panel">
+            <div class="source-header">
+                <div>
+                    <span class="source-pill">ORIGEN DEL ACTIVO</span>
+                    <h2>Origen desde toma física</h2>
+                    <p>Este activo fue creado desde un registro reportado durante una toma física.</p>
+                </div>
+            </div>
+
+            <div class="source-grid">
+                <div>
+                    <span>Toma física</span>
+                    <strong>@DisplaySourceValue(reportedSource.PhysicalCountNumber)</strong>
+                </div>
+
+                <div>
+                    <span>Participante / reportante</span>
+                    <strong>@DisplaySourceValue(reportedSource.ParticipantName)</strong>
+                    <small>@DisplaySourceValue(reportedSource.ParticipantUserName)</small>
+                </div>
+
+                <div>
+                    <span>Código reportado</span>
+                    <strong>@DisplaySourceValue(reportedSource.ReportedCode)</strong>
+                </div>
+
+                <div>
+                    <span>Nombre reportado</span>
+                    <strong>@DisplaySourceValue(reportedSource.ReportedName)</strong>
+                </div>
+
+                <div>
+                    <span>Ubicación encontrada</span>
+                    <strong>@DisplaySourceValue(reportedSource.FoundLocation)</strong>
+                </div>
+
+                <div>
+                    <span>Estado conciliación</span>
+                    <strong>@DisplaySourceValue(reportedSource.ReconciliationStatus)</strong>
+                    <small>@DisplaySourceValue(reportedSource.ReconciliationObservation)</small>
+                </div>
+
+                <div class="source-full">
+                    <span>Observación del reporte</span>
+                    <strong>@DisplaySourceValue(reportedSource.Observation)</strong>
+                </div>
+            </div>
+        </section>
+    }
+
+<div class="tool-detail-grid">
         <section class="tool-detail-panel">
             <h2>Acciones rápidas</h2>
 
@@ -311,6 +571,7 @@ else if (tool is not null)
     private string? errorMessage;
     private ToolDetailItem? tool;
     private List<LifeCycleEventItem> lifeCycleEvents = new();
+    private ToolReportedSourceModel? reportedSource;
 
     protected override async Task OnInitializedAsync()
     {
@@ -333,6 +594,7 @@ else if (tool is not null)
                 selectedOperationalStatus = tool!.OperationalStatus;
             }
             lifeCycleEvents = await client.GetFromJsonAsync<List<LifeCycleEventItem>>($"api/tools/{ToolId}/life-cycle-events") ?? new();
+                reportedSource = await client.GetFromJsonAsync<ToolReportedSourceModel>($"api/tools/{ToolId}/reported-source");
         }
         catch (Exception ex)
         {
@@ -539,6 +801,191 @@ else if (tool is not null)
         public DateTime EventDate { get; set; }
         public string? PerformedBy { get; set; }
     }
+
+    private string? successMessage;
+    private bool isEditingMasterData;
+    private ToolMasterEditModel editModel = new();
+
+    private void StartMasterDataEdit()
+    {
+        if (tool is null)
+        {
+            return;
+        }
+
+        errorMessage = null;
+        successMessage = null;
+
+        editModel = new ToolMasterEditModel
+        {
+            InternalCode = tool.InternalCode,
+            Name = tool.Name,
+            Description = tool.Description,
+            SerialNumber = tool.SerialNumber,
+            FixedAssetCode = tool.FixedAssetCode,
+            FenixCode = tool.FenixCode,
+            Brand = tool.Brand,
+            Model = tool.Model,
+            OperationalStatus = tool.OperationalStatus,
+            PhysicalStatus = tool.PhysicalStatus,
+            IsSpecialized = tool.IsSpecialized,
+            RequiresMaintenance = tool.RequiresMaintenance,
+            RequiresPreOperationalCheck = tool.RequiresPreOperationalCheck,
+            RequiresCertification = tool.RequiresCertification,
+            CertificationExpirationDate = tool.CertificationExpirationDate,
+            MaintenancePeriodMonths = null
+        };
+
+        isEditingMasterData = true;
+    }
+
+    private void CancelMasterDataEdit()
+    {
+        isEditingMasterData = false;
+        editModel = new ToolMasterEditModel();
+        errorMessage = null;
+        successMessage = null;
+    }
+
+    private async Task SaveMasterDataAsync()
+    {
+        if (tool is null)
+        {
+            return;
+        }
+
+        try
+        {
+            errorMessage = null;
+            successMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var response = await client.PatchAsJsonAsync($"api/tools/{ToolId}/master-data", new
+            {
+                editModel.InternalCode,
+                editModel.Name,
+                editModel.Description,
+                editModel.SerialNumber,
+                editModel.FixedAssetCode,
+                editModel.FenixCode,
+                editModel.Brand,
+                editModel.Model,
+                editModel.OperationalStatus,
+                editModel.PhysicalStatus,
+                editModel.IsSpecialized,
+                editModel.RequiresMaintenance,
+                editModel.RequiresPreOperationalCheck,
+                editModel.RequiresCertification,
+                editModel.CertificationExpirationDate,
+                ClearCertificationExpirationDate = !editModel.CertificationExpirationDate.HasValue,
+                editModel.MaintenancePeriodMonths,
+                ValidateAndAssignReporter = true,
+                UpdatedBy = "admin"
+            });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo guardar el activo. {detail}";
+                return;
+            }
+
+            successMessage = "Activo actualizado correctamente.";
+            isEditingMasterData = false;
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error guardando activo: {ex.Message}";
+        }
+    }
+
+    private async Task VoidCurrentToolAsync()
+    {
+        if (tool is null)
+        {
+            return;
+        }
+
+        try
+        {
+            errorMessage = null;
+            successMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var response = await client.PatchAsJsonAsync($"api/tools/{ToolId}/void", new
+            {
+                ActionBy = "admin",
+                Reason = "Activo anulado desde pantalla de detalle de Inventario de AF."
+            });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo anular el activo. {detail}";
+                return;
+            }
+
+            NavigationManager.NavigateTo("/tools");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error anulando activo: {ex.Message}";
+        }
+    }
+
+    private sealed class ToolMasterEditModel
+    {
+        public string? InternalCode { get; set; }
+        public string? Name { get; set; }
+        public string? Description { get; set; }
+        public string? SerialNumber { get; set; }
+        public string? FixedAssetCode { get; set; }
+        public string? FenixCode { get; set; }
+        public string? Brand { get; set; }
+        public string? Model { get; set; }
+        public string? OperationalStatus { get; set; }
+        public string? PhysicalStatus { get; set; }
+        public bool IsSpecialized { get; set; }
+    
+        public bool RequiresMaintenance { get; set; }
+        public bool RequiresPreOperationalCheck { get; set; }
+        public bool RequiresCertification { get; set; }
+        public DateTime? CertificationExpirationDate { get; set; }
+        public int? MaintenancePeriodMonths { get; set; }
+}
+    private static string DisplaySourceValue(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "—" : value;
+
+    private sealed class ToolReportedSourceModel
+    {
+        public bool HasSource { get; set; }
+        public Guid? ReportedItemId { get; set; }
+        public Guid? PhysicalCountId { get; set; }
+        public string? PhysicalCountNumber { get; set; }
+        public string? PhysicalCountStatus { get; set; }
+        public Guid? ParticipantId { get; set; }
+        public string? ParticipantName { get; set; }
+        public string? ParticipantUserName { get; set; }
+        public string? ReportType { get; set; }
+        public string? ReportedCode { get; set; }
+        public string? ReportedName { get; set; }
+        public string? FoundLocation { get; set; }
+        public string? PhysicalStatus { get; set; }
+        public string? Observation { get; set; }
+        public string? ReportedBy { get; set; }
+        public DateTime? ReportedAt { get; set; }
+        public string? ReconciliationStatus { get; set; }
+        public string? ReconciliationObservation { get; set; }
+        public DateTime? ReconciledAt { get; set; }
+        public string? ReconciledBy { get; set; }
+        public bool ApprovedForCreation { get; set; }
+        public DateTime? ApprovedForCreationAt { get; set; }
+        public string? ApprovedForCreationBy { get; set; }
+    }
 }
 
 
@@ -696,6 +1143,247 @@ else if (tool is not null)
         .detail-hero-badges {
             justify-content: flex-start;
         }
+    
+    private bool isEditingMasterData;
+    private ToolMasterEditModel editModel = new();
+
+    private void StartMasterDataEdit()
+    {
+        if (tool is null)
+        {
+            return;
+        }
+
+        errorMessage = null;
+        successMessage = null;
+
+        editModel = new ToolMasterEditModel
+        {
+            InternalCode = tool.InternalCode,
+            Name = tool.Name,
+            Description = tool.Description,
+            SerialNumber = tool.SerialNumber,
+            FixedAssetCode = tool.FixedAssetCode,
+            FenixCode = tool.FenixCode,
+            Brand = tool.Brand,
+            Model = tool.Model,
+            OperationalStatus = tool.OperationalStatus,
+            PhysicalStatus = tool.PhysicalStatus,
+            IsSpecialized = tool.IsSpecialized,
+            RequiresMaintenance = tool.RequiresMaintenance,
+            RequiresPreOperationalCheck = tool.RequiresPreOperationalCheck,
+            RequiresCertification = tool.RequiresCertification,
+            CertificationExpirationDate = tool.CertificationExpirationDate,
+            MaintenancePeriodMonths = null
+        };
+
+        isEditingMasterData = true;
+    }
+
+    private void CancelMasterDataEdit()
+    {
+        isEditingMasterData = false;
+        editModel = new ToolMasterEditModel();
+        errorMessage = null;
+        successMessage = null;
+    }
+
+    private async Task SaveMasterDataAsync()
+    {
+        if (tool is null)
+        {
+            return;
+        }
+
+        try
+        {
+            errorMessage = null;
+            successMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var response = await client.PatchAsJsonAsync($"api/tools/{ToolId}/master-data", new
+            {
+                editModel.InternalCode,
+                editModel.Name,
+                editModel.Description,
+                editModel.SerialNumber,
+                editModel.FixedAssetCode,
+                editModel.FenixCode,
+                editModel.Brand,
+                editModel.Model,
+                editModel.OperationalStatus,
+                editModel.PhysicalStatus,
+                editModel.IsSpecialized,
+                editModel.RequiresMaintenance,
+                editModel.RequiresPreOperationalCheck,
+                editModel.RequiresCertification,
+                editModel.CertificationExpirationDate,
+                ClearCertificationExpirationDate = !editModel.CertificationExpirationDate.HasValue,
+                editModel.MaintenancePeriodMonths,
+                ValidateAndAssignReporter = true,
+                UpdatedBy = "admin"
+            });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo guardar el activo. {detail}";
+                return;
+            }
+
+            successMessage = "Activo actualizado correctamente.";
+            isEditingMasterData = false;
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error guardando activo: {ex.Message}";
+        }
+    }
+
+    private async Task VoidCurrentToolAsync()
+    {
+        if (tool is null)
+        {
+            return;
+        }
+
+        try
+        {
+            errorMessage = null;
+            successMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var response = await client.PatchAsJsonAsync($"api/tools/{ToolId}/void", new
+            {
+                ActionBy = "admin",
+                Reason = "Activo anulado desde pantalla de detalle de Inventario de AF."
+            });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo anular el activo. {detail}";
+                return;
+            }
+
+            NavigationManager.NavigateTo("/tools");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error anulando activo: {ex.Message}";
+        }
+    }
+
+    private sealed class ToolMasterEditModel
+    {
+        public string? InternalCode { get; set; }
+        public string? Name { get; set; }
+        public string? Description { get; set; }
+        public string? SerialNumber { get; set; }
+        public string? FixedAssetCode { get; set; }
+        public string? FenixCode { get; set; }
+        public string? Brand { get; set; }
+        public string? Model { get; set; }
+        public string? OperationalStatus { get; set; }
+        public string? PhysicalStatus { get; set; }
+        public bool IsSpecialized { get; set; }
+    }
+
     }
 </style>
+
+
+
+
+
+
+
+
+
+
+<style>
+    .tool-source-panel {
+        margin-bottom: .75rem;
+        border-left: 4px solid #198754;
+        background: #f7fff9;
+    }
+
+    .source-header {
+        display: flex;
+        justify-content: space-between;
+        gap: .75rem;
+    }
+
+    .source-pill {
+        display: inline-flex;
+        padding: .18rem .55rem;
+        border-radius: 999px;
+        background: #d1e7dd;
+        color: #0f5132;
+        font-size: .68rem;
+        font-weight: 950;
+    }
+
+    .source-header h2 {
+        margin: .35rem 0 .15rem;
+        font-size: 1rem;
+        font-weight: 950;
+    }
+
+    .source-header p {
+        margin: 0;
+        color: #526071;
+        font-size: .78rem;
+    }
+
+    .source-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(180px, 1fr));
+        gap: .65rem;
+        margin-top: .8rem;
+    }
+
+    .source-grid div {
+        padding: .55rem .65rem;
+        border-radius: .75rem;
+        border: 1px solid #d1e7dd;
+        background: white;
+    }
+
+    .source-grid span {
+        display: block;
+        font-size: .66rem;
+        font-weight: 950;
+        color: #526071;
+        text-transform: uppercase;
+    }
+
+    .source-grid strong {
+        display: block;
+        font-size: .82rem;
+        color: #1f2937;
+        margin-top: .15rem;
+    }
+
+    .source-grid small {
+        display: block;
+        color: #657083;
+        font-size: .68rem;
+    }
+
+    .source-full {
+        grid-column: 1 / -1;
+    }
+
+    @@media (max-width: 1000px) {
+        .source-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
 

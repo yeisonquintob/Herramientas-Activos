@@ -1,0 +1,258 @@
+﻿@rendermode InteractiveServer
+@implements IDisposable
+@using System.Text.Json
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.JSInterop
+@using Navi.ToolsAssets.Admin.Services.Auth
+@inject WebAuthSessionService AuthSession
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+@code {
+    private const string StorageKey = "navi-auth-session";
+    private bool initialized;
+
+    protected override void OnInitialized()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await RestoreSessionAsync();
+        initialized = true;
+        CheckCurrentRoute();
+    }
+
+    private async Task RestoreSessionAsync()
+    {
+        if (AuthSession.IsAuthenticated)
+        {
+            return;
+        }
+
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", StorageKey);
+
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return;
+            }
+
+            var user = JsonSerializer.Deserialize<AuthSessionUser>(
+                json,
+                new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+            if (user is not null && !string.IsNullOrWhiteSpace(user.UserName))
+            {
+                AuthSession.Login(user);
+            }
+        }
+        catch
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("localStorage.removeItem", StorageKey);
+            }
+            catch
+            {
+                // Ignorar error JS.
+            }
+        }
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        if (!initialized)
+        {
+            return;
+        }
+
+        CheckCurrentRoute();
+    }
+
+    private void CheckCurrentRoute()
+    {
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri)
+            .Split('?', '#')[0]
+            .Trim('/')
+            .ToLowerInvariant();
+
+        if (string.IsNullOrWhiteSpace(path) ||
+            path == "login" ||
+            path == "access-denied")
+        {
+            return;
+        }
+
+        var permission = GetRequiredPermission(path);
+
+        if (string.IsNullOrWhiteSpace(permission))
+        {
+            return;
+        }
+
+        if (!AuthSession.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", forceLoad: true);
+            return;
+        }
+
+        if (!AuthSession.HasPermission(permission))
+        {
+            Navigation.NavigateTo("/access-denied");
+        }
+    }
+
+    private static string? GetRequiredPermission(string path)
+    {
+        if (path == "dashboard")
+        {
+            return "Dashboard.View";
+        }
+
+        if (path == "tools")
+        {
+            return "Tools.View";
+        }
+
+        if (path.StartsWith("tools/") && path.Contains("/technical-life-record/edit"))
+        {
+            return "TechnicalLifeRecord.Edit";
+        }
+
+        if (path.StartsWith("tools/") && path.Contains("/accessories"))
+        {
+            return "TechnicalLifeRecord.Edit";
+        }
+
+        if (path.StartsWith("tools/") && path.Contains("/safe-practices"))
+        {
+            return "SafePractices.Manage";
+        }
+
+        if (path.StartsWith("tools/") && path.Contains("/maintenance-schedule"))
+        {
+            return "Maintenance.Execute";
+        }
+
+        if (path.StartsWith("tools/") && path.Contains("/documents"))
+        {
+            return "Documents.View";
+        }
+
+        if (path.StartsWith("tools/") && path.Contains("/life-cycle"))
+        {
+            return "TechnicalLifeRecord.View";
+        }
+
+        if (path.StartsWith("tools/") && path.Contains("/technical-life-record"))
+        {
+            return "TechnicalLifeRecord.View";
+        }
+
+        if (path.StartsWith("tools/"))
+        {
+            return "Tools.View";
+        }
+
+        if (path == "asset-availability")
+        {
+            return "AssetAvailability.View";
+        }
+
+        if (path == "asset-assignment")
+        {
+            return "AssetAssignment.View";
+        }
+
+        if (path == "asset-assignment-history")
+        {
+            return "AssetAssignment.History";
+        }
+
+        if (path == "technical-life-records")
+        {
+            return "TechnicalLifeRecord.View";
+        }
+
+        if (path == "documents")
+        {
+            return "Documents.View";
+        }
+
+        if (path == "reports")
+        {
+            return "Reports.View";
+        }
+
+        if (path == "physical-counts")
+        {
+            return "PhysicalCounts.View";
+        }
+
+        if (path == "maintenance")
+        {
+            return "Maintenance.View";
+        }
+
+        if (path == "maintenance-request")
+        {
+            return "Maintenance.Request";
+        }
+
+        if (path == "maintenance-plans")
+        {
+            return "Maintenance.View";
+        }
+
+        if (path == "mro-purchases" || path == "purchases/mro")
+        {
+            return "Purchases.View";
+        }
+
+        if (path == "approvals")
+        {
+            return "Purchases.Approve";
+        }
+
+        if (path == "settings/users")
+        {
+            return "Security.Users";
+        }
+
+        if (path == "settings/roles")
+        {
+            return "Security.Roles";
+        }
+
+        if (path.StartsWith("settings/"))
+        {
+            return "Settings.View";
+        }
+
+        if (path == "settings")
+        {
+            return "Settings.View";
+        }
+
+        return null;
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+}
+
+
+

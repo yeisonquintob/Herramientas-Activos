@@ -1,43 +1,1176 @@
-﻿@page "/purchases/mro"
+﻿@page "/mro-purchases"
+@page "/purchases/mro"
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations
+@using System.Net.Http.Json
+@using Navi.ToolsAssets.Admin.Services.Auth
+@inject IHttpClientFactory HttpClientFactory
+@inject WebAuthSessionService AuthSession
 
-<PageTitle>Solicitudes MRO</PageTitle>
+<PageTitle>Solicitar Compra AF</PageTitle>
 
-<div class="page-header">
+<PermissionGuard Permission="Purchases.View" ModuleName="Solicitar Compra AF">
+
+<section class="purchase-hero">
     <div>
-        <h1>Solicitudes MRO</h1>
-        <p>Solicitudes de compra, cotizaciones, órdenes, recepción y documentos soporte.</p>
-    </div>
-</div>
-
-<section class="module-placeholder">
-    <div class="module-placeholder-badge">Compras / MRO</div>
-
-    <h2>Módulo en construcción</h2>
-
-    <p>
-        Esta pantalla queda creada como punto de navegación del módulo <strong>Solicitudes MRO</strong>.
-        El siguiente paso será conectar esta vista con API, reglas de negocio, permisos, reportes y flujos operativos.
-    </p>
-
-    <div class="module-placeholder-grid">
-        <div>
-            <span>Estado</span>
-            <strong>Pendiente desarrollo funcional</strong>
-        </div>
-
-        <div>
-            <span>Aplicación</span>
-            <strong>Web administrativa</strong>
-        </div>
-
-        <div>
-            <span>Orientación</span>
-            <strong>Administración de activos y herramientas</strong>
-        </div>
+        <span class="purchase-pill">ADQUISICIÓN Y ABASTECIMIENTO</span>
+        <h2>Solicitudes de compra AF</h2>
+        <p>Flujo interno estilo Dynamics: borrador, revisión, aprobación, rechazo, cierre y posterior envío a ERP.</p>
     </div>
 
-    <div class="module-placeholder-actions">
-        <a class="btn btn-outline-primary" href="/tools">Ir a inventario</a>
-        <a class="btn btn-outline-secondary" href="/">Ir a Dashboard</a>
+    <div class="purchase-side">
+        <div class="purchase-status-box">
+            <span>Solicitudes</span>
+            <strong>@requests.Count registradas</strong>
+        </div>
+
+        <button class="purchase-outline-btn" type="button" @onclick="LoadAsync">
+            Actualizar
+        </button>
     </div>
 </section>
+
+@if (!string.IsNullOrWhiteSpace(successMessage))
+{
+    <div class="alert alert-success">@successMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+<section class="purchase-kpi-grid">
+    <article class="purchase-kpi-card">
+        <span>Total</span>
+        <strong>@requests.Count</strong>
+        <small>Solicitudes creadas</small>
+    </article>
+
+    <article class="purchase-kpi-card warning">
+        <span>En revisión</span>
+        <strong>@requests.Count(x => x.Status == "InReview")</strong>
+        <small>Pendientes por aprobar</small>
+    </article>
+
+    <article class="purchase-kpi-card success">
+        <span>Aprobadas</span>
+        <strong>@requests.Count(x => x.Status == "Approved")</strong>
+        <small>Listas para compras/ERP</small>
+    </article>
+
+    <article class="purchase-kpi-card danger">
+        <span>Rechazadas</span>
+        <strong>@requests.Count(x => x.Status == "Rejected")</strong>
+        <small>Devueltas al solicitante</small>
+    </article>
+
+    <article class="purchase-kpi-card">
+        <span>Dynamics</span>
+        <strong>@requests.Count(x => x.SentToDynamics)</strong>
+        <small>Marcadas como enviadas</small>
+    </article>
+</section>
+
+<section class="purchase-layout">
+    <article class="purchase-card purchase-form-card">
+        <div class="purchase-card-title">
+            <div>
+                <h3>Nueva solicitud</h3>
+                <p>Registra una necesidad de compra como en Dynamics 365.</p>
+            </div>
+        </div>
+
+        @if (!CanRequest)
+        {
+            <div class="readonly-box">
+                Tu rol puede consultar solicitudes, pero no crear nuevas solicitudes de compra.
+            </div>
+        }
+
+        <EditForm Model="form" OnValidSubmit="CreateAsync">
+            <DataAnnotationsValidator />
+
+            <div class="form-grid">
+                <div class="form-group full">
+                    <label>Activo / herramienta relacionada</label>
+                    <InputSelect class="form-select" @bind-Value="form.ToolAssetIdText" disabled="@(!CanRequest)">
+                        <option value="">Solicitud sin activo existente</option>
+                        @foreach (var tool in tools)
+                        {
+                            <option value="@tool.Id">@tool.InternalCode - @tool.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+
+                <div class="form-group">
+                    <label>Código</label>
+                    <InputText class="form-control" @bind-Value="form.ItemCode" placeholder="Ej: TALADRO-001" disabled="@(!CanRequest)" />
+                </div>
+
+                <div class="form-group">
+                    <label>Nombre solicitado</label>
+                    <InputText class="form-control" @bind-Value="form.ItemName" placeholder="Ej: Taladro percutor" disabled="@(!CanRequest)" />
+                    <ValidationMessage For="@(() => form.ItemName)" />
+                </div>
+
+                <div class="form-group">
+                    <label>Cantidad</label>
+                    <InputNumber class="form-control" @bind-Value="form.Quantity" disabled="@(!CanRequest)" />
+                </div>
+
+                <div class="form-group">
+                    <label>Unidad</label>
+                    <InputText class="form-control" @bind-Value="form.Unit" disabled="@(!CanRequest)" />
+                </div>
+
+                <div class="form-group">
+                    <label>Propósito de pedido</label>
+                    <InputSelect class="form-select" @bind-Value="form.PurchasePurpose" disabled="@(!CanRequest)">
+                        <option value="Consumo">Consumo</option>
+                        <option value="Activo fijo">Activo fijo</option>
+                        <option value="Reposición">Reposición</option>
+                        <option value="Mantenimiento">Mantenimiento</option>
+                    </InputSelect>
+                </div>
+
+                <div class="form-group">
+                    <label>Prioridad</label>
+                    <InputSelect class="form-select" @bind-Value="form.Priority" disabled="@(!CanRequest)">
+                        <option value="Baja">Baja</option>
+                        <option value="Media">Media</option>
+                        <option value="Alta">Alta</option>
+                        <option value="Crítica">Crítica</option>
+                    </InputSelect>
+                </div>
+
+                <div class="form-group">
+                    <label>Fecha requerida</label>
+                    <InputDate class="form-control" @bind-Value="form.RequiredAt" disabled="@(!CanRequest)" />
+                </div>
+
+                <div class="form-group">
+                    <label>Proveedor sugerido</label>
+                    <InputText class="form-control" @bind-Value="form.VendorSuggestion" disabled="@(!CanRequest)" />
+                </div>
+
+                <div class="form-group">
+                    <label>Valor estimado</label>
+                    <InputText class="form-control" @bind-Value="form.EstimatedCostText" placeholder="$0" disabled="@(!CanRequest)" />
+                </div>
+
+                <div class="form-group full">
+                    <label>Descripción</label>
+                    <InputTextArea class="form-control" @bind-Value="form.ItemDescription" rows="2" disabled="@(!CanRequest)" />
+                </div>
+
+                <div class="form-group full">
+                    <label>Justificación</label>
+                    <InputTextArea class="form-control" @bind-Value="form.Justification" rows="3" placeholder="Explica por qué se requiere la compra." disabled="@(!CanRequest)" />
+                    <ValidationMessage For="@(() => form.Justification)" />
+                </div>
+
+                <div class="form-group full">
+                    <label>Notas internas</label>
+                    <InputTextArea class="form-control" @bind-Value="form.Notes" rows="2" disabled="@(!CanRequest)" />
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary" disabled="@(!CanRequest || isSaving)">
+                    @(isSaving ? "Guardando..." : "Crear borrador")
+                </button>
+
+                <button type="button" class="btn btn-success" disabled="@(!CanRequest || isSaving)" @onclick="CreateAndSubmitAsync">
+                    Crear y enviar a revisión
+                </button>
+
+                <button type="button" class="btn btn-outline-secondary" @onclick="ClearForm">
+                    Limpiar
+                </button>
+            </div>
+        </EditForm>
+    </article>
+
+    <article class="purchase-card purchase-list-card">
+        <div class="purchase-card-title">
+            <div>
+                <h3>Solicitudes registradas</h3>
+                <p>Vista tipo ERP con estado, preparador, fechas y propósito de pedido.</p>
+            </div>
+
+            <div class="purchase-filters">
+                <select class="form-select" @bind="selectedStatus">
+                    <option value="">Todos los estados</option>
+                    <option value="Draft">Borrador</option>
+                    <option value="InReview">En revisión</option>
+                    <option value="Approved">Aprobado</option>
+                    <option value="Rejected">Rechazado</option>
+                    <option value="Closed">Cerrado</option>
+                </select>
+
+                <input class="form-control" placeholder="Buscar solicitud, activo, solicitante..."
+                       @bind="searchText" @bind:event="oninput" />
+
+                <button class="btn btn-outline-primary" type="button" @onclick="LoadAsync">
+                    Filtrar
+                </button>
+            </div>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="loading-box">Cargando solicitudes...</div>
+        }
+        else if (!FilteredRequests.Any())
+        {
+            <div class="empty-box">No hay solicitudes con los filtros aplicados.</div>
+        }
+        else
+        {
+            <div class="purchase-table-wrapper">
+                <table class="purchase-table">
+                    <thead>
+                        <tr>
+                            <th>Solicitud</th>
+                            <th>Nombre</th>
+                            <th>Preparador</th>
+                            <th>Estado</th>
+                            <th>Fecha creación</th>
+                            <th>Fecha envío</th>
+                            <th>Propósito</th>
+                            <th>Dynamics</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in FilteredRequests)
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@item.RequestNumber</strong>
+                                    <small>@item.ItemCode</small>
+                                </td>
+                                <td>
+                                    <strong>@item.ItemName</strong>
+                                    <small>@item.Justification</small>
+                                </td>
+                                <td>@item.PreparedBy</td>
+                                <td>
+                                    <span class="@GetStatusClass(item.Status)">
+                                        @GetStatusLabel(item.Status)
+                                    </span>
+                                </td>
+                                <td>@FormatDate(item.CreatedAt)</td>
+                                <td>@FormatDate(item.SubmittedAt)</td>
+                                <td>@item.PurchasePurpose</td>
+                                <td>
+                                    @if (item.SentToDynamics)
+                                    {
+                                        <span class="status-pill sent">Enviado</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="status-pill pending">Pendiente</span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="row-actions">
+                                        @if (item.Status == "Draft" && CanRequest)
+                                        {
+                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => SubmitAsync(item.Id)">
+                                                Enviar
+                                            </button>
+                                        }
+
+                                        @if (item.Status == "InReview" && CanApprove)
+                                        {
+                                            <button class="btn btn-sm btn-success" @onclick="() => ApproveAsync(item.Id)">
+                                                Aprobar
+                                            </button>
+                                        }
+
+                                        @if (item.Status == "InReview" && CanReject)
+                                        {
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => RejectAsync(item.Id)">
+                                                Rechazar
+                                            </button>
+                                        }
+
+                                        @if (item.Status == "Approved" && CanApprove)
+                                        {
+                                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => MarkSentDynamicsAsync(item.Id)">
+                                                Marcar Dynamics
+                                            </button>
+
+                                            <button class="btn btn-sm btn-outline-dark" @onclick="() => CloseAsync(item.Id)">
+                                                Cerrar
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </article>
+</section>
+
+</PermissionGuard>
+
+<style>
+    .purchase-hero {
+        margin-bottom: .9rem;
+        padding: 1.05rem 1.15rem;
+        border-radius: 1rem;
+        background: radial-gradient(circle at top right, rgba(255,255,255,.16), transparent 34%),
+            linear-gradient(135deg, #100015 0%, #4b005c 58%, #7b0d8e 100%);
+        color: white;
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        box-shadow: 0 .65rem 1.5rem rgba(75,0,92,.22);
+    }
+
+    .purchase-pill {
+        display: inline-flex;
+        padding: .18rem .6rem;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,.35);
+        background: rgba(255,255,255,.10);
+        font-size: .68rem;
+        font-weight: 950;
+    }
+
+    .purchase-hero h2 {
+        margin: .45rem 0 .2rem;
+        font-size: 1.55rem;
+        font-weight: 950;
+    }
+
+    .purchase-hero p {
+        margin: 0;
+        color: rgba(255,255,255,.88);
+    }
+
+    .purchase-side {
+        display: flex;
+        flex-direction: column;
+        gap: .5rem;
+        min-width: 190px;
+        align-items: flex-end;
+    }
+
+    .purchase-status-box {
+        width: 190px;
+        padding: .65rem .85rem;
+        border-radius: .85rem;
+        background: rgba(255,255,255,.12);
+        text-align: right;
+    }
+
+    .purchase-status-box span {
+        display: block;
+        color: #ffdd57;
+        font-size: .72rem;
+        font-weight: 950;
+    }
+
+    .purchase-status-box strong {
+        display: block;
+        font-weight: 950;
+    }
+
+    .purchase-outline-btn {
+        width: 190px;
+        min-height: 34px;
+        border-radius: .55rem;
+        border: 1px solid rgba(255,255,255,.7);
+        background: rgba(255,255,255,.06);
+        color: white;
+        font-weight: 950;
+    }
+
+    .purchase-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(140px, 1fr));
+        gap: .65rem;
+        margin-bottom: .8rem;
+    }
+
+    .purchase-kpi-card {
+        border: 1px solid #dfe3e8;
+        border-left: 4px solid #0d6efd;
+        border-radius: .75rem;
+        padding: .7rem;
+        background: white;
+    }
+
+    .purchase-kpi-card.warning {
+        border-left-color: #ffc107;
+    }
+
+    .purchase-kpi-card.success {
+        border-left-color: #198754;
+    }
+
+    .purchase-kpi-card.danger {
+        border-left-color: #dc3545;
+    }
+
+    .purchase-kpi-card span {
+        display: block;
+        color: #526071;
+        font-size: .68rem;
+        font-weight: 950;
+        text-transform: uppercase;
+    }
+
+    .purchase-kpi-card strong {
+        display: block;
+        font-size: 1.35rem;
+        font-weight: 950;
+        color: #06111f;
+    }
+
+    .purchase-kpi-card small {
+        color: #657083;
+    }
+
+    .purchase-layout {
+        display: grid;
+        grid-template-columns: 380px 1fr;
+        gap: .85rem;
+    }
+
+    .purchase-card {
+        background: white;
+        border: 1px solid #dfe3e8;
+        border-radius: .95rem;
+        padding: .85rem;
+        box-shadow: 0 .35rem .9rem rgba(0,0,0,.04);
+    }
+
+    .purchase-card-title {
+        display: flex;
+        justify-content: space-between;
+        gap: .75rem;
+        align-items: flex-start;
+        margin-bottom: .7rem;
+    }
+
+    .purchase-card-title h3 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 950;
+    }
+
+    .purchase-card-title p {
+        margin: .1rem 0 0;
+        color: #657083;
+        font-size: .78rem;
+    }
+
+    .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: .55rem;
+    }
+
+    .form-group.full {
+        grid-column: 1 / -1;
+    }
+
+    .form-group label {
+        font-size: .76rem;
+        font-weight: 850;
+        margin-bottom: .18rem;
+    }
+
+    .form-control,
+    .form-select {
+        font-size: .78rem;
+    }
+
+    .form-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem;
+        margin-top: .75rem;
+    }
+
+    .purchase-filters {
+        display: grid;
+        grid-template-columns: 180px 1fr auto;
+        gap: .45rem;
+        min-width: 560px;
+    }
+
+    .purchase-table-wrapper {
+        overflow-x: auto;
+    }
+
+    .purchase-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: .76rem;
+    }
+
+    .purchase-table th {
+        border-bottom: 1px solid #17111c;
+        padding: .45rem;
+        font-size: .68rem;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .purchase-table td {
+        border-bottom: 1px solid #e5e8ef;
+        padding: .5rem .45rem;
+        vertical-align: middle;
+    }
+
+    .purchase-table td strong,
+    .purchase-table td small {
+        display: block;
+    }
+
+    .purchase-table td small {
+        color: #657083;
+        max-width: 260px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        border-radius: 999px;
+        padding: .2rem .48rem;
+        font-size: .68rem;
+        font-weight: 950;
+        white-space: nowrap;
+    }
+
+    .status-pill.draft {
+        background: #f8f9fa;
+        color: #495057;
+    }
+
+    .status-pill.review {
+        background: #fff3cd;
+        color: #7a5200;
+    }
+
+    .status-pill.approved {
+        background: #d1e7dd;
+        color: #0f5132;
+    }
+
+    .status-pill.rejected {
+        background: #f8d7da;
+        color: #842029;
+    }
+
+    .status-pill.closed {
+        background: #e2e3e5;
+        color: #41464b;
+    }
+
+    .status-pill.sent {
+        background: #d1e7dd;
+        color: #0f5132;
+    }
+
+    .status-pill.pending {
+        background: #f3ecf7;
+        color: #4b005c;
+    }
+
+    .row-actions {
+        display: flex;
+        gap: .35rem;
+        flex-wrap: wrap;
+    }
+
+    .loading-box,
+    .empty-box,
+    .readonly-box {
+        padding: .8rem;
+        border-radius: .75rem;
+        background: #f8fafc;
+        color: #526071;
+        font-size: .82rem;
+        font-weight: 800;
+    }
+
+    @@media (max-width: 1200px) {
+        .purchase-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .purchase-filters {
+            min-width: 0;
+            grid-template-columns: 1fr;
+        }
+
+        .purchase-kpi-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+
+@code {
+    private readonly PurchaseForm form = new();
+    private List<PurchaseRequestItem> requests = new();
+    private List<ToolOption> tools = new();
+
+    private bool isLoading;
+    private bool isSaving;
+    private string selectedStatus = string.Empty;
+    private string searchText = string.Empty;
+    private string? successMessage;
+    private string? errorMessage;
+
+    private bool CanRequest => AuthSession.HasPermission("Purchases.Request");
+    private bool CanApprove => AuthSession.HasPermission("Purchases.Approve");
+    private bool CanReject => AuthSession.HasPermission("Purchases.Reject");
+
+    private IEnumerable<PurchaseRequestItem> FilteredRequests =>
+        requests
+            .Where(x => string.IsNullOrWhiteSpace(selectedStatus) || x.Status == selectedStatus)
+            .Where(MatchesSearch)
+            .OrderByDescending(x => x.CreatedAt);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadToolsAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadToolsAsync()
+    {
+        try
+        {
+            var api = CreateApiClient();
+            tools = await api.GetFromJsonAsync<List<ToolOption>>("api/tools") ?? new();
+        }
+        catch
+        {
+            tools = new();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var api = CreateApiClient();
+            requests = await api.GetFromJsonAsync<List<PurchaseRequestItem>>("api/purchase-requests") ?? new();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudieron cargar las solicitudes: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        await SaveAsync(false);
+    }
+
+    private async Task CreateAndSubmitAsync()
+    {
+        await SaveAsync(true);
+    }
+
+    private async Task SaveAsync(bool sendToReview)
+    {
+        if (!CanRequest)
+        {
+            errorMessage = "No tienes permiso para crear solicitudes de compra.";
+            return;
+        }
+
+        isSaving = true;
+        successMessage = null;
+        errorMessage = null;
+
+        try
+        {
+            var request = new CreatePurchaseRequestRequest
+            {
+                ToolAssetId = TryGuid(form.ToolAssetIdText),
+                ItemCode = form.ItemCode,
+                ItemName = form.ItemName,
+                ItemDescription = form.ItemDescription,
+                Quantity = form.Quantity,
+                Unit = form.Unit,
+                PurchasePurpose = form.PurchasePurpose,
+                Justification = form.Justification,
+                Priority = form.Priority,
+                RequiredAt = form.RequiredAt,
+                VendorSuggestion = form.VendorSuggestion,
+                EstimatedCostText = form.EstimatedCostText,
+                Notes = form.Notes,
+                SendToReview = sendToReview
+            };
+
+            var api = CreateApiClient();
+            var response = await api.PostAsJsonAsync("api/purchase-requests", request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadFromJsonAsync<ApiError>();
+                errorMessage = error?.Message ?? "No se pudo crear la solicitud.";
+                return;
+            }
+
+            successMessage = sendToReview
+                ? "Solicitud creada y enviada a revisión."
+                : "Solicitud creada en borrador.";
+
+            ClearForm();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error creando solicitud: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task SubmitAsync(Guid id)
+    {
+        await ExecuteActionAsync($"api/purchase-requests/{id}/submit", "Solicitud enviada a revisión.");
+    }
+
+    private async Task ApproveAsync(Guid id)
+    {
+        await ExecuteActionAsync($"api/purchase-requests/{id}/approve", "Solicitud aprobada.", new ApprovalRequest
+        {
+            Comment = "Aprobada desde NAVI Herramientas."
+        });
+    }
+
+    private async Task RejectAsync(Guid id)
+    {
+        await ExecuteActionAsync($"api/purchase-requests/{id}/reject", "Solicitud rechazada.", new ApprovalRequest
+        {
+            Comment = "Rechazada desde NAVI Herramientas."
+        });
+    }
+
+    private async Task CloseAsync(Guid id)
+    {
+        await ExecuteActionAsync($"api/purchase-requests/{id}/close", "Solicitud cerrada.", new ApprovalRequest
+        {
+            Comment = "Cerrada desde NAVI Herramientas."
+        });
+    }
+
+    private async Task MarkSentDynamicsAsync(Guid id)
+    {
+        await ExecuteActionAsync($"api/purchase-requests/{id}/mark-sent-dynamics", "Solicitud marcada como enviada a Dynamics.", new
+        {
+            DynamicsPurchaseRequisitionNumber = "Pendiente número ERP",
+            DynamicsStatus = "Marcada para integración"
+        });
+    }
+
+    private async Task ExecuteActionAsync(string endpoint, string success, object? body = null)
+    {
+        successMessage = null;
+        errorMessage = null;
+
+        try
+        {
+            var api = CreateApiClient();
+            var response = await api.PostAsJsonAsync(endpoint, body ?? new { });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadFromJsonAsync<ApiError>();
+                errorMessage = error?.Message ?? "No se pudo ejecutar la acción.";
+                return;
+            }
+
+            successMessage = success;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error ejecutando acción: {ex.Message}";
+        }
+    }
+
+    private void ClearForm()
+    {
+        form.ToolAssetIdText = string.Empty;
+        form.ItemCode = string.Empty;
+        form.ItemName = string.Empty;
+        form.ItemDescription = string.Empty;
+        form.Quantity = 1;
+        form.Unit = "Und";
+        form.PurchasePurpose = "Consumo";
+        form.Justification = string.Empty;
+        form.Priority = "Media";
+        form.RequiredAt = null;
+        form.VendorSuggestion = string.Empty;
+        form.EstimatedCostText = string.Empty;
+        form.Notes = string.Empty;
+    }
+
+    private bool MatchesSearch(PurchaseRequestItem item)
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            return true;
+        }
+
+        var value = searchText.Trim();
+
+        return Contains(item.RequestNumber, value) ||
+               Contains(item.ItemCode, value) ||
+               Contains(item.ItemName, value) ||
+               Contains(item.PreparedBy, value) ||
+               Contains(item.RequestedByUserName, value);
+    }
+
+    private static bool Contains(string? source, string value)
+    {
+        return !string.IsNullOrWhiteSpace(source) &&
+               source.Contains(value, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static Guid? TryGuid(string? value)
+    {
+        return Guid.TryParse(value, out var id) ? id : null;
+    }
+
+
+    private HttpClient CreateApiClient()
+    {
+        var api = HttpClientFactory.CreateClient("NaviApi");
+
+        api.DefaultRequestHeaders.Remove("X-Navi-User");
+        api.DefaultRequestHeaders.Remove("X-Navi-Role");
+        api.DefaultRequestHeaders.Remove("X-Navi-Role-Code");
+        api.DefaultRequestHeaders.Remove("X-Navi-Permissions");
+        api.DefaultRequestHeaders.Remove("X-Navi-BranchId");
+        api.DefaultRequestHeaders.Remove("X-Navi-ResponsiblePersonId");
+        api.DefaultRequestHeaders.Remove("X-Navi-ResponsiblePersonName");
+
+        api.DefaultRequestHeaders.Add("X-Navi-User", string.IsNullOrWhiteSpace(AuthSession.UserName) ? "admin" : AuthSession.UserName);
+        api.DefaultRequestHeaders.Add("X-Navi-Role", string.IsNullOrWhiteSpace(AuthSession.RoleName) ? "Administrador" : AuthSession.RoleName);
+        api.DefaultRequestHeaders.Add("X-Navi-Role-Code", string.IsNullOrWhiteSpace(AuthSession.RoleCode) ? "ADMIN" : AuthSession.RoleCode);
+
+        var permissions = AuthSession.Permissions ?? new List<string>();
+
+        if (!permissions.Any())
+        {
+            permissions = new List<string>
+            {
+                "Purchases.View",
+                "Purchases.Request",
+                "Purchases.Approve",
+                "Purchases.Reject"
+            };
+        }
+
+        api.DefaultRequestHeaders.Add(
+            "X-Navi-Permissions",
+            string.Join(";", permissions.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase)));
+
+        if (AuthSession.BranchId.HasValue)
+        {
+            api.DefaultRequestHeaders.Add("X-Navi-BranchId", AuthSession.BranchId.Value.ToString());
+        }
+
+        if (AuthSession.ResponsiblePersonId.HasValue)
+        {
+            api.DefaultRequestHeaders.Add("X-Navi-ResponsiblePersonId", AuthSession.ResponsiblePersonId.Value.ToString());
+        }
+
+        if (!string.IsNullOrWhiteSpace(AuthSession.ResponsiblePersonName))
+        {
+            api.DefaultRequestHeaders.Add("X-Navi-ResponsiblePersonName", AuthSession.ResponsiblePersonName);
+        }
+
+        return api;
+    }
+
+    private static string GetStatusClass(string status)
+    {
+        return status switch
+        {
+            "Draft" => "status-pill draft",
+            "InReview" => "status-pill review",
+            "Approved" => "status-pill approved",
+            "Rejected" => "status-pill rejected",
+            "Closed" => "status-pill closed",
+            _ => "status-pill"
+        };
+    }
+
+    private static string GetStatusLabel(string status)
+    {
+        return status switch
+        {
+            "Draft" => "Borrador",
+            "InReview" => "En revisión",
+            "Approved" => "Aprobado",
+            "Rejected" => "Rechazado",
+            "Closed" => "Cerrado",
+            _ => status
+        };
+    }
+
+    private static string FormatDate(DateTime? value)
+    {
+        return value.HasValue ? value.Value.ToString("dd/MM/yyyy") : "—";
+    }
+
+    private sealed class PurchaseForm
+    {
+        public string ToolAssetIdText { get; set; } = string.Empty;
+        public string? ItemCode { get; set; }
+
+        [Required(ErrorMessage = "El nombre solicitado es obligatorio.")]
+        public string ItemName { get; set; } = string.Empty;
+
+        public string? ItemDescription { get; set; }
+        public int Quantity { get; set; } = 1;
+        public string Unit { get; set; } = "Und";
+        public string PurchasePurpose { get; set; } = "Consumo";
+
+        [Required(ErrorMessage = "La justificación es obligatoria.")]
+        public string Justification { get; set; } = string.Empty;
+
+        public string Priority { get; set; } = "Media";
+        public DateTime? RequiredAt { get; set; }
+        public string? VendorSuggestion { get; set; }
+        public string? EstimatedCostText { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    private sealed class CreatePurchaseRequestRequest
+    {
+        public Guid? ToolAssetId { get; set; }
+        public string? ItemCode { get; set; }
+        public string ItemName { get; set; } = string.Empty;
+        public string? ItemDescription { get; set; }
+        public int Quantity { get; set; } = 1;
+        public string? Unit { get; set; }
+        public string? PurchasePurpose { get; set; }
+        public string Justification { get; set; } = string.Empty;
+        public string? Priority { get; set; }
+        public DateTime? RequiredAt { get; set; }
+        public string? VendorSuggestion { get; set; }
+        public string? EstimatedCostText { get; set; }
+        public string? Notes { get; set; }
+        public bool SendToReview { get; set; }
+    }
+
+    private sealed class PurchaseRequestItem
+    {
+        public Guid Id { get; set; }
+        public string RequestNumber { get; set; } = string.Empty;
+        public string? ToolInternalCode { get; set; }
+        public string? ToolName { get; set; }
+        public string ItemCode { get; set; } = string.Empty;
+        public string ItemName { get; set; } = string.Empty;
+        public string? ItemDescription { get; set; }
+        public int Quantity { get; set; }
+        public string Unit { get; set; } = string.Empty;
+        public string PurchasePurpose { get; set; } = string.Empty;
+        public string Justification { get; set; } = string.Empty;
+        public string Priority { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string RequestedByUserName { get; set; } = string.Empty;
+        public string PreparedBy { get; set; } = string.Empty;
+        public DateTime RequestedAt { get; set; }
+        public DateTime? SubmittedAt { get; set; }
+        public string? SubmittedBy { get; set; }
+        public DateTime? RequiredAt { get; set; }
+        public string? VendorSuggestion { get; set; }
+        public string? EstimatedCostText { get; set; }
+        public string? ApprovalComment { get; set; }
+        public string? ApprovedBy { get; set; }
+        public DateTime? ApprovedAt { get; set; }
+        public string? RejectedBy { get; set; }
+        public DateTime? RejectedAt { get; set; }
+        public string? RejectionReason { get; set; }
+        public bool SentToDynamics { get; set; }
+        public string? DynamicsPurchaseRequisitionNumber { get; set; }
+        public string? DynamicsStatus { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
+    private sealed class ToolOption
+    {
+        public Guid Id { get; set; }
+        public string InternalCode { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class ApprovalRequest
+    {
+        public string? Comment { get; set; }
+    }
+
+    private sealed class ApiError
+    {
+        public string? Message { get; set; }
+    }
+}
+
+
+
+
+
+
+<style>
+/* NAVI WIDE DESKTOP MODE - MRO PURCHASES */
+
+    .mro-layout,
+    .purchase-layout,
+    .purchases-layout {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: .85rem !important;
+        width: 100%;
+        max-width: 100%;
+        overflow: visible !important;
+    }
+
+    .mro-card,
+    .purchase-card,
+    .purchases-card {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        overflow: visible !important;
+    }
+
+    .mro-form-card,
+    .purchase-form-card,
+    .purchases-form-card {
+        padding: .8rem .9rem !important;
+    }
+
+    .mro-form-card .form-grid,
+    .purchase-form-card .form-grid,
+    .purchases-form-card .form-grid {
+        display: grid !important;
+        grid-template-columns: repeat(4, minmax(150px, 1fr)) !important;
+        gap: .55rem !important;
+        align-items: end;
+    }
+
+    .mro-form-card .form-group.full,
+    .purchase-form-card .form-group.full,
+    .purchases-form-card .form-group.full {
+        grid-column: span 2 !important;
+    }
+
+    .mro-table-wrapper,
+    .purchase-table-wrapper,
+    .purchases-table-wrapper {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: visible !important;
+        overflow-y: visible !important;
+    }
+
+    .mro-table,
+    .purchase-table,
+    .purchases-table {
+        width: 100% !important;
+        min-width: 0 !important;
+        table-layout: fixed !important;
+        font-size: .72rem !important;
+    }
+
+    .mro-table th,
+    .purchase-table th,
+    .purchases-table th {
+        font-size: .63rem !important;
+        padding: .42rem .35rem !important;
+        white-space: nowrap;
+    }
+
+    .mro-table td,
+    .purchase-table td,
+    .purchases-table td {
+        padding: .45rem .35rem !important;
+        white-space: normal !important;
+        vertical-align: middle;
+    }
+
+    .mro-table td small,
+    .purchase-table td small,
+    .purchases-table td small {
+        display: block;
+        color: #657083;
+        font-size: .64rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .mro-filters,
+    .purchase-filters,
+    .purchases-filters {
+        display: grid !important;
+        grid-template-columns: 190px minmax(300px, 1fr) auto !important;
+        gap: .5rem !important;
+    }
+
+    .row-actions {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: .28rem !important;
+    }
+
+    .row-actions .btn {
+        font-size: .68rem !important;
+        padding: .22rem .42rem !important;
+        min-height: 27px;
+    }
+
+    body {
+        padding-bottom: 46px;
+    }
+
+    @@media (max-width: 1050px) {
+        .mro-table-wrapper,
+        .purchase-table-wrapper,
+        .purchases-table-wrapper {
+            overflow-x: auto !important;
+        }
+
+        .mro-table,
+        .purchase-table,
+        .purchases-table {
+            min-width: 1050px !important;
+        }
+
+        .mro-filters,
+        .purchase-filters,
+        .purchases-filters {
+            grid-template-columns: 1fr !important;
+        }
+    }
+</style>

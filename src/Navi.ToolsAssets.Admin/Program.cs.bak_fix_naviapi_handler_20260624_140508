@@ -1,0 +1,39 @@
+﻿using Navi.ToolsAssets.Admin.Services.Auth;
+using Navi.ToolsAssets.Admin.Components;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents();
+
+builder.Services.AddTransient<NaviPermissionHttpMessageHandler>();
+
+builder.Services.AddHttpClient("NaviApi", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["NaviApi:BaseUrl"] ?? "http://localhost:5218");
+}).AddHttpMessageHandler<NaviPermissionHttpMessageHandler>();
+
+builder.Services.AddScoped<WebAuthSessionService>();
+
+var app = builder.Build();
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler("/Error", createScopeForErrors: true);
+    app.UseHsts();
+}
+
+app.UseHttpsRedirection();
+
+app.UseStaticFiles();
+app.UseAntiforgery();
+
+app.MapRazorComponents<App>()
+    .AddInteractiveServerRenderMode();
+
+app.Run();
+
+
+
+
+

@@ -1,0 +1,973 @@
+﻿@page "/physical-counts/{Id:guid}/reported-items"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@using Navi.ToolsAssets.Admin.Components.Security
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Registros reportados</PageTitle>
+
+<PermissionGuard Permission="PhysicalCounts.View" ModuleName="Registros reportados">
+
+<section class="ri-hero">
+    <div>
+        <span class="ri-pill">TOMA FÍSICA · REGISTROS REPORTADOS</span>
+        <h2>Registros reportados</h2>
+        <p>Administra la conciliación de lo reportado durante la toma física: encontrados, faltantes, diferencias, herramientas no listadas, aprobaciones, rechazos y creación controlada en Inventario de AF.</p>
+    </div>
+
+    <div class="ri-actions">
+        <button class="btn btn-light" @onclick="LoadAsync">Actualizar</button>
+        <button class="btn btn-outline-light" @onclick="GoBack">Volver</button>
+    </div>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(successMessage))
+{
+    <div class="alert alert-success">@successMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+@if (isLoading && board is null)
+{
+    <div class="ri-empty">Cargando registros reportados...</div>
+}
+else if (board is not null)
+{
+    <section class="ri-kpis">
+        <article><span>Total</span><strong>@board.Summary.Total</strong><small>Registros</small></article>
+        <article><span>No listadas</span><strong>@board.Summary.ExtraNotListed</strong><small>Por conciliar</small></article>
+        <article><span>Dañadas</span><strong>@board.Summary.Damaged</strong><small>Posible mantenimiento</small></article>
+        <article><span>Devueltas</span><strong>@board.Summary.ReturnedOrDelivered</strong><small>Validar entrega</small></article>
+        <article><span>Aclaración</span><strong>@board.Summary.RequiresUserClarification</strong><small>Contactar usuario</small></article>
+        <article><span>Sin mínimos</span><strong>@board.Summary.MissingMinimumData</strong><small>No aptas para crear</small></article>
+    </section>
+
+    
+
+    <section class="ri-card">
+        <div class="ri-card-title">
+            <div>
+                <h3>Registros reportados</h3>
+                <p>Vista de conciliación global para revisar, filtrar y tomar decisiones administrativas sobre lo reportado en campo.</p>
+            </div>
+
+            <input class="form-control ri-search"
+                   placeholder="Buscar código, nombre, responsable, categoría..."
+                   @bind="searchText"
+                   @bind:event="oninput" />
+        </div>
+
+        @if (!FilteredItems.Any())
+        {
+            <div class="ri-empty">No hay registros reportados para esta toma física.</div>
+        }
+        else
+        {
+            <div class="ri-table-wrapper">
+                <table class="ri-table">
+                    <thead>
+                        <tr>
+                            <th>Tipo</th>
+                            <th>Código / nombre</th>
+                            <th>Clasificación</th>
+                            <th>Ubicación / responsable</th>
+                            <th>Estado</th>
+                            <th>Datos mínimos</th>
+                            <th>Conciliación</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @foreach (var item in FilteredItems)
+                        {
+                            <tr>
+                                <td>
+                                    <span class="ri-badge">@item.ReportTypeLabel</span>
+                                    <small>@item.ParticipantName</small>
+                                    <small>@item.ParticipantUserName</small>
+                                </td>
+
+                                <td>
+                                    <strong>@Display(item.ReportedCode)</strong>
+                                    <span>@item.ReportedName</span>
+                                    <small>Serial: @Display(item.SerialNumber)</small>
+                                    <small>Marca: @Display(item.Brand)</small>
+                                    <small>Modelo: @Display(item.Model)</small>
+                                </td>
+
+                                <td>
+                                    <small>Tipo: @Display(item.AssetTypeName)</small>
+                                    <small>Categoría: @Display(item.CategoryName)</small>
+                                </td>
+
+                                <td>
+                                    <small>Sede: @Display(item.BranchCode)</small>
+                                    <small>Ubicación: @Display(item.FoundLocation)</small>
+                                    <small>Responsable: @Display(item.ResponsibleName)</small>
+                                </td>
+
+                                <td>
+                                    <small>Físico: @Display(item.PhysicalStatus)</small>
+                                    <small>Operativo: @Display(item.OperationalStatus)</small>
+                                    <small>Reportó: @Display(item.ReportedBy)</small>
+                                    <small>@FormatDate(item.ReportedAt)</small>
+                                </td>
+
+                                <td>
+                                    @if (item.MinimumDataCompleted)
+                                    {
+                                        <span class="ri-status ok">Completos</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="ri-status warn">Incompletos</span>
+                                        <small>@Display(item.MissingRequiredData)</small>
+                                    }
+                                </td>
+
+                                <td>
+                                    <span class="@GetStatusClass(item.ReconciliationStatus)">
+                                        @GetVisualReconciliationLabel(item)
+                                    </span>
+                                    <small>@Display(item.SuggestedAction)</small>
+                                    <small>@Display(item.ReconciliationObservation)</small>
+
+                                    @if (item.CreatedToolAssetId.HasValue && item.CreatedToolAssetId.Value != Guid.Empty)
+                                    {
+                                        <small>Activo creado: @item.CreatedToolAssetId</small>
+                                    }
+                                </td>
+
+                                <td>
+                                    <div class="ri-row-actions">
+                                        @if (item.CreatedToolAssetId.HasValue && item.CreatedToolAssetId.Value != Guid.Empty)
+                                        {
+                                            <span class="ri-status done">Creado en Inventario</span>
+
+                                            <button class="btn btn-sm btn-success" @onclick="() => ViewCreatedToolAsync(item.CreatedToolAssetId.Value)">
+                                                Ver activo
+                                            </button>
+
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => VoidCreatedInventoryAssetAsync(item.Id)">
+                                                Anular activo creado
+                                            </button>
+                                        }
+                                        else if (item.Rejected || item.ReconciliationStatus == "Rejected")
+                                        {
+                                            <span class="ri-status danger">Rechazado / No procede</span>
+                                        }
+                                        else if (item.RequiresUserClarification || item.ReconciliationStatus == "RequiresUserClarification")
+                                        {
+                                            <span class="ri-status warn">Pendiente de aclaración</span>
+
+                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => ResolveClarificationAsync(item.Id)">
+                                                Marcar aclarado
+                                            </button>
+
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => RejectAsync(item.Id)">
+                                                Rechazar
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-sm btn-outline-warning" @onclick="() => RequestClarificationAsync(item.Id)">Aclarar</button>
+
+                                            <button class="btn btn-sm btn-outline-success" @onclick="() => ApproveCreationAsync(item.Id)">
+                                                Aprobar creación
+                                            </button>
+
+                                            @if (item.ReportType == "ExtraNotListed" && item.MinimumDataCompleted && item.ApprovedForCreation)
+                                            {
+                                                <button class="btn btn-sm btn-success" @onclick="() => CreateInventoryAssetAsync(item.Id)">
+                                                    Crear en Inventario
+                                                </button>
+                                            }
+
+                                            <button class="btn btn-sm btn-outline-dark" @onclick="() => ReconcileAsync(item.Id)">Conciliar</button>
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => RejectAsync(item.Id)">Rechazar</button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+}
+
+</PermissionGuard>
+
+<style>
+    .ri-hero {
+        margin-bottom: .9rem;
+        padding: 1rem 1.15rem;
+        border-radius: 1rem;
+        background: linear-gradient(135deg, #100015 0%, #4b005c 58%, #7b0d8e 100%);
+        color: white;
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        box-shadow: 0 .65rem 1.5rem rgba(75,0,92,.22);
+    }
+
+    .ri-pill {
+        display: inline-flex;
+        padding: .18rem .6rem;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,.35);
+        background: rgba(255,255,255,.1);
+        font-size: .68rem;
+        font-weight: 950;
+    }
+
+    .ri-hero h2 {
+        margin: .45rem 0 .2rem;
+        font-size: 1.55rem;
+        font-weight: 950;
+    }
+
+    .ri-hero p {
+        margin: 0;
+        color: rgba(255,255,255,.88);
+    }
+
+    .ri-actions {
+        display: flex;
+        gap: .45rem;
+        align-items: flex-start;
+    }
+
+    .ri-kpis {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(130px, 1fr));
+        gap: .55rem;
+        margin-bottom: .8rem;
+    }
+
+    .ri-kpis article {
+        border: 1px solid #dfe3e8;
+        border-left: 4px solid #7b0d8e;
+        border-radius: .75rem;
+        padding: .65rem;
+        background: white;
+    }
+
+    .ri-kpis span {
+        display: block;
+        font-size: .65rem;
+        font-weight: 950;
+        color: #526071;
+        text-transform: uppercase;
+    }
+
+    .ri-kpis strong {
+        display: block;
+        font-size: 1.25rem;
+        font-weight: 950;
+    }
+
+    .ri-card {
+        background: white;
+        border: 1px solid #dfe3e8;
+        border-radius: .95rem;
+        padding: .9rem;
+        margin-bottom: .85rem;
+        box-shadow: 0 .35rem .9rem rgba(0,0,0,.04);
+    }
+
+    .ri-card-title {
+        display: flex;
+        justify-content: space-between;
+        gap: .75rem;
+        align-items: flex-start;
+        margin-bottom: .75rem;
+    }
+
+    .ri-card-title h3 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 950;
+    }
+
+    .ri-card-title p {
+        margin: .1rem 0 0;
+        color: #657083;
+        font-size: .78rem;
+    }
+
+    .ri-form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(220px, 1fr));
+        gap: .75rem;
+    }
+
+    .ri-form-grid label {
+        display: block;
+        margin-bottom: .25rem;
+        font-size: .72rem;
+        font-weight: 950;
+        color: #2b3340;
+    }
+
+    .ri-full {
+        grid-column: 1 / -1;
+    }
+
+    .ri-check {
+        display: flex;
+        gap: .45rem;
+        align-items: center;
+    }
+
+    .ri-check label {
+        margin: 0;
+        font-size: .78rem;
+        font-weight: 800;
+    }
+
+    .ri-form-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: .45rem;
+        margin-top: .8rem;
+    }
+
+    .ri-search {
+        max-width: 360px;
+    }
+
+    .ri-table-wrapper {
+        overflow-x: auto;
+    }
+
+    .ri-table {
+        width: 100%;
+        min-width: 1280px;
+        table-layout: fixed;
+        border-collapse: collapse;
+        font-size: .72rem;
+    }
+
+    .ri-table th {
+        border-bottom: 1px solid #17111c;
+        padding: .42rem .35rem;
+        font-size: .63rem;
+        text-transform: uppercase;
+    }
+
+    .ri-table td {
+        border-bottom: 1px solid #e5e8ef;
+        padding: .45rem .35rem;
+        vertical-align: top;
+    }
+
+    .ri-table strong,
+    .ri-table span,
+    .ri-table small {
+        display: block;
+        line-height: 1.2;
+    }
+
+    .ri-table small {
+        color: #657083;
+        font-size: .64rem;
+    }
+
+    .ri-badge,
+    .ri-status {
+        display: inline-flex;
+        width: fit-content;
+        border-radius: 999px;
+        padding: .15rem .45rem;
+        font-size: .65rem;
+        font-weight: 950;
+    }
+
+    .ri-badge {
+        background: #f1e3f8;
+        color: #5b006b;
+    }
+
+    .ri-status.ok,
+    .ri-status.done {
+        background: #d1e7dd;
+        color: #0f5132;
+    }
+
+    .ri-status.warn,
+    .ri-status.pending {
+        background: #fff3cd;
+        color: #7a5200;
+    }
+
+    .ri-status.danger {
+        background: #f8d7da;
+        color: #842029;
+    }
+
+    .ri-status.info {
+        background: #cff4fc;
+        color: #055160;
+    }
+
+    .ri-row-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .28rem;
+    }
+
+    .ri-row-actions .btn {
+        font-size: .68rem;
+        padding: .22rem .42rem;
+    }
+
+    .ri-empty {
+        padding: .9rem;
+        border-radius: .75rem;
+        background: #f8f9fa;
+        font-weight: 800;
+        color: #526071;
+    }
+
+    @@media (max-width: 1100px) {
+        .ri-kpis {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .ri-form-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .ri-hero {
+            flex-direction: column;
+        }
+    }
+</style>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private ReportedItemsBoard? board;
+    private List<ParticipantItem> participants = new();
+    private ReportedItemForm form = new();
+    private bool isLoading;
+    private bool showForm;
+    private string? errorMessage;
+    private string? successMessage;
+    private string? searchText;
+
+    private IEnumerable<ReportedItemDto> FilteredItems
+    {
+        get
+        {
+            var items = board?.Items ?? new();
+
+            if (string.IsNullOrWhiteSpace(searchText))
+            {
+                return items;
+            }
+
+            var term = searchText.Trim();
+
+            return items.Where(x =>
+                Contains(x.ReportedCode, term) ||
+                Contains(x.ReportedName, term) ||
+                Contains(x.SerialNumber, term) ||
+                Contains(x.AssetTypeName, term) ||
+                Contains(x.CategoryName, term) ||
+                Contains(x.ResponsibleName, term) ||
+                Contains(x.FoundLocation, term) ||
+                Contains(x.ReportTypeLabel, term));
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var api = CreateApiClient();
+
+            board = await api.GetFromJsonAsync<ReportedItemsBoard>($"api/physical-counts/{Id}/reported-items-board");
+
+            var participantBoard = await api.GetFromJsonAsync<ParticipantBoard>($"api/physical-counts/{Id}/participants-board");
+            participants = participantBoard?.Participants ?? new();
+
+            if (board is not null && string.IsNullOrWhiteSpace(form.BranchCode))
+            {
+                form.BranchCode = board.BranchCode;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error cargando registros reportados: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private HttpClient CreateApiClient()
+    {
+        var api = HttpClientFactory.CreateClient("NaviApi");
+
+        if (api.BaseAddress is null)
+        {
+            api.BaseAddress = new Uri("http://localhost:5218/");
+        }
+
+        return api;
+    }
+
+    private void ToggleForm()
+    {
+        showForm = !showForm;
+
+        if (showForm && board is not null)
+        {
+            form.BranchCode = board.BranchCode;
+            form.ReportType = "ExtraNotListed";
+            form.RequiresUserClarification = true;
+        }
+    }
+
+    private void ClearForm()
+    {
+        form = new ReportedItemForm
+        {
+            ReportType = "ExtraNotListed",
+            BranchCode = board?.BranchCode,
+            RequiresUserClarification = true
+        };
+    }
+
+    private async Task SaveAsync()
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        if (form.ParticipantId is null || form.ParticipantId == Guid.Empty)
+        {
+            errorMessage = "Debe seleccionar el participante o usuario que reporta.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(form.ReportedName) && string.IsNullOrWhiteSpace(form.ReportedCode))
+        {
+            errorMessage = "Debe ingresar al menos el nombre o código del activo/herramienta reportada.";
+            return;
+        }
+
+        try
+        {
+            var api = CreateApiClient();
+
+            var response = await api.PostAsJsonAsync(
+                $"api/physical-counts/participants/{form.ParticipantId}/reported-items",
+                form);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo guardar el registro reportado. {detail}";
+                return;
+            }
+
+            successMessage = "Registro reportado guardado correctamente.";
+            ClearForm();
+            showForm = false;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error guardando registro reportado: {ex.Message}";
+        }
+    }
+
+
+
+    private Task ViewCreatedToolAsync(Guid toolAssetId)
+    {
+        NavigationManager.NavigateTo($"/tools/{toolAssetId}");
+        return Task.CompletedTask;
+    }
+
+    private async Task VoidCreatedInventoryAssetAsync(Guid id)
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var api = CreateApiClient();
+
+            var response = await api.PatchAsJsonAsync(
+                $"api/physical-counts/reported-items/{id}/void-created-tool-asset",
+                new
+                {
+                    ActionBy = "admin",
+                    Observation = "Activo anulado desde conciliación porque el reporte no procede."
+                });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo anular el activo creado. {detail}";
+                return;
+            }
+
+            successMessage = "Activo creado anulado correctamente. El registro queda rechazado y conserva trazabilidad.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error anulando activo creado: {ex.Message}";
+        }
+    }
+    private async Task CreateInventoryAssetAsync(Guid id)
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var api = CreateApiClient();
+
+            var response = await api.PostAsJsonAsync(
+                $"api/physical-counts/reported-items/{id}/create-tool-asset",
+                new
+                {
+                    ActionBy = "admin",
+                    CreateMissingCatalogs = true,
+                    Observation = "Activo creado en Inventario de AF desde registro reportado en toma física."
+                });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo crear el activo en Inventario de AF. {detail}";
+                return;
+            }
+
+            var created = await response.Content.ReadFromJsonAsync<CreatedInventoryAssetResponse>();
+
+            successMessage = created is null
+                ? "Activo creado correctamente en Inventario de AF."
+                : $"Activo creado correctamente en Inventario de AF: {created.InternalCode} - {created.Name}";
+
+            await LoadAsync();
+
+            if (created is not null && created.ToolAssetId != Guid.Empty)
+            {
+                NavigationManager.NavigateTo($"/tools/{created.ToolAssetId}");
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error creando activo en Inventario de AF: {ex.Message}";
+        }
+    }
+
+    private async Task ResolveClarificationAsync(Guid id)
+    {
+        await PatchAsync(
+            $"api/physical-counts/reported-items/{id}/resolve-clarification",
+            "Aclaración recibida del usuario. Registro disponible nuevamente para revisión.",
+            "Registro marcado como aclarado.");
+    }
+    private async Task RequestClarificationAsync(Guid id)
+    {
+        await PatchAsync(
+            $"api/physical-counts/reported-items/{id}/request-clarification",
+            "Se requiere contactar al usuario para ampliar información del registro reportado.",
+            "Registro marcado para aclaración.");
+    }
+
+    private async Task ApproveCreationAsync(Guid id)
+    {
+        await PatchAsync(
+            $"api/physical-counts/reported-items/{id}/approve-creation",
+            "Registro aprobado para creación en Inventario de AF.",
+            "Registro aprobado para creación.");
+    }
+
+    private async Task ReconcileAsync(Guid id)
+    {
+        await PatchAsync(
+            $"api/physical-counts/reported-items/{id}/reconcile",
+            "Registro conciliado manualmente desde administración.",
+            "Registro conciliado.");
+    }
+
+    private async Task RejectAsync(Guid id)
+    {
+        await PatchAsync(
+            $"api/physical-counts/reported-items/{id}/reject",
+            "Reporte rechazado en conciliación.",
+            "Registro rechazado.");
+    }
+
+    private async Task PatchAsync(string url, string observation, string okMessage)
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var api = CreateApiClient();
+
+            var response = await api.PatchAsJsonAsync(url, new
+            {
+                ActionBy = "admin",
+                Observation = observation
+            });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo completar la acción. {detail}";
+                return;
+            }
+
+            successMessage = okMessage;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error ejecutando acción: {ex.Message}";
+        }
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo($"/physical-counts/{Id}");
+    }
+
+    private static bool Contains(string? value, string term)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+               value.Contains(term, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Display(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "—" : value;
+
+    private static string FormatDate(DateTime? value) =>
+        value.HasValue ? value.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm") : "—";
+
+    private static string GetStatusClass(string status) => status switch
+    {
+        "PendingReview" => "ri-status pending",
+        "NotFoundInSystem" => "ri-status danger",
+        "MatchedInSystem" => "ri-status info",
+        "RequiresUserClarification" => "ri-status warn",
+        "ApprovedForCreation" => "ri-status ok",
+        "Rejected" => "ri-status danger",
+        "Reconciled" => "ri-status done",
+        _ => "ri-status pending"
+    };
+
+
+    private sealed class CreatedInventoryAssetResponse
+    {
+        public string? Message { get; set; }
+        public Guid ReportedItemId { get; set; }
+        public Guid ToolAssetId { get; set; }
+        public string InternalCode { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? BranchCode { get; set; }
+        public string? LocationCode { get; set; }
+        public string? ResponsibleName { get; set; }
+        public string? ToolTypeName { get; set; }
+        public string? ToolCategoryName { get; set; }
+        public string? ReconciliationStatus { get; set; }
+    }
+    private sealed class ReportedItemForm
+    {
+        public Guid? ParticipantId { get; set; }
+        public string ReportType { get; set; } = "ExtraNotListed";
+        public string? ReportedCode { get; set; }
+        public string? ReportedName { get; set; }
+        public string? SerialNumber { get; set; }
+        public string? Brand { get; set; }
+        public string? Model { get; set; }
+        public string? AssetTypeName { get; set; }
+        public string? CategoryName { get; set; }
+        public string? BranchCode { get; set; }
+        public string? FoundLocation { get; set; }
+        public string? ResponsibleName { get; set; }
+        public string? PhysicalStatus { get; set; }
+        public string? OperationalStatus { get; set; }
+        public string? Observation { get; set; }
+        public string? ReportedBy { get; set; } = "admin";
+        public bool RequiresUserClarification { get; set; } = true;
+    }
+
+    private sealed class ReportedItemsBoard
+    {
+        public Guid Id { get; set; }
+        public string CountNumber { get; set; } = string.Empty;
+        public Guid BranchId { get; set; }
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public string StatusLabel { get; set; } = string.Empty;
+        public ReportedItemsSummary Summary { get; set; } = new();
+        public List<ReportedItemDto> Items { get; set; } = new();
+    }
+
+
+    private static string GetVisualReconciliationLabel(ReportedItemDto item)
+    {
+        var status = item.ReconciliationStatus ?? string.Empty;
+        var label = item.ReconciliationStatusLabel ?? string.Empty;
+
+        if (item.Rejected || status.Equals("Rejected", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Activo rechazado";
+        }
+
+        if (item.RequiresUserClarification || status.Equals("RequiresUserClarification", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Requiere aclaración";
+        }
+
+        if (!item.MinimumDataCompleted)
+        {
+            return "Sin mínimos";
+        }
+
+        if (item.CreatedToolAssetId.HasValue ||
+            status.Equals("Reconciled", StringComparison.OrdinalIgnoreCase) ||
+            label.Equals("Conciliada", StringComparison.OrdinalIgnoreCase) ||
+            label.Equals("Conciliado", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Completo";
+        }
+
+        if (item.ApprovedForCreation ||
+            status.Equals("ApprovedForCreation", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Aprobado para creación";
+        }
+
+        if (status.Equals("NotFoundInSystem", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Pendiente de creación";
+        }
+
+        if (status.Equals("MatchedInSystem", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Pendiente conciliación";
+        }
+
+        if (status.Equals("PendingReview", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Pendiente de revisión";
+        }
+
+        if (string.IsNullOrWhiteSpace(label))
+        {
+            return string.IsNullOrWhiteSpace(status) ? "Pendiente de revisión" : status;
+        }
+
+        return label
+            .Replace("Conciliada", "Completo", StringComparison.OrdinalIgnoreCase)
+            .Replace("Conciliado", "Completo", StringComparison.OrdinalIgnoreCase);
+    }
+    private sealed class ReportedItemsSummary
+    {
+        public int Total { get; set; }
+        public int Found { get; set; }
+        public int NotFound { get; set; }
+        public int ReturnedOrDelivered { get; set; }
+        public int Damaged { get; set; }
+        public int DifferentLocation { get; set; }
+        public int DifferentResponsible { get; set; }
+        public int ExtraNotListed { get; set; }
+        public int PendingReview { get; set; }
+        public int RequiresUserClarification { get; set; }
+        public int ApprovedForCreation { get; set; }
+        public int Reconciled { get; set; }
+        public int Rejected { get; set; }
+        public int MissingMinimumData { get; set; }
+    }
+
+    private sealed class ReportedItemDto
+    {
+        public Guid Id { get; set; }
+        public string? ParticipantName { get; set; }
+        public string? ParticipantUserName { get; set; }
+        public string ReportType { get; set; } = string.Empty;
+        public string ReportTypeLabel { get; set; } = string.Empty;
+        public Guid? ToolAssetId { get; set; }
+        public string? ToolInternalCode { get; set; }
+        public string? ToolName { get; set; }
+        public Guid? MatchedToolAssetId { get; set; }
+        public string? MatchedToolInternalCode { get; set; }
+        public string? MatchedToolName { get; set; }
+        public Guid? CreatedToolAssetId { get; set; }
+        public string? ReportedCode { get; set; }
+        public string ReportedName { get; set; } = string.Empty;
+        public string? SerialNumber { get; set; }
+        public string? Brand { get; set; }
+        public string? Model { get; set; }
+        public string? AssetTypeName { get; set; }
+        public string? CategoryName { get; set; }
+        public string? BranchCode { get; set; }
+        public string? FoundLocation { get; set; }
+        public string? ResponsibleName { get; set; }
+        public string? PhysicalStatus { get; set; }
+        public string? OperationalStatus { get; set; }
+        public string? Observation { get; set; }
+        public string? ReportedBy { get; set; }
+        public DateTime? ReportedAt { get; set; }
+        public string ReconciliationStatus { get; set; } = string.Empty;
+        public string ReconciliationStatusLabel { get; set; } = string.Empty;
+        public string? ReconciliationObservation { get; set; }
+        public bool RequiresUserClarification { get; set; }
+        public bool MinimumDataCompleted { get; set; }
+        public string? MissingRequiredData { get; set; }
+        public bool ApprovedForCreation { get; set; }
+        public bool Rejected { get; set; }
+        public string? SuggestedAction { get; set; }
+    }
+
+    private sealed class ParticipantBoard
+    {
+        public List<ParticipantItem> Participants { get; set; } = new();
+    }
+
+    private sealed class ParticipantItem
+    {
+        public Guid Id { get; set; }
+        public string DisplayName { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
+    }
+}
+
+
+
+
+
+
+
+
+
+

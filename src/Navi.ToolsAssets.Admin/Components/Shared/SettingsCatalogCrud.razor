@@ -1,5 +1,7 @@
 ﻿@rendermode InteractiveServer
+@using Navi.ToolsAssets.Admin.Services.Auth
 @inject IHttpClientFactory HttpClientFactory
+@inject WebAuthSessionService AuthSession
 
 <section class="settings-entity-banner">
     <div>
@@ -29,21 +31,21 @@
 
             <div class="mb-3">
                 <label class="form-label">Código</label>
-                <InputText class="form-control" @bind-Value="formModel.Code" />
+                <InputText class="form-control" @bind-Value="formModel.Code" disabled="@(!CanManageSettings)" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Nombre</label>
-                <InputText class="form-control" @bind-Value="formModel.Name" />
+                <InputText class="form-control" @bind-Value="formModel.Name" disabled="@(!CanManageSettings)" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Descripción</label>
-                <InputTextArea class="form-control" @bind-Value="formModel.Description" rows="3" />
+                <InputTextArea class="form-control" @bind-Value="formModel.Description" rows="3" disabled="@(!CanManageSettings)" />
             </div>
 
             <div class="form-check mb-3">
-                <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive" />
+                <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive" disabled="@(!CanManageSettings)" />
                 <label class="form-check-label">Activo</label>
             </div>
 
@@ -53,7 +55,14 @@
             }
 
             <div class="settings-crud-actions">
-                <button class="btn btn-primary" type="submit">Guardar</button>
+                @if (CanManageSettings)
+                {
+                    <button class="btn btn-primary" type="submit">Guardar</button>
+                }
+                else
+                {
+                    <span class="permission-action-denied">Solo consulta</span>
+                }
                 <button class="btn btn-outline-secondary" type="button" @onclick="ClearForm">Limpiar</button>
             </div>
         </EditForm>
@@ -104,8 +113,14 @@
                                 </span>
                             </td>
                             <td class="text-end">
-                                <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(item)">Editar</button>
-                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(item.Id)">Eliminar</button>
+                                @if (CanManageSettings)
+                                    {
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(item)">Editar</button>
+                                    }
+                                @if (CanManageSettings)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(item.Id)">Eliminar</button>
+                                    }
                             </td>
                         </tr>
                     }
@@ -215,6 +230,8 @@
 </style>
 
 @code {
+    private bool CanManageSettings => AuthSession.HasPermission("Settings.Manage");
+
     [Parameter] public string Title { get; set; } = string.Empty;
     [Parameter] public string Pill { get; set; } = string.Empty;
     [Parameter] public string Description { get; set; } = string.Empty;
@@ -363,5 +380,6 @@
         public bool IsActive { get; set; } = true;
     }
 }
+
 
 

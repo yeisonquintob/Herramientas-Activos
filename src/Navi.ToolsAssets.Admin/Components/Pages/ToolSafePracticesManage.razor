@@ -1,10 +1,12 @@
-@page "/tools/{ToolId:guid}/safe-practices"
+Ôªø@page "/tools/{ToolId:guid}/safe-practices"
 @rendermode InteractiveServer
 @using System.Net.Http.Json
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager NavigationManager
 
-<PageTitle>Pr·cticas seguras - NAVI Herramientas</PageTitle>
+<PageTitle>Pr√°cticas seguras - NAVI Herramientas</PageTitle>
+
+<PermissionGuard Permission="SafePractices.Manage" ModuleName="Pr√°cticas seguras">
 
 <div class="page-header">
     <div>
@@ -12,8 +14,8 @@
             ? Volver a hoja de vida
         </button>
 
-        <h1>GestiÛn de pr·cticas seguras</h1>
-        <p>Agrega, edita o desactiva pr·cticas seguras asociadas a la herramienta.</p>
+        <h1>Gesti√≥n de pr√°cticas seguras</h1>
+        <p>Agrega, edita o desactiva pr√°cticas seguras asociadas a la herramienta.</p>
     </div>
 
     <button class="btn btn-outline-primary" @onclick="LoadAsync" disabled="@isLoading">
@@ -37,13 +39,13 @@
 
 <section class="life-record-cover">
     <div>
-        <span class="life-record-label">Pr·cticas seguras</span>
+        <span class="life-record-label">Pr√°cticas seguras</span>
         <h2>@toolName</h2>
         <p>@internalCode</p>
     </div>
 
     <div class="life-record-cover-status">
-        <span class="badge bg-light text-dark">@safePractices.Count pr·ctica(s)</span>
+        <span class="badge bg-light text-dark">@safePractices.Count pr√°ctica(s)</span>
     </div>
 </section>
 
@@ -51,7 +53,7 @@
     <section class="life-record-section">
         <div class="section-title">
             <span>1</span>
-            <h2>@(editingSafePracticeId.HasValue ? "Editar pr·ctica segura" : "Nueva pr·ctica segura")</h2>
+            <h2>@(editingSafePracticeId.HasValue ? "Editar pr√°ctica segura" : "Nueva pr√°ctica segura")</h2>
         </div>
 
         <EditForm Model="formModel" OnValidSubmit="SaveAsync">
@@ -62,23 +64,23 @@
                 </div>
 
                 <div>
-                    <label>Nombre de la pr·ctica</label>
+                    <label>Nombre de la pr√°ctica</label>
                     <InputText class="form-control" @bind-Value="formModel.PracticeName" placeholder="Ej: Uso de EPP" />
                 </div>
             </div>
 
             <div class="mt-3">
-                <label>DescripciÛn</label>
+                <label>Descripci√≥n</label>
                 <InputTextArea class="form-control technical-observation"
                                @bind-Value="formModel.Description"
-                               placeholder="Describe la pr·ctica segura..." />
+                               placeholder="Describe la pr√°ctica segura..." />
             </div>
 
             <div class="technical-edit-actions static-actions mt-3">
                 @if (editingSafePracticeId.HasValue)
                 {
                     <button type="button" class="btn btn-outline-secondary" @onclick="CancelEdit">
-                        Cancelar ediciÛn
+                        Cancelar edici√≥n
                     </button>
                 }
 
@@ -93,7 +95,7 @@
         <div class="section-title section-title-actions">
             <div class="section-title-main">
                 <span>2</span>
-                <h2>Pr·cticas registradas</h2>
+                <h2>Pr√°cticas registradas</h2>
             </div>
 
             <button class="btn btn-sm btn-outline-dark" @onclick="CreateDefaultsAsync" disabled="@isSaving">
@@ -103,11 +105,11 @@
 
         @if (isLoading)
         {
-            <div class="alert alert-info mb-0">Cargando pr·cticas seguras...</div>
+            <div class="alert alert-info mb-0">Cargando pr√°cticas seguras...</div>
         }
         else if (safePractices.Count == 0)
         {
-            <p class="text-muted mb-0">No hay pr·cticas seguras registradas para esta herramienta.</p>
+            <p class="text-muted mb-0">No hay pr√°cticas seguras registradas para esta herramienta.</p>
         }
         else
         {
@@ -137,6 +139,8 @@
         }
     </section>
 </div>
+
+</PermissionGuard>
 
 @code {
     [Parameter]
@@ -188,7 +192,7 @@
         }
         catch (Exception ex)
         {
-            errorMessage = $"No se pudieron cargar las pr·cticas seguras. Valida que la API estÈ activa. Detalle: {ex.Message}";
+            errorMessage = $"No se pudieron cargar las pr√°cticas seguras. Valida que la API est√© activa. Detalle: {ex.Message}";
         }
         finally
         {
@@ -206,13 +210,13 @@
 
             if (string.IsNullOrWhiteSpace(formModel.PracticeName))
             {
-                errorMessage = "El nombre de la pr·ctica segura es obligatorio.";
+                errorMessage = "El nombre de la pr√°ctica segura es obligatorio.";
                 return;
             }
 
             if (string.IsNullOrWhiteSpace(formModel.Description))
             {
-                errorMessage = "La descripciÛn de la pr·ctica segura es obligatoria.";
+                errorMessage = "La descripci√≥n de la pr√°ctica segura es obligatoria.";
                 return;
             }
 
@@ -248,20 +252,20 @@
             if (!response.IsSuccessStatusCode)
             {
                 var detail = await response.Content.ReadAsStringAsync();
-                errorMessage = $"No se pudo guardar la pr·ctica segura. CÛdigo: {(int)response.StatusCode}. Detalle: {detail}";
+                errorMessage = $"No se pudo guardar la pr√°ctica segura. C√≥digo: {(int)response.StatusCode}. Detalle: {detail}";
                 return;
             }
 
             successMessage = editingSafePracticeId.HasValue
-                ? "Pr·ctica segura actualizada correctamente."
-                : "Pr·ctica segura creada correctamente.";
+                ? "Pr√°ctica segura actualizada correctamente."
+                : "Pr√°ctica segura creada correctamente.";
 
             CancelEdit();
             await LoadAsync();
         }
         catch (Exception ex)
         {
-            errorMessage = $"No se pudo guardar la pr·ctica segura. Detalle: {ex.Message}";
+            errorMessage = $"No se pudo guardar la pr√°ctica segura. Detalle: {ex.Message}";
         }
         finally
         {
@@ -284,16 +288,16 @@
             if (!response.IsSuccessStatusCode)
             {
                 var detail = await response.Content.ReadAsStringAsync();
-                errorMessage = $"No se pudieron cargar pr·cticas predeterminadas. CÛdigo: {(int)response.StatusCode}. Detalle: {detail}";
+                errorMessage = $"No se pudieron cargar pr√°cticas predeterminadas. C√≥digo: {(int)response.StatusCode}. Detalle: {detail}";
                 return;
             }
 
-            successMessage = "Pr·cticas seguras predeterminadas cargadas correctamente.";
+            successMessage = "Pr√°cticas seguras predeterminadas cargadas correctamente.";
             await LoadAsync();
         }
         catch (Exception ex)
         {
-            errorMessage = $"No se pudieron cargar pr·cticas predeterminadas. Detalle: {ex.Message}";
+            errorMessage = $"No se pudieron cargar pr√°cticas predeterminadas. Detalle: {ex.Message}";
         }
         finally
         {
@@ -345,11 +349,11 @@
             if (!response.IsSuccessStatusCode)
             {
                 var detail = await response.Content.ReadAsStringAsync();
-                errorMessage = $"No se pudo desactivar la pr·ctica segura. CÛdigo: {(int)response.StatusCode}. Detalle: {detail}";
+                errorMessage = $"No se pudo desactivar la pr√°ctica segura. C√≥digo: {(int)response.StatusCode}. Detalle: {detail}";
                 return;
             }
 
-            successMessage = $"Pr·ctica segura desactivada correctamente: {item.PracticeName}.";
+            successMessage = $"Pr√°ctica segura desactivada correctamente: {item.PracticeName}.";
 
             if (editingSafePracticeId == item.Id)
             {
@@ -360,7 +364,7 @@
         }
         catch (Exception ex)
         {
-            errorMessage = $"No se pudo desactivar la pr·ctica segura. Detalle: {ex.Message}";
+            errorMessage = $"No se pudo desactivar la pr√°ctica segura. Detalle: {ex.Message}";
         }
         finally
         {
@@ -381,8 +385,8 @@
         }
 
         return editingSafePracticeId.HasValue
-            ? "Actualizar pr·ctica"
-            : "Crear pr·ctica";
+            ? "Actualizar pr√°ctica"
+            : "Crear pr√°ctica";
     }
 
     private sealed class SafePracticeFormModel
@@ -419,3 +423,4 @@
         public string Name { get; set; } = string.Empty;
     }
 }
+

@@ -1,6 +1,7 @@
 ﻿using Navi.ToolsAssets.Domain.Entities.Documents;
 using Navi.ToolsAssets.Application.Documents;
 using Microsoft.AspNetCore.Mvc;
+using Navi.ToolsAssets.Api.Security;
 using Microsoft.EntityFrameworkCore;
 using Navi.ToolsAssets.Domain.Entities.Inventory;
 using Navi.ToolsAssets.Domain.Entities.Organization;
@@ -459,6 +460,8 @@ public class ToolsController : ControllerBase
 
         return Ok(items);
     }
+    [RequirePermission("AssetAvailability.Edit")]
+    [RequirePermission("AssetAvailability.Edit")]
     [HttpPatch("{id:guid}/availability-location")]
     public async Task<IActionResult> UpdateAvailabilityLocation(Guid id, [FromBody] UpdateAvailabilityLocationRequest request)
     {
@@ -540,6 +543,8 @@ public class ToolsController : ControllerBase
         return Ok(response);
     }
 
+    [RequirePermission("AssetAssignment.Assign")]
+    [RequirePermission("AssetAssignment.Assign", "AssetAssignment.Return")]
     [HttpPatch("{id:guid}/assign-fixed-asset")]
     public async Task<IActionResult> AssignFixedAsset(Guid id, [FromBody] AssignFixedAssetRequest request)
     {
@@ -1670,6 +1675,9 @@ public class ToolsController : ControllerBase
         public string? ToolCategoryName { get; set; }
     }
 }
+
+
+
 
 
 

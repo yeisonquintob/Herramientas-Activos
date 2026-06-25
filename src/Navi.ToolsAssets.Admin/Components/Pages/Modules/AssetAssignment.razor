@@ -2,15 +2,19 @@
 @rendermode InteractiveServer
 @using System.Net.Http.Json
 @inject IHttpClientFactory HttpClientFactory
+@using Navi.ToolsAssets.Admin.Services.Auth
 @inject NavigationManager NavigationManager
+@inject WebAuthSessionService AuthSession
 
 <PageTitle>Asignar AF - NAVI</PageTitle>
+
+<PermissionGuard Permission="AssetAssignment.View" ModuleName="Asignar AF">
 
 <section class="af-banner">
     <div>
         <span class="af-pill">ACTIVOS FIJOS</span>
         <h2>Asignar AF</h2>
-        <p>Asigna activos fijos a usuarios/responsables o regresa herramientas a almacenes, talleres y ubicaciones internas.</p>
+        <p>Asigna activos a usuarios/responsables o regresa activos a almacenes, talleres y ubicaciones internas.</p>
     </div>
 
     <div class="af-banner-side">
@@ -33,7 +37,7 @@
 <section class="af-grid">
     <aside class="af-left-stack">
         <div class="af-card">
-            <h3>@(form.AssignmentType == "Warehouse" ? "Regresar herramienta" : "Nueva asignación")</h3>
+            <h3>@(form.AssignmentType == "Warehouse" ? "Regresar activo fijo" : "Nueva asignación")</h3>
 
             <div class="mb-2">
                 <label class="form-label">Activo fijo</label>
@@ -109,7 +113,7 @@
                 @if (form.AssignmentType == "Warehouse")
                 {
                     <button class="btn btn-warning fw-bold" @onclick="SaveAsync" disabled="@isSaving">
-                        @(isSaving ? "Guardando..." : "Regresar herramienta")
+                        @(isSaving ? "Guardando..." : "Regresar activo fijo")
                     </button>
                 }
                 else
@@ -128,7 +132,7 @@
         <div class="af-card history-launch-card">
             <span class="history-pill">HISTORIAL</span>
             <h3>Historial por usuario</h3>
-            <p>Consulta en una vista completa las herramientas asignadas, entregadas, regresadas y sus detalles.</p>
+            <p>Consulta en una vista completa las activos asignadas, entregadas, regresadas y sus detalles.</p>
 
             <div class="mb-2">
                 <label class="form-label">Usuario / Responsable</label>
@@ -144,7 +148,7 @@
             <div class="mb-3">
                 <label class="form-label">Buscar</label>
                 <input class="form-control form-control-sm"
-                       placeholder="Código, herramienta, serial o detalle..."
+                       placeholder="Código, activo fijo, serial o detalle..."
                        @bind="historySearch"
                        @bind:event="oninput" />
             </div>
@@ -236,6 +240,8 @@
         }
     </section>
 </section>
+
+</PermissionGuard>
 
 <style>
     .af-banner {
@@ -412,6 +418,10 @@
 </style>
 
 @code {
+    private bool CanAssignAsset => AuthSession.HasPermission("AssetAssignment.Assign");
+    private bool CanReturnAsset => AuthSession.HasPermission("AssetAssignment.Return");
+    private bool CanCurrentMovement => form.AssignmentType == "Warehouse" ? CanReturnAsset : CanAssignAsset;
+
     private HttpClient Api => HttpClientFactory.CreateClient("NaviApi");
 
     private List<ToolItem> tools = new();
@@ -452,6 +462,44 @@
         await LoadAsync();
     }
 
+    
+        private static bool IsToolOnly(ToolItem item)
+    {
+        var typeName = item.ToolTypeName ?? string.Empty;
+        var typeCode = item.ToolTypeCode ?? string.Empty;
+
+        if (typeName.Equals("Activo fijo", StringComparison.OrdinalIgnoreCase) ||
+            typeName.Equals("HERRAMIENTA", StringComparison.OrdinalIgnoreCase) ||
+            typeCode.Equals("HERRAMIENTA", StringComparison.OrdinalIgnoreCase) ||
+            typeCode.Equals("HERR", StringComparison.OrdinalIgnoreCase) ||
+            typeCode.Equals("TOOL", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var code = item.InternalCode ?? string.Empty;
+        var name = item.Name ?? string.Empty;
+
+        var isCellPhone =
+            code.Contains("-CEL-", StringComparison.OrdinalIgnoreCase) ||
+            name.Contains("Celular corporativo", StringComparison.OrdinalIgnoreCase) ||
+            name.Contains("Celular", StringComparison.OrdinalIgnoreCase);
+
+        var isLaptop =
+            code.Contains("-PORTATIL-", StringComparison.OrdinalIgnoreCase) ||
+            code.Contains("-COMPUTADOR-", StringComparison.OrdinalIgnoreCase) && name.Contains("portátil", StringComparison.OrdinalIgnoreCase) ||
+            name.Contains("Computador portátil", StringComparison.OrdinalIgnoreCase);
+
+        if (isCellPhone || isLaptop)
+        {
+            return false;
+        }
+
+        // Fallback para assignment-board:
+        // ese endpoint no siempre trae ToolTypeName/ToolTypeCode.
+        // Si no es celular ni portátil, se considera activo fijo para esta vista.
+        return true;
+    }
     private async Task LoadAsync()
     {
         isLoading = true;
@@ -525,7 +573,7 @@
         form.LocationId = tool.LocationId;
         form.ResponsiblePersonId = null;
         form.AssignmentDate = DateTime.Today;
-        form.Observation = $"Regreso de herramienta {tool.InternalCode} a almacén/taller.";
+        form.Observation = $"Regreso de activo fijo {tool.InternalCode} a almacén/taller.";
     }
 
     private void OnBranchChanged()
@@ -581,7 +629,7 @@
             }
 
             ShowSuccess(form.AssignmentType == "Warehouse"
-                ? "Herramienta regresada correctamente."
+                ? "Activo fijo regresada correctamente."
                 : "Asignación registrada correctamente.");
 
             ClearForm();
@@ -658,6 +706,8 @@
 
     private sealed class ToolItem
     {
+        public string? ToolTypeName { get; set; }
+        public string? ToolTypeCode { get; set; }
         public Guid Id { get; set; }
         public string InternalCode { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
@@ -698,3 +748,12 @@
         public Guid BranchId { get; set; }
     }
 }
+
+
+
+
+
+
+
+
+

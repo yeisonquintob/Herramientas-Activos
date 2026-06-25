@@ -1,0 +1,61 @@
+﻿using Navi.ToolsAssets.Admin.Services.Auth;
+
+namespace Navi.ToolsAssets.Admin.Services.Auth;
+
+public sealed class NaviPermissionHttpMessageHandler : DelegatingHandler
+{
+    private readonly WebAuthSessionService _authSession;
+
+    public NaviPermissionHttpMessageHandler(WebAuthSessionService authSession)
+    {
+        _authSession = authSession;
+    }
+
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
+    {
+        request.Headers.Remove("X-Navi-User");
+        request.Headers.Remove("X-Navi-Role");
+        request.Headers.Remove("X-Navi-Role-Code");
+        request.Headers.Remove("X-Navi-Permissions");
+        request.Headers.Remove("X-Navi-BranchId");
+        request.Headers.Remove("X-Navi-ResponsiblePersonId");
+        request.Headers.Remove("X-Navi-ResponsiblePersonName");
+
+        if (_authSession.IsAuthenticated)
+        {
+            request.Headers.Add("X-Navi-User", Safe(_authSession.UserName));
+            request.Headers.Add("X-Navi-Role", Safe(_authSession.RoleName));
+            request.Headers.Add("X-Navi-Role-Code", Safe(_authSession.RoleCode));
+
+            var permissions = _authSession.Permissions ?? new List<string>();
+
+            request.Headers.Add(
+                "X-Navi-Permissions",
+                string.Join(";", permissions.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase)));
+
+            if (_authSession.BranchId.HasValue)
+            {
+                request.Headers.Add("X-Navi-BranchId", _authSession.BranchId.Value.ToString());
+            }
+
+            if (_authSession.ResponsiblePersonId.HasValue)
+            {
+                request.Headers.Add("X-Navi-ResponsiblePersonId", _authSession.ResponsiblePersonId.Value.ToString());
+            }
+
+            if (!string.IsNullOrWhiteSpace(_authSession.ResponsiblePersonName))
+            {
+                request.Headers.Add("X-Navi-ResponsiblePersonName", _authSession.ResponsiblePersonName);
+            }
+        }
+
+        return base.SendAsync(request, cancellationToken);
+    }
+
+    private static string Safe(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "N/A" : value;
+    }
+}

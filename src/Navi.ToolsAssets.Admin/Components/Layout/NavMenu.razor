@@ -1,104 +1,356 @@
-﻿<div class="navi-sidebar-brand">
-    <div class="navi-sidebar-logo">N</div>
-    <div>
-        <strong>Navitrans</strong>
-        <span>Fenix365 · Admin Console</span>
+﻿@rendermode InteractiveServer
+@implements IDisposable
+@using System.Text.Json
+@using Microsoft.JSInterop
+@using Navi.ToolsAssets.Admin.Services.Auth
+@inject WebAuthSessionService AuthSession
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<aside class="navi-sidebar-shell">
+    <div class="navi-brand">
+        <div class="navi-logo">N</div>
+        <div class="navi-brand-text">
+            <strong>NAVI Herramientas</strong>
+            <span>Fenix365 · Admin Console</span>
+        </div>
     </div>
-</div>
 
-<div class="nav-scrollable">
-    <nav class="flex-column navi-menu">
+    @if (!sessionChecked)
+    {
+        <div class="nav-auth-required">
+            <strong>Validando sesión</strong>
+            <span>Estamos verificando tu sesión local.</span>
+        </div>
+    }
+    else if (!AuthSession.IsAuthenticated)
+    {
+        <div class="nav-auth-required">
+            <strong>Sesión requerida</strong>
+            <span>Ingresa para ver los módulos disponibles.</span>
+            <a class="nav-login-link" href="login">Ingresar</a>
+        </div>
+    }
+    else
+    {
+        <div class="nav-user-card">
+            <div class="nav-user-left">
+                <div class="nav-avatar">@GetInitials()</div>
 
-        <div class="nav-section-title">Principal</div>
+                <div class="nav-user-info">
+                    <strong>@AuthSession.DisplayName</strong>
+                    <span>@AuthSession.RoleName · @AuthSession.BranchCode</span>
+                </div>
+            </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="dashboard">
-                Dashboard
-            </NavLink>
+            <button type="button" class="nav-logout-btn" @onclick="Logout">
+                Salir
+            </button>
         </div>
 
-        <div class="nav-section-title">Activos fijos</div>
+        <div class="nav-scrollable">
+            <nav class="nav-menu-list">
+                @if (Has("Dashboard.View"))
+                {
+                    <div class="nav-section-title">PRINCIPAL</div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="tools">
-                Inventario de AF
-            </NavLink>
+                    <div class="nav-item">
+                        <NavLink class="nav-link" href="dashboard" Match="NavLinkMatch.All">
+                            <span class="nav-icon">⌂</span>
+                            <span class="nav-text">Dashboard</span>
+                        </NavLink>
+                    </div>
+                }
+
+                @if (HasAny("Tools.View", "AssetAvailability.View", "AssetAssignment.View", "AssetAssignment.History", "TechnicalLifeRecord.View"))
+                {
+                    <div class="nav-section-title">ACTIVOS FIJOS</div>
+
+                    @if (Has("Tools.View"))
+                    {
+                        <div class="nav-item">
+                            <NavLink class="nav-link" href="tools">
+                                <span class="nav-icon">■</span>
+                                <span class="nav-text">Inventario de AF</span>
+                            </NavLink>
+                        </div>
+                    }
+
+                    @if (Has("AssetAvailability.View"))
+                    {
+                        <div class="nav-item">
+                            <NavLink class="nav-link" href="asset-availability">
+                                <span class="nav-icon">◆</span>
+                                <span class="nav-text">Disponible y Ubicación</span>
+                            </NavLink>
+                        </div>
+                    }
+
+                    @if (Has("AssetAssignment.View"))
+                    {
+                        <div class="nav-item">
+                            <NavLink class="nav-link" href="asset-assignment">
+                                <span class="nav-icon">⇄</span>
+                                <span class="nav-text">Asignar AF</span>
+                            </NavLink>
+                        </div>
+                    }
+
+                    @if (Has("AssetAssignment.History"))
+                    {
+                        <div class="nav-item">
+                            <NavLink class="nav-link" href="asset-assignment-history">
+                                <span class="nav-icon">◷</span>
+                                <span class="nav-text">Historial de asignaciones</span>
+                            </NavLink>
+                        </div>
+                    }
+
+                    @if (Has("TechnicalLifeRecord.View"))
+                    {
+                        <div class="nav-item">
+                            <NavLink class="nav-link" href="technical-life-records">
+                                <span class="nav-icon">▣</span>
+                                <span class="nav-text">Hoja de Vida del AF</span>
+                            </NavLink>
+                        </div>
+                    }
+                }
+
+                @if (HasAny("Purchases.View", "Purchases.Request", "Maintenance.View", "Maintenance.Request", "Maintenance.Execute", "Maintenance.Close"))
+                {
+                    <div class="nav-section-title">OPERACIONES</div>
+
+                    @if (HasAny("Purchases.View", "Purchases.Request"))
+                    {
+                        <div class="nav-item">
+                            <NavLink class="nav-link" href="mro-purchases">
+                                <span class="nav-icon">＋</span>
+                                <span class="nav-text">Solicitar Compra AF</span>
+                            </NavLink>
+                        </div>
+                    }
+
+                    @if (HasAny("Maintenance.View", "Maintenance.Request"))
+                    {
+                        <div class="nav-item">
+                            <NavLink class="nav-link" href="maintenance-request">
+                                <span class="nav-icon">⚒</span>
+                                <span class="nav-text">Solicitar Mantenimiento</span>
+                            </NavLink>
+                        </div>
+                    }
+
+                    @if (Has("Maintenance.View"))
+                    {
+                        <div class="nav-item">
+                            <NavLink class="nav-link" href="maintenance">
+                                <span class="nav-icon">☰</span>
+                                <span class="nav-text">Consultar Mantenimientos</span>
+                            </NavLink>
+                        </div>
+                    }
+
+                    @if (Has("Maintenance.View"))
+                    {
+                        <div class="nav-item">
+                            <NavLink class="nav-link" href="maintenance-plans">
+                                <span class="nav-icon">☑</span>
+                                <span class="nav-text">Planes de Mantenimiento</span>
+                            </NavLink>
+                        </div>
+                    }
+                }
+
+                @if (HasAny("PhysicalCounts.View", "Documents.View", "Reports.View", "Settings.View", "Security.Users", "Security.Roles"))
+                {
+                    <div class="nav-section-title">CONTROL</div>
+
+                    @if (Has("PhysicalCounts.View"))
+                    {
+                        <div class="nav-item">
+                            <NavLink class="nav-link" href="physical-counts">
+                                <span class="nav-icon">▦</span>
+                                <span class="nav-text">Tomas Físicas</span>
+                            </NavLink>
+                        </div>
+                    }
+
+                    @if (Has("PhysicalCounts.View"))
+                    {
+                        <div class="nav-item">
+                            <NavLink class="nav-link" href="reconciliation">
+                                <span class="nav-icon">⇄</span>
+                                <span class="nav-text">Conciliación</span>
+                            </NavLink>
+                        </div>
+                    }
+
+                    @if (Has("Documents.View"))
+                    {
+                        <div class="nav-item">
+                            <NavLink class="nav-link" href="documents">
+                                <span class="nav-icon">▧</span>
+                                <span class="nav-text">Documentos</span>
+                            </NavLink>
+                        </div>
+                    }
+
+                    @if (Has("Reports.View"))
+                    {
+                        <div class="nav-item">
+                            <NavLink class="nav-link" href="reports">
+                                <span class="nav-icon">■</span>
+                                <span class="nav-text">Reportes</span>
+                            </NavLink>
+                        </div>
+                    }
+
+                    @if (Has("Settings.View"))
+                    {
+                        <div class="nav-item">
+                            <NavLink class="nav-link" href="settings">
+                                <span class="nav-icon">⚙</span>
+                                <span class="nav-text">Configuración</span>
+                            </NavLink>
+                        </div>
+                    }
+
+                    @if (Has("Security.Users"))
+                    {
+                        <div class="nav-item">
+                            <NavLink class="nav-link" href="settings/users">
+                                <span class="nav-icon">♙</span>
+                                <span class="nav-text">Usuarios</span>
+                            </NavLink>
+                        </div>
+                    }
+
+                    @if (Has("Security.Roles"))
+                    {
+                        <div class="nav-item">
+                            <NavLink class="nav-link" href="settings/roles">
+                                <span class="nav-icon">🔐</span>
+                                <span class="nav-text">Roles y permisos</span>
+                            </NavLink>
+                        </div>
+                    }
+                }
+            </nav>
         </div>
+    }
+</aside>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="asset-availability">
-                Disponible y Ubicaci&oacute;n
-            </NavLink>
-        </div>
+@code {
+    private const string StorageKey = "navi-auth-session";
+    private bool sessionChecked;
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="asset-assignment">
-                Asignar AF
-            </NavLink>
-        </div>
+    protected override void OnInitialized()
+    {
+        AuthSession.OnChange += HandleAuthChanged;
+    }
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="technical-life-records">
-                Hoja de Vida del AF
-            </NavLink>
-        </div>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
 
-        <div class="nav-section-title">Operaciones</div>
+        try
+        {
+            if (!AuthSession.IsAuthenticated)
+            {
+                var json = await JS.InvokeAsync<string?>("localStorage.getItem", StorageKey);
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="purchases/mro">
-                Solicitar Compra AF
-            </NavLink>
-        </div>
+                if (!string.IsNullOrWhiteSpace(json))
+                {
+                    var user = JsonSerializer.Deserialize<AuthSessionUser>(
+                        json,
+                        new JsonSerializerOptions
+                        {
+                            PropertyNameCaseInsensitive = true
+                        });
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="maintenance-request">
-                Solicitar Mantenimiento
-            </NavLink>
-        </div>
+                    if (user is not null && !string.IsNullOrWhiteSpace(user.UserName))
+                    {
+                        AuthSession.Login(user);
+                    }
+                }
+            }
+        }
+        catch
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("localStorage.removeItem", StorageKey);
+            }
+            catch
+            {
+                // Ignorar error limpiando sesión.
+            }
+        }
+        finally
+        {
+            sessionChecked = true;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="maintenance">
-                Consultar Mantenimientos
-            </NavLink>
-        </div>
+    private bool Has(string permission)
+    {
+        return AuthSession.HasPermission(permission);
+    }
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="maintenance-plans">
-                Planes de Mantenimiento
-            </NavLink>
-        </div>
+    private bool HasAny(params string[] permissions)
+    {
+        return AuthSession.HasAnyPermission(permissions);
+    }
 
-        <div class="nav-section-title">Control</div>
+    private string GetInitials()
+    {
+        var value = string.IsNullOrWhiteSpace(AuthSession.DisplayName)
+            ? AuthSession.UserName
+            : AuthSession.DisplayName;
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="physical-counts">
-                Tomas F&iacute;sicas
-            </NavLink>
-        </div>
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "N";
+        }
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="documents">
-                Documentos
-            </NavLink>
-        </div>
+        var parts = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="reports">
-                Reportes
-            </NavLink>
-        </div>
+        if (parts.Length == 1)
+        {
+            return parts[0].Substring(0, Math.Min(2, parts[0].Length)).ToUpperInvariant();
+        }
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="settings">
-                Configuraci&oacute;n
-            </NavLink>
-        </div>
+        return $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant();
+    }
 
-    </nav>
-</div>
+    private async Task Logout()
+    {
+        AuthSession.Logout();
 
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.removeItem", StorageKey);
+        }
+        catch
+        {
+            // Ignorar error JS.
+        }
 
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
 
+    private void HandleAuthChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
 
-
+    public void Dispose()
+    {
+        AuthSession.OnChange -= HandleAuthChanged;
+    }
+}

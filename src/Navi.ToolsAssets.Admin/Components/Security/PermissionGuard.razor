@@ -1,0 +1,181 @@
+﻿@using System.Text.Json
+@using Microsoft.JSInterop
+@using Navi.ToolsAssets.Admin.Services.Auth
+@inject WebAuthSessionService AuthSession
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+@if (!sessionChecked)
+{
+    <section class="permission-state">
+        <div class="permission-card">
+            <span>SEGURIDAD</span>
+            <h3>Validando permisos...</h3>
+            <p>Estamos verificando tu sesión y los permisos del módulo.</p>
+        </div>
+    </section>
+}
+else if (!AuthSession.IsAuthenticated)
+{
+    <section class="permission-state">
+        <div class="permission-card">
+            <span>SESIÓN REQUERIDA</span>
+            <h3>Debes iniciar sesión</h3>
+            <p>Para acceder a este módulo primero debes ingresar al sistema.</p>
+
+            <button class="btn btn-primary" @onclick="@(() => Navigation.NavigateTo("/login", forceLoad: true))">
+                Ir al login
+            </button>
+        </div>
+    </section>
+}
+else if (!HasAccess)
+{
+    <section class="permission-state">
+        <div class="permission-card denied">
+            <span>ACCESO DENEGADO</span>
+            <h3>No tienes permisos para acceder</h3>
+            <p>
+                Tu rol actual no tiene permiso para ingresar al módulo
+                <strong>@ModuleName</strong>.
+            </p>
+
+            <div class="permission-detail">
+                Permiso requerido: <strong>@Permission</strong>
+            </div>
+
+            <button class="btn btn-outline-secondary" @onclick="@(() => Navigation.NavigateTo("/dashboard"))">
+                Volver al dashboard
+            </button>
+        </div>
+    </section>
+}
+else
+{
+    @ChildContent
+}
+
+<style>
+    .permission-state {
+        min-height: calc(100vh - 150px);
+        display: grid;
+        place-items: center;
+        padding: 1rem;
+    }
+
+    .permission-card {
+        width: min(520px, 100%);
+        background: #ffffff;
+        border: 1px solid #dfe3e8;
+        border-radius: 1rem;
+        padding: 1.35rem;
+        text-align: center;
+        box-shadow: 0 .65rem 1.5rem rgba(0,0,0,.08);
+    }
+
+    .permission-card span {
+        display: inline-flex;
+        border-radius: 999px;
+        background: #f3ecf7;
+        color: #4b005c;
+        padding: .2rem .7rem;
+        font-size: .7rem;
+        font-weight: 950;
+        margin-bottom: .65rem;
+    }
+
+    .permission-card.denied span {
+        background: #fff3cd;
+        color: #7a5200;
+    }
+
+    .permission-card h3 {
+        margin: 0;
+        color: #17111c;
+        font-size: 1.35rem;
+        font-weight: 950;
+    }
+
+    .permission-card p {
+        color: #657083;
+        font-size: .88rem;
+        line-height: 1.45;
+        margin: .55rem 0 1rem;
+    }
+
+    .permission-detail {
+        background: #f8fafc;
+        border: 1px solid #edf1f5;
+        border-radius: .65rem;
+        padding: .65rem;
+        margin-bottom: 1rem;
+        font-size: .78rem;
+        color: #657083;
+    }
+</style>
+
+@code {
+    private const string StorageKey = "navi-auth-session";
+
+    [Parameter]
+    public string Permission { get; set; } = string.Empty;
+
+    [Parameter]
+    public string ModuleName { get; set; } = "módulo";
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private bool sessionChecked;
+
+    private bool HasAccess =>
+        AuthSession.IsAuthenticated &&
+        AuthSession.HasPermission(Permission);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!AuthSession.IsAuthenticated)
+            {
+                var json = await JS.InvokeAsync<string?>("localStorage.getItem", StorageKey);
+
+                if (!string.IsNullOrWhiteSpace(json))
+                {
+                    var user = JsonSerializer.Deserialize<AuthSessionUser>(
+                        json,
+                        new JsonSerializerOptions
+                        {
+                            PropertyNameCaseInsensitive = true
+                        });
+
+                    if (user is not null && !string.IsNullOrWhiteSpace(user.UserName))
+                    {
+                        AuthSession.Login(user);
+                    }
+                }
+            }
+        }
+        catch
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("localStorage.removeItem", StorageKey);
+            }
+            catch
+            {
+                // Ignorar error JS.
+            }
+        }
+        finally
+        {
+            sessionChecked = true;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+}

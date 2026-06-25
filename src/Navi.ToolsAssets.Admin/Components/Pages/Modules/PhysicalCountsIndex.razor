@@ -1,43 +1,586 @@
 ﻿@page "/physical-counts"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@using Navi.ToolsAssets.Admin.Components.Security
+@using Navi.ToolsAssets.Admin.Services.Auth
+@inject IHttpClientFactory HttpClientFactory
+@inject WebAuthSessionService AuthSession
+@inject NavigationManager NavigationManager
 
-<PageTitle>Toma física</PageTitle>
+<PageTitle>Tomas Físicas</PageTitle>
 
-<div class="page-header">
+<PermissionGuard Permission="PhysicalCounts.View" ModuleName="Tomas Físicas">
+
+<section class="tf-hero">
     <div>
-        <h1>Toma física</h1>
-        <p>Conteos físicos por sede, zona, ubicación, responsable y herramienta.</p>
-    </div>
-</div>
-
-<section class="module-placeholder">
-    <div class="module-placeholder-badge">Inventario físico</div>
-
-    <h2>Módulo en construcción</h2>
-
-    <p>
-        Esta pantalla queda creada como punto de navegación del módulo <strong>Toma física</strong>.
-        El siguiente paso será conectar esta vista con API, reglas de negocio, permisos, reportes y flujos operativos.
-    </p>
-
-    <div class="module-placeholder-grid">
-        <div>
-            <span>Estado</span>
-            <strong>Pendiente desarrollo funcional</strong>
-        </div>
-
-        <div>
-            <span>Aplicación</span>
-            <strong>Web administrativa</strong>
-        </div>
-
-        <div>
-            <span>Orientación</span>
-            <strong>Administración de activos y herramientas</strong>
-        </div>
+        <span class="tf-pill">INVENTARIO · TOMA FÍSICA</span>
+        <h2>Tomas físicas</h2>
+        <p>Programa campañas, habilita inventario por sede y controla el avance por usuario desde escritorio y móvil.</p>
     </div>
 
-    <div class="module-placeholder-actions">
-        <a class="btn btn-outline-primary" href="/tools">Ir a inventario</a>
-        <a class="btn btn-outline-secondary" href="/">Ir a Dashboard</a>
+    <div class="tf-side">
+        <div class="tf-status-box">
+            <span>Total</span>
+            <strong>@counts.Count</strong>
+        </div>
+
+        <button class="tf-outline-btn" type="button" @onclick="LoadAsync">
+            Actualizar
+        </button>
     </div>
 </section>
+
+@if (!string.IsNullOrWhiteSpace(successMessage))
+{
+    <div class="alert alert-success">@successMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+<section class="tf-layout">
+    <article class="tf-form-card">
+        <h3>Programar toma física</h3>
+        <p>Crea una campaña por sede. Luego, en el detalle, generas participantes y activas la toma.</p>
+
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Sede</label>
+                <select class="form-select" @bind="newCount.BranchCode">
+                    <option value="">Seleccione...</option>
+                    @foreach (var branch in branches)
+                    {
+                        <option value="@branch.Code">@branch.Code - @branch.Name</option>
+                    }
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Responsable / creador</label>
+                <input class="form-control" @bind="newCount.ResponsibleBy" />
+            </div>
+
+            <div class="form-group full">
+                <label>Notas / alcance</label>
+                <textarea class="form-control" rows="3" @bind="newCount.Notes"></textarea>
+            </div>
+        </div>
+
+        <button class="btn btn-success w-100 mt-2" @onclick="CreateAsync">
+            Crear toma física
+        </button>
+    </article>
+
+    <article class="tf-list-card">
+        <div class="tf-card-title">
+            <div>
+                <h3>Campañas registradas</h3>
+                <p>Ingresa a cada toma para ver usuarios, avance, pendientes y conciliación.</p>
+            </div>
+
+            <input class="form-control tf-search"
+                   placeholder="Buscar toma, sede, responsable..."
+                   @bind="searchText"
+                   @bind:event="oninput" />
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="tf-empty">Cargando tomas físicas...</div>
+        }
+        else if (!FilteredCounts.Any())
+        {
+            <div class="tf-empty">No hay tomas físicas registradas.</div>
+        }
+        else
+        {
+            <div class="tf-table-wrapper">
+                <table class="tf-table">
+                    <thead>
+                        <tr>
+                            <th>Toma</th>
+                            <th>Sede</th>
+                            <th>Estado</th>
+                            <th>Fecha inicio</th>
+                            <th>Fecha cierre</th>
+                            <th>Responsable</th>
+                            <th>Herramientas</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in FilteredCounts)
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@item.CountNumber</strong>
+                                    <small>@item.Notes</small>
+                                </td>
+
+                                <td>
+                                    <strong>@item.BranchCode</strong>
+                                    <small>@item.BranchName</small>
+                                </td>
+
+                                <td>
+                                    <span class="@GetStatusClass(item.Status)">
+                                        @item.StatusLabel
+                                    </span>
+                                </td>
+
+                                <td>@FormatDate(item.StartedAt)</td>
+                                <td>@FormatDate(item.FinishedAt)</td>
+                                <td>@item.ResponsibleBy</td>
+
+                                <td>
+                                    <small>Total: @item.TotalItems</small>
+                                    <small>Encontradas: @item.FoundItems</small>
+                                    <small>Faltantes: @item.MissingItems</small>
+                                </td>
+
+                                <td>
+                                    <div class="row-actions">
+                                        <a class="btn btn-sm btn-primary" href="@($"/physical-counts/{item.Id}")">
+                                            Abrir detalle
+                                        </a>
+
+                                        <button class="btn btn-sm btn-outline-success" @onclick="() => StartAsync(item.Id)">
+                                            Iniciar
+                                        </button>
+
+                                        <button class="btn btn-sm btn-outline-dark" @onclick="() => CompleteAsync(item.Id)">
+                                            Cerrar
+                                        </button>
+
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => CancelAsync(item.Id)">
+                                            Cancelar
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </article>
+</section>
+
+</PermissionGuard>
+
+<style>
+    .tf-hero {
+        margin-bottom: .8rem;
+        padding: 1rem 1.15rem;
+        border-radius: 1rem;
+        background: radial-gradient(circle at top right, rgba(255,255,255,.16), transparent 34%),
+            linear-gradient(135deg, #100015 0%, #4b005c 58%, #7b0d8e 100%);
+        color: white;
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        box-shadow: 0 .65rem 1.5rem rgba(75,0,92,.22);
+    }
+
+    .tf-pill {
+        display: inline-flex;
+        padding: .18rem .6rem;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,.35);
+        background: rgba(255,255,255,.10);
+        font-size: .68rem;
+        font-weight: 950;
+    }
+
+    .tf-hero h2 {
+        margin: .45rem 0 .2rem;
+        font-size: 1.55rem;
+        font-weight: 950;
+    }
+
+    .tf-hero p {
+        margin: 0;
+        color: rgba(255,255,255,.88);
+    }
+
+    .tf-side {
+        display: flex;
+        flex-direction: column;
+        gap: .5rem;
+        min-width: 190px;
+        align-items: flex-end;
+    }
+
+    .tf-status-box {
+        width: 190px;
+        padding: .65rem .85rem;
+        border-radius: .85rem;
+        background: rgba(255,255,255,.12);
+        text-align: right;
+    }
+
+    .tf-status-box span {
+        display: block;
+        color: #ffdd57;
+        font-size: .72rem;
+        font-weight: 950;
+    }
+
+    .tf-outline-btn {
+        width: 190px;
+        min-height: 34px;
+        border-radius: .55rem;
+        border: 1px solid rgba(255,255,255,.7);
+        background: rgba(255,255,255,.06);
+        color: white;
+        font-weight: 950;
+    }
+
+    .tf-layout {
+        display: grid;
+        grid-template-columns: 360px minmax(0, 1fr);
+        gap: .8rem;
+        align-items: start;
+    }
+
+    .tf-form-card,
+    .tf-list-card {
+        background: white;
+        border: 1px solid #dfe3e8;
+        border-radius: .95rem;
+        padding: .9rem;
+        box-shadow: 0 .35rem .9rem rgba(0,0,0,.04);
+    }
+
+    .tf-form-card h3,
+    .tf-card-title h3 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 950;
+    }
+
+    .tf-form-card p,
+    .tf-card-title p {
+        margin: .1rem 0 .7rem;
+        color: #657083;
+        font-size: .78rem;
+    }
+
+    .form-grid {
+        display: grid;
+        gap: .55rem;
+    }
+
+    .form-group label {
+        display: block;
+        font-size: .72rem;
+        font-weight: 900;
+        color: #526071;
+        margin-bottom: .25rem;
+    }
+
+    .tf-card-title {
+        display: flex;
+        justify-content: space-between;
+        gap: .75rem;
+        align-items: flex-start;
+        margin-bottom: .7rem;
+    }
+
+    .tf-search {
+        max-width: 340px;
+    }
+
+    .tf-table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    .tf-table {
+        width: 100%;
+        min-width: 950px;
+        table-layout: fixed;
+        border-collapse: collapse;
+        font-size: .72rem;
+    }
+
+    .tf-table th {
+        border-bottom: 1px solid #17111c;
+        padding: .42rem .35rem;
+        font-size: .63rem;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .tf-table td {
+        border-bottom: 1px solid #e5e8ef;
+        padding: .45rem .35rem;
+        vertical-align: middle;
+    }
+
+    .tf-table td strong,
+    .tf-table td small {
+        display: block;
+        line-height: 1.2;
+    }
+
+    .tf-table td small {
+        color: #657083;
+        font-size: .64rem;
+    }
+
+    .tf-status {
+        display: inline-flex;
+        border-radius: 999px;
+        padding: .18rem .42rem;
+        font-size: .65rem;
+        font-weight: 950;
+        white-space: nowrap;
+    }
+
+    .tf-status.draft { background: #f8f9fa; color: #495057; }
+    .tf-status.progress { background: #cff4fc; color: #055160; }
+    .tf-status.completed { background: #d1e7dd; color: #0f5132; }
+    .tf-status.cancelled { background: #f8d7da; color: #842029; }
+
+    .row-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .28rem;
+    }
+
+    .row-actions .btn {
+        font-size: .68rem;
+        padding: .22rem .42rem;
+        min-height: 27px;
+    }
+
+    .tf-empty {
+        padding: .9rem;
+        border-radius: .75rem;
+        background: #f8fafc;
+        color: #526071;
+        font-weight: 850;
+    }
+
+    @@media (max-width: 1200px) {
+        .tf-layout,
+        .tf-hero,
+        .tf-card-title {
+            grid-template-columns: 1fr;
+            flex-direction: column;
+        }
+
+        .tf-side,
+        .tf-status-box,
+        .tf-outline-btn {
+            width: 100%;
+            align-items: stretch;
+        }
+    }
+</style>
+
+@code {
+    private List<PhysicalCountItem> counts = new();
+    private List<BranchOption> branches = new();
+    private CreatePhysicalCountRequest newCount = new();
+    private bool isLoading;
+    private string searchText = string.Empty;
+    private string? successMessage;
+    private string? errorMessage;
+
+    private IEnumerable<PhysicalCountItem> FilteredCounts =>
+        counts.Where(x => string.IsNullOrWhiteSpace(searchText) ||
+                          Contains(x.CountNumber, searchText) ||
+                          Contains(x.BranchCode, searchText) ||
+                          Contains(x.BranchName, searchText) ||
+                          Contains(x.ResponsibleBy, searchText));
+
+    protected override async Task OnInitializedAsync()
+    {
+        newCount.ResponsibleBy = string.IsNullOrWhiteSpace(AuthSession.UserName) ? "admin" : AuthSession.UserName;
+        await LoadBranchesAsync();
+        await LoadAsync();
+    }
+
+    private HttpClient CreateApiClient()
+    {
+        var api = HttpClientFactory.CreateClient("NaviApi");
+
+        api.DefaultRequestHeaders.Remove("X-Navi-User");
+        api.DefaultRequestHeaders.Remove("X-Navi-Role");
+        api.DefaultRequestHeaders.Remove("X-Navi-Role-Code");
+        api.DefaultRequestHeaders.Remove("X-Navi-Permissions");
+
+        api.DefaultRequestHeaders.Add("X-Navi-User", string.IsNullOrWhiteSpace(AuthSession.UserName) ? "admin" : AuthSession.UserName);
+        api.DefaultRequestHeaders.Add("X-Navi-Role", string.IsNullOrWhiteSpace(AuthSession.RoleName) ? "Administrador" : AuthSession.RoleName);
+        api.DefaultRequestHeaders.Add("X-Navi-Role-Code", string.IsNullOrWhiteSpace(AuthSession.RoleCode) ? "ADMIN" : AuthSession.RoleCode);
+        api.DefaultRequestHeaders.Add("X-Navi-Permissions", string.Join(";", AuthSession.Permissions ?? new List<string>()));
+
+        return api;
+    }
+
+    private async Task LoadBranchesAsync()
+    {
+        try
+        {
+            var api = CreateApiClient();
+            branches = await api.GetFromJsonAsync<List<BranchOption>>("api/settings/branches") ?? new();
+        }
+        catch
+        {
+            branches = new();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var api = CreateApiClient();
+            counts = await api.GetFromJsonAsync<List<PhysicalCountItem>>("api/physical-counts") ?? new();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudieron cargar las tomas físicas: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        successMessage = null;
+        errorMessage = null;
+
+        if (string.IsNullOrWhiteSpace(newCount.BranchCode))
+        {
+            errorMessage = "Seleccione una sede.";
+            return;
+        }
+
+        try
+        {
+            var api = CreateApiClient();
+            var response = await api.PostAsJsonAsync("api/physical-counts", newCount);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                errorMessage = await response.Content.ReadAsStringAsync();
+                return;
+            }
+
+            successMessage = "Toma física creada correctamente.";
+            newCount = new CreatePhysicalCountRequest
+            {
+                ResponsibleBy = string.IsNullOrWhiteSpace(AuthSession.UserName) ? "admin" : AuthSession.UserName
+            };
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private async Task StartAsync(Guid id)
+    {
+        await PatchAsync($"api/physical-counts/{id}/start", "Toma física iniciada.");
+    }
+
+    private async Task CompleteAsync(Guid id)
+    {
+        await PatchAsync($"api/physical-counts/{id}/complete", "Toma física cerrada.");
+    }
+
+    private async Task CancelAsync(Guid id)
+    {
+        await PatchAsync($"api/physical-counts/{id}/cancel", "Toma física cancelada.");
+    }
+
+    private async Task PatchAsync(string endpoint, string success)
+    {
+        successMessage = null;
+        errorMessage = null;
+
+        try
+        {
+            var api = CreateApiClient();
+            var response = await api.PatchAsJsonAsync(endpoint, new
+            {
+                ActionBy = AuthSession.UserName ?? "admin",
+                Notes = success
+            });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                errorMessage = await response.Content.ReadAsStringAsync();
+                return;
+            }
+
+            successMessage = success;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private static bool Contains(string? value, string search) =>
+        !string.IsNullOrWhiteSpace(value) &&
+        value.Contains(search.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    private static string FormatDate(DateTime? value) =>
+        value.HasValue ? value.Value.ToString("dd/MM/yyyy HH:mm") : "—";
+
+    private static string GetStatusClass(string status) => status switch
+    {
+        "Draft" => "tf-status draft",
+        "InProgress" => "tf-status progress",
+        "Completed" => "tf-status completed",
+        "Reconciled" => "tf-status completed",
+        "Cancelled" => "tf-status cancelled",
+        _ => "tf-status draft"
+    };
+
+    private sealed class PhysicalCountItem
+    {
+        public Guid Id { get; set; }
+        public string CountNumber { get; set; } = string.Empty;
+        public Guid BranchId { get; set; }
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public string StatusLabel { get; set; } = string.Empty;
+        public DateTime StartedAt { get; set; }
+        public DateTime? FinishedAt { get; set; }
+        public string? ResponsibleBy { get; set; }
+        public string? Notes { get; set; }
+        public int TotalItems { get; set; }
+        public int FoundItems { get; set; }
+        public int MissingItems { get; set; }
+    }
+
+    private sealed class BranchOption
+    {
+        public Guid Id { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class CreatePhysicalCountRequest
+    {
+        public string? BranchCode { get; set; }
+        public string? ResponsibleBy { get; set; }
+        public string? Notes { get; set; }
+    }
+}

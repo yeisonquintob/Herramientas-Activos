@@ -1,0 +1,239 @@
+﻿@namespace Navi.ToolsAssets.Admin.Components.Shared
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpClientFactory
+
+<section class="maintenance-dashboard-panel">
+    <div class="maintenance-dashboard-title">
+        <div>
+            <span>CONTROL DE MANTENIMIENTO</span>
+            <h3>Estado operativo de mantenimientos</h3>
+            <p>Solicitudes abiertas, críticas, ejecución y vencimientos de planes.</p>
+        </div>
+
+        <div class="maintenance-dashboard-actions">
+            <a class="btn btn-sm btn-outline-primary" href="/maintenance">Consultar</a>
+            <a class="btn btn-sm btn-outline-secondary" href="/maintenance-plans">Planes</a>
+            <a class="btn btn-sm btn-success" href="/maintenance-request">Solicitar</a>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-warning">@errorMessage</div>
+    }
+    else if (isLoading && summary is null)
+    {
+        <div class="alert alert-info">Cargando indicadores de mantenimiento...</div>
+    }
+    else if (summary is not null)
+    {
+        <div class="maintenance-dashboard-grid">
+            <article class="maintenance-dashboard-card warning">
+                <span>En revisión</span>
+                <strong>@summary.InReviewRequests</strong>
+                <small>Solicitudes por aprobar</small>
+            </article>
+
+            <article class="maintenance-dashboard-card success">
+                <span>Aprobadas</span>
+                <strong>@summary.ApprovedRequests</strong>
+                <small>Pendientes por programar</small>
+            </article>
+
+            <article class="maintenance-dashboard-card info">
+                <span>En ejecución</span>
+                <strong>@summary.InExecutionRequests</strong>
+                <small>Trabajos activos</small>
+            </article>
+
+            <article class="maintenance-dashboard-card danger">
+                <span>Críticas</span>
+                <strong>@summary.CriticalRequests</strong>
+                <small>Riesgo operativo / SSTA</small>
+            </article>
+
+            <article class="maintenance-dashboard-card danger">
+                <span>Planes vencidos</span>
+                <strong>@summary.OverduePlans</strong>
+                <small>Requieren atención</small>
+            </article>
+
+            <article class="maintenance-dashboard-card warning">
+                <span>Por vencer</span>
+                <strong>@summary.DueSoonPlans</strong>
+                <small>Próximos 30 días</small>
+            </article>
+
+            <article class="maintenance-dashboard-card purple">
+                <span>Cerradas</span>
+                <strong>@summary.ClosedRequests</strong>
+                <small>Finalizadas</small>
+            </article>
+
+            <article class="maintenance-dashboard-card">
+                <span>Registros cronograma</span>
+                <strong>@summary.TotalMaintenanceRecords</strong>
+                <small>Hoja de vida / mantenimiento</small>
+            </article>
+        </div>
+    }
+</section>
+
+<style>
+    .maintenance-dashboard-panel {
+        margin: .8rem 0 1rem;
+        padding: .95rem;
+        border: 1px solid #dfe3e8;
+        border-radius: 1rem;
+        background: #ffffff;
+        box-shadow: 0 .35rem .9rem rgba(0,0,0,.04);
+    }
+
+    .maintenance-dashboard-title {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: flex-start;
+        margin-bottom: .75rem;
+    }
+
+    .maintenance-dashboard-title span {
+        display: inline-flex;
+        font-size: .68rem;
+        font-weight: 950;
+        color: #7b0d8e;
+        letter-spacing: .03em;
+    }
+
+    .maintenance-dashboard-title h3 {
+        margin: .2rem 0;
+        font-size: 1.05rem;
+        font-weight: 950;
+        color: #111827;
+    }
+
+    .maintenance-dashboard-title p {
+        margin: 0;
+        color: #657083;
+        font-size: .78rem;
+    }
+
+    .maintenance-dashboard-actions {
+        display: flex;
+        gap: .35rem;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .maintenance-dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(8, minmax(110px, 1fr));
+        gap: .55rem;
+    }
+
+    .maintenance-dashboard-card {
+        padding: .65rem;
+        border: 1px solid #e5e8ef;
+        border-left: 4px solid #0d6efd;
+        border-radius: .75rem;
+        background: #fafbff;
+    }
+
+    .maintenance-dashboard-card.warning { border-left-color: #ffc107; }
+    .maintenance-dashboard-card.success { border-left-color: #198754; }
+    .maintenance-dashboard-card.info { border-left-color: #0dcaf0; }
+    .maintenance-dashboard-card.danger { border-left-color: #dc3545; }
+    .maintenance-dashboard-card.purple { border-left-color: #7b0d8e; }
+
+    .maintenance-dashboard-card span {
+        display: block;
+        font-size: .62rem;
+        font-weight: 950;
+        color: #526071;
+        text-transform: uppercase;
+    }
+
+    .maintenance-dashboard-card strong {
+        display: block;
+        font-size: 1.35rem;
+        font-weight: 950;
+        color: #06111f;
+        line-height: 1.1;
+    }
+
+    .maintenance-dashboard-card small {
+        color: #657083;
+        font-size: .68rem;
+        line-height: 1.1;
+    }
+
+    @@media (max-width: 1400px) {
+        .maintenance-dashboard-grid {
+            grid-template-columns: repeat(4, minmax(130px, 1fr));
+        }
+    }
+
+    @@media (max-width: 800px) {
+        .maintenance-dashboard-title {
+            flex-direction: column;
+        }
+
+        .maintenance-dashboard-grid {
+            grid-template-columns: repeat(2, minmax(130px, 1fr));
+        }
+    }
+</style>
+
+@code {
+    private MaintenanceDashboardSummary? summary;
+    private bool isLoading;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var api = HttpClientFactory.CreateClient("NaviApi");
+            summary = await api.GetFromJsonAsync<MaintenanceDashboardSummary>("api/maintenance-requests/dashboard-summary");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudieron cargar los indicadores de mantenimiento: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private sealed class MaintenanceDashboardSummary
+    {
+        public int TotalRequests { get; set; }
+        public int DraftRequests { get; set; }
+        public int InReviewRequests { get; set; }
+        public int ApprovedRequests { get; set; }
+        public int ScheduledRequests { get; set; }
+        public int InExecutionRequests { get; set; }
+        public int ClosedRequests { get; set; }
+        public int RejectedRequests { get; set; }
+        public int CanceledRequests { get; set; }
+        public int OpenRequests { get; set; }
+        public int CriticalRequests { get; set; }
+        public int LinkedToAssetRequests { get; set; }
+        public int ClosedLinkedToSchedule { get; set; }
+        public int TotalMaintenanceRecords { get; set; }
+        public int OverduePlans { get; set; }
+        public int DueSoonPlans { get; set; }
+        public int OnTimePlans { get; set; }
+        public DateTime GeneratedAt { get; set; }
+    }
+}

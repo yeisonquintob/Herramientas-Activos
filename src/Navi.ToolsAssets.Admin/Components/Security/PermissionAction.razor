@@ -1,0 +1,75 @@
+﻿@using Navi.ToolsAssets.Admin.Services.Auth
+@inject WebAuthSessionService AuthSession
+
+@if (CanShow)
+{
+    @ChildContent
+}
+else if (ShowDenied)
+{
+    <span class="permission-action-denied" title="@DeniedTitle">
+        @DeniedText
+    </span>
+}
+
+<style>
+    .permission-action-denied {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 28px;
+        border-radius: 999px;
+        padding: 0 .65rem;
+        background: #f3ecf7;
+        color: #4b005c;
+        border: 1px solid #ead7f0;
+        font-size: .72rem;
+        font-weight: 950;
+        white-space: nowrap;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public string? Permission { get; set; }
+
+    [Parameter]
+    public string[] AnyOf { get; set; } = Array.Empty<string>();
+
+    [Parameter]
+    public bool ShowDenied { get; set; }
+
+    [Parameter]
+    public string DeniedText { get; set; } = "Sin permiso";
+
+    [Parameter]
+    public string DeniedTitle { get; set; } = "No tienes permiso para ejecutar esta acción.";
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private bool CanShow
+    {
+        get
+        {
+            if (!AuthSession.IsAuthenticated)
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(Permission) &&
+                AuthSession.HasPermission(Permission))
+            {
+                return true;
+            }
+
+            if (AnyOf.Length > 0 &&
+                AuthSession.HasAnyPermission(AnyOf))
+            {
+                return true;
+            }
+
+            return false;
+        }
+    }
+}

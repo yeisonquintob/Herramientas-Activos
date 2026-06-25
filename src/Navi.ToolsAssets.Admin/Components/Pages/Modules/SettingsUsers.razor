@@ -1,6 +1,8 @@
 ﻿@page "/settings/users"
 @rendermode InteractiveServer
+@using Navi.ToolsAssets.Admin.Services.Auth
 @inject IHttpClientFactory HttpClientFactory
+@inject WebAuthSessionService AuthSession
 
 <PageTitle>Usuarios - Configuración</PageTitle>
 
@@ -32,32 +34,32 @@
 
             <div class="mb-3">
                 <label class="form-label">Usuario</label>
-                <InputText class="form-control" @bind-Value="formModel.UserName" placeholder="admin, tecnico, auditor" />
+                <InputText class="form-control" @bind-Value="formModel.UserName" placeholder="admin, tecnico, auditor" disabled="@(!CanManageUsers)" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Nombre completo</label>
-                <InputText class="form-control" @bind-Value="formModel.DisplayName" />
+                <InputText class="form-control" @bind-Value="formModel.DisplayName" disabled="@(!CanManageUsers)" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Correo</label>
-                <InputText class="form-control" @bind-Value="formModel.Email" />
+                <InputText class="form-control" @bind-Value="formModel.Email" disabled="@(!CanManageUsers)" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Cargo</label>
-                <InputText class="form-control" @bind-Value="formModel.Position" />
+                <InputText class="form-control" @bind-Value="formModel.Position" disabled="@(!CanManageUsers)" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Área</label>
-                <InputText class="form-control" @bind-Value="formModel.Area" />
+                <InputText class="form-control" @bind-Value="formModel.Area" disabled="@(!CanManageUsers)" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Rol</label>
-                <InputSelect class="form-select" @bind-Value="formModel.AppRoleId">
+                <InputSelect class="form-select" @bind-Value="formModel.AppRoleId" disabled="@(!CanManageUsers)">
                     <option value="">Seleccione rol</option>
                     @foreach (var role in roles)
                     {
@@ -68,7 +70,7 @@
 
             <div class="mb-3">
                 <label class="form-label">Sede</label>
-                <InputSelect class="form-select" @bind-Value="formModel.BranchId">
+                <InputSelect class="form-select" @bind-Value="formModel.BranchId" disabled="@(!CanManageUsers)">
                     <option value="">Todas / Sin sede</option>
                     @foreach (var branch in branches)
                     {
@@ -78,7 +80,7 @@
             </div>
 
             <div class="form-check mb-3">
-                <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive" />
+                <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive" disabled="@(!CanManageUsers)" />
                 <label class="form-check-label">Activo</label>
             </div>
 
@@ -88,7 +90,14 @@
             }
 
             <div class="settings-crud-actions">
-                <button class="btn btn-primary" type="submit">Guardar</button>
+                @if (CanManageUsers)
+                {
+                    <button class="btn btn-primary" type="submit">Guardar</button>
+                }
+                else
+                {
+                    <span class="permission-action-denied">Solo consulta</span>
+                }
                 <button class="btn btn-outline-secondary" type="button" @onclick="ClearForm">Limpiar</button>
             </div>
         </EditForm>
@@ -138,8 +147,14 @@
                                 </span>
                             </td>
                             <td class="text-end">
-                                <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(user)">Editar</button>
-                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(user.Id)">Eliminar</button>
+                                @if (CanManageUsers)
+                                    {
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(user)">Editar</button>
+                                    }
+                                @if (CanManageUsers)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(user.Id)">Eliminar</button>
+                                    }
                             </td>
                         </tr>
                     }
@@ -150,6 +165,8 @@
 </section>
 
 @code {
+    private bool CanManageUsers => AuthSession.HasPermission("Security.Users");
+
     private HttpClient Api => HttpClientFactory.CreateClient("NaviApi");
 
     private List<UserDto> users = new();
@@ -444,3 +461,4 @@
         }
     }
 </style>
+

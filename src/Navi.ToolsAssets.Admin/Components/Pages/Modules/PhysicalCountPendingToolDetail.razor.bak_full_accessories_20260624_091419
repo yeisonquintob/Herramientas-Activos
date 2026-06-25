@@ -1,0 +1,1502 @@
+﻿@page "/physical-counts/{CountId:guid}/participants/{ParticipantId:guid}/pending-tools/{ToolAssetId:guid}"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@using System.Text.Json
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Net.Http.Headers
+@using Navi.ToolsAssets.Admin.Components.Security
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Validar herramienta asignada</PageTitle>
+
+<PermissionGuard Permission="PhysicalCounts.View" ModuleName="Validar herramienta asignada">
+
+<section class="validation-hero @(IsRejectMode ? "reject-mode" : "confirm-mode")">
+    <div>
+        <span>@(IsRejectMode ? "RECHAZAR HERRAMIENTA ASIGNADA" : "VALIDAR HERRAMIENTA ASIGNADA")</span>
+        <h1>@Display(tool?.Name)</h1>
+        <p>
+            @if (IsRejectMode)
+            {
+                <text>La herramienta aparece asignada al usuario, pero el usuario indica que no la tiene físicamente. Este caso queda para conciliación.</text>
+            }
+            else
+            {
+                <text>El usuario valida su inventario físico: confirma ubicación, estado, comentario y evidencia.</text>
+            }
+        </p>
+    </div>
+
+    <div class="hero-actions">
+        <button class="btn btn-light" @onclick="GoBack">Volver a la toma</button>
+        <a class="btn btn-outline-light" href="@($"/tools/{ToolAssetId}")">Ver activo</a>
+        <a class="btn btn-outline-light" href="@($"/tools/{ToolAssetId}/technical-life-record")">Hoja de vida</a>
+    </div>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(successMessage))
+{
+    <div class="alert alert-success">@successMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+@if (isLoading)
+{
+    <div class="validation-card">Cargando información del activo y hoja de vida.</div>
+}
+else if (tool is null)
+{
+    <div class="alert alert-warning">
+        No se encontró la herramienta pendiente. Vuelve a la toma física y abre nuevamente el detalle.
+    </div>
+}
+else
+{
+    <section class="validation-two-columns">
+
+        <section class="validation-left-column">
+
+            <article class="validation-card edit-zone">
+                <div class="zone-title">
+                    <span class="zone-badge green">MODIFICABLE</span>
+                    <div>
+                        <h2>Validación permitida por el usuario</h2>
+                        <p>Solo estos campos pueden cambiar durante la toma física.</p>
+                    </div>
+                </div>
+
+                <label class="form-label">Ubicación encontrada</label>
+                <select class="form-select" @bind="form.LocationId" disabled="@IsRejectMode">
+                    <option value="">Seleccione ubicación...</option>
+                    @foreach (var location in locations)
+                    {
+                        <option value="@location.Id">@location.DisplayName</option>
+                    }
+                </select>
+
+                <label class="form-label mt-2">Estado físico observado</label>
+                <select class="form-select" @bind="form.PhysicalStatus" disabled="@IsRejectMode">
+                    <option value="Good">Bueno</option>
+                    <option value="Damaged">Dañado</option>
+                    <option value="Lost">No localizado</option>
+                    <option value="NotSuitable">No apto</option>
+                </select>
+
+                <label class="form-label mt-2">Estado operativo observado</label>
+                <select class="form-select" @bind="form.OperationalStatus" disabled="@IsRejectMode">
+                    <option value="Available">Disponible</option>
+                    <option value="Assigned">Asignado</option>
+                    <option value="InUse">En uso</option>
+                    <option value="Maintenance">En mantenimiento</option>
+                    <option value="OutOfService">Fuera de servicio</option>
+                    <option value="PendingValidation">Pendiente validación</option>
+                </select>
+
+                <label class="form-label mt-2">
+                    @(IsRejectMode ? "Comentario del rechazo" : "Comentario de validación")
+                </label>
+                <textarea class="form-control"
+                          rows="6"
+                          @bind="form.Observation"
+                          placeholder="@ObservationPlaceholder"></textarea>
+
+                @if (IsRejectMode)
+                {
+                    <div class="reject-warning">
+                        Esta acción no elimina el activo. Lo deja como <strong>Pendiente conciliación</strong> para revisar trazabilidad, reasignación, bodega, baja o corrección administrativa.
+                    </div>
+                }
+            </article>
+
+            <article class="validation-card evidence-zone">
+                <div class="zone-title">
+                    <span class="zone-badge blue">EVIDENCIA</span>
+                    <div>
+                        <h2>Evidencia de toma física</h2>
+                        <p>El usuario puede agregar evidencias nuevas, pero no eliminar documentos existentes.</p>
+                    </div>
+                </div>
+
+                <label class="form-label">Agregar evidencia nueva</label>
+                <InputFile OnChange="OnEvidenceSelected" />
+
+                @if (selectedEvidence is not null)
+                {
+                    <div class="selected-file">
+                        Archivo seleccionado: <strong>@selectedEvidence.Name</strong>
+                    </div>
+                }
+
+                <label class="form-label mt-2">Descripción de la evidencia</label>
+                <input class="form-control" @bind="form.EvidenceDescription" placeholder="Ej: Foto tomada durante validación física." />
+
+                <hr />
+
+                <h3>Evidencias y documentos existentes</h3>
+
+                @if (documents.Count == 0)
+                {
+                    <div class="empty-box">No hay evidencias o documentos cargados para este activo.</div>
+                }
+                else
+                {
+                    <div class="documents-list">
+                        @foreach (var document in documents)
+                        {
+                            <div class="document-item">
+                                <div>
+                                    <strong>@Display(document.FileName)</strong>
+                                    <span>@Display(document.DocumentType) · @Display(document.UploadedBy) · @FormatDate(document.UploadedAt)</span>
+                                    <small>@Display(document.Description)</small>
+                                </div>
+
+                                <a class="btn btn-sm btn-outline-primary" href="@GetDocumentUrl(document)" target="_blank">
+                                    Ver / Descargar
+                                </a>
+                            </div>
+                        }
+                    </div>
+                }
+            </article>
+
+            
+
+
+            
+
+            
+
+            
+
+            <article class="validation-card edit-zone compact-card accessories-user-zone">
+                <div class="zone-title">
+                    <span class="zone-badge green">VERIFICABLE</span>
+                    <div>
+                        <h2>Accesorios del equipo</h2>
+                        <p>Verifica físicamente los accesorios asociados. Puedes agregar observación, cantidad encontrada y estado, sin eliminar accesorios.</p>
+                    </div>
+                </div>
+
+                @if (accessoryValidations.Count > 0)
+                {
+                    <div class="accessory-check-list">
+                        @foreach (var accessory in accessoryValidations)
+                        {
+                            <div class="accessory-validation-item">
+                                <div class="accessory-title-row">
+                                    <div>
+                                        <strong>@Display(accessory.Name)</strong>
+                                        <span>Cantidad esperada: @accessory.QuantityExpected.ToString("N2")</span>
+                                    </div>
+
+                                    <label class="accessory-present-check">
+                                        <input type="checkbox" @bind="accessory.IsPresent" />
+                                        Presente
+                                    </label>
+                                </div>
+
+                                <div class="accessory-fields">
+                                    <div>
+                                        <label>Cantidad encontrada</label>
+                                        <input type="number"
+                                               step="0.01"
+                                               class="form-control form-control-sm"
+                                               @bind="accessory.QuantityFound" />
+                                    </div>
+
+                                    <div>
+                                        <label>Estado observado</label>
+                                        <select class="form-select form-select-sm" @bind="accessory.Status">
+                                            <option value="Good">Bueno</option>
+                                            <option value="Damaged">Dañado</option>
+                                            <option value="Missing">Faltante</option>
+                                            <option value="NotApplicable">No aplica</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <label class="accessory-observation-label">Observación del accesorio</label>
+                                <textarea class="form-control form-control-sm"
+                                          rows="2"
+                                          @bind="accessory.Observation"
+                                          placeholder="Ej: Accesorio presente, en buen estado, sin novedad."></textarea>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="empty-box">No hay accesorios registrados para este activo.</div>
+                }
+            </article>
+<article class="validation-card actions-zone">
+                <div>
+                    <h2>Finalizar validación</h2>
+                    <p>
+                        @if (IsRejectMode)
+                        {
+                            <text>Rechazar enviará este activo a pendiente de conciliación.</text>
+                        }
+                        else
+                        {
+                            <text>Confirmar guardará la validación, actualizará los campos permitidos y registrará evidencia si adjuntaste archivo.</text>
+                        }
+                    </p>
+                </div>
+
+                <div class="final-actions">
+                    @if (IsRejectMode)
+                    {
+                        <button class="btn btn-danger" disabled="@isSaving" @onclick="RejectToolAsync">
+                            Rechazar / No es mía
+                        </button>
+
+                        <a class="btn btn-outline-primary"
+                           href="@($"/physical-counts/{CountId}/participants/{ParticipantId}/pending-tools/{ToolAssetId}")">
+                            Cambiar a confirmar
+                        </a>
+                    }
+                    else
+                    {
+                        <button class="btn btn-success" disabled="@isSaving" @onclick="ConfirmToolAsync">
+                            Confirmar / Reportar correcto
+                        </button>
+
+                        <a class="btn btn-outline-danger"
+                           href="@($"/physical-counts/{CountId}/participants/{ParticipantId}/pending-tools/{ToolAssetId}?mode=reject")">
+                            Cambiar a rechazar
+                        </a>
+                    }
+
+                    <button class="btn btn-outline-secondary" disabled="@isSaving" @onclick="GoBack">
+                        Cancelar
+                    </button>
+                </div>
+            </article>
+
+        </section>
+
+        <section class="validation-right-column">
+<article class="validation-card info-zone compact-card">
+                <div class="zone-title">
+                    <span class="zone-badge red">INFORMATIVO</span>
+                    <div>
+                        <h2>Información base del activo</h2>
+                        <p>Solo lectura para el usuario.</p>
+                    </div>
+                </div>
+
+                <div class="info-grid compact">
+                    <div><span>Código interno</span><strong>@Display(tool.InternalCode)</strong></div>
+                    <div><span>Nombre</span><strong>@Display(tool.Name)</strong></div>
+                    <div><span>Serial</span><strong>@Display(tool.SerialNumber)</strong></div>
+                    <div><span>Activo fijo</span><strong>@Display(tool.FixedAssetCode)</strong></div>
+                    <div><span>Código Fenix365</span><strong>@Display(tool.FenixCode)</strong></div>
+                    <div><span>Marca</span><strong>@Display(tool.Brand)</strong></div>
+                    <div><span>Modelo</span><strong>@Display(tool.Model)</strong></div>
+                    <div><span>Tipo</span><strong>@Display(tool.ToolTypeName)</strong></div>
+                    <div><span>Categoría</span><strong>@Display(tool.ToolCategoryName)</strong></div>
+                    <div><span>Responsable actual</span><strong>@Display(tool.ResponsiblePersonName)</strong></div>
+                    <div><span>Sede actual</span><strong>@Display(tool.BranchCode)</strong></div>
+                    <div><span>Ubicación actual</span><strong>@Display(tool.LocationName)</strong></div>
+                </div>
+            </article>
+
+<article class="validation-card info-zone compact-card">
+                <div class="zone-title">
+                    <span class="zone-badge red">INFORMATIVO</span>
+                    <div>
+                        <h2>Datos técnicos y reglas</h2>
+                        <p>Información de hoja de vida técnica.</p>
+                    </div>
+                </div>
+
+                <div class="info-grid compact">
+                    <div><span>Voltaje</span><strong>@Display(lifeRecord?.TechnicalSpecifications?.Voltage)</strong></div>
+                    <div><span>Capacidad</span><strong>@Display(lifeRecord?.TechnicalSpecifications?.LoadCapacity)</strong></div>
+                    <div><span>Proveedor</span><strong>@Display(lifeRecord?.TechnicalSpecifications?.Provider)</strong></div>
+                    <div><span>Mantenimiento</span><strong>@YesNo(lifeRecord?.TechnicalSpecifications?.RequiresMaintenance)</strong></div>
+                    <div><span>Preoperacional</span><strong>@YesNo(lifeRecord?.TechnicalSpecifications?.RequiresPreOperationalCheck)</strong></div>
+                    <div><span>Certificación</span><strong>@YesNo(lifeRecord?.TechnicalSpecifications?.RequiresCertification)</strong></div>
+                    <div><span>Vence certificación</span><strong>@FormatDate(lifeRecord?.TechnicalSpecifications?.CertificationExpirationDate)</strong></div>
+                    <div><span>Garantía</span><strong>@YesNo(lifeRecord?.Warranty?.HasWarranty)</strong></div>
+                </div>
+            </article>
+
+<article class="validation-card info-zone compact-card">
+                <div class="zone-title">
+                    <span class="zone-badge red">INFORMATIVO</span>
+                    <div>
+                        <h2>Vida útil y mantenimiento</h2>
+                        <p>Información de planeación.</p>
+                    </div>
+                </div>
+
+                <div class="info-grid compact">
+                    <div><span>Inicio vida útil</span><strong>@FormatDate(lifeRecord?.UsefulLife?.StartDate)</strong></div>
+                    <div><span>Fin vida útil</span><strong>@FormatDate(lifeRecord?.UsefulLife?.EndDate)</strong></div>
+                    <div><span>Vida útil meses</span><strong>@DisplayNumber(lifeRecord?.UsefulLife?.UsefulLifeMonths)</strong></div>
+                    <div><span>Días restantes</span><strong>@DisplayNumber(lifeRecord?.UsefulLife?.RemainingDays)</strong></div>
+                    <div><span>Último mantenimiento</span><strong>@FormatDate(lifeRecord?.MaintenancePlan?.LastMaintenanceDate)</strong></div>
+                    <div><span>Próximo mantenimiento</span><strong>@FormatDate(lifeRecord?.MaintenancePlan?.NextMaintenanceDate)</strong></div>
+                    <div><span>Periodicidad</span><strong>@DisplayNumber(lifeRecord?.MaintenancePlan?.MaintenancePeriodMonths)</strong></div>
+                    <div><span>Pendientes</span><strong>@DisplayNumber(lifeRecord?.MaintenancePlan?.PendingMaintenanceRecords)</strong></div>
+                </div>
+            </article>
+
+
+            <article class="validation-card info-zone compact-card">
+                <div class="zone-title">
+                    <span class="zone-badge red">INFORMATIVO</span>
+                    <div>
+                        <h2>Cronograma de mantenimiento</h2>
+                        <p>Historial y programación.</p>
+                    </div>
+                </div>
+
+                @if (lifeRecord?.MaintenanceSchedule?.Count > 0)
+                {
+                    <div class="mini-list">
+                        @foreach (var maintenance in lifeRecord.MaintenanceSchedule.Take(6))
+                        {
+                            <div class="mini-item">
+                                <strong>@Display(maintenance.MaintenanceNumber)</strong>
+                                <span>@Display(maintenance.Type) · @Display(maintenance.Status) · @FormatDate(maintenance.ScheduledAt)</span>
+                                <small>@Display(maintenance.Technician) / @Display(maintenance.ResponsibleName)</small>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="empty-box">No hay cronograma registrado.</div>
+                }
+            </article>
+
+            <article class="validation-card info-zone compact-card">
+                <div class="zone-title">
+                    <span class="zone-badge red">INFORMATIVO</span>
+                    <div>
+                        <h2>Prácticas seguras</h2>
+                        <p>Indicaciones asociadas al activo.</p>
+                    </div>
+                </div>
+
+                @if (lifeRecord?.SafePractices?.Count > 0)
+                {
+                    <div class="mini-list">
+                        @foreach (var practice in lifeRecord.SafePractices.OrderBy(x => x.SortOrder).Take(6))
+                        {
+                            <div class="mini-item">
+                                <strong>@Display(practice.PracticeName)</strong>
+                                <span>@Display(practice.Description)</span>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="empty-box">No hay prácticas seguras registradas.</div>
+                }
+            </article>
+
+            <article class="validation-card info-zone compact-card">
+                <div class="zone-title">
+                    <span class="zone-badge red">INFORMATIVO</span>
+                    <div>
+                        <h2>Eventos de hoja de vida</h2>
+                        <p>Trazabilidad reciente.</p>
+                    </div>
+                </div>
+
+                @if (lifeRecord?.LifeCycleEvents?.Count > 0)
+                {
+                    <div class="mini-list">
+                        @foreach (var evt in lifeRecord.LifeCycleEvents.Take(8))
+                        {
+                            <div class="mini-item">
+                                <strong>@Display(evt.Title)</strong>
+                                <span>@Display(evt.EventType) · @Display(evt.PerformedBy) · @FormatDate(evt.EventDate)</span>
+                                <small>@Display(evt.Description)</small>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="empty-box">No hay eventos registrados.</div>
+                }
+            </article>
+
+        </section>
+    </section>
+}
+
+</PermissionGuard>
+
+<style>
+    .validation-hero {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        padding: 1.1rem;
+        border-radius: 1rem;
+        color: #fff;
+        margin-bottom: 1rem;
+        box-shadow: 0 .6rem 1.6rem rgba(0,0,0,.16);
+    }
+
+    .validation-hero.confirm-mode {
+        background: linear-gradient(135deg, #23002d 0%, #710083 100%);
+    }
+
+    .validation-hero.reject-mode {
+        background: linear-gradient(135deg, #3a0000 0%, #b42318 100%);
+    }
+
+    .validation-hero span {
+        display: inline-block;
+        border: 1px solid rgba(255,255,255,.5);
+        border-radius: 999px;
+        padding: .2rem .55rem;
+        font-size: .68rem;
+        font-weight: 900;
+    }
+
+    .validation-hero h1 {
+        margin: .3rem 0 .1rem;
+        font-size: 1.3rem;
+        font-weight: 950;
+    }
+
+    .validation-hero p {
+        margin: 0;
+        font-size: .82rem;
+    }
+
+    .hero-actions {
+        display: flex;
+        gap: .45rem;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .validation-two-columns {
+        display: grid;
+        grid-template-columns: minmax(360px, .82fr) minmax(520px, 1.18fr);
+        gap: 1rem;
+        align-items: start;
+    }
+
+    .validation-left-column,
+    .validation-right-column {
+        display: grid;
+        gap: .85rem;
+        align-items: start;
+    }
+
+    .validation-left-column {
+        position: sticky;
+        top: .75rem;
+    }
+
+    .validation-card {
+        background: #fff;
+        border: 1px solid #dfe3e8;
+        border-radius: .9rem;
+        padding: .9rem;
+        box-shadow: 0 .3rem .8rem rgba(0,0,0,.04);
+    }
+
+    .info-zone {
+        border-left: 4px solid #dc3545;
+    }
+
+    .edit-zone {
+        border-left: 4px solid #198754;
+    }
+
+    .evidence-zone {
+        border-left: 4px solid #0d6efd;
+    }
+
+    .actions-zone {
+        border-left: 4px solid #6f0080;
+    }
+
+    .zone-title {
+        display: flex;
+        align-items: flex-start;
+        gap: .55rem;
+        margin-bottom: .7rem;
+    }
+
+    .zone-title h2 {
+        font-size: .92rem;
+        font-weight: 950;
+        margin-bottom: .1rem;
+    }
+
+    .zone-title p {
+        margin: 0;
+        color: #64748b;
+        font-size: .74rem;
+    }
+
+    .zone-badge {
+        display: inline-flex;
+        padding: .18rem .45rem;
+        border-radius: 999px;
+        font-size: .6rem;
+        font-weight: 950;
+        white-space: nowrap;
+    }
+
+    .zone-badge.red {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .zone-badge.green {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .zone-badge.blue {
+        background: #dbeafe;
+        color: #1d4ed8;
+    }
+
+    .info-grid {
+        display: grid;
+        gap: .55rem;
+    }
+
+    .info-grid.compact {
+        grid-template-columns: repeat(2, minmax(160px, 1fr));
+    }
+
+    .info-grid div {
+        border: 1px solid #eef1f5;
+        border-radius: .6rem;
+        padding: .55rem;
+        background: #f8fafc;
+    }
+
+    .info-grid span {
+        display: block;
+        font-size: .6rem;
+        color: #667085;
+        text-transform: uppercase;
+        font-weight: 900;
+    }
+
+    .info-grid strong {
+        display: block;
+        margin-top: .12rem;
+        font-size: .78rem;
+        line-height: 1.25;
+    }
+
+    .form-label {
+        font-size: .76rem;
+        font-weight: 900;
+    }
+
+    .reject-warning {
+        margin-top: .75rem;
+        padding: .65rem .75rem;
+        border-radius: .7rem;
+        background: #fff1f2;
+        color: #9f1239;
+        font-size: .78rem;
+        border: 1px solid #fecdd3;
+    }
+
+    .selected-file {
+        margin-top: .5rem;
+        padding: .5rem;
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+        border-radius: .5rem;
+        font-size: .78rem;
+    }
+
+    .documents-list,
+    .mini-list {
+        display: grid;
+        gap: .45rem;
+    }
+
+    .document-item,
+    .mini-item {
+        padding: .55rem;
+        border: 1px solid #eef1f5;
+        border-radius: .6rem;
+        background: #f8fafc;
+    }
+
+    .document-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .75rem;
+    }
+
+    .document-item strong,
+    .mini-item strong {
+        display: block;
+        font-size: .78rem;
+    }
+
+    .document-item span,
+    .mini-item span {
+        display: block;
+        color: #64748b;
+        font-size: .7rem;
+    }
+
+    .document-item small,
+    .mini-item small {
+        display: block;
+        color: #475569;
+        font-size: .68rem;
+    }
+
+    .empty-box {
+        padding: .65rem;
+        border-radius: .6rem;
+        background: #f8fafc;
+        color: #64748b;
+        font-size: .76rem;
+    }
+
+    .actions-zone h2 {
+        font-size: 1rem;
+        font-weight: 950;
+        margin-bottom: .15rem;
+    }
+
+    .actions-zone p {
+        margin: 0 0 .8rem;
+        color: #64748b;
+        font-size: .78rem;
+    }
+
+    .final-actions {
+        display: flex;
+        gap: .5rem;
+        flex-wrap: wrap;
+    }
+
+    @@media (max-width: 1180px) {
+        .validation-two-columns {
+            grid-template-columns: 1fr;
+        }
+
+        .validation-left-column {
+            position: static;
+        }
+
+        .validation-hero {
+            flex-direction: column;
+        }
+
+        .hero-actions {
+            justify-content: flex-start;
+        }
+    }
+
+    @@media (max-width: 760px) {
+        .info-grid.compact {
+            grid-template-columns: 1fr;
+        }
+
+        .document-item {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+    }
+</style>
+
+@code {
+    [Parameter] public Guid CountId { get; set; }
+    [Parameter] public Guid ParticipantId { get; set; }
+    [Parameter] public Guid ToolAssetId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "mode")]
+    public string? Mode { get; set; }
+
+    private PendingToolDto? tool;
+    private TechnicalLifeRecordDto? lifeRecord;
+    private List<DocumentDto> documents = new();
+    private List<LocationOption> locations = new();
+    private List<AccessoryValidationForm> accessoryValidations = new();
+    private ReportForm form = new();
+    private IBrowserFile? selectedEvidence;
+
+    private bool isLoading;
+    private bool isSaving;
+    private string? successMessage;
+    private string? errorMessage;
+
+    private bool IsRejectMode =>
+        string.Equals(Mode, "reject", StringComparison.OrdinalIgnoreCase);
+
+    private string ObservationPlaceholder =>
+        IsRejectMode
+            ? "Ej: Esta herramienta no está en mi poder. Fue entregada, está en bodega o pertenece a otro usuario."
+            : "Ej: La herramienta está conmigo, se encuentra en buen estado y fue validada físicamente.";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var api = HttpClientFactory.CreateClient("NaviApi");
+
+            var finalObservation = BuildFinalObservation();
+            form.Observation = finalObservation;
+
+            await LoadLocationsAsync(api);
+
+            var pending = await LoadPendingToolsAsync(api);
+            var pendingTool = pending.FirstOrDefault(x =>
+                x.Id == ToolAssetId ||
+                x.ToolAssetId == ToolAssetId);
+
+            var fullTool = await LoadFullToolAsync(api);
+
+            tool = MergeToolData(pendingTool, fullTool);
+
+            lifeRecord = await SafeGetAsync<TechnicalLifeRecordDto>(api, $"api/tools/{ToolAssetId}/technical-life-record");
+            documents = await LoadDocumentsAsync(api);
+
+            BuildAccessoryValidationForms();
+
+            form.LocationId = tool?.LocationId;
+            form.PhysicalStatus = IsRejectMode ? "Lost" : NormalizePhysicalStatus(tool?.PhysicalStatus);
+            form.OperationalStatus = NormalizeOperationalStatus(tool?.OperationalStatus);
+
+            if (string.IsNullOrWhiteSpace(form.Observation))
+            {
+                form.Observation = IsRejectMode
+                    ? "El usuario indica que esta herramienta no está en su poder y requiere conciliación."
+                    : "Herramienta validada físicamente por el usuario durante la toma física.";
+            }
+
+            if (string.IsNullOrWhiteSpace(form.EvidenceDescription))
+            {
+                form.EvidenceDescription = $"Evidencia de toma física para {tool?.InternalCode}.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo cargar la información: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task<List<PendingToolDto>> LoadPendingToolsAsync(HttpClient api)
+    {
+        var payload = await api.GetStringAsync($"api/physical-counts/participants/{ParticipantId}/pending-tools");
+        return ParsePendingToolsPayload(payload);
+    }
+
+    private async Task<PendingToolDto?> LoadFullToolAsync(HttpClient api)
+    {
+        return await SafeGetAsync<PendingToolDto>(api, $"api/tools/{ToolAssetId}");
+    }
+
+    private static PendingToolDto? MergeToolData(PendingToolDto? pendingTool, PendingToolDto? fullTool)
+    {
+        if (pendingTool is null)
+        {
+            return fullTool;
+        }
+
+        if (fullTool is null)
+        {
+            return pendingTool;
+        }
+
+        return new PendingToolDto
+        {
+            Id = fullTool.Id != Guid.Empty ? fullTool.Id : pendingTool.Id,
+            ToolAssetId = fullTool.ToolAssetId != Guid.Empty ? fullTool.ToolAssetId : pendingTool.ToolAssetId,
+            InternalCode = Pick(fullTool.InternalCode, pendingTool.InternalCode),
+            Name = Pick(fullTool.Name, pendingTool.Name),
+            Description = Pick(fullTool.Description, pendingTool.Description),
+            SerialNumber = Pick(fullTool.SerialNumber, pendingTool.SerialNumber),
+            FixedAssetCode = Pick(fullTool.FixedAssetCode, pendingTool.FixedAssetCode),
+            FenixCode = Pick(fullTool.FenixCode, pendingTool.FenixCode),
+            Brand = Pick(fullTool.Brand, pendingTool.Brand),
+            Model = Pick(fullTool.Model, pendingTool.Model),
+            BranchId = fullTool.BranchId ?? pendingTool.BranchId,
+            BranchCode = Pick(fullTool.BranchCode, pendingTool.BranchCode),
+            BranchName = Pick(fullTool.BranchName, pendingTool.BranchName),
+            LocationId = fullTool.LocationId ?? pendingTool.LocationId,
+            LocationName = Pick(fullTool.LocationName, pendingTool.LocationName),
+            ResponsiblePersonName = Pick(fullTool.ResponsiblePersonName, pendingTool.ResponsiblePersonName),
+            ToolTypeName = Pick(fullTool.ToolTypeName, pendingTool.ToolTypeName),
+            ToolCategoryName = Pick(fullTool.ToolCategoryName, pendingTool.ToolCategoryName),
+            OperationalStatus = Pick(fullTool.OperationalStatus, pendingTool.OperationalStatus),
+            PhysicalStatus = Pick(fullTool.PhysicalStatus, pendingTool.PhysicalStatus)
+        };
+    }
+
+    private async Task LoadLocationsAsync(HttpClient api)
+    {
+        locations = new();
+
+        try
+        {
+            var payload = await api.GetStringAsync("api/settings/locations");
+            locations = ParseLocationsPayload(payload);
+        }
+        catch
+        {
+            try
+            {
+                var payload = await api.GetStringAsync("api/settings/warehouses");
+                locations = ParseLocationsPayload(payload);
+            }
+            catch
+            {
+                locations = new();
+            }
+        }
+    }
+
+    private async Task<List<DocumentDto>> LoadDocumentsAsync(HttpClient api)
+    {
+        try
+        {
+            var payload = await api.GetStringAsync($"api/tools/{ToolAssetId}/documents");
+            return ParseDocumentsPayload(payload);
+        }
+        catch
+        {
+            return new();
+        }
+    }
+
+
+    private void BuildAccessoryValidationForms()
+    {
+        accessoryValidations = new();
+
+        if (lifeRecord?.Accessories is null || lifeRecord.Accessories.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var accessory in lifeRecord.Accessories.OrderBy(x => x.Name))
+        {
+            accessoryValidations.Add(new AccessoryValidationForm
+            {
+                Name = accessory.Name,
+                QuantityExpected = accessory.Quantity,
+                QuantityFound = accessory.Quantity,
+                IsPresent = true,
+                Status = "Good",
+                Observation = string.IsNullOrWhiteSpace(accessory.Observation)
+                    ? "Accesorio verificado durante toma física."
+                    : accessory.Observation
+            });
+        }
+    }
+
+    private string BuildFinalObservation()
+    {
+        var baseObservation = form.Observation?.Trim() ?? string.Empty;
+        const string marker = "VALIDACIÓN DE ACCESORIOS:";
+
+        var existingIndex = baseObservation.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (existingIndex >= 0)
+        {
+            baseObservation = baseObservation[..existingIndex].Trim();
+        }
+
+        if (accessoryValidations.Count == 0)
+        {
+            return baseObservation;
+        }
+
+        var lines = new List<string>
+        {
+            marker
+        };
+
+        foreach (var accessory in accessoryValidations)
+        {
+            var presentText = accessory.IsPresent ? "Sí" : "No";
+
+            lines.Add(
+                $"- {accessory.Name}: Presente={presentText}; Cantidad esperada={accessory.QuantityExpected:N2}; Cantidad encontrada={accessory.QuantityFound:N2}; Estado={accessory.Status}; Observación={Display(accessory.Observation)}");
+        }
+
+        var accessoryText = string.Join(Environment.NewLine, lines);
+
+        return string.IsNullOrWhiteSpace(baseObservation)
+            ? accessoryText
+            : baseObservation + Environment.NewLine + Environment.NewLine + accessoryText;
+    }
+    private async Task ConfirmToolAsync()
+    {
+        await SendReportAsync("Confirmed");
+    }
+
+    private async Task RejectToolAsync()
+    {
+        if (string.IsNullOrWhiteSpace(form.Observation))
+        {
+            errorMessage = "Debes ingresar un comentario indicando por qué rechazas la herramienta.";
+            return;
+        }
+
+        await SendReportAsync("Rejected");
+    }
+
+    private async Task SendReportAsync(string action)
+    {
+        isSaving = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var api = HttpClientFactory.CreateClient("NaviApi");
+
+            var finalObservation = BuildFinalObservation();
+            form.Observation = finalObservation;
+
+            if (action.Equals("Confirmed", StringComparison.OrdinalIgnoreCase))
+            {
+                await UpdateAllowedToolFieldsAsync(api);
+            }
+
+            if (selectedEvidence is not null)
+            {
+                await UploadEvidenceAsync(api);
+            }
+
+            var response = await api.PostAsJsonAsync(
+                $"api/physical-counts/participants/{ParticipantId}/report-assigned-tool",
+                new
+                {
+                    ToolAssetId,
+                    ReportAction = action,
+                    form.PhysicalStatus,
+                    FoundLocation = GetSelectedLocationName(),
+                    form.Observation,
+                    ActionBy = "admin"
+                });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo guardar el reporte. {detail}";
+                return;
+            }
+
+            successMessage = action == "Confirmed"
+                ? "Herramienta reportada correctamente como completa."
+                : "Herramienta rechazada y enviada a pendiente de conciliación.";
+
+            await Task.Delay(650);
+            GoBack();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error guardando validación: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task UpdateAllowedToolFieldsAsync(HttpClient api)
+    {
+        var masterResponse = await api.PatchAsJsonAsync(
+            $"api/tools/{ToolAssetId}/master-data",
+            new
+            {
+                OperationalStatus = form.OperationalStatus,
+                PhysicalStatus = form.PhysicalStatus,
+                UpdatedBy = "admin"
+            });
+
+        if (!masterResponse.IsSuccessStatusCode)
+        {
+            var detail = await masterResponse.Content.ReadAsStringAsync();
+            throw new InvalidOperationException($"No se pudieron actualizar estados permitidos. {detail}");
+        }
+
+        if (form.LocationId.HasValue && form.LocationId.Value != Guid.Empty)
+        {
+            var selectedLocation = locations.FirstOrDefault(x => x.Id == form.LocationId.Value);
+
+            var locationResponse = await api.PatchAsJsonAsync(
+                $"api/tools/{ToolAssetId}/availability-location",
+                new
+                {
+                    BranchId = tool?.BranchId ?? selectedLocation?.BranchId ?? Guid.Empty,
+                    LocationId = form.LocationId,
+                    OperationalStatus = form.OperationalStatus,
+                    Observation = form.Observation,
+                    ChangedBy = "admin"
+                });
+
+            if (!locationResponse.IsSuccessStatusCode)
+            {
+                var detail = await locationResponse.Content.ReadAsStringAsync();
+                throw new InvalidOperationException($"No se pudo actualizar la ubicación permitida. {detail}");
+            }
+        }
+    }
+
+    private async Task UploadEvidenceAsync(HttpClient api)
+    {
+        if (selectedEvidence is null)
+        {
+            return;
+        }
+
+        using var formData = new MultipartFormDataContent();
+
+        var stream = selectedEvidence.OpenReadStream(50_000_000);
+        var fileContent = new StreamContent(stream);
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue(
+            string.IsNullOrWhiteSpace(selectedEvidence.ContentType)
+                ? "application/octet-stream"
+                : selectedEvidence.ContentType);
+
+        formData.Add(fileContent, "file", selectedEvidence.Name);
+        formData.Add(new StringContent("PhysicalCountEvidence"), "documentType");
+        formData.Add(new StringContent(form.EvidenceDescription ?? "Evidencia de toma física"), "description");
+        formData.Add(new StringContent("admin"), "uploadedBy");
+
+        var response = await api.PostAsync($"api/tools/{ToolAssetId}/documents", formData);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var detail = await response.Content.ReadAsStringAsync();
+            throw new InvalidOperationException($"No se pudo cargar la evidencia. {detail}");
+        }
+    }
+
+    private void OnEvidenceSelected(InputFileChangeEventArgs args)
+    {
+        selectedEvidence = args.File;
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo($"/physical-counts/{CountId}");
+    }
+
+    private string? GetSelectedLocationName()
+    {
+        if (!form.LocationId.HasValue)
+        {
+            return tool?.LocationName;
+        }
+
+        return locations.FirstOrDefault(x => x.Id == form.LocationId.Value)?.Name ?? tool?.LocationName;
+    }
+
+    private static async Task<T?> SafeGetAsync<T>(HttpClient api, string url)
+    {
+        try
+        {
+            return await api.GetFromJsonAsync<T>(url);
+        }
+        catch
+        {
+            return default;
+        }
+    }
+
+    private static List<PendingToolDto> ParsePendingToolsPayload(string payload)
+    {
+        return ParseListPayload<PendingToolDto>(payload, "tools", "pendingTools", "items", "data", "results");
+    }
+
+    private static List<DocumentDto> ParseDocumentsPayload(string payload)
+    {
+        return ParseListPayload<DocumentDto>(payload, "documents", "items", "data", "results");
+    }
+
+    private static List<T> ParseListPayload<T>(string payload, params string[] arrayNames)
+    {
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            return new();
+        }
+
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+        {
+            PropertyNameCaseInsensitive = true
+        };
+
+        using var document = JsonDocument.Parse(payload);
+        var root = document.RootElement;
+
+        if (root.ValueKind == JsonValueKind.Array)
+        {
+            return JsonSerializer.Deserialize<List<T>>(root.GetRawText(), options) ?? new();
+        }
+
+        if (root.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in root.EnumerateObject())
+            {
+                if (arrayNames.Any(name =>
+                        string.Equals(name, property.Name, StringComparison.OrdinalIgnoreCase)) &&
+                    property.Value.ValueKind == JsonValueKind.Array)
+                {
+                    return JsonSerializer.Deserialize<List<T>>(property.Value.GetRawText(), options) ?? new();
+                }
+            }
+
+            var single = JsonSerializer.Deserialize<T>(root.GetRawText(), options);
+
+            return single is null ? new() : new List<T> { single };
+        }
+
+        return new();
+    }
+
+    private static List<LocationOption> ParseLocationsPayload(string payload)
+    {
+        var locations = ParseListPayload<LocationOption>(payload, "locations", "items", "data", "results");
+
+        return locations
+            .Where(x => x.Id != Guid.Empty)
+            .OrderBy(x => x.DisplayName)
+            .ToList();
+    }
+
+    private static string NormalizePhysicalStatus(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "Good";
+        }
+
+        return value.Trim() switch
+        {
+            "Bueno" => "Good",
+            "Dañado" => "Damaged",
+            "No localizado" => "Lost",
+            "No apto" => "NotSuitable",
+            _ => value.Trim()
+        };
+    }
+
+    private static string NormalizeOperationalStatus(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "Assigned";
+        }
+
+        return value.Trim() switch
+        {
+            "Disponible" => "Available",
+            "Asignado" => "Assigned",
+            "En uso" => "InUse",
+            "Mantenimiento" => "Maintenance",
+            "Fuera de servicio" => "OutOfService",
+            "Pendiente validación" => "PendingValidation",
+            _ => value.Trim()
+        };
+    }
+
+    private static string Pick(string? primary, string? fallback) =>
+        !string.IsNullOrWhiteSpace(primary) ? primary : fallback;
+
+    private static string Display(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "—" : value;
+
+    private static string DisplayNumber(int? value) =>
+        value.HasValue ? value.Value.ToString("N0") : "—";
+
+    private static string DisplayNumber(decimal? value) =>
+        value.HasValue ? value.Value.ToString("N0") : "—";
+
+    private static string YesNo(bool? value) =>
+        value.HasValue ? value.Value ? "Sí" : "No" : "—";
+
+    private static string FormatDate(DateTime? value) =>
+        value.HasValue ? value.Value.ToString("dd/MM/yyyy") : "—";
+
+    private static string GetDocumentUrl(DocumentDto document) =>
+        string.IsNullOrWhiteSpace(document.DownloadUrl)
+            ? $"/api/tools/documents/{document.Id}/download"
+            : document.DownloadUrl;
+
+    private sealed class ReportForm
+    {
+        public Guid? LocationId { get; set; }
+        public string? PhysicalStatus { get; set; } = "Good";
+        public string? OperationalStatus { get; set; } = "Assigned";
+        public string? Observation { get; set; }
+        public string? EvidenceDescription { get; set; }
+    }
+
+    private sealed class PendingToolDto
+    {
+        public Guid Id { get; set; }
+        public Guid ToolAssetId { get; set; }
+        public string? InternalCode { get; set; }
+        public string? Name { get; set; }
+        public string? Description { get; set; }
+        public string? SerialNumber { get; set; }
+        public string? FixedAssetCode { get; set; }
+        public string? FenixCode { get; set; }
+        public string? Brand { get; set; }
+        public string? Model { get; set; }
+        public Guid? BranchId { get; set; }
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public Guid? LocationId { get; set; }
+        public string? LocationName { get; set; }
+        public string? ResponsiblePersonName { get; set; }
+        public string? ToolTypeName { get; set; }
+        public string? ToolCategoryName { get; set; }
+        public string? OperationalStatus { get; set; }
+        public string? PhysicalStatus { get; set; }
+    }
+
+    private sealed class LocationOption
+    {
+        public Guid Id { get; set; }
+        public Guid? BranchId { get; set; }
+        public string? Code { get; set; }
+        public string? Name { get; set; }
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+
+        public string DisplayName =>
+            $"{Code} - {Name}".Trim(' ', '-');
+    }
+
+    private sealed class DocumentDto
+    {
+        public Guid Id { get; set; }
+        public string? DocumentType { get; set; }
+        public string? FileName { get; set; }
+        public string? DownloadUrl { get; set; }
+        public string? UploadedBy { get; set; }
+        public DateTime? UploadedAt { get; set; }
+        public string? Description { get; set; }
+    }
+
+    private sealed class TechnicalLifeRecordDto
+    {
+        public TechnicalSpecificationsDto? TechnicalSpecifications { get; set; }
+        public WarrantyDto? Warranty { get; set; }
+        public UsefulLifeDto? UsefulLife { get; set; }
+        public MaintenancePlanDto? MaintenancePlan { get; set; }
+        public List<AccessoryDto> Accessories { get; set; } = new();
+        public List<SafePracticeDto> SafePractices { get; set; } = new();
+        public List<MaintenanceScheduleDto> MaintenanceSchedule { get; set; } = new();
+        public List<LifeCycleEventDto> LifeCycleEvents { get; set; } = new();
+    }
+
+    private sealed class TechnicalSpecificationsDto
+    {
+        public string? Voltage { get; set; }
+        public string? LoadCapacity { get; set; }
+        public string? Provider { get; set; }
+        public bool? RequiresMaintenance { get; set; }
+        public bool? RequiresPreOperationalCheck { get; set; }
+        public bool? RequiresCertification { get; set; }
+        public DateTime? CertificationExpirationDate { get; set; }
+    }
+
+    private sealed class WarrantyDto
+    {
+        public bool? HasWarranty { get; set; }
+        public string? WarrantyType { get; set; }
+    }
+
+    private sealed class UsefulLifeDto
+    {
+        public DateTime? StartDate { get; set; }
+        public DateTime? EndDate { get; set; }
+        public int? UsefulLifeMonths { get; set; }
+        public int? UsefulLifeDays { get; set; }
+        public int? ElapsedDays { get; set; }
+        public int? RemainingDays { get; set; }
+        public decimal? UsedPercentage { get; set; }
+    }
+
+    private sealed class MaintenancePlanDto
+    {
+        public DateTime? LastMaintenanceDate { get; set; }
+        public DateTime? NextMaintenanceDate { get; set; }
+        public int? MaintenancePeriodMonths { get; set; }
+        public int? TotalMaintenanceRecords { get; set; }
+        public int? CompletedMaintenanceRecords { get; set; }
+        public int? PendingMaintenanceRecords { get; set; }
+    }
+
+
+    private sealed class AccessoryValidationForm
+    {
+        public string? Name { get; set; }
+        public decimal QuantityExpected { get; set; }
+        public decimal QuantityFound { get; set; }
+        public bool IsPresent { get; set; } = true;
+        public string Status { get; set; } = "Good";
+        public string? Observation { get; set; }
+    }
+    private sealed class AccessoryDto
+    {
+        public string? Name { get; set; }
+        public decimal Quantity { get; set; }
+        public bool RequiresMaintenance { get; set; }
+        public bool IsMeasurementEquipment { get; set; }
+        public string? Observation { get; set; }
+    }
+
+    private sealed class SafePracticeDto
+    {
+        public string? PracticeName { get; set; }
+        public string? Description { get; set; }
+        public int SortOrder { get; set; }
+    }
+
+    private sealed class MaintenanceScheduleDto
+    {
+        public string? MaintenanceNumber { get; set; }
+        public string? Type { get; set; }
+        public string? Status { get; set; }
+        public DateTime? ScheduledAt { get; set; }
+        public string? Technician { get; set; }
+        public string? ResponsibleName { get; set; }
+    }
+
+    private sealed class LifeCycleEventDto
+    {
+        public string? EventType { get; set; }
+        public string? Title { get; set; }
+        public string? Description { get; set; }
+        public string? PerformedBy { get; set; }
+        public DateTime? EventDate { get; set; }
+    }
+}
+
+
+<style>
+    .accessories-user-zone {
+        border-left-color: #198754;
+        background: #fbfffd;
+    }
+
+    .accessories-user-zone .mini-item {
+        background: #f0fdf4;
+        border-color: #bbf7d0;
+    }
+</style>
+
+
+
+
+<style>
+    .accessories-user-zone {
+        border-left-color: #198754;
+        background: #fbfffd;
+    }
+
+    .accessory-check-list {
+        display: grid;
+        gap: .6rem;
+    }
+
+    .accessory-validation-item {
+        border: 1px solid #bbf7d0;
+        background: #f0fdf4;
+        border-radius: .75rem;
+        padding: .7rem;
+    }
+
+    .accessory-title-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: .75rem;
+        margin-bottom: .55rem;
+    }
+
+    .accessory-title-row strong {
+        display: block;
+        font-size: .82rem;
+        color: #14532d;
+    }
+
+    .accessory-title-row span {
+        display: block;
+        color: #64748b;
+        font-size: .72rem;
+    }
+
+    .accessory-present-check {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        font-size: .75rem;
+        font-weight: 900;
+        color: #166534;
+        white-space: nowrap;
+    }
+
+    .accessory-fields {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: .5rem;
+        margin-bottom: .5rem;
+    }
+
+    .accessory-fields label,
+    .accessory-observation-label {
+        display: block;
+        font-size: .68rem;
+        font-weight: 900;
+        color: #475569;
+        margin-bottom: .2rem;
+    }
+
+    @@media (max-width: 760px) {
+        .accessory-fields {
+            grid-template-columns: 1fr;
+        }
+
+        .accessory-title-row {
+            flex-direction: column;
+        }
+    }
+</style>
+

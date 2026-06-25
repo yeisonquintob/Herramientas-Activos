@@ -9,6 +9,7 @@ using Navi.ToolsAssets.Domain.Entities.Loans;
 using Navi.ToolsAssets.Domain.Entities.Maintenance;
 using Navi.ToolsAssets.Domain.Entities.Organization;
 using Navi.ToolsAssets.Domain.Entities.PhysicalCounts;
+using Navi.ToolsAssets.Domain.Entities.Purchases;
 using Navi.ToolsAssets.Domain.Entities.Safety;
 using Navi.ToolsAssets.Domain.Entities.Security;
 using Navi.ToolsAssets.Domain.Entities.Sync;
@@ -48,6 +49,11 @@ public class NaviToolsAssetsDbContext : DbContext
     public DbSet<MaintenanceRecord> MaintenanceRecords => Set<MaintenanceRecord>();
     public DbSet<PhysicalCount> PhysicalCounts => Set<PhysicalCount>();
     public DbSet<PhysicalCountItem> PhysicalCountItems => Set<PhysicalCountItem>();
+    public DbSet<PhysicalCountReportedItem> PhysicalCountReportedItems => Set<PhysicalCountReportedItem>();
+    public DbSet<PhysicalCountExtraItem> PhysicalCountExtraItems => Set<PhysicalCountExtraItem>();
+    public DbSet<PhysicalCountParticipant> PhysicalCountParticipants => Set<PhysicalCountParticipant>();
+    public DbSet<PurchaseRequest> PurchaseRequests => Set<PurchaseRequest>();
+    public DbSet<ToolMaintenanceRequest> MaintenanceRequests => Set<ToolMaintenanceRequest>();
     public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
 
     public DbSet<ImportRow> ImportRows => Set<ImportRow>();
@@ -167,6 +173,8 @@ public class NaviToolsAssetsDbContext : DbContext
         ConfigureDamages(modelBuilder);
         ConfigureMaintenance(modelBuilder);
         ConfigurePhysicalCounts(modelBuilder);
+        ConfigurePurchases(modelBuilder);
+        ConfigureMaintenanceRequests(modelBuilder);
         ConfigureSync(modelBuilder);
     }
 
@@ -564,6 +572,175 @@ public class NaviToolsAssetsDbContext : DbContext
         });
     }
 
+
+    private static void ConfigurePurchases(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<PurchaseRequest>(entity =>
+        {
+            entity.ToTable("PurchaseRequests", "Purchases");
+
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.RequestNumber)
+                .HasMaxLength(60)
+                .IsRequired();
+
+            entity.Property(x => x.ItemCode)
+                .HasMaxLength(100)
+                .IsRequired();
+
+            entity.Property(x => x.ItemName)
+                .HasMaxLength(300)
+                .IsRequired();
+
+            entity.Property(x => x.ItemDescription)
+                .HasMaxLength(1000);
+
+            entity.Property(x => x.Unit)
+                .HasMaxLength(40)
+                .IsRequired();
+
+            entity.Property(x => x.PurchasePurpose)
+                .HasMaxLength(80)
+                .IsRequired();
+
+            entity.Property(x => x.Justification)
+                .HasMaxLength(2000)
+                .IsRequired();
+
+            entity.Property(x => x.Priority)
+                .HasMaxLength(40)
+                .IsRequired();
+
+            entity.Property(x => x.Status)
+                .HasMaxLength(40)
+                .IsRequired();
+
+            entity.Property(x => x.RequestedByUserName)
+                .HasMaxLength(150)
+                .IsRequired();
+
+            entity.Property(x => x.RequestedByResponsiblePersonName)
+                .HasMaxLength(250);
+
+            entity.Property(x => x.PreparedBy)
+                .HasMaxLength(150)
+                .IsRequired();
+
+            entity.Property(x => x.SubmittedBy)
+                .HasMaxLength(150);
+
+            entity.Property(x => x.ProjectId)
+                .HasMaxLength(120);
+
+            entity.Property(x => x.VendorSuggestion)
+                .HasMaxLength(300);
+
+            entity.Property(x => x.EstimatedCostText)
+                .HasMaxLength(120);
+
+            entity.Property(x => x.ApprovalComment)
+                .HasMaxLength(1000);
+
+            entity.Property(x => x.ApprovedBy)
+                .HasMaxLength(150);
+
+            entity.Property(x => x.RejectedBy)
+                .HasMaxLength(150);
+
+            entity.Property(x => x.RejectionReason)
+                .HasMaxLength(1000);
+
+            entity.Property(x => x.ClosedBy)
+                .HasMaxLength(150);
+
+            entity.Property(x => x.DynamicsPurchaseRequisitionNumber)
+                .HasMaxLength(120);
+
+            entity.Property(x => x.DynamicsStatus)
+                .HasMaxLength(120);
+
+            entity.Property(x => x.Notes)
+                .HasMaxLength(2000);
+
+            entity.Property(x => x.CreatedBy)
+                .HasMaxLength(150);
+
+            entity.Property(x => x.UpdatedBy)
+                .HasMaxLength(150);
+
+            entity.HasIndex(x => x.RequestNumber)
+                .IsUnique();
+
+            entity.HasOne(x => x.ToolAsset)
+                .WithMany()
+                .HasForeignKey(x => x.ToolAssetId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.Branch)
+                .WithMany()
+                .HasForeignKey(x => x.BranchId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasQueryFilter(x => !x.IsDeleted);
+        });
+    }
+
+
+    private static void ConfigureMaintenanceRequests(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ToolMaintenanceRequest>(entity =>
+        {
+            entity.ToTable("MaintenanceRequests", "Maintenance");
+
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.RequestNumber).HasMaxLength(60).IsRequired();
+            entity.Property(x => x.RequestType).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.Priority).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.Status).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.Title).HasMaxLength(300).IsRequired();
+            entity.Property(x => x.ProblemDescription).HasMaxLength(2000).IsRequired();
+            entity.Property(x => x.WorkDescription).HasMaxLength(2000);
+            entity.Property(x => x.FailureCause).HasMaxLength(500);
+            entity.Property(x => x.RequestedByUserName).HasMaxLength(150);
+            entity.Property(x => x.RequestedByResponsiblePersonName).HasMaxLength(250);
+            entity.Property(x => x.PreparedBy).HasMaxLength(150).IsRequired();
+            entity.Property(x => x.SubmittedBy).HasMaxLength(150);
+            entity.Property(x => x.ApprovedBy).HasMaxLength(150);
+            entity.Property(x => x.ApprovalComment).HasMaxLength(1000);
+            entity.Property(x => x.RejectedBy).HasMaxLength(150);
+            entity.Property(x => x.RejectionReason).HasMaxLength(1000);
+            entity.Property(x => x.ScheduledBy).HasMaxLength(150);
+            entity.Property(x => x.AssignedTechnician).HasMaxLength(150);
+            entity.Property(x => x.ExecutionStartedBy).HasMaxLength(150);
+            entity.Property(x => x.ExecutionFinishedBy).HasMaxLength(150);
+            entity.Property(x => x.ClosedBy).HasMaxLength(150);
+            entity.Property(x => x.ClosingComment).HasMaxLength(1000);
+            entity.Property(x => x.CanceledBy).HasMaxLength(150);
+            entity.Property(x => x.CancellationReason).HasMaxLength(1000);
+            entity.Property(x => x.EstimatedCostText).HasMaxLength(120);
+            entity.Property(x => x.VendorSuggestion).HasMaxLength(300);
+            entity.Property(x => x.Notes).HasMaxLength(2000);
+            entity.Property(x => x.CreatedBy).HasMaxLength(150);
+            entity.Property(x => x.UpdatedBy).HasMaxLength(150);
+
+            entity.HasIndex(x => x.RequestNumber).IsUnique();
+
+            entity.HasOne(x => x.ToolAsset)
+                .WithMany()
+                .HasForeignKey(x => x.ToolAssetId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.Branch)
+                .WithMany()
+                .HasForeignKey(x => x.BranchId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasQueryFilter(x => !x.IsDeleted);
+        });
+    }
+
     private static void ConfigureSync(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<FenixReconciliationRecord>(entity =>
@@ -588,6 +765,13 @@ public class NaviToolsAssetsDbContext : DbContext
         });
     }
 }
+
+
+
+
+
+
+
 
 
 

@@ -1,4 +1,4 @@
-@page "/tools/{ToolId:guid}/accessories"
+ï»¿@page "/tools/{ToolId:guid}/accessories"
 @rendermode InteractiveServer
 @using System.Net.Http.Json
 @inject IHttpClientFactory HttpClientFactory
@@ -6,13 +6,15 @@
 
 <PageTitle>Accesorios - NAVI Herramientas</PageTitle>
 
+<PermissionGuard Permission="TechnicalLifeRecord.Edit" ModuleName="Accesorios">
+
 <div class="page-header">
     <div>
         <button class="btn btn-outline-secondary btn-sm mb-2" @onclick="GoBack">
             ? Volver a hoja de vida
         </button>
 
-        <h1>Gestión de accesorios</h1>
+        <h1>GestiÃ³n de accesorios</h1>
         <p>Agrega, edita o desactiva accesorios asociados a la herramienta.</p>
     </div>
 
@@ -73,22 +75,22 @@
 
                 <div class="form-check-row">
                     <InputCheckbox class="form-check-input" @bind-Value="formModel.IsMeasurementEquipment" />
-                    <label>Equipo de medición</label>
+                    <label>Equipo de mediciÃ³n</label>
                 </div>
             </div>
 
             <div class="mt-3">
-                <label>Observación</label>
+                <label>ObservaciÃ³n</label>
                 <InputTextArea class="form-control technical-observation"
                                @bind-Value="formModel.Observation"
-                               placeholder="Observación del accesorio..." />
+                               placeholder="ObservaciÃ³n del accesorio..." />
             </div>
 
             <div class="technical-edit-actions static-actions mt-3">
                 @if (editingAccessoryId.HasValue)
                 {
                     <button type="button" class="btn btn-outline-secondary" @onclick="CancelEdit">
-                        Cancelar edición
+                        Cancelar ediciÃ³n
                     </button>
                 }
 
@@ -122,8 +124,8 @@
                             <th>Accesorio</th>
                             <th>Cantidad</th>
                             <th>Mantenimiento</th>
-                            <th>Medición</th>
-                            <th>Observación</th>
+                            <th>MediciÃ³n</th>
+                            <th>ObservaciÃ³n</th>
                             <th style="width: 170px;">Acciones</th>
                         </tr>
                     </thead>
@@ -155,6 +157,8 @@
         }
     </section>
 </div>
+
+</PermissionGuard>
 
 @code {
     [Parameter]
@@ -197,7 +201,7 @@
         }
         catch (Exception ex)
         {
-            errorMessage = $"No se pudieron cargar los accesorios. Valida que la API esté activa. Detalle: {ex.Message}";
+            errorMessage = $"No se pudieron cargar los accesorios. Valida que la API estÃ© activa. Detalle: {ex.Message}";
         }
         finally
         {
@@ -255,7 +259,7 @@
             if (!response.IsSuccessStatusCode)
             {
                 var detail = await response.Content.ReadAsStringAsync();
-                errorMessage = $"No se pudo guardar el accesorio. Código: {(int)response.StatusCode}. Detalle: {detail}";
+                errorMessage = $"No se pudo guardar el accesorio. CÃ³digo: {(int)response.StatusCode}. Detalle: {detail}";
                 return;
             }
 
@@ -318,7 +322,7 @@
             if (!response.IsSuccessStatusCode)
             {
                 var detail = await response.Content.ReadAsStringAsync();
-                errorMessage = $"No se pudo desactivar el accesorio. Código: {(int)response.StatusCode}. Detalle: {detail}";
+                errorMessage = $"No se pudo desactivar el accesorio. CÃ³digo: {(int)response.StatusCode}. Detalle: {detail}";
                 return;
             }
 
@@ -353,7 +357,7 @@
 
     private static string BoolText(bool value)
     {
-        return value ? "Sí" : "No";
+        return value ? "SÃ­" : "No";
     }
 
     private sealed class AccessoryFormModel
@@ -398,3 +402,4 @@
         public string Name { get; set; } = string.Empty;
     }
 }
+

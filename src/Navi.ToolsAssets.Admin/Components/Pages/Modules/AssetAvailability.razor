@@ -3,18 +3,20 @@
 @using System.Net.Http.Json
 @inject IHttpClientFactory HttpClientFactory
 
-<PageTitle>Disponible y Ubicación - NAVI</PageTitle>
+<PageTitle>Disponible y Ubicación de Herramientas - NAVI</PageTitle>
+
+<PermissionGuard Permission="AssetAvailability.View" ModuleName="Disponible y Ubicación de Herramientas">
 
 <section class="af-banner">
     <div>
         <span class="af-pill">ACTIVOS FIJOS</span>
-        <h2>Disponible y Ubicación</h2>
-        <p>Gestiona disponibilidad, sede, almacén, taller o ubicación interna de los activos fijos.</p>
+        <h2>Disponible y Ubicación de Herramientas</h2>
+        <p>Gestiona disponibilidad, sede, almacén, taller o ubicación interna de las herramientas.</p>
     </div>
 
     <div class="af-banner-side">
         <div class="af-status-box">
-            <span>Activos</span>
+            <span>Herramientas</span>
             <strong>@FilteredTools.Count() visibles</strong>
         </div>
 
@@ -34,7 +36,7 @@
         <h3>Gestionar ubicación</h3>
 
         <div class="mb-2">
-            <label class="form-label">Activo fijo</label>
+            <label class="form-label">Herramienta</label>
             <InputSelect class="form-select" @bind-Value="form.ToolId" @bind-Value:after="LoadSelectedTool">
                 <option value="">Seleccione activo</option>
                 @foreach (var tool in tools.OrderBy(x => x.InternalCode))
@@ -101,8 +103,8 @@
     <section class="af-card">
         <div class="af-table-header">
             <div>
-                <h3>Activos por disponibilidad</h3>
-                <p>Selecciona un activo para modificar su ubicación.</p>
+                <h3>Herramientas por disponibilidad</h3>
+                <p>Selecciona una herramienta para modificar su ubicación.</p>
             </div>
 
             <div class="af-filters">
@@ -130,7 +132,7 @@
 
         @if (isLoading)
         {
-            <p>Cargando activos...</p>
+            <p>Cargando herramientas...</p>
         }
         else
         {
@@ -171,6 +173,8 @@
         }
     </section>
 </section>
+
+</PermissionGuard>
 
 <style>
     .af-banner {
@@ -331,13 +335,26 @@
         await LoadAsync();
     }
 
+    
+    private static bool IsToolOnly(ToolItem item)
+    {
+        var typeName = item.ToolTypeName ?? string.Empty;
+        var typeCode = item.ToolTypeCode ?? string.Empty;
+
+        return typeName.Equals("Herramienta", StringComparison.OrdinalIgnoreCase)
+            || typeName.Equals("HERRAMIENTA", StringComparison.OrdinalIgnoreCase)
+            || typeCode.Equals("HERRAMIENTA", StringComparison.OrdinalIgnoreCase)
+            || typeCode.Equals("TOOL", StringComparison.OrdinalIgnoreCase);
+    }
     private async Task LoadAsync()
     {
         isLoading = true;
 
         try
         {
-            tools = await Api.GetFromJsonAsync<List<ToolItem>>("api/tools") ?? new();
+                        tools = (await Api.GetFromJsonAsync<List<ToolItem>>("api/tools") ?? new())
+                .Where(IsToolOnly)
+                .ToList();
             branches = await Api.GetFromJsonAsync<List<BranchItem>>("api/settings/branches") ?? new();
             locations = await Api.GetFromJsonAsync<List<LocationItem>>("api/settings/warehouses") ?? new();
         }
@@ -481,6 +498,8 @@
 
     private sealed class ToolItem
     {
+        public string? ToolTypeName { get; set; }
+        public string? ToolTypeCode { get; set; }
         public Guid Id { get; set; }
         public string InternalCode { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
@@ -508,3 +527,6 @@
         public Guid BranchId { get; set; }
     }
 }
+
+
+

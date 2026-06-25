@@ -1,5 +1,5 @@
 ﻿@inherits LayoutComponentBase
-@inject Navi.ToolsAssets.Admin.Services.Auth.WebAuthSessionService AuthSession
+@using Navi.ToolsAssets.Admin.Components.Security
 @inject NavigationManager Navigation
 
 @if (IsLoginPage)
@@ -10,17 +10,17 @@
 }
 else
 {
-    <div class="page">
-        <div class="sidebar">
+    <div class="navi-layout-shell">
+        <aside class="navi-sidebar-area">
             <NavMenu />
-        </div>
+        </aside>
 
-        <main>
-            <div class="top-row px-4">
-                <span class="top-title">Fenix365 · Gestión de herramientas y activos</span>
-            </div>
+        <main class="navi-main-area">
+            <header class="navi-top-row">
+                <span>Fenix365 · Gestión de herramientas y activos</span>
+            </header>
 
-            <article class="content px-4">
+            <article class="navi-content">
                 @Body
             </article>
         </main>
@@ -33,6 +33,8 @@ else
     </footer>
 }
 
+<RoutePermissionRedirector />
+
 <div id="blazor-error-ui">
     Ha ocurrido un error inesperado.
     <a href="" class="reload">Recargar</a>
@@ -44,11 +46,4 @@ else
         Navigation.ToBaseRelativePath(Navigation.Uri)
             .Trim('/')
             .Equals("login", StringComparison.OrdinalIgnoreCase);
-
-    private void Logout()
-    {
-        AuthSession.Logout();
-        Navigation.NavigateTo("/login");
-    }
 }
-
