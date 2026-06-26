@@ -1,5 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
+using System.Text;
 using Navi.ToolsAssets.Domain.Entities.Organization;
 using Navi.ToolsAssets.Domain.Entities.Configuration;
 using Navi.ToolsAssets.Domain.Entities.Inventory;
@@ -187,11 +189,23 @@ public class SettingsManagementController : ControllerBase
     [HttpPost("users")]
     public async Task<IActionResult> CreateUser([FromBody] SaveUserRequest request, CancellationToken cancellationToken)
     {
+        await EnsureAppUserPasswordHashColumnAsync(cancellationToken);
+
         var userName = NormalizeUserName(request.UserName);
 
         if (string.IsNullOrWhiteSpace(userName) || string.IsNullOrWhiteSpace(request.DisplayName))
         {
-            return BadRequest(new { Message = "Usuario y nombre son obligatorios." });
+            return BadRequest(new { Message = "Documento/usuario y nombre son obligatorios." });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Password))
+        {
+            return BadRequest(new { Message = "La contraseña de acceso es obligatoria al crear usuario." });
+        }
+
+        if (request.Password.Trim().Length < 4)
+        {
+            return BadRequest(new { Message = "La contraseña debe tener mínimo 4 caracteres." });
         }
 
         var roleExists = await _context.AppRoles.AnyAsync(x => x.Id == request.AppRoleId && !x.IsDeleted, cancellationToken);
@@ -205,16 +219,17 @@ public class SettingsManagementController : ControllerBase
 
         if (exists)
         {
-            return Conflict(new { Message = $"Ya existe un usuario con nombre {userName}." });
+            return Conflict(new { Message = $"Ya existe un usuario con documento/usuario {userName}." });
         }
 
-        var user = new AppUser
+        var user = new Navi.ToolsAssets.Domain.Entities.Security.AppUser
         {
             UserName = userName,
             DisplayName = request.DisplayName.Trim(),
             Email = request.Email?.Trim(),
             Position = request.Position?.Trim(),
             Area = request.Area?.Trim(),
+            PasswordHash = HashUserPassword(request.Password),
             AppRoleId = request.AppRoleId,
             BranchId = request.BranchId,
             ResponsiblePersonId = request.ResponsiblePersonId,
@@ -229,9 +244,17 @@ public class SettingsManagementController : ControllerBase
         return Ok(new { user.Id, Message = "Usuario creado correctamente." });
     }
 
+
+
+
+
+
+
     [HttpPut("users/{id:guid}")]
     public async Task<IActionResult> UpdateUser(Guid id, [FromBody] SaveUserRequest request, CancellationToken cancellationToken)
     {
+        await EnsureAppUserPasswordHashColumnAsync(cancellationToken);
+
         var user = await _context.AppUsers.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
 
         if (user is null)
@@ -243,7 +266,7 @@ public class SettingsManagementController : ControllerBase
 
         if (string.IsNullOrWhiteSpace(userName) || string.IsNullOrWhiteSpace(request.DisplayName))
         {
-            return BadRequest(new { Message = "Usuario y nombre son obligatorios." });
+            return BadRequest(new { Message = "Documento/usuario y nombre son obligatorios." });
         }
 
         var roleExists = await _context.AppRoles.AnyAsync(x => x.Id == request.AppRoleId && !x.IsDeleted, cancellationToken);
@@ -258,7 +281,7 @@ public class SettingsManagementController : ControllerBase
 
         if (duplicated)
         {
-            return Conflict(new { Message = $"Ya existe otro usuario con nombre {userName}." });
+            return Conflict(new { Message = $"Ya existe otro usuario con documento/usuario {userName}." });
         }
 
         user.UserName = userName;
@@ -277,6 +300,44 @@ public class SettingsManagementController : ControllerBase
 
         return Ok(new { Message = "Usuario actualizado correctamente." });
     }
+
+
+
+
+
+
+
+        [HttpPut("users/{id:guid}/password")]
+    public async Task<IActionResult> ChangeUserPassword(Guid id, [FromBody] ChangeUserPasswordRequest request, CancellationToken cancellationToken)
+    {
+        await EnsureAppUserPasswordHashColumnAsync(cancellationToken);
+
+        var user = await _context.AppUsers.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
+
+        if (user is null)
+        {
+            return NotFound(new { Message = "No se encontró el usuario." });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Password))
+        {
+            return BadRequest(new { Message = "Debe ingresar la nueva contraseña." });
+        }
+
+        if (request.Password.Trim().Length < 4)
+        {
+            return BadRequest(new { Message = "La contraseña debe tener mínimo 4 caracteres." });
+        }
+
+        user.PasswordHash = HashUserPassword(request.Password);
+        user.UpdatedAt = DateTime.UtcNow;
+        user.UpdatedBy = request.ChangedBy ?? "settings-password";
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return Ok(new { Message = "Contraseña actualizada correctamente." });
+    }
+
 
     [HttpDelete("users/{id:guid}")]
     public async Task<IActionResult> DeleteUser(Guid id, [FromQuery] string? changedBy, CancellationToken cancellationToken)
@@ -1348,9 +1409,84 @@ public class SettingsManagementController : ControllerBase
     {
         return await DeleteSettingCatalogAsync("MaintenancePlan", id, changedBy, cancellationToken);
     }
+    private async Task EnsureAppUserPasswordHashColumnAsync(CancellationToken cancellationToken)
+    {
+        var entityType = _context.Model.FindEntityType(typeof(Navi.ToolsAssets.Domain.Entities.Security.AppUser));
+
+        var tableName = entityType?.GetTableName();
+
+        if (string.IsNullOrWhiteSpace(tableName))
+        {
+            tableName = "AppUsers";
+        }
+
+        var schema = entityType?.GetSchema();
+
+        static string SqlValue(string? value)
+        {
+            return (value ?? string.Empty).Replace("'", "''");
+        }
+
+        var schemaValue = SqlValue(schema);
+        var tableValue = SqlValue(tableName);
+
+        var sql = $@"
+DECLARE @SchemaName sysname = NULLIF(N'{schemaValue}', N'');
+DECLARE @TableName sysname = N'{tableValue}';
+
+IF @SchemaName IS NULL
+BEGIN
+    SELECT TOP(1) @SchemaName = s.name
+    FROM sys.tables t
+    INNER JOIN sys.schemas s ON s.schema_id = t.schema_id
+    WHERE t.name = @TableName;
+END
+
+IF @SchemaName IS NULL
+BEGIN
+    THROW 50000, 'No se encontro la tabla AppUsers en la base de datos.', 1;
+END
+
+DECLARE @QualifiedTable nvarchar(300) = QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@TableName);
+
+IF COL_LENGTH(@QualifiedTable, N'PasswordHash') IS NULL
+BEGIN
+    DECLARE @AlterSql nvarchar(max) = N'ALTER TABLE ' + @QualifiedTable + N' ADD [PasswordHash] nvarchar(500) NULL;';
+    EXEC sp_executesql @AlterSql;
+END
+";
+
+        await _context.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+    }
+
+    private static string HashUserPassword(string password)
+    {
+        var value = password.Trim();
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(bytes);
+    }
     private static string NormalizeCode(string? code)
     {
         return (code ?? string.Empty).Trim().ToUpperInvariant();
+    }
+
+        private async Task EnsureSecurityUsersPasswordSchemaAsync(CancellationToken cancellationToken)
+    {
+        var sql = @"
+IF COL_LENGTH('Security.AppUsers', 'PasswordHash') IS NULL
+BEGIN
+    ALTER TABLE [Security].[AppUsers] ADD [PasswordHash] nvarchar(500) NULL;
+END
+";
+
+        await _context.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+    }
+
+    private static string HashPassword(string password)
+    {
+        var value = password.Trim();
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(bytes);
     }
 
     private static string NormalizeUserName(string? userName)
@@ -1369,6 +1505,7 @@ public sealed class SaveResponsibleRequest
     public string? Email { get; set; }
     public string? Position { get; set; }
     public string? Area { get; set; }
+    public string? Password { get; set; }
     public bool? IsActive { get; set; }
     public string? ChangedBy { get; set; }
 }
@@ -1406,10 +1543,17 @@ public sealed class SaveUserRequest
     public string? Email { get; set; }
     public string? Position { get; set; }
     public string? Area { get; set; }
+    public string? Password { get; set; }
     public Guid AppRoleId { get; set; }
     public Guid? BranchId { get; set; }
     public Guid? ResponsiblePersonId { get; set; }
     public bool? IsActive { get; set; }
+    public string? ChangedBy { get; set; }
+}
+
+public sealed class ChangeUserPasswordRequest
+{
+    public string? Password { get; set; }
     public string? ChangedBy { get; set; }
 }
 
@@ -1434,6 +1578,22 @@ public sealed class SaveWarehouseRequest
     public bool? IsActive { get; set; }
     public string? ChangedBy { get; set; }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

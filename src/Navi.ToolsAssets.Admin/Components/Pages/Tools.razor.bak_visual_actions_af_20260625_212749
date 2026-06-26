@@ -1,0 +1,574 @@
+﻿@page "/tools"
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Inventario maestro - NAVI Herramientas</PageTitle>
+
+<PermissionGuard Permission="Tools.View" ModuleName="Inventario de AF">
+
+<section class="inventory-hero-banner">
+    <div>
+        <span class="inventory-hero-pill">ACTIVOS FIJOS</span>
+        <h2>Inventario de AF</h2>
+        <p>Consulta general de herramientas y activos fijos registrados en NAVI.</p>
+    </div>
+
+    <div class="inventory-hero-side">
+        <div class="inventory-hero-status">
+            <span>Total activos</span>
+            <strong>@tools.Count registrados</strong>
+        </div>
+
+        <button class="btn btn-sm btn-outline-light inventory-hero-refresh" @onclick="LoadToolsAsync" disabled="@isLoading">
+            @(isLoading ? "Actualizando..." : "Actualizar")
+        </button>
+    </div>
+</section>
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">
+        <strong>Error:</strong> @errorMessage
+    </div>
+}
+else if (isLoading && tools.Count == 0)
+{
+    <div class="alert alert-info">
+        Cargando inventario desde la API...
+    </div>
+}
+else
+{
+    <section class="inventory-kpi-grid">
+        <article class="inventory-kpi-card total">
+            <span>Total AF</span>
+            <strong>@tools.Count</strong>
+        </article>
+
+        <article class="inventory-kpi-card success">
+            <span>Disponibles</span>
+            <strong>@tools.Count(x => x.OperationalStatus == "Available")</strong>
+        </article>
+
+        <article class="inventory-kpi-card warning">
+            <span>Pendientes validación</span>
+            <strong>@tools.Count(x => x.OperationalStatus == "PendingValidation")</strong>
+        </article>
+
+        <article class="inventory-kpi-card danger">
+            <span>Bloqueadas</span>
+            <strong>@tools.Count(IsBlocked)</strong>
+        </article>
+    </section>
+
+    <section class="inventory-status-filters inventory-status-filters-modern">
+        <button type="button"
+                class="@GetStatusFilterChipClass(string.Empty)"
+                @onclick="@(() => SelectStatus(string.Empty))">
+            Todos
+            <span>@tools.Count</span>
+        </button>
+
+        @foreach (var option in StatusFilterOptions)
+        {
+            <button type="button"
+                    class="@GetStatusFilterChipClass(option.Value)"
+                    @onclick="@(() => SelectStatus(option.Value))">
+                @option.Label
+                <span>@option.Count</span>
+            </button>
+        }
+    </section>
+
+    <section class="inventory-panel">
+        <div class="inventory-toolbar">
+            <input class="form-control"
+                   placeholder="Buscar por código, nombre, serial, sede, tipo o categoría..."
+                   @bind="searchText"
+                   @bind:event="oninput" />
+
+            <select class="form-select" @bind="selectedStatus">
+                <option value="">Todos los estados</option>
+                @foreach (var status in tools.Select(x => x.OperationalStatus).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x))
+                {
+                    <option value="@status">@GetStatusLabel(status)</option>
+                }
+            </select>
+
+            <select class="form-select" @bind="selectedBranch">
+                <option value="">Todas las sedes</option>
+                @foreach (var branch in tools.Select(x => x.BranchCode).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x))
+                {
+                    <option value="@branch">@branch</option>
+                }
+            </select>
+        </div>
+
+        <div class="inventory-count">
+            Mostrando <strong>@FilteredTools.Count()</strong> de <strong>@tools.Count</strong> herramientas.
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle inventory-table">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>HERRAMIENTA / ACTIVO</th>
+                        <th>Sede</th>
+                        <th>Tipo</th>
+                        <th>Categoría</th>
+                        <th>Serial</th>
+                        <th>Estado</th>
+                        <th>Clase</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var tool in FilteredTools)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@tool.InternalCode</strong>
+                            </td>
+                            <td>
+                                <strong>@tool.Name</strong>
+                                @if (!string.IsNullOrWhiteSpace(tool.Description))
+                                {
+                                    <br />
+                                    <small class="text-muted">@tool.Description</small>
+                                }
+                            </td>
+                            <td>
+                                <span>@tool.BranchCode</span>
+                                @if (!string.IsNullOrWhiteSpace(tool.BranchName))
+                                {
+                                    <br />
+                                    <small class="text-muted">@tool.BranchName</small>
+                                }
+                            </td>
+                            <td>@ShowValue(tool.ToolTypeName)</td>
+                            <td>@ShowValue(tool.ToolCategoryName)</td>
+                            <td>@ShowValue(tool.SerialNumber)</td>
+                            <td>
+                                <span class="@GetInventoryStatusClass(tool.OperationalStatus)">
+                                    <span class="inventory-status-dot"></span>
+                                    @GetStatusLabel(tool.OperationalStatus)
+                                </span>
+                            </td>
+                            <td>
+                                @if (tool.IsSpecialized)
+                                {
+                                    <span class="inventory-class-badge specialized">Especializada</span>
+                                }
+                                else
+                                {
+                                    <span class="inventory-class-badge normal">No especializada</span>
+                                }
+                            </td>
+                            <td>
+                                <a class="btn-inventory-detail" href="@($"/tools/{tool.Id}")">Detalle</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+}
+
+@code {
+    private bool isLoading;
+    private string? errorMessage;
+    private string searchText = string.Empty;
+    private string selectedStatus = string.Empty;
+    private string selectedBranch = string.Empty;
+
+    private List<ToolListItem> tools = new();
+
+    private IEnumerable<StatusFilterOption> StatusFilterOptions =>
+        tools
+            .Where(x => !string.IsNullOrWhiteSpace(x.OperationalStatus))
+            .GroupBy(x => x.OperationalStatus)
+            .Select(x => new StatusFilterOption
+            {
+                Value = x.Key,
+                Label = GetStatusLabel(x.Key),
+                Count = x.Count()
+            })
+            .OrderBy(x => x.Label);
+
+    private IEnumerable<ToolListItem> FilteredTools =>
+        tools
+            .Where(MatchesSearch)
+            .Where(x => string.IsNullOrWhiteSpace(selectedStatus) || x.OperationalStatus == selectedStatus)
+            .Where(x => string.IsNullOrWhiteSpace(selectedBranch) || x.BranchCode == selectedBranch)
+            .OrderBy(x => x.BranchCode)
+            .ThenBy(x => x.InternalCode);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadToolsAsync();
+    }
+
+    private async Task LoadToolsAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            tools = await client.GetFromJsonAsync<List<ToolListItem>>("api/tools") ?? new();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo cargar el inventario. Valida que la API esté activa en http://localhost:5218. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void SelectStatus(string status)
+    {
+        selectedStatus = status;
+    }
+
+    private string GetStatusFilterChipClass(string status)
+    {
+        var isActive = string.Equals(
+            selectedStatus ?? string.Empty,
+            status ?? string.Empty,
+            StringComparison.OrdinalIgnoreCase);
+
+        return isActive
+            ? $"{GetInventoryStatusClass(status)} inventory-status-filter-chip active"
+            : $"{GetInventoryStatusClass(status)} inventory-status-filter-chip";
+    }
+
+    private bool MatchesSearch(ToolListItem tool)
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            return true;
+        }
+
+        var value = searchText.Trim();
+
+        return Contains(tool.InternalCode, value)
+            || Contains(tool.Name, value)
+            || Contains(tool.Description, value)
+            || Contains(tool.SerialNumber, value)
+            || Contains(tool.FixedAssetCode, value)
+            || Contains(tool.FenixCode, value)
+            || Contains(tool.BranchCode, value)
+            || Contains(tool.BranchName, value)
+            || Contains(tool.ToolTypeName, value)
+            || Contains(tool.ToolCategoryName, value)
+            || Contains(tool.OperationalStatus, value);
+    }
+
+    private static bool Contains(string? source, string value)
+    {
+        return !string.IsNullOrWhiteSpace(source)
+            && source.Contains(value, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsBlocked(ToolListItem tool)
+    {
+        return tool.OperationalStatus is "Damaged"
+            or "NotSuitable"
+            or "InMaintenance"
+            or "PendingDisposal"
+            or "Disposed"
+            or "NotLocated"
+            or "Inconsistent";
+    }
+
+    private static string ShowValue(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "-" : value;
+    }
+
+    private static string GetStatusLabel(string? status)
+    {
+        return status switch
+        {
+            "Available" => "Disponible",
+            "Assigned" => "Asignada",
+            "Loaned" => "Prestada",
+            "InMaintenance" => "En mantenimiento",
+            "Damaged" => "Dañada",
+            "NotSuitable" => "No apta",
+            "PendingValidation" => "Pendiente validación",
+            "Inconsistent" => "Inconsistente",
+            "NotLocated" => "No localizada",
+            "PendingDisposal" => "Pendiente de baja",
+            "Disposed" => "Dada de baja",
+            _ => string.IsNullOrWhiteSpace(status) ? "Sin estado" : status
+        };
+    }
+
+    private static string GetInventoryStatusClass(string? status)
+    {
+        return status switch
+        {
+            "Available" => "inventory-status-pill status-success",
+            "Assigned" => "inventory-status-pill status-success",
+            "Loaned" => "inventory-status-pill status-info",
+            "InMaintenance" => "inventory-status-pill status-warning",
+            "PendingValidation" => "inventory-status-pill status-warning",
+            "Damaged" => "inventory-status-pill status-danger",
+            "NotSuitable" => "inventory-status-pill status-danger",
+            "Inconsistent" => "inventory-status-pill status-danger",
+            "NotLocated" => "inventory-status-pill status-danger",
+            "PendingDisposal" => "inventory-status-pill status-danger",
+            "Disposed" => "inventory-status-pill status-neutral",
+            _ => "inventory-status-pill status-neutral"
+        };
+    }
+
+    private static string GetStatusBadgeClass(string? status)
+    {
+        return status switch
+        {
+            "Available" => "badge bg-success",
+            "PendingValidation" => "badge bg-warning text-dark",
+            "Loaned" => "badge bg-info text-dark",
+            "InMaintenance" => "badge bg-primary",
+            "Damaged" => "badge bg-danger",
+            "NotSuitable" => "badge bg-danger",
+            "NotLocated" => "badge bg-dark",
+            "Inconsistent" => "badge bg-danger",
+            "Disposed" => "badge bg-secondary",
+            _ => "badge bg-secondary"
+        };
+    }
+
+    private sealed class StatusFilterOption
+    {
+        public string Value { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
+    private sealed class ToolListItem
+    {
+        public Guid Id { get; set; }
+        public string InternalCode { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string? Brand { get; set; }
+        public string? Model { get; set; }
+        public string? SerialNumber { get; set; }
+        public string? FixedAssetCode { get; set; }
+        public string? FenixCode { get; set; }
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string? LocationCode { get; set; }
+        public string? LocationName { get; set; }
+        public string? ResponsiblePersonName { get; set; }
+        public string? ToolTypeCode { get; set; }
+        public string? ToolTypeName { get; set; }
+        public string? ToolCategoryCode { get; set; }
+        public string? ToolCategoryName { get; set; }
+        public string OperationalStatus { get; set; } = string.Empty;
+        public string PhysicalStatus { get; set; } = string.Empty;
+        public string CustodyStatus { get; set; } = string.Empty;
+        public string ReconciliationStatus { get; set; } = string.Empty;
+        public string SyncStatus { get; set; } = string.Empty;
+        public bool IsSpecialized { get; set; }
+    }
+}
+
+
+
+
+
+
+</PermissionGuard>
+
+<style>
+    .inventory-hero-banner {
+        background: linear-gradient(135deg, #050008 0%, #280032 45%, #5c006b 100%);
+        color: #ffffff;
+        border-radius: 0.85rem;
+        padding: 1.25rem 1.4rem;
+        margin-bottom: 0.85rem;
+        min-height: 105px;
+        display: flex;
+        justify-content: space-between;
+        align-items: stretch;
+        gap: 1rem;
+        box-shadow: 0 0.65rem 1.35rem rgba(75, 0, 92, 0.22);
+    }
+
+    .inventory-hero-pill {
+        display: inline-flex;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        color: #ffffff;
+        border-radius: 999px;
+        padding: 0.22rem 0.65rem;
+        font-size: 0.7rem;
+        font-weight: 900;
+        letter-spacing: 0.04rem;
+        margin-bottom: 0.6rem;
+    }
+
+    .inventory-hero-banner h2 {
+        font-size: 1.75rem;
+        font-weight: 950;
+        margin: 0;
+        color: #ffffff;
+    }
+
+    .inventory-hero-banner p {
+        margin: 0.35rem 0 0 0;
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 0.9rem;
+    }
+
+    .inventory-hero-side {
+        min-width: 190px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: stretch;
+        gap: 0.65rem;
+    }
+
+    .inventory-hero-status {
+        display: grid;
+        gap: 0.2rem;
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 0.65rem;
+        padding: 0.55rem 0.75rem;
+        text-align: right;
+    }
+
+    .inventory-hero-status span {
+        color: #ffdd57;
+        font-weight: 900;
+        font-size: 0.75rem;
+    }
+
+    .inventory-hero-status strong {
+        color: #ffffff;
+        font-size: 0.82rem;
+    }
+
+    .inventory-hero-refresh {
+        height: 32px;
+        font-size: 0.78rem;
+        font-weight: 800;
+        border-color: rgba(255, 255, 255, 0.65);
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .inventory-hero-refresh:hover {
+        color: #4b005c;
+        background: #ffffff;
+        border-color: #ffffff;
+    }
+
+    .inventory-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(150px, 1fr));
+        gap: 0.65rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .inventory-kpi-card {
+        background: #ffffff;
+        border: 1px solid #dfe3e8;
+        border-radius: 0.75rem;
+        padding: 0.65rem 0.8rem;
+        min-height: 66px;
+        box-shadow: 0 0.25rem 0.65rem rgba(0, 0, 0, 0.04);
+        border-left: 4px solid #4b005c;
+    }
+
+    .inventory-kpi-card.success {
+        border-left-color: #198754;
+    }
+
+    .inventory-kpi-card.warning {
+        border-left-color: #ffc107;
+    }
+
+    .inventory-kpi-card.danger {
+        border-left-color: #dc3545;
+    }
+
+    .inventory-kpi-card span {
+        display: block;
+        color: #657083;
+        font-size: 0.72rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .inventory-kpi-card strong {
+        display: block;
+        color: #22102b;
+        font-size: 1.35rem;
+        font-weight: 950;
+        line-height: 1.1;
+    }
+
+    .inventory-status-filters-modern {
+        margin-bottom: 0.85rem !important;
+        background: #ffffff;
+        border: 1px solid #dfe3e8;
+        border-radius: 0.75rem;
+        padding: 0.55rem;
+        box-shadow: 0 0.25rem 0.65rem rgba(0, 0, 0, 0.035);
+    }
+
+    .btn-inventory-detail {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 76px;
+        height: 31px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #4b005c 0%, #7b0d8e 100%);
+        color: #ffffff !important;
+        font-size: 0.76rem;
+        font-weight: 900;
+        text-decoration: none;
+        box-shadow: 0 0.25rem 0.6rem rgba(75, 0, 92, 0.25);
+        border: 1px solid rgba(75, 0, 92, 0.25);
+        white-space: nowrap;
+    }
+
+    .btn-inventory-detail:hover {
+        color: #ffffff !important;
+        filter: brightness(1.08);
+        transform: translateY(-1px);
+    }
+
+    @@media (max-width: 1100px) {
+        .inventory-hero-banner {
+            flex-direction: column;
+        }
+
+        .inventory-hero-side {
+            width: 100%;
+        }
+
+        .inventory-kpi-grid {
+            grid-template-columns: repeat(2, minmax(140px, 1fr));
+        }
+    }
+
+    @@media (max-width: 700px) {
+        .inventory-kpi-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+

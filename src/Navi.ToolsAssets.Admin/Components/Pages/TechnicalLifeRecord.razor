@@ -76,7 +76,7 @@ else if (record is not null)
     <div class="quick-action-card">
         <span>Datos técnicos</span>
         <strong>Información base</strong>
-        <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{ToolId}/technical-life-record/edit")">
+        <a class="life-action life-action-primary" href="@($"/tools/{ToolId}/technical-life-record/edit")">
             Editar
         </a>
     </div>
@@ -84,7 +84,7 @@ else if (record is not null)
     <div class="quick-action-card">
         <span>Accesorios</span>
         <strong>Partes y componentes</strong>
-        <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{ToolId}/accessories")">
+        <a class="life-action life-action-primary" href="@($"/tools/{ToolId}/accessories")">
             Gestionar
         </a>
     </div>
@@ -92,7 +92,7 @@ else if (record is not null)
     <div class="quick-action-card">
         <span>Documentos</span>
         <strong>Fotos, fichas y evidencias</strong>
-        <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{ToolId}/documents")">
+        <a class="life-action life-action-primary" href="@($"/tools/{ToolId}/documents")">
             Gestionar
         </a>
     </div>
@@ -100,7 +100,7 @@ else if (record is not null)
     <div class="quick-action-card">
         <span>Mantenimiento</span>
         <strong>Cronograma y evidencias</strong>
-        <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{ToolId}/maintenance-schedule")">
+        <a class="life-action life-action-primary" href="@($"/tools/{ToolId}/maintenance-schedule")">
             Gestionar
         </a>
     </div>
@@ -108,7 +108,7 @@ else if (record is not null)
     <div class="quick-action-card">
         <span>Seguridad</span>
         <strong>Prácticas seguras</strong>
-        <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{ToolId}/safe-practices")">
+        <a class="life-action life-action-primary" href="@($"/tools/{ToolId}/safe-practices")">
             Gestionar
         </a>
     </div>
@@ -116,7 +116,7 @@ else if (record is not null)
     <div class="quick-action-card">
         <span>Trazabilidad</span>
         <strong>Eventos de hoja de vida</strong>
-        <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{ToolId}/life-cycle-events")">
+        <a class="life-action life-action-primary" href="@($"/tools/{ToolId}/life-cycle-events")">
             Ver eventos
         </a>
     </div>
@@ -125,11 +125,11 @@ else if (record is not null)
         <span>Exportar</span>
         <strong>PDF / Excel</strong>
         <div class="d-flex gap-1 flex-wrap">
-            <button class="btn btn-sm btn-outline-dark" @onclick="PrintLifeRecord">
+            <button class="life-action life-action-neutral" @onclick="PrintLifeRecord">
                 PDF
             </button>
 
-            <a class="btn btn-sm btn-outline-success"
+            <a class="life-action life-action-success"
                href="@BuildApiUrl($"/api/tools/{ToolId}/technical-life-record/export-excel")"
                target="_blank">
                 Excel
@@ -262,7 +262,7 @@ else if (record is not null)
                 <h2>Accesorios del equipo</h2>
             </div>
 
-            <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{ToolId}/accessories")">
+            <a class="life-action life-action-primary" href="@($"/tools/{ToolId}/accessories")">
                 Gestionar accesorios
             </a>
         </div>
@@ -358,7 +358,7 @@ else if (record is not null)
                 <h2>Cronograma de mantenimiento</h2>
             </div>
 
-            <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{ToolId}/maintenance-schedule")">
+            <a class="life-action life-action-primary" href="@($"/tools/{ToolId}/maintenance-schedule")">
                 Gestionar mantenimientos
             </a>
         </div>
@@ -402,7 +402,7 @@ else if (record is not null)
                                 <td>
                                     @if (!string.IsNullOrWhiteSpace(item.EvidenceDownloadUrl))
                                     {
-                                        <a class="btn btn-sm btn-outline-primary"
+                                        <a class="life-action life-action-primary"
                                            href="@BuildApiUrl(item.EvidenceDownloadUrl)"
                                            target="_blank">
                                             Descargar
@@ -431,7 +431,7 @@ else if (record is not null)
                 <h2>Prácticas seguras</h2>
             </div>
 
-            <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{ToolId}/safe-practices")">
+            <a class="life-action life-action-primary" href="@($"/tools/{ToolId}/safe-practices")">
                 Gestionar prácticas
             </a>
         </div>
@@ -1186,4 +1186,123 @@ else if (record is not null)
             grid-template-columns: 1fr !important;
         }
     }
+
+    /* ============================================================
+       Mejora visual botones Acciones - Hoja de Vida AF
+       ============================================================ */
+
+    .life-hero-buttons {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: .38rem;
+        min-width: 185px;
+    }
+
+    .life-record-quick-actions .quick-action-card {
+        display: grid;
+        gap: .42rem;
+        align-content: start;
+    }
+
+    .life-record-quick-actions .quick-action-card .d-flex {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr;
+        gap: .35rem !important;
+    }
+
+    .life-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 30px;
+        width: 100%;
+        border-radius: .48rem;
+        padding: .32rem .42rem;
+        font-size: .68rem;
+        font-weight: 950;
+        line-height: 1.1;
+        text-decoration: none;
+        border: 1px solid transparent;
+        background: #fff;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .life-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .25rem .55rem rgba(15, 23, 42, .12);
+        text-decoration: none;
+    }
+
+    .life-action-primary {
+        border-color: #2563eb;
+        color: #1d4ed8;
+        background: #eff6ff;
+    }
+
+    .life-action-primary:hover {
+        color: #1e40af;
+        background: #dbeafe;
+    }
+
+    .life-action-primary-fill {
+        border-color: #1d4ed8;
+        color: #fff;
+        background: #2563eb;
+    }
+
+    .life-action-neutral {
+        border-color: #64748b;
+        color: #334155;
+        background: #f8fafc;
+    }
+
+    .life-action-neutral:hover {
+        color: #1e293b;
+        background: #e2e8f0;
+    }
+
+    .life-action-success {
+        border-color: #059669;
+        color: #047857;
+        background: #ecfdf5;
+    }
+
+    .life-action-success:hover {
+        color: #065f46;
+        background: #d1fae5;
+    }
+
+    .life-action-danger {
+        border-color: #ef4444;
+        color: #dc2626;
+        background: #fff1f2;
+    }
+
+    .life-action-warning {
+        border-color: #f59e0b;
+        color: #9a3412;
+        background: #fff7ed;
+    }
+
+    .section-title .life-action,
+    .section-title-main + .life-action {
+        max-width: 190px;
+    }
+
+    @@media (max-width: 1300px) {
+        .life-action {
+            font-size: .62rem;
+            min-height: 27px;
+            padding: .26rem .32rem;
+            white-space: normal;
+        }
+
+        .life-hero-buttons {
+            min-width: 150px;
+        }
+    }
+
 </style>
+

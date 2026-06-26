@@ -142,19 +142,19 @@
 
                                 <td>
                                     <div class="row-actions">
-                                        <a class="btn btn-sm btn-primary" href="@($"/physical-counts/{item.Id}")">
-                                            Abrir detalle
+                                        <a class="tf-action tf-action-primary" href="@($"/physical-counts/{item.Id}")">
+                                            Detalle
                                         </a>
 
-                                        <button class="btn btn-sm btn-outline-success" @onclick="() => StartAsync(item.Id)">
+                                        <button class="tf-action tf-action-success" @onclick="() => StartAsync(item.Id)">
                                             Iniciar
                                         </button>
 
-                                        <button class="btn btn-sm btn-outline-dark" @onclick="() => CompleteAsync(item.Id)">
+                                        <button class="tf-action tf-action-neutral" @onclick="() => CompleteAsync(item.Id)">
                                             Cerrar
                                         </button>
 
-                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => CancelAsync(item.Id)">
+                                        <button class="tf-action tf-action-danger" @onclick="() => CancelAsync(item.Id)">
                                             Cancelar
                                         </button>
                                     </div>
@@ -380,6 +380,128 @@
             align-items: stretch;
         }
     }
+
+    /* ============================================================
+       Mejora visual botones Acciones - Tomas físicas
+       ============================================================ */
+
+    .tf-table th:last-child,
+    .tf-table td:last-child {
+        width: 150px;
+        min-width: 150px;
+        text-align: center;
+    }
+
+    .tf-table td:last-child {
+        vertical-align: middle;
+    }
+
+    .row-actions {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .35rem;
+        width: 100%;
+        min-width: 140px;
+        align-items: stretch;
+    }
+
+    .tf-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 30px;
+        width: 100%;
+        border-radius: .48rem;
+        padding: .32rem .42rem;
+        font-size: .68rem;
+        font-weight: 950;
+        line-height: 1.1;
+        text-decoration: none;
+        border: 1px solid transparent;
+        background: #fff;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .tf-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .25rem .55rem rgba(15, 23, 42, .12);
+        text-decoration: none;
+    }
+
+    .tf-action-primary {
+        border-color: #2563eb;
+        color: #1d4ed8;
+        background: #eff6ff;
+    }
+
+    .tf-action-primary:hover {
+        color: #1e40af;
+        background: #dbeafe;
+    }
+
+    .tf-action-success {
+        border-color: #059669;
+        color: #047857;
+        background: #ecfdf5;
+    }
+
+    .tf-action-success:hover {
+        color: #065f46;
+        background: #d1fae5;
+    }
+
+    .tf-action-neutral {
+        border-color: #334155;
+        color: #334155;
+        background: #f8fafc;
+    }
+
+    .tf-action-neutral:hover {
+        color: #1e293b;
+        background: #e2e8f0;
+    }
+
+    .tf-action-danger {
+        border-color: #ef4444;
+        color: #dc2626;
+        background: #fff1f2;
+    }
+
+    .tf-action-danger:hover {
+        color: #b91c1c;
+        background: #ffe4e6;
+    }
+
+    .tf-table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    .tf-table {
+        min-width: 980px;
+    }
+
+    @@media (max-width: 1300px) {
+        .tf-table th:last-child,
+        .tf-table td:last-child {
+            width: 135px;
+            min-width: 135px;
+        }
+
+        .row-actions {
+            grid-template-columns: 1fr;
+            min-width: 120px;
+        }
+
+        .tf-action {
+            font-size: .64rem;
+            min-height: 28px;
+            padding: .28rem .35rem;
+        }
+    }
+
 </style>
 
 @code {
@@ -584,3 +706,4 @@
         public string? Notes { get; set; }
     }
 }
+

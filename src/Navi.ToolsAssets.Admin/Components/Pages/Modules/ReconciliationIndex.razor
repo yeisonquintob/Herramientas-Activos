@@ -196,7 +196,7 @@
             <div class="rec-section-title">
                 <div>
                     <h2>Registros para conciliación</h2>
-                    <p>No se crean registros desde esta vista. Aquí solo se revisa y se toman decisiones administrativas.</p>
+                    <p>Vista administrativa de decisión. Aquí se revisan diferencias, se solicitan aclaraciones, se aprueba creación, se concilia o se rechaza.</p>
                 </div>
 
                 @if (board is not null)
@@ -230,23 +230,23 @@
                     <table class="rec-table">
                         <thead>
                             <tr>
-                                <th>Tipo</th>
-                                <th>Código / nombre</th>
-                                <th>Usuario</th>
-                                <th>Clasificación</th>
-                                <th>Ubicación / responsable</th>
-                                <th>Estado reportado</th>
-                                <th>Conciliación</th>
-                                <th>Datos mínimos</th>
-                                <th>Fecha</th>
-                                <th>Acciones</th>
+                                <th class="rec-col-type">Tipo</th>
+                                <th class="rec-col-code">Código / nombre</th>
+                                <th class="rec-col-user">Usuario</th>
+                                <th class="rec-col-class">Clasificación</th>
+                                <th class="rec-col-location">Ubicación / responsable</th>
+                                <th class="rec-col-status">Estado reportado</th>
+                                <th class="rec-col-reconciliation">Conciliación</th>
+                                <th class="rec-col-minimum">Datos mínimos</th>
+                                <th class="rec-col-date">Fecha</th>
+                                <th class="rec-col-actions">Acciones</th>
                             </tr>
                         </thead>
 
                         <tbody>
                             @foreach (var item in FilteredItems)
                             {
-                                <tr>
+                                <tr class="rec-data-row">
                                     <td>
                                         <span class="@GetReportTypeClass(item)">
                                             @GetReportTypeLabel(item)
@@ -1379,5 +1379,489 @@
             grid-template-columns: 1fr;
         }
     }
+
+    /* ============================================================
+       Mejoras visuales Conciliación
+       No cambia lógica, solo presentación
+       ============================================================ */
+
+    .rec-card {
+        box-shadow: 0 .45rem 1.1rem rgba(15, 23, 42, .06);
+    }
+
+    .rec-kpi-grid article {
+        position: relative;
+        overflow: hidden;
+        min-height: 82px;
+        box-shadow: 0 .35rem .8rem rgba(15, 23, 42, .04);
+        transition: transform .15s ease, box-shadow .15s ease;
+    }
+
+    .rec-kpi-grid article:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .55rem 1.1rem rgba(15, 23, 42, .08);
+    }
+
+    .rec-kpi-grid article::after {
+        content: "";
+        position: absolute;
+        right: -.8rem;
+        top: -.8rem;
+        width: 3rem;
+        height: 3rem;
+        border-radius: 999px;
+        background: rgba(124, 22, 136, .08);
+    }
+
+    .rec-table-wrapper {
+        border: 1px solid #e5e7eb;
+        border-radius: .85rem;
+        overflow: auto;
+        max-height: calc(100vh - 310px);
+        background: #fff;
+    }
+
+    .rec-table {
+        border-collapse: separate;
+        border-spacing: 0;
+        min-width: 1580px;
+        font-size: .76rem;
+    }
+
+    .rec-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 4;
+        background: #fff;
+        border-bottom: 2px solid #1f2937;
+        padding: .65rem .6rem;
+        letter-spacing: .02rem;
+        white-space: nowrap;
+    }
+
+    .rec-data-row {
+        transition: background .12s ease;
+    }
+
+    .rec-data-row:hover {
+        background: #fbf4ff;
+    }
+
+    .rec-table td {
+        padding: .72rem .6rem;
+        border-bottom: 1px solid #edf0f4;
+    }
+
+    .rec-table td strong {
+        color: #111827;
+        font-weight: 950;
+        line-height: 1.25;
+    }
+
+    .rec-table td span {
+        color: #334155;
+        line-height: 1.28;
+    }
+
+    .rec-table td small {
+        color: #64748b;
+        line-height: 1.25;
+    }
+
+    .rec-table td small:not(.rec-created) {
+        max-width: 240px;
+    }
+
+    .rec-col-type {
+        width: 95px;
+    }
+
+    .rec-col-code {
+        width: 220px;
+    }
+
+    .rec-col-user {
+        width: 150px;
+    }
+
+    .rec-col-class {
+        width: 145px;
+    }
+
+    .rec-col-location {
+        width: 205px;
+    }
+
+    .rec-col-status {
+        width: 255px;
+    }
+
+    .rec-col-reconciliation {
+        width: 235px;
+    }
+
+    .rec-col-minimum {
+        width: 110px;
+    }
+
+    .rec-col-date {
+        width: 95px;
+    }
+
+    .rec-col-actions {
+        width: 205px;
+        text-align: center !important;
+    }
+
+    .rec-table th:last-child,
+    .rec-table td:last-child {
+        position: sticky;
+        right: 0;
+        background: #fff;
+        z-index: 3;
+        box-shadow: -8px 0 14px rgba(15, 23, 42, .05);
+    }
+
+    .rec-table thead th:last-child {
+        z-index: 5;
+    }
+
+    .rec-data-row:hover td:last-child {
+        background: #fbf4ff;
+    }
+
+    .rec-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .35rem;
+        min-width: 190px;
+    }
+
+    .rec-action {
+        min-height: 31px;
+        border-radius: .5rem;
+        font-size: .7rem;
+        font-weight: 950;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .rec-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .3rem .55rem rgba(15, 23, 42, .12);
+    }
+
+    .rec-action.warn {
+        background: #fff7ed;
+        border-color: #f59e0b;
+        color: #9a3412;
+    }
+
+    .rec-action.warn:hover {
+        background: #ffedd5;
+    }
+
+    .rec-action.ok {
+        background: #ecfdf5;
+        border-color: #059669;
+        color: #047857;
+    }
+
+    .rec-action.ok:hover {
+        background: #d1fae5;
+    }
+
+    .rec-action.ok-fill {
+        background: #059669;
+        border-color: #047857;
+        color: #fff;
+    }
+
+    .rec-action.ok-fill:hover {
+        background: #047857;
+    }
+
+    .rec-action.neutral {
+        background: #f8fafc;
+        border-color: #334155;
+        color: #334155;
+    }
+
+    .rec-action.neutral:hover {
+        background: #e2e8f0;
+    }
+
+    .rec-action.danger {
+        background: #fff1f2;
+        border-color: #ef4444;
+        color: #dc2626;
+    }
+
+    .rec-action.danger:hover {
+        background: #ffe4e6;
+    }
+
+    .rec-pill-ok,
+    .rec-pill-danger,
+    .rec-pill-danger-soft,
+    .rec-pill-purple,
+    .rec-pill-warning,
+    .rec-pill-info,
+    .rec-pill-neutral {
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.35);
+        white-space: nowrap;
+    }
+
+    .rec-pill-ok {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .rec-pill-danger {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .rec-pill-danger-soft {
+        background: #ffe4e6;
+        color: #9f1239;
+    }
+
+    .rec-pill-purple {
+        background: #f3e8ff;
+        color: #7e22ce;
+    }
+
+    .rec-pill-warning {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .rec-pill-info {
+        background: #dbeafe;
+        color: #1e40af;
+    }
+
+    .rec-pill-neutral {
+        background: #e2e8f0;
+        color: #334155;
+    }
+
+    .rec-count-context {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: .75rem;
+        padding: .55rem .75rem;
+        min-width: 180px;
+    }
+
+    .rec-count-context strong {
+        color: #1f2937;
+        font-size: .9rem;
+    }
+
+    .rec-count-context span {
+        color: #64748b;
+        font-size: .8rem;
+        font-weight: 800;
+    }
+
+    .rec-filter-grid input:focus,
+    .rec-filter-grid select:focus,
+    .rec-search input:focus {
+        outline: 0;
+        border-color: #8a1296;
+        box-shadow: 0 0 0 .18rem rgba(138, 18, 150, .12);
+    }
+
+    .rec-empty {
+        border: 1px dashed #cbd5e1;
+    }
+
+    @@media (max-width: 1200px) {
+        .rec-table-wrapper {
+            max-height: none;
+        }
+
+        .rec-table th:last-child,
+        .rec-table td:last-child {
+            position: static;
+            box-shadow: none;
+        }
+    }
+
+
+    /* ============================================================
+       Corrección responsive Conciliación
+       Quita scroll interno, ajusta tabla y botones
+       ============================================================ */
+
+    .rec-table-wrapper {
+        width: 100% !important;
+        max-height: none !important;
+        overflow-x: visible !important;
+        overflow-y: visible !important;
+        border: 1px solid #e5e7eb;
+        border-radius: .85rem;
+        background: #fff;
+    }
+
+    .rec-table {
+        width: 100% !important;
+        min-width: 0 !important;
+        table-layout: fixed !important;
+        border-collapse: collapse !important;
+        font-size: .72rem !important;
+    }
+
+    .rec-table thead th {
+        position: static !important;
+        top: auto !important;
+        z-index: auto !important;
+        background: #fff;
+        padding: .55rem .45rem !important;
+        white-space: normal !important;
+        line-height: 1.15;
+    }
+
+    .rec-table th:last-child,
+    .rec-table td:last-child {
+        position: static !important;
+        right: auto !important;
+        z-index: auto !important;
+        box-shadow: none !important;
+        background: transparent !important;
+    }
+
+    .rec-table td {
+        padding: .55rem .45rem !important;
+        vertical-align: top;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+    }
+
+    .rec-table td strong,
+    .rec-table td span,
+    .rec-table td small {
+        max-width: 100% !important;
+        overflow-wrap: anywhere;
+        word-break: normal;
+    }
+
+    .rec-col-type {
+        width: 7% !important;
+    }
+
+    .rec-col-code {
+        width: 14% !important;
+    }
+
+    .rec-col-user {
+        width: 10% !important;
+    }
+
+    .rec-col-class {
+        width: 10% !important;
+    }
+
+    .rec-col-location {
+        width: 14% !important;
+    }
+
+    .rec-col-status {
+        width: 15% !important;
+    }
+
+    .rec-col-reconciliation {
+        width: 14% !important;
+    }
+
+    .rec-col-minimum {
+        width: 7% !important;
+    }
+
+    .rec-col-date {
+        width: 6% !important;
+    }
+
+    .rec-col-actions {
+        width: 13% !important;
+        text-align: center !important;
+    }
+
+    .rec-actions {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: .28rem !important;
+        min-width: 0 !important;
+        width: 100% !important;
+    }
+
+    .rec-action {
+        width: 100% !important;
+        min-height: 28px !important;
+        padding: .32rem .35rem !important;
+        font-size: .66rem !important;
+        line-height: 1.1 !important;
+        white-space: normal !important;
+        text-align: center !important;
+        border-radius: .42rem !important;
+    }
+
+    .rec-action.ok {
+        background: #ecfdf5;
+        border-color: #059669;
+        color: #047857;
+    }
+
+    .rec-action.warn {
+        background: #fff7ed;
+        border-color: #f59e0b;
+        color: #9a3412;
+    }
+
+    .rec-action.neutral {
+        background: #f8fafc;
+        border-color: #334155;
+        color: #334155;
+    }
+
+    .rec-action.danger {
+        background: #fff1f2;
+        border-color: #ef4444;
+        color: #dc2626;
+    }
+
+    .rec-data-row:hover td:last-child {
+        background: transparent !important;
+    }
+
+    .rec-pill-ok,
+    .rec-pill-danger,
+    .rec-pill-danger-soft,
+    .rec-pill-purple,
+    .rec-pill-warning,
+    .rec-pill-info,
+    .rec-pill-neutral {
+        white-space: normal !important;
+        line-height: 1.15 !important;
+        text-align: center;
+    }
+
+    @@media (max-width: 1450px) {
+        .rec-table {
+            font-size: .68rem !important;
+        }
+
+        .rec-action {
+            font-size: .62rem !important;
+            padding: .28rem .3rem !important;
+        }
+    }
+
 </style>
+
+
+
+
 

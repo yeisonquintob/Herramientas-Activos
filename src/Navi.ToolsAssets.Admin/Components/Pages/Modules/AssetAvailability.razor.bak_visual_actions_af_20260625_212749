@@ -1,0 +1,532 @@
+﻿@page "/asset-availability"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Disponible y Ubicación de Herramientas - NAVI</PageTitle>
+
+<PermissionGuard Permission="AssetAvailability.View" ModuleName="Disponible y Ubicación de Herramientas">
+
+<section class="af-banner">
+    <div>
+        <span class="af-pill">ACTIVOS FIJOS</span>
+        <h2>Disponible y Ubicación de Herramientas</h2>
+        <p>Gestiona disponibilidad, sede, almacén, taller o ubicación interna de las herramientas.</p>
+    </div>
+
+    <div class="af-banner-side">
+        <div class="af-status-box">
+            <span>Herramientas</span>
+            <strong>@FilteredTools.Count() visibles</strong>
+        </div>
+
+        <button class="btn btn-sm btn-outline-light" @onclick="LoadAsync">
+            Actualizar
+        </button>
+    </div>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="@messageClass">@message</div>
+}
+
+<section class="af-grid">
+    <aside class="af-card">
+        <h3>Gestionar ubicación</h3>
+
+        <div class="mb-2">
+            <label class="form-label">Herramienta</label>
+            <InputSelect class="form-select" @bind-Value="form.ToolId" @bind-Value:after="LoadSelectedTool">
+                <option value="">Seleccione activo</option>
+                @foreach (var tool in tools.OrderBy(x => x.InternalCode))
+                {
+                    <option value="@tool.Id">@tool.InternalCode - @tool.Name</option>
+                }
+            </InputSelect>
+        </div>
+
+        <div class="mb-2">
+            <label class="form-label">Sede</label>
+            <InputSelect class="form-select" @bind-Value="form.BranchId" @bind-Value:after="OnBranchChanged">
+                <option value="">Seleccione sede</option>
+                @foreach (var branch in branches)
+                {
+                    <option value="@branch.Id">@branch.Code - @branch.Name</option>
+                }
+            </InputSelect>
+        </div>
+
+        <div class="mb-2">
+            <label class="form-label">Almacén / Taller / Ubicación</label>
+            <InputSelect class="form-select" @bind-Value="form.LocationId">
+                <option value="">Sin ubicación</option>
+                @foreach (var location in AvailableLocations)
+                {
+                    <option value="@location.Id">@location.Code - @location.Name</option>
+                }
+            </InputSelect>
+        </div>
+
+        <div class="mb-2">
+            <label class="form-label">Estado operativo</label>
+            <InputSelect class="form-select" @bind-Value="form.OperationalStatus">
+                <option value="Available">Disponible</option>
+                <option value="Assigned">Asignada</option>
+                <option value="Loaned">Prestada</option>
+                <option value="InMaintenance">En mantenimiento</option>
+                <option value="Damaged">Dañada</option>
+                <option value="NotSuitable">No apta</option>
+                <option value="PendingValidation">Pendiente validación</option>
+                <option value="NotLocated">No localizada</option>
+                <option value="PendingDisposal">Pendiente baja</option>
+                <option value="Disposed">Dada de baja</option>
+            </InputSelect>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Observación</label>
+            <InputTextArea class="form-control" @bind-Value="form.Observation" rows="3" />
+        </div>
+
+        <div class="d-grid gap-2">
+            <button class="btn btn-primary" @onclick="SaveAsync" disabled="@isSaving">
+                @(isSaving ? "Guardando..." : "Guardar cambios")
+            </button>
+
+            <button class="btn btn-outline-secondary" @onclick="ClearForm">
+                Limpiar
+            </button>
+        </div>
+    </aside>
+
+    <section class="af-card">
+        <div class="af-table-header">
+            <div>
+                <h3>Herramientas por disponibilidad</h3>
+                <p>Selecciona una herramienta para modificar su ubicación.</p>
+            </div>
+
+            <div class="af-filters">
+                <input class="form-control form-control-sm" placeholder="Buscar código, nombre, serial..." @bind="search" @bind:event="oninput" />
+
+                <select class="form-select form-select-sm" @bind="selectedBranchCode">
+                    <option value="">Todas las sedes</option>
+                    @foreach (var branch in branches)
+                    {
+                        <option value="@branch.Code">@branch.Code</option>
+                    }
+                </select>
+
+                <select class="form-select form-select-sm" @bind="selectedStatus">
+                    <option value="">Todos los estados</option>
+                    <option value="Available">Disponible</option>
+                    <option value="Assigned">Asignada</option>
+                    <option value="Loaned">Prestada</option>
+                    <option value="InMaintenance">En mantenimiento</option>
+                    <option value="Damaged">Dañada</option>
+                    <option value="NotLocated">No localizada</option>
+                </select>
+            </div>
+        </div>
+
+        @if (isLoading)
+        {
+            <p>Cargando herramientas...</p>
+        }
+        else
+        {
+            <table class="table table-hover align-middle af-table">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Activo</th>
+                        <th>Sede</th>
+                        <th>Ubicación</th>
+                        <th>Responsable</th>
+                        <th>Estado</th>
+                        <th class="text-end">Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var tool in FilteredTools)
+                    {
+                        <tr>
+                            <td><strong>@tool.InternalCode</strong></td>
+                            <td>
+                                <div>@tool.Name</div>
+                                <small class="text-muted">@tool.SerialNumber</small>
+                            </td>
+                            <td>@Show(tool.BranchCode)</td>
+                            <td>@Show(tool.LocationName)</td>
+                            <td>@Show(tool.ResponsiblePersonName)</td>
+                            <td><span class="@GetStatusBadge(tool.OperationalStatus)">@GetStatusLabel(tool.OperationalStatus)</span></td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-outline-primary" @onclick="() => SelectTool(tool)">
+                                    Gestionar
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+</section>
+
+</PermissionGuard>
+
+<style>
+    .af-banner {
+        background: linear-gradient(135deg, #050008 0%, #280032 45%, #5c006b 100%);
+        color: #fff;
+        border-radius: .85rem;
+        padding: 1.25rem 1.4rem;
+        margin-bottom: 1rem;
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        box-shadow: 0 .65rem 1.35rem rgba(75,0,92,.22);
+    }
+
+    .af-pill {
+        display: inline-flex;
+        background: rgba(255,255,255,.12);
+        border: 1px solid rgba(255,255,255,.35);
+        border-radius: 999px;
+        padding: .22rem .65rem;
+        font-size: .7rem;
+        font-weight: 900;
+        margin-bottom: .6rem;
+    }
+
+    .af-banner h2 {
+        color: #fff;
+        font-weight: 950;
+        margin: 0;
+    }
+
+    .af-banner p {
+        color: rgba(255,255,255,.78);
+        margin: .35rem 0 0;
+        font-size: .9rem;
+    }
+
+    .af-banner-side {
+        min-width: 185px;
+        display: grid;
+        gap: .65rem;
+    }
+
+    .af-status-box {
+        background: rgba(255,255,255,.12);
+        border-radius: .65rem;
+        padding: .55rem .75rem;
+        text-align: right;
+    }
+
+    .af-status-box span {
+        color: #ffdd57;
+        display: block;
+        font-size: .75rem;
+        font-weight: 900;
+    }
+
+    .af-grid {
+        display: grid;
+        grid-template-columns: 360px minmax(0, 1fr);
+        gap: 1rem;
+    }
+
+    .af-card {
+        background: #fff;
+        border: 1px solid #dfe3e8;
+        border-radius: .85rem;
+        padding: 1rem;
+        box-shadow: 0 .3rem .75rem rgba(0,0,0,.045);
+    }
+
+    .af-card h3 {
+        font-size: 1.05rem;
+        font-weight: 900;
+        margin-bottom: .75rem;
+    }
+
+    .af-table-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: .75rem;
+    }
+
+    .af-table-header p {
+        margin: 0;
+        color: #6c757d;
+        font-size: .8rem;
+    }
+
+    .af-filters {
+        display: flex;
+        gap: .4rem;
+        min-width: 520px;
+    }
+
+    .af-table {
+        font-size: .84rem;
+    }
+
+    .af-table th,
+    .af-table td {
+        padding: .45rem .5rem;
+    }
+
+    @@media (max-width: 1200px) {
+        .af-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .af-table-header,
+        .af-banner {
+            flex-direction: column;
+        }
+
+        .af-filters {
+            min-width: 0;
+            flex-direction: column;
+        }
+    }
+</style>
+
+@code {
+    private HttpClient Api => HttpClientFactory.CreateClient("NaviApi");
+
+    private List<ToolItem> tools = new();
+    private List<BranchItem> branches = new();
+    private List<LocationItem> locations = new();
+
+    private AvailabilityForm form = new();
+
+    private bool isLoading;
+    private bool isSaving;
+    private string search = string.Empty;
+    private string selectedBranchCode = string.Empty;
+    private string selectedStatus = string.Empty;
+    private string message = string.Empty;
+    private string messageClass = "alert alert-info";
+
+    private IEnumerable<LocationItem> AvailableLocations =>
+        form.BranchId is null
+            ? locations
+            : locations.Where(x => x.BranchId == form.BranchId);
+
+    private IEnumerable<ToolItem> FilteredTools =>
+        tools
+            .Where(x => string.IsNullOrWhiteSpace(search) ||
+                        x.InternalCode.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                        x.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                        (x.SerialNumber ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase))
+            .Where(x => string.IsNullOrWhiteSpace(selectedBranchCode) || x.BranchCode == selectedBranchCode)
+            .Where(x => string.IsNullOrWhiteSpace(selectedStatus) || x.OperationalStatus == selectedStatus)
+            .OrderBy(x => x.BranchCode)
+            .ThenBy(x => x.InternalCode);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    
+    private static bool IsToolOnly(ToolItem item)
+    {
+        var typeName = item.ToolTypeName ?? string.Empty;
+        var typeCode = item.ToolTypeCode ?? string.Empty;
+
+        return typeName.Equals("Herramienta", StringComparison.OrdinalIgnoreCase)
+            || typeName.Equals("HERRAMIENTA", StringComparison.OrdinalIgnoreCase)
+            || typeCode.Equals("HERRAMIENTA", StringComparison.OrdinalIgnoreCase)
+            || typeCode.Equals("TOOL", StringComparison.OrdinalIgnoreCase);
+    }
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+
+        try
+        {
+                        tools = (await Api.GetFromJsonAsync<List<ToolItem>>("api/tools") ?? new())
+                .Where(IsToolOnly)
+                .ToList();
+            branches = await Api.GetFromJsonAsync<List<BranchItem>>("api/settings/branches") ?? new();
+            locations = await Api.GetFromJsonAsync<List<LocationItem>>("api/settings/warehouses") ?? new();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"No se pudo cargar la información: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void SelectTool(ToolItem tool)
+    {
+        form = new AvailabilityForm
+        {
+            ToolId = tool.Id,
+            BranchId = tool.BranchId,
+            LocationId = tool.LocationId,
+            OperationalStatus = string.IsNullOrWhiteSpace(tool.OperationalStatus) ? "Available" : tool.OperationalStatus
+        };
+    }
+
+    private void LoadSelectedTool()
+    {
+        var tool = tools.FirstOrDefault(x => x.Id == form.ToolId);
+
+        if (tool is not null)
+        {
+            SelectTool(tool);
+        }
+    }
+
+    private void OnBranchChanged()
+    {
+        if (form.LocationId.HasValue &&
+            !locations.Any(x => x.Id == form.LocationId && x.BranchId == form.BranchId))
+        {
+            form.LocationId = null;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (form.ToolId is null || form.BranchId is null)
+        {
+            ShowError("Debe seleccionar activo y sede.");
+            return;
+        }
+
+        isSaving = true;
+
+        var request = new
+        {
+            branchId = form.BranchId.Value,
+            locationId = form.LocationId,
+            operationalStatus = form.OperationalStatus,
+            observation = form.Observation,
+            changedBy = "admin-web"
+        };
+
+        try
+        {
+            var response = await Api.PatchAsJsonAsync($"api/tools/{form.ToolId}/availability-location", request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ShowError(await response.Content.ReadAsStringAsync());
+                return;
+            }
+
+            ShowSuccess("Disponibilidad y ubicación actualizadas correctamente.");
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Error guardando cambios: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void ClearForm()
+    {
+        form = new AvailabilityForm();
+    }
+
+    private static string Show(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+
+    private static string GetStatusLabel(string status) => status switch
+    {
+        "Available" => "Disponible",
+        "Assigned" => "Asignada",
+        "Loaned" => "Prestada",
+        "InMaintenance" => "En mantenimiento",
+        "Damaged" => "Dañada",
+        "NotSuitable" => "No apta",
+        "PendingValidation" => "Pendiente validación",
+        "NotLocated" => "No localizada",
+        "PendingDisposal" => "Pendiente baja",
+        "Disposed" => "Dada de baja",
+        _ => status
+    };
+
+    private static string GetStatusBadge(string status) => status switch
+    {
+        "Available" => "badge bg-success",
+        "Assigned" => "badge bg-warning text-dark",
+        "Loaned" => "badge bg-info text-dark",
+        "InMaintenance" => "badge bg-primary",
+        "Damaged" => "badge bg-danger",
+        "NotSuitable" => "badge bg-danger",
+        "NotLocated" => "badge bg-dark",
+        "Disposed" => "badge bg-secondary",
+        _ => "badge bg-secondary"
+    };
+
+    private void ShowSuccess(string value)
+    {
+        message = value;
+        messageClass = "alert alert-success";
+    }
+
+    private void ShowError(string value)
+    {
+        message = value;
+        messageClass = "alert alert-danger";
+    }
+
+    private sealed class AvailabilityForm
+    {
+        public Guid? ToolId { get; set; }
+        public Guid? BranchId { get; set; }
+        public Guid? LocationId { get; set; }
+        public string OperationalStatus { get; set; } = "Available";
+        public string? Observation { get; set; }
+    }
+
+    private sealed class ToolItem
+    {
+        public string? ToolTypeName { get; set; }
+        public string? ToolTypeCode { get; set; }
+        public Guid Id { get; set; }
+        public string InternalCode { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? SerialNumber { get; set; }
+        public Guid BranchId { get; set; }
+        public string? BranchCode { get; set; }
+        public Guid? LocationId { get; set; }
+        public string? LocationName { get; set; }
+        public string? ResponsiblePersonName { get; set; }
+        public string OperationalStatus { get; set; } = string.Empty;
+    }
+
+    private sealed class BranchItem
+    {
+        public Guid Id { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class LocationItem
+    {
+        public Guid Id { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public Guid BranchId { get; set; }
+    }
+}
+
+
+

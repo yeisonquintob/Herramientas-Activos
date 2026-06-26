@@ -1,5 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
+using System.Text;
 using Navi.ToolsAssets.Infrastructure.Persistence.Context;
 
 namespace Navi.ToolsAssets.Api.Controllers;
@@ -18,11 +20,13 @@ public sealed class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
     {
+        await EnsureAppUserPasswordHashColumnAsync(cancellationToken);
+
         var userName = request.UserName?.Trim();
 
         if (string.IsNullOrWhiteSpace(userName))
         {
-            return BadRequest(new { Message = "Debe ingresar el usuario." });
+            return BadRequest(new { Message = "Debe ingresar el documento o usuario." });
         }
 
         if (string.IsNullOrWhiteSpace(request.Password))
@@ -49,13 +53,17 @@ public sealed class AuthController : ControllerBase
             return Unauthorized(new { Message = "El usuario está inactivo o bloqueado." });
         }
 
+        if (!string.IsNullOrWhiteSpace(user.PasswordHash) &&
+            !VerifyUserPassword(request.Password, user.PasswordHash))
+        {
+            return Unauthorized(new { Message = "Usuario o contraseña inválidos." });
+        }
+
         if (user.AppRole is null || !user.AppRole.IsActive)
         {
             return Unauthorized(new { Message = "El usuario no tiene un rol activo asignado." });
         }
 
-        // MVP: por ahora se valida usuario activo y contraseña no vacía.
-        // Más adelante agregamos PasswordHash y validación real.
         user.LastLoginAt = DateTime.UtcNow;
         user.UpdatedAt = DateTime.UtcNow;
         user.UpdatedBy = "auth-login";
@@ -85,12 +93,113 @@ public sealed class AuthController : ControllerBase
         });
     }
 
+
+
+
+
+
+
     [HttpGet("permissions")]
     public IActionResult GetPermissions()
     {
         return Ok(SecurityPermissions.All);
     }
 
+        private async Task EnsureSecurityUsersPasswordSchemaAsync(CancellationToken cancellationToken)
+    {
+        var sql = @"
+IF COL_LENGTH('Security.AppUsers', 'PasswordHash') IS NULL
+BEGIN
+    ALTER TABLE [Security].[AppUsers] ADD [PasswordHash] nvarchar(500) NULL;
+END
+";
+
+        await _context.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+    }
+
+    private static string HashPassword(string password)
+    {
+        var value = password.Trim();
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(bytes);
+    }
+
+    private static bool VerifyPassword(string? password, string hash)
+    {
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            return false;
+        }
+
+        return string.Equals(HashPassword(password), hash, StringComparison.OrdinalIgnoreCase);
+    }
+
+        private async Task EnsureAppUserPasswordHashColumnAsync(CancellationToken cancellationToken)
+    {
+        var entityType = _context.Model.FindEntityType(typeof(Navi.ToolsAssets.Domain.Entities.Security.AppUser));
+
+        var tableName = entityType?.GetTableName();
+
+        if (string.IsNullOrWhiteSpace(tableName))
+        {
+            tableName = "AppUsers";
+        }
+
+        var schema = entityType?.GetSchema();
+
+        static string SqlValue(string? value)
+        {
+            return (value ?? string.Empty).Replace("'", "''");
+        }
+
+        var schemaValue = SqlValue(schema);
+        var tableValue = SqlValue(tableName);
+
+        var sql = $@"
+DECLARE @SchemaName sysname = NULLIF(N'{schemaValue}', N'');
+DECLARE @TableName sysname = N'{tableValue}';
+
+IF @SchemaName IS NULL
+BEGIN
+    SELECT TOP(1) @SchemaName = s.name
+    FROM sys.tables t
+    INNER JOIN sys.schemas s ON s.schema_id = t.schema_id
+    WHERE t.name = @TableName;
+END
+
+IF @SchemaName IS NULL
+BEGIN
+    THROW 50000, 'No se encontro la tabla AppUsers en la base de datos.', 1;
+END
+
+DECLARE @QualifiedTable nvarchar(300) = QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@TableName);
+
+IF COL_LENGTH(@QualifiedTable, N'PasswordHash') IS NULL
+BEGIN
+    DECLARE @AlterSql nvarchar(max) = N'ALTER TABLE ' + @QualifiedTable + N' ADD [PasswordHash] nvarchar(500) NULL;';
+    EXEC sp_executesql @AlterSql;
+END
+";
+
+        await _context.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+    }
+
+    private static string HashUserPassword(string password)
+    {
+        var value = password.Trim();
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(bytes);
+    }
+
+    private static bool VerifyUserPassword(string? password, string hash)
+    {
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            return false;
+        }
+
+        return string.Equals(HashUserPassword(password), hash, StringComparison.OrdinalIgnoreCase);
+    }
     private static List<string> BuildPermissions(string roleCode, string? permissions)
     {
         var code = roleCode.Trim().ToUpperInvariant();
@@ -545,6 +654,18 @@ public static class SecurityPermissions
         new("Security.Roles", "Seguridad", "Roles", "Administrar roles y permisos.")
     };
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

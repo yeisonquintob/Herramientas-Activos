@@ -15,6 +15,8 @@ public class AppUser : BaseEntity
 
     public string? Area { get; set; }
 
+    public string? PasswordHash { get; set; }
+
     public Guid AppRoleId { get; set; }
 
     public AppRole? AppRole { get; set; }
@@ -31,3 +33,17 @@ public class AppUser : BaseEntity
 
     public DateTime? LastLoginAt { get; set; }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+

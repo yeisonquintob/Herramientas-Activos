@@ -93,25 +93,25 @@ else if (tool is not null)
             <div class="admin-control-actions">
                 @if (!isEditingMasterData)
                 {
-                    <button class="btn btn-primary" type="button" @onclick="StartMasterDataEdit">
+                    <button class="detail-action detail-action-primary" type="button" @onclick="StartMasterDataEdit">
                         Editar
                     </button>
 
-                    <button class="btn btn-outline-danger" type="button" @onclick="VoidCurrentToolAsync">
+                    <button class="detail-action detail-action-danger" type="button" @onclick="VoidCurrentToolAsync">
                         Anular activo
                     </button>
                 }
                 else
                 {
-                    <button class="btn btn-success" type="button" @onclick="SaveMasterDataAsync">
+                    <button class="detail-action detail-action-success" type="button" @onclick="SaveMasterDataAsync">
                         Guardar
                     </button>
 
-                    <button class="btn btn-outline-secondary" type="button" @onclick="CancelMasterDataEdit">
+                    <button class="detail-action detail-action-neutral" type="button" @onclick="CancelMasterDataEdit">
                         Cancelar
                     </button>
 
-                    <button class="btn btn-outline-danger" type="button" @onclick="VoidCurrentToolAsync">
+                    <button class="detail-action detail-action-danger" type="button" @onclick="VoidCurrentToolAsync">
                         Anular activo
                     </button>
                 }
@@ -436,7 +436,7 @@ else if (tool is not null)
                            @bind="actionObservation" />
                 </div>
 
-                <div class="d-flex gap-2 flex-wrap">
+                <div class="detail-actions-group">
                     <button class="btn btn-primary btn-sm" @onclick="ChangeOperationalStatusAsync" disabled="@isSaving">
                         @(isSaving ? "Guardando..." : "Guardar estado")
                     </button>
@@ -1294,6 +1294,133 @@ else if (tool is not null)
     }
 
     }
+
+    /* ============================================================
+       Mejora visual botones - Detalle herramienta / Inventario AF
+       ============================================================ */
+
+    .detail-actions-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem;
+        align-items: center;
+        margin-top: .45rem;
+    }
+
+    .detail-actions-group.compact {
+        gap: .35rem;
+    }
+
+    .detail-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 32px;
+        border-radius: .5rem;
+        padding: .38rem .68rem;
+        font-size: .72rem;
+        font-weight: 950;
+        line-height: 1.1;
+        text-decoration: none;
+        border: 1px solid transparent;
+        background: #fff;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .detail-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .25rem .55rem rgba(15, 23, 42, .12);
+        text-decoration: none;
+    }
+
+    .detail-action-primary {
+        border-color: #2563eb;
+        color: #1d4ed8;
+        background: #eff6ff;
+    }
+
+    .detail-action-primary:hover {
+        color: #1e40af;
+        background: #dbeafe;
+    }
+
+    .detail-action-success {
+        border-color: #059669;
+        color: #047857;
+        background: #ecfdf5;
+    }
+
+    .detail-action-success:hover {
+        color: #065f46;
+        background: #d1fae5;
+    }
+
+    .detail-action-neutral {
+        border-color: #64748b;
+        color: #334155;
+        background: #f8fafc;
+    }
+
+    .detail-action-neutral:hover {
+        color: #1e293b;
+        background: #e2e8f0;
+    }
+
+    .detail-action-warning {
+        border-color: #f59e0b;
+        color: #9a3412;
+        background: #fff7ed;
+    }
+
+    .detail-action-warning:hover {
+        color: #7c2d12;
+        background: #ffedd5;
+    }
+
+    .detail-action-danger {
+        border-color: #ef4444;
+        color: #dc2626;
+        background: #fff1f2;
+    }
+
+    .detail-action-danger:hover {
+        color: #b91c1c;
+        background: #ffe4e6;
+    }
+
+    .detail-action:disabled,
+    .detail-action[disabled] {
+        opacity: .55;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+
+    .detail-action + .detail-action {
+        margin-left: 0 !important;
+    }
+
+    .tool-admin-card .detail-action,
+    .quick-actions-card .detail-action,
+    .asset-actions-card .detail-action {
+        min-width: 110px;
+    }
+
+    @@media (max-width: 1300px) {
+        .detail-action {
+            font-size: .66rem;
+            min-height: 29px;
+            padding: .32rem .48rem;
+            white-space: normal;
+        }
+
+        .detail-actions-group {
+            gap: .35rem;
+        }
+    }
+
 </style>
 
 
@@ -1384,6 +1511,134 @@ else if (tool is not null)
             grid-template-columns: 1fr;
         }
     }
+
+    /* ============================================================
+       Mejora visual botones - Detalle herramienta / Inventario AF
+       ============================================================ */
+
+    .detail-actions-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem;
+        align-items: center;
+        margin-top: .45rem;
+    }
+
+    .detail-actions-group.compact {
+        gap: .35rem;
+    }
+
+    .detail-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 32px;
+        border-radius: .5rem;
+        padding: .38rem .68rem;
+        font-size: .72rem;
+        font-weight: 950;
+        line-height: 1.1;
+        text-decoration: none;
+        border: 1px solid transparent;
+        background: #fff;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .detail-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .25rem .55rem rgba(15, 23, 42, .12);
+        text-decoration: none;
+    }
+
+    .detail-action-primary {
+        border-color: #2563eb;
+        color: #1d4ed8;
+        background: #eff6ff;
+    }
+
+    .detail-action-primary:hover {
+        color: #1e40af;
+        background: #dbeafe;
+    }
+
+    .detail-action-success {
+        border-color: #059669;
+        color: #047857;
+        background: #ecfdf5;
+    }
+
+    .detail-action-success:hover {
+        color: #065f46;
+        background: #d1fae5;
+    }
+
+    .detail-action-neutral {
+        border-color: #64748b;
+        color: #334155;
+        background: #f8fafc;
+    }
+
+    .detail-action-neutral:hover {
+        color: #1e293b;
+        background: #e2e8f0;
+    }
+
+    .detail-action-warning {
+        border-color: #f59e0b;
+        color: #9a3412;
+        background: #fff7ed;
+    }
+
+    .detail-action-warning:hover {
+        color: #7c2d12;
+        background: #ffedd5;
+    }
+
+    .detail-action-danger {
+        border-color: #ef4444;
+        color: #dc2626;
+        background: #fff1f2;
+    }
+
+    .detail-action-danger:hover {
+        color: #b91c1c;
+        background: #ffe4e6;
+    }
+
+    .detail-action:disabled,
+    .detail-action[disabled] {
+        opacity: .55;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+
+    .detail-action + .detail-action {
+        margin-left: 0 !important;
+    }
+
+    .tool-admin-card .detail-action,
+    .quick-actions-card .detail-action,
+    .asset-actions-card .detail-action {
+        min-width: 110px;
+    }
+
+    @@media (max-width: 1300px) {
+        .detail-action {
+            font-size: .66rem;
+            min-height: 29px;
+            padding: .32rem .48rem;
+            white-space: normal;
+        }
+
+        .detail-actions-group {
+            gap: .35rem;
+        }
+    }
+
 </style>
+
 
 

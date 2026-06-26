@@ -2023,6 +2023,8 @@ public class AppUser : BaseEntity
 
     public string? Area { get; set; }
 
+    public string? PasswordHash { get; set; }
+
     public Guid AppRoleId { get; set; }
 
     public AppRole? AppRole { get; set; }
@@ -2039,6 +2041,20 @@ public class AppUser : BaseEntity
 
     public DateTime? LastLoginAt { get; set; }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ============================================================
@@ -5314,6 +5330,8 @@ FILE: src\Navi.ToolsAssets.Api\Controllers\SettingsManagementController.cs
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
+using System.Text;
 using Navi.ToolsAssets.Domain.Entities.Organization;
 using Navi.ToolsAssets.Domain.Entities.Configuration;
 using Navi.ToolsAssets.Domain.Entities.Inventory;
@@ -5501,11 +5519,23 @@ public class SettingsManagementController : ControllerBase
     [HttpPost("users")]
     public async Task<IActionResult> CreateUser([FromBody] SaveUserRequest request, CancellationToken cancellationToken)
     {
+        await EnsureAppUserPasswordHashColumnAsync(cancellationToken);
+
         var userName = NormalizeUserName(request.UserName);
 
         if (string.IsNullOrWhiteSpace(userName) || string.IsNullOrWhiteSpace(request.DisplayName))
         {
-            return BadRequest(new { Message = "Usuario y nombre son obligatorios." });
+            return BadRequest(new { Message = "Documento/usuario y nombre son obligatorios." });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Password))
+        {
+            return BadRequest(new { Message = "La contraseña de acceso es obligatoria al crear usuario." });
+        }
+
+        if (request.Password.Trim().Length < 4)
+        {
+            return BadRequest(new { Message = "La contraseña debe tener mínimo 4 caracteres." });
         }
 
         var roleExists = await _context.AppRoles.AnyAsync(x => x.Id == request.AppRoleId && !x.IsDeleted, cancellationToken);
@@ -5519,16 +5549,17 @@ public class SettingsManagementController : ControllerBase
 
         if (exists)
         {
-            return Conflict(new { Message = $"Ya existe un usuario con nombre {userName}." });
+            return Conflict(new { Message = $"Ya existe un usuario con documento/usuario {userName}." });
         }
 
-        var user = new AppUser
+        var user = new Navi.ToolsAssets.Domain.Entities.Security.AppUser
         {
             UserName = userName,
             DisplayName = request.DisplayName.Trim(),
             Email = request.Email?.Trim(),
             Position = request.Position?.Trim(),
             Area = request.Area?.Trim(),
+            PasswordHash = HashUserPassword(request.Password),
             AppRoleId = request.AppRoleId,
             BranchId = request.BranchId,
             ResponsiblePersonId = request.ResponsiblePersonId,
@@ -5543,9 +5574,17 @@ public class SettingsManagementController : ControllerBase
         return Ok(new { user.Id, Message = "Usuario creado correctamente." });
     }
 
+
+
+
+
+
+
     [HttpPut("users/{id:guid}")]
     public async Task<IActionResult> UpdateUser(Guid id, [FromBody] SaveUserRequest request, CancellationToken cancellationToken)
     {
+        await EnsureAppUserPasswordHashColumnAsync(cancellationToken);
+
         var user = await _context.AppUsers.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
 
         if (user is null)
@@ -5557,7 +5596,7 @@ public class SettingsManagementController : ControllerBase
 
         if (string.IsNullOrWhiteSpace(userName) || string.IsNullOrWhiteSpace(request.DisplayName))
         {
-            return BadRequest(new { Message = "Usuario y nombre son obligatorios." });
+            return BadRequest(new { Message = "Documento/usuario y nombre son obligatorios." });
         }
 
         var roleExists = await _context.AppRoles.AnyAsync(x => x.Id == request.AppRoleId && !x.IsDeleted, cancellationToken);
@@ -5572,7 +5611,7 @@ public class SettingsManagementController : ControllerBase
 
         if (duplicated)
         {
-            return Conflict(new { Message = $"Ya existe otro usuario con nombre {userName}." });
+            return Conflict(new { Message = $"Ya existe otro usuario con documento/usuario {userName}." });
         }
 
         user.UserName = userName;
@@ -5591,6 +5630,44 @@ public class SettingsManagementController : ControllerBase
 
         return Ok(new { Message = "Usuario actualizado correctamente." });
     }
+
+
+
+
+
+
+
+        [HttpPut("users/{id:guid}/password")]
+    public async Task<IActionResult> ChangeUserPassword(Guid id, [FromBody] ChangeUserPasswordRequest request, CancellationToken cancellationToken)
+    {
+        await EnsureAppUserPasswordHashColumnAsync(cancellationToken);
+
+        var user = await _context.AppUsers.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
+
+        if (user is null)
+        {
+            return NotFound(new { Message = "No se encontró el usuario." });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Password))
+        {
+            return BadRequest(new { Message = "Debe ingresar la nueva contraseña." });
+        }
+
+        if (request.Password.Trim().Length < 4)
+        {
+            return BadRequest(new { Message = "La contraseña debe tener mínimo 4 caracteres." });
+        }
+
+        user.PasswordHash = HashUserPassword(request.Password);
+        user.UpdatedAt = DateTime.UtcNow;
+        user.UpdatedBy = request.ChangedBy ?? "settings-password";
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return Ok(new { Message = "Contraseña actualizada correctamente." });
+    }
+
 
     [HttpDelete("users/{id:guid}")]
     public async Task<IActionResult> DeleteUser(Guid id, [FromQuery] string? changedBy, CancellationToken cancellationToken)
@@ -6662,9 +6739,84 @@ public class SettingsManagementController : ControllerBase
     {
         return await DeleteSettingCatalogAsync("MaintenancePlan", id, changedBy, cancellationToken);
     }
+    private async Task EnsureAppUserPasswordHashColumnAsync(CancellationToken cancellationToken)
+    {
+        var entityType = _context.Model.FindEntityType(typeof(Navi.ToolsAssets.Domain.Entities.Security.AppUser));
+
+        var tableName = entityType?.GetTableName();
+
+        if (string.IsNullOrWhiteSpace(tableName))
+        {
+            tableName = "AppUsers";
+        }
+
+        var schema = entityType?.GetSchema();
+
+        static string SqlValue(string? value)
+        {
+            return (value ?? string.Empty).Replace("'", "''");
+        }
+
+        var schemaValue = SqlValue(schema);
+        var tableValue = SqlValue(tableName);
+
+        var sql = $@"
+DECLARE @SchemaName sysname = NULLIF(N'{schemaValue}', N'');
+DECLARE @TableName sysname = N'{tableValue}';
+
+IF @SchemaName IS NULL
+BEGIN
+    SELECT TOP(1) @SchemaName = s.name
+    FROM sys.tables t
+    INNER JOIN sys.schemas s ON s.schema_id = t.schema_id
+    WHERE t.name = @TableName;
+END
+
+IF @SchemaName IS NULL
+BEGIN
+    THROW 50000, 'No se encontro la tabla AppUsers en la base de datos.', 1;
+END
+
+DECLARE @QualifiedTable nvarchar(300) = QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@TableName);
+
+IF COL_LENGTH(@QualifiedTable, N'PasswordHash') IS NULL
+BEGIN
+    DECLARE @AlterSql nvarchar(max) = N'ALTER TABLE ' + @QualifiedTable + N' ADD [PasswordHash] nvarchar(500) NULL;';
+    EXEC sp_executesql @AlterSql;
+END
+";
+
+        await _context.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+    }
+
+    private static string HashUserPassword(string password)
+    {
+        var value = password.Trim();
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(bytes);
+    }
     private static string NormalizeCode(string? code)
     {
         return (code ?? string.Empty).Trim().ToUpperInvariant();
+    }
+
+        private async Task EnsureSecurityUsersPasswordSchemaAsync(CancellationToken cancellationToken)
+    {
+        var sql = @"
+IF COL_LENGTH('Security.AppUsers', 'PasswordHash') IS NULL
+BEGIN
+    ALTER TABLE [Security].[AppUsers] ADD [PasswordHash] nvarchar(500) NULL;
+END
+";
+
+        await _context.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+    }
+
+    private static string HashPassword(string password)
+    {
+        var value = password.Trim();
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(bytes);
     }
 
     private static string NormalizeUserName(string? userName)
@@ -6683,6 +6835,7 @@ public sealed class SaveResponsibleRequest
     public string? Email { get; set; }
     public string? Position { get; set; }
     public string? Area { get; set; }
+    public string? Password { get; set; }
     public bool? IsActive { get; set; }
     public string? ChangedBy { get; set; }
 }
@@ -6720,10 +6873,17 @@ public sealed class SaveUserRequest
     public string? Email { get; set; }
     public string? Position { get; set; }
     public string? Area { get; set; }
+    public string? Password { get; set; }
     public Guid AppRoleId { get; set; }
     public Guid? BranchId { get; set; }
     public Guid? ResponsiblePersonId { get; set; }
     public bool? IsActive { get; set; }
+    public string? ChangedBy { get; set; }
+}
+
+public sealed class ChangeUserPasswordRequest
+{
+    public string? Password { get; set; }
     public string? ChangedBy { get; set; }
 }
 
@@ -6748,6 +6908,22 @@ public sealed class SaveWarehouseRequest
     public bool? IsActive { get; set; }
     public string? ChangedBy { get; set; }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -7169,6 +7345,8 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
+using System.Text;
 using Navi.ToolsAssets.Infrastructure.Persistence.Context;
 
 namespace Navi.ToolsAssets.Api.Controllers;
@@ -7187,11 +7365,13 @@ public sealed class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
     {
+        await EnsureAppUserPasswordHashColumnAsync(cancellationToken);
+
         var userName = request.UserName?.Trim();
 
         if (string.IsNullOrWhiteSpace(userName))
         {
-            return BadRequest(new { Message = "Debe ingresar el usuario." });
+            return BadRequest(new { Message = "Debe ingresar el documento o usuario." });
         }
 
         if (string.IsNullOrWhiteSpace(request.Password))
@@ -7218,13 +7398,17 @@ public sealed class AuthController : ControllerBase
             return Unauthorized(new { Message = "El usuario está inactivo o bloqueado." });
         }
 
+        if (!string.IsNullOrWhiteSpace(user.PasswordHash) &&
+            !VerifyUserPassword(request.Password, user.PasswordHash))
+        {
+            return Unauthorized(new { Message = "Usuario o contraseña inválidos." });
+        }
+
         if (user.AppRole is null || !user.AppRole.IsActive)
         {
             return Unauthorized(new { Message = "El usuario no tiene un rol activo asignado." });
         }
 
-        // MVP: por ahora se valida usuario activo y contraseña no vacía.
-        // Más adelante agregamos PasswordHash y validación real.
         user.LastLoginAt = DateTime.UtcNow;
         user.UpdatedAt = DateTime.UtcNow;
         user.UpdatedBy = "auth-login";
@@ -7254,12 +7438,113 @@ public sealed class AuthController : ControllerBase
         });
     }
 
+
+
+
+
+
+
     [HttpGet("permissions")]
     public IActionResult GetPermissions()
     {
         return Ok(SecurityPermissions.All);
     }
 
+        private async Task EnsureSecurityUsersPasswordSchemaAsync(CancellationToken cancellationToken)
+    {
+        var sql = @"
+IF COL_LENGTH('Security.AppUsers', 'PasswordHash') IS NULL
+BEGIN
+    ALTER TABLE [Security].[AppUsers] ADD [PasswordHash] nvarchar(500) NULL;
+END
+";
+
+        await _context.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+    }
+
+    private static string HashPassword(string password)
+    {
+        var value = password.Trim();
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(bytes);
+    }
+
+    private static bool VerifyPassword(string? password, string hash)
+    {
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            return false;
+        }
+
+        return string.Equals(HashPassword(password), hash, StringComparison.OrdinalIgnoreCase);
+    }
+
+        private async Task EnsureAppUserPasswordHashColumnAsync(CancellationToken cancellationToken)
+    {
+        var entityType = _context.Model.FindEntityType(typeof(Navi.ToolsAssets.Domain.Entities.Security.AppUser));
+
+        var tableName = entityType?.GetTableName();
+
+        if (string.IsNullOrWhiteSpace(tableName))
+        {
+            tableName = "AppUsers";
+        }
+
+        var schema = entityType?.GetSchema();
+
+        static string SqlValue(string? value)
+        {
+            return (value ?? string.Empty).Replace("'", "''");
+        }
+
+        var schemaValue = SqlValue(schema);
+        var tableValue = SqlValue(tableName);
+
+        var sql = $@"
+DECLARE @SchemaName sysname = NULLIF(N'{schemaValue}', N'');
+DECLARE @TableName sysname = N'{tableValue}';
+
+IF @SchemaName IS NULL
+BEGIN
+    SELECT TOP(1) @SchemaName = s.name
+    FROM sys.tables t
+    INNER JOIN sys.schemas s ON s.schema_id = t.schema_id
+    WHERE t.name = @TableName;
+END
+
+IF @SchemaName IS NULL
+BEGIN
+    THROW 50000, 'No se encontro la tabla AppUsers en la base de datos.', 1;
+END
+
+DECLARE @QualifiedTable nvarchar(300) = QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@TableName);
+
+IF COL_LENGTH(@QualifiedTable, N'PasswordHash') IS NULL
+BEGIN
+    DECLARE @AlterSql nvarchar(max) = N'ALTER TABLE ' + @QualifiedTable + N' ADD [PasswordHash] nvarchar(500) NULL;';
+    EXEC sp_executesql @AlterSql;
+END
+";
+
+        await _context.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+    }
+
+    private static string HashUserPassword(string password)
+    {
+        var value = password.Trim();
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(bytes);
+    }
+
+    private static bool VerifyUserPassword(string? password, string hash)
+    {
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            return false;
+        }
+
+        return string.Equals(HashUserPassword(password), hash, StringComparison.OrdinalIgnoreCase);
+    }
     private static List<string> BuildPermissions(string roleCode, string? permissions)
     {
         var code = roleCode.Trim().ToUpperInvariant();
@@ -7714,6 +7999,18 @@ public static class SecurityPermissions
         new("Security.Roles", "Seguridad", "Roles", "Administrar roles y permisos.")
     };
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -20553,8 +20850,8 @@ FILE: src\Navi.ToolsAssets.Admin\Components\Layout\NavMenu.razor
     <div class="navi-brand">
         <div class="navi-logo">N</div>
         <div class="navi-brand-text">
-            <strong>NAVI Herramientas</strong>
-            <span>Fenix365 · Admin Console</span>
+            <strong>NAVI Herramientas y AF</strong>
+            <span>Consola de administración</span>
         </div>
     </div>
 
@@ -20896,6 +21193,17 @@ FILE: src\Navi.ToolsAssets.Admin\Components\Layout\NavMenu.razor
         AuthSession.OnChange -= HandleAuthChanged;
     }
 }
+
+
+
+
+
+
+
+
+
+
+
 
 
 ============================================================
@@ -26501,7 +26809,124 @@ else
             grid-template-columns: 1fr;
         }
     }
+
+    /* ============================================================
+       Mejora visual botones Acciones - Inventario de AF
+       ============================================================ */
+
+    .inventory-table th:last-child,
+    .inventory-table td:last-child,
+    .tools-table th:last-child,
+    .tools-table td:last-child,
+    table th:last-child,
+    table td:last-child {
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    .inventory-actions,
+    .tools-actions,
+    .row-actions,
+    td.text-end {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: .34rem;
+        align-items: stretch;
+        justify-items: stretch;
+    }
+
+    .inv-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 29px;
+        width: 100%;
+        border-radius: .48rem;
+        padding: .30rem .40rem;
+        font-size: .66rem;
+        font-weight: 950;
+        line-height: 1.1;
+        text-decoration: none;
+        border: 1px solid transparent;
+        background: #fff;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .inv-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .25rem .55rem rgba(15, 23, 42, .12);
+        text-decoration: none;
+    }
+
+    .inv-action-primary {
+        border-color: #2563eb;
+        color: #1d4ed8;
+        background: #eff6ff;
+    }
+
+    .inv-action-primary:hover {
+        color: #1e40af;
+        background: #dbeafe;
+    }
+
+    .inv-action-primary-fill {
+        border-color: #1d4ed8;
+        color: #fff;
+        background: #2563eb;
+    }
+
+    .inv-action-neutral {
+        border-color: #64748b;
+        color: #334155;
+        background: #f8fafc;
+    }
+
+    .inv-action-neutral:hover {
+        color: #1e293b;
+        background: #e2e8f0;
+    }
+
+    .inv-action-success {
+        border-color: #059669;
+        color: #047857;
+        background: #ecfdf5;
+    }
+
+    .inv-action-success:hover {
+        color: #065f46;
+        background: #d1fae5;
+    }
+
+    .inv-action-warning {
+        border-color: #f59e0b;
+        color: #9a3412;
+        background: #fff7ed;
+    }
+
+    .inv-action-danger {
+        border-color: #ef4444;
+        color: #dc2626;
+        background: #fff1f2;
+    }
+
+    .inv-action-danger:hover {
+        color: #b91c1c;
+        background: #ffe4e6;
+    }
+
+    @@media (max-width: 1300px) {
+        .inv-action {
+            font-size: .62rem;
+            min-height: 27px;
+            padding: .26rem .32rem;
+            white-space: normal;
+        }
+    }
+
 </style>
+
 
 
 
@@ -26604,25 +27029,25 @@ else if (tool is not null)
             <div class="admin-control-actions">
                 @if (!isEditingMasterData)
                 {
-                    <button class="btn btn-primary" type="button" @onclick="StartMasterDataEdit">
+                    <button class="detail-action detail-action-primary" type="button" @onclick="StartMasterDataEdit">
                         Editar
                     </button>
 
-                    <button class="btn btn-outline-danger" type="button" @onclick="VoidCurrentToolAsync">
+                    <button class="detail-action detail-action-danger" type="button" @onclick="VoidCurrentToolAsync">
                         Anular activo
                     </button>
                 }
                 else
                 {
-                    <button class="btn btn-success" type="button" @onclick="SaveMasterDataAsync">
+                    <button class="detail-action detail-action-success" type="button" @onclick="SaveMasterDataAsync">
                         Guardar
                     </button>
 
-                    <button class="btn btn-outline-secondary" type="button" @onclick="CancelMasterDataEdit">
+                    <button class="detail-action detail-action-neutral" type="button" @onclick="CancelMasterDataEdit">
                         Cancelar
                     </button>
 
-                    <button class="btn btn-outline-danger" type="button" @onclick="VoidCurrentToolAsync">
+                    <button class="detail-action detail-action-danger" type="button" @onclick="VoidCurrentToolAsync">
                         Anular activo
                     </button>
                 }
@@ -26947,7 +27372,7 @@ else if (tool is not null)
                            @bind="actionObservation" />
                 </div>
 
-                <div class="d-flex gap-2 flex-wrap">
+                <div class="detail-actions-group">
                     <button class="btn btn-primary btn-sm" @onclick="ChangeOperationalStatusAsync" disabled="@isSaving">
                         @(isSaving ? "Guardando..." : "Guardar estado")
                     </button>
@@ -27805,6 +28230,133 @@ else if (tool is not null)
     }
 
     }
+
+    /* ============================================================
+       Mejora visual botones - Detalle herramienta / Inventario AF
+       ============================================================ */
+
+    .detail-actions-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem;
+        align-items: center;
+        margin-top: .45rem;
+    }
+
+    .detail-actions-group.compact {
+        gap: .35rem;
+    }
+
+    .detail-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 32px;
+        border-radius: .5rem;
+        padding: .38rem .68rem;
+        font-size: .72rem;
+        font-weight: 950;
+        line-height: 1.1;
+        text-decoration: none;
+        border: 1px solid transparent;
+        background: #fff;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .detail-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .25rem .55rem rgba(15, 23, 42, .12);
+        text-decoration: none;
+    }
+
+    .detail-action-primary {
+        border-color: #2563eb;
+        color: #1d4ed8;
+        background: #eff6ff;
+    }
+
+    .detail-action-primary:hover {
+        color: #1e40af;
+        background: #dbeafe;
+    }
+
+    .detail-action-success {
+        border-color: #059669;
+        color: #047857;
+        background: #ecfdf5;
+    }
+
+    .detail-action-success:hover {
+        color: #065f46;
+        background: #d1fae5;
+    }
+
+    .detail-action-neutral {
+        border-color: #64748b;
+        color: #334155;
+        background: #f8fafc;
+    }
+
+    .detail-action-neutral:hover {
+        color: #1e293b;
+        background: #e2e8f0;
+    }
+
+    .detail-action-warning {
+        border-color: #f59e0b;
+        color: #9a3412;
+        background: #fff7ed;
+    }
+
+    .detail-action-warning:hover {
+        color: #7c2d12;
+        background: #ffedd5;
+    }
+
+    .detail-action-danger {
+        border-color: #ef4444;
+        color: #dc2626;
+        background: #fff1f2;
+    }
+
+    .detail-action-danger:hover {
+        color: #b91c1c;
+        background: #ffe4e6;
+    }
+
+    .detail-action:disabled,
+    .detail-action[disabled] {
+        opacity: .55;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+
+    .detail-action + .detail-action {
+        margin-left: 0 !important;
+    }
+
+    .tool-admin-card .detail-action,
+    .quick-actions-card .detail-action,
+    .asset-actions-card .detail-action {
+        min-width: 110px;
+    }
+
+    @@media (max-width: 1300px) {
+        .detail-action {
+            font-size: .66rem;
+            min-height: 29px;
+            padding: .32rem .48rem;
+            white-space: normal;
+        }
+
+        .detail-actions-group {
+            gap: .35rem;
+        }
+    }
+
 </style>
 
 
@@ -27895,7 +28447,135 @@ else if (tool is not null)
             grid-template-columns: 1fr;
         }
     }
+
+    /* ============================================================
+       Mejora visual botones - Detalle herramienta / Inventario AF
+       ============================================================ */
+
+    .detail-actions-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem;
+        align-items: center;
+        margin-top: .45rem;
+    }
+
+    .detail-actions-group.compact {
+        gap: .35rem;
+    }
+
+    .detail-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 32px;
+        border-radius: .5rem;
+        padding: .38rem .68rem;
+        font-size: .72rem;
+        font-weight: 950;
+        line-height: 1.1;
+        text-decoration: none;
+        border: 1px solid transparent;
+        background: #fff;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .detail-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .25rem .55rem rgba(15, 23, 42, .12);
+        text-decoration: none;
+    }
+
+    .detail-action-primary {
+        border-color: #2563eb;
+        color: #1d4ed8;
+        background: #eff6ff;
+    }
+
+    .detail-action-primary:hover {
+        color: #1e40af;
+        background: #dbeafe;
+    }
+
+    .detail-action-success {
+        border-color: #059669;
+        color: #047857;
+        background: #ecfdf5;
+    }
+
+    .detail-action-success:hover {
+        color: #065f46;
+        background: #d1fae5;
+    }
+
+    .detail-action-neutral {
+        border-color: #64748b;
+        color: #334155;
+        background: #f8fafc;
+    }
+
+    .detail-action-neutral:hover {
+        color: #1e293b;
+        background: #e2e8f0;
+    }
+
+    .detail-action-warning {
+        border-color: #f59e0b;
+        color: #9a3412;
+        background: #fff7ed;
+    }
+
+    .detail-action-warning:hover {
+        color: #7c2d12;
+        background: #ffedd5;
+    }
+
+    .detail-action-danger {
+        border-color: #ef4444;
+        color: #dc2626;
+        background: #fff1f2;
+    }
+
+    .detail-action-danger:hover {
+        color: #b91c1c;
+        background: #ffe4e6;
+    }
+
+    .detail-action:disabled,
+    .detail-action[disabled] {
+        opacity: .55;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+
+    .detail-action + .detail-action {
+        margin-left: 0 !important;
+    }
+
+    .tool-admin-card .detail-action,
+    .quick-actions-card .detail-action,
+    .asset-actions-card .detail-action {
+        min-width: 110px;
+    }
+
+    @@media (max-width: 1300px) {
+        .detail-action {
+            font-size: .66rem;
+            min-height: 29px;
+            padding: .32rem .48rem;
+            white-space: normal;
+        }
+
+        .detail-actions-group {
+            gap: .35rem;
+        }
+    }
+
 </style>
+
 
 
 
@@ -27982,7 +28662,7 @@ else if (record is not null)
     <div class="quick-action-card">
         <span>Datos técnicos</span>
         <strong>Información base</strong>
-        <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{ToolId}/technical-life-record/edit")">
+        <a class="life-action life-action-primary" href="@($"/tools/{ToolId}/technical-life-record/edit")">
             Editar
         </a>
     </div>
@@ -27990,7 +28670,7 @@ else if (record is not null)
     <div class="quick-action-card">
         <span>Accesorios</span>
         <strong>Partes y componentes</strong>
-        <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{ToolId}/accessories")">
+        <a class="life-action life-action-primary" href="@($"/tools/{ToolId}/accessories")">
             Gestionar
         </a>
     </div>
@@ -27998,7 +28678,7 @@ else if (record is not null)
     <div class="quick-action-card">
         <span>Documentos</span>
         <strong>Fotos, fichas y evidencias</strong>
-        <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{ToolId}/documents")">
+        <a class="life-action life-action-primary" href="@($"/tools/{ToolId}/documents")">
             Gestionar
         </a>
     </div>
@@ -28006,7 +28686,7 @@ else if (record is not null)
     <div class="quick-action-card">
         <span>Mantenimiento</span>
         <strong>Cronograma y evidencias</strong>
-        <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{ToolId}/maintenance-schedule")">
+        <a class="life-action life-action-primary" href="@($"/tools/{ToolId}/maintenance-schedule")">
             Gestionar
         </a>
     </div>
@@ -28014,7 +28694,7 @@ else if (record is not null)
     <div class="quick-action-card">
         <span>Seguridad</span>
         <strong>Prácticas seguras</strong>
-        <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{ToolId}/safe-practices")">
+        <a class="life-action life-action-primary" href="@($"/tools/{ToolId}/safe-practices")">
             Gestionar
         </a>
     </div>
@@ -28022,7 +28702,7 @@ else if (record is not null)
     <div class="quick-action-card">
         <span>Trazabilidad</span>
         <strong>Eventos de hoja de vida</strong>
-        <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{ToolId}/life-cycle-events")">
+        <a class="life-action life-action-primary" href="@($"/tools/{ToolId}/life-cycle-events")">
             Ver eventos
         </a>
     </div>
@@ -28031,11 +28711,11 @@ else if (record is not null)
         <span>Exportar</span>
         <strong>PDF / Excel</strong>
         <div class="d-flex gap-1 flex-wrap">
-            <button class="btn btn-sm btn-outline-dark" @onclick="PrintLifeRecord">
+            <button class="life-action life-action-neutral" @onclick="PrintLifeRecord">
                 PDF
             </button>
 
-            <a class="btn btn-sm btn-outline-success"
+            <a class="life-action life-action-success"
                href="@BuildApiUrl($"/api/tools/{ToolId}/technical-life-record/export-excel")"
                target="_blank">
                 Excel
@@ -28168,7 +28848,7 @@ else if (record is not null)
                 <h2>Accesorios del equipo</h2>
             </div>
 
-            <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{ToolId}/accessories")">
+            <a class="life-action life-action-primary" href="@($"/tools/{ToolId}/accessories")">
                 Gestionar accesorios
             </a>
         </div>
@@ -28264,7 +28944,7 @@ else if (record is not null)
                 <h2>Cronograma de mantenimiento</h2>
             </div>
 
-            <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{ToolId}/maintenance-schedule")">
+            <a class="life-action life-action-primary" href="@($"/tools/{ToolId}/maintenance-schedule")">
                 Gestionar mantenimientos
             </a>
         </div>
@@ -28308,7 +28988,7 @@ else if (record is not null)
                                 <td>
                                     @if (!string.IsNullOrWhiteSpace(item.EvidenceDownloadUrl))
                                     {
-                                        <a class="btn btn-sm btn-outline-primary"
+                                        <a class="life-action life-action-primary"
                                            href="@BuildApiUrl(item.EvidenceDownloadUrl)"
                                            target="_blank">
                                             Descargar
@@ -28337,7 +29017,7 @@ else if (record is not null)
                 <h2>Prácticas seguras</h2>
             </div>
 
-            <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{ToolId}/safe-practices")">
+            <a class="life-action life-action-primary" href="@($"/tools/{ToolId}/safe-practices")">
                 Gestionar prácticas
             </a>
         </div>
@@ -29092,7 +29772,126 @@ else if (record is not null)
             grid-template-columns: 1fr !important;
         }
     }
+
+    /* ============================================================
+       Mejora visual botones Acciones - Hoja de Vida AF
+       ============================================================ */
+
+    .life-hero-buttons {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: .38rem;
+        min-width: 185px;
+    }
+
+    .life-record-quick-actions .quick-action-card {
+        display: grid;
+        gap: .42rem;
+        align-content: start;
+    }
+
+    .life-record-quick-actions .quick-action-card .d-flex {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr;
+        gap: .35rem !important;
+    }
+
+    .life-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 30px;
+        width: 100%;
+        border-radius: .48rem;
+        padding: .32rem .42rem;
+        font-size: .68rem;
+        font-weight: 950;
+        line-height: 1.1;
+        text-decoration: none;
+        border: 1px solid transparent;
+        background: #fff;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .life-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .25rem .55rem rgba(15, 23, 42, .12);
+        text-decoration: none;
+    }
+
+    .life-action-primary {
+        border-color: #2563eb;
+        color: #1d4ed8;
+        background: #eff6ff;
+    }
+
+    .life-action-primary:hover {
+        color: #1e40af;
+        background: #dbeafe;
+    }
+
+    .life-action-primary-fill {
+        border-color: #1d4ed8;
+        color: #fff;
+        background: #2563eb;
+    }
+
+    .life-action-neutral {
+        border-color: #64748b;
+        color: #334155;
+        background: #f8fafc;
+    }
+
+    .life-action-neutral:hover {
+        color: #1e293b;
+        background: #e2e8f0;
+    }
+
+    .life-action-success {
+        border-color: #059669;
+        color: #047857;
+        background: #ecfdf5;
+    }
+
+    .life-action-success:hover {
+        color: #065f46;
+        background: #d1fae5;
+    }
+
+    .life-action-danger {
+        border-color: #ef4444;
+        color: #dc2626;
+        background: #fff1f2;
+    }
+
+    .life-action-warning {
+        border-color: #f59e0b;
+        color: #9a3412;
+        background: #fff7ed;
+    }
+
+    .section-title .life-action,
+    .section-title-main + .life-action {
+        max-width: 190px;
+    }
+
+    @@media (max-width: 1300px) {
+        .life-action {
+            font-size: .62rem;
+            min-height: 27px;
+            padding: .26rem .32rem;
+            white-space: normal;
+        }
+
+        .life-hero-buttons {
+            min-width: 150px;
+        }
+    }
+
 </style>
+
 
 
 ============================================================
@@ -32634,11 +33433,11 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
                             <td>@ShowDate(tool.LastReturnDate)</td>
                             <td class="text-end">
                                 <div class="assignment-actions">
-                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => SelectForAssignment(tool)">
+                                    <button class="assign-action assign-action-primary" @onclick="() => SelectForAssignment(tool)">
                                         Asignar
                                     </button>
 
-                                    <button class="btn btn-sm btn-outline-warning fw-bold" @onclick="() => SelectForReturn(tool)">
+                                    <button class="assign-action assign-action-warning" @onclick="() => SelectForReturn(tool)">
                                         Regresar
                                     </button>
                                 </div>
@@ -32825,6 +33624,106 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
             flex-direction: column;
         }
     }
+
+    /* ============================================================
+       Mejora visual botones Acciones - Asignar AF
+       ============================================================ */
+
+    .assignment-actions,
+    .row-actions,
+    td.text-end {
+        display: grid !important;
+        grid-template-columns: 1fr;
+        gap: .34rem;
+        width: 100%;
+        min-width: 115px;
+        align-items: stretch;
+    }
+
+    .assign-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 29px;
+        width: 100%;
+        border-radius: .48rem;
+        padding: .30rem .40rem;
+        font-size: .66rem;
+        font-weight: 950;
+        line-height: 1.1;
+        text-decoration: none;
+        border: 1px solid transparent;
+        background: #fff;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .assign-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .25rem .55rem rgba(15, 23, 42, .12);
+        text-decoration: none;
+    }
+
+    .assign-action-primary {
+        border-color: #2563eb;
+        color: #1d4ed8;
+        background: #eff6ff;
+    }
+
+    .assign-action-primary:hover {
+        color: #1e40af;
+        background: #dbeafe;
+    }
+
+    .assign-action-success {
+        border-color: #059669;
+        color: #047857;
+        background: #ecfdf5;
+    }
+
+    .assign-action-neutral {
+        border-color: #64748b;
+        color: #334155;
+        background: #f8fafc;
+    }
+
+    .assign-action-warning {
+        border-color: #f59e0b;
+        color: #9a3412;
+        background: #fff7ed;
+    }
+
+    .assign-action-warning:hover {
+        color: #7c2d12;
+        background: #ffedd5;
+    }
+
+    .assign-action-danger {
+        border-color: #ef4444;
+        color: #dc2626;
+        background: #fff1f2;
+    }
+
+    .af-table th:last-child,
+    .af-table td:last-child,
+    table th:last-child,
+    table td:last-child {
+        width: 120px;
+        min-width: 120px;
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    @@media (max-width: 1300px) {
+        .assign-action {
+            font-size: .62rem;
+            min-height: 27px;
+            padding: .26rem .32rem;
+            white-space: normal;
+        }
+    }
+
 </style>
 
 @code {
@@ -33158,6 +34057,7 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
         public Guid BranchId { get; set; }
     }
 }
+
 
 
 
@@ -33756,7 +34656,7 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
                             <td>@Show(tool.ResponsiblePersonName)</td>
                             <td><span class="@GetStatusBadge(tool.OperationalStatus)">@GetStatusLabel(tool.OperationalStatus)</span></td>
                             <td class="text-end">
-                                <button class="btn btn-sm btn-outline-primary" @onclick="() => SelectTool(tool)">
+                                <button class="avail-action avail-action-primary" @onclick="() => SelectTool(tool)">
                                     Gestionar
                                 </button>
                             </td>
@@ -33889,6 +34789,102 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
             flex-direction: column;
         }
     }
+
+    /* ============================================================
+       Mejora visual botones Acciones - Disponible y Ubicación
+       ============================================================ */
+
+    .availability-actions,
+    .row-actions,
+    td.text-end {
+        display: grid !important;
+        grid-template-columns: 1fr;
+        gap: .34rem;
+        width: 100%;
+        min-width: 115px;
+        align-items: stretch;
+        justify-items: stretch;
+    }
+
+    .avail-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 29px;
+        width: 100%;
+        border-radius: .48rem;
+        padding: .30rem .40rem;
+        font-size: .66rem;
+        font-weight: 950;
+        line-height: 1.1;
+        text-decoration: none;
+        border: 1px solid transparent;
+        background: #fff;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .avail-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .25rem .55rem rgba(15, 23, 42, .12);
+        text-decoration: none;
+    }
+
+    .avail-action-primary {
+        border-color: #2563eb;
+        color: #1d4ed8;
+        background: #eff6ff;
+    }
+
+    .avail-action-primary:hover {
+        color: #1e40af;
+        background: #dbeafe;
+    }
+
+    .avail-action-success {
+        border-color: #059669;
+        color: #047857;
+        background: #ecfdf5;
+    }
+
+    .avail-action-neutral {
+        border-color: #64748b;
+        color: #334155;
+        background: #f8fafc;
+    }
+
+    .avail-action-warning {
+        border-color: #f59e0b;
+        color: #9a3412;
+        background: #fff7ed;
+    }
+
+    .avail-action-danger {
+        border-color: #ef4444;
+        color: #dc2626;
+        background: #fff1f2;
+    }
+
+    .af-table th:last-child,
+    .af-table td:last-child,
+    table th:last-child,
+    table td:last-child {
+        width: 120px;
+        min-width: 120px;
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    @@media (max-width: 1300px) {
+        .avail-action {
+            font-size: .62rem;
+            min-height: 27px;
+            padding: .26rem .32rem;
+            white-space: normal;
+        }
+    }
+
 </style>
 
 @code {
@@ -34121,6 +35117,7 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
         public Guid BranchId { get; set; }
     }
 }
+
 
 
 
@@ -35461,15 +36458,15 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
 
                             <td>
                                 <div class="row-actions">
-                                    <a class="btn btn-sm btn-outline-secondary" href="@($"/tools/{item.ToolAssetId}/technical-life-record")">
-                                        Hoja vida
+                                    <a class="plans-action plans-action-neutral" href="@($"/tools/{item.ToolAssetId}/technical-life-record")">
+                                        Hoja de vida
                                     </a>
 
-                                    <a class="btn btn-sm btn-outline-primary" href="@($"/tools/{item.ToolAssetId}/maintenance-schedule")">
+                                    <a class="plans-action plans-action-primary" href="@($"/tools/{item.ToolAssetId}/maintenance-schedule")">
                                         Cronograma
                                     </a>
 
-                                    <a class="btn btn-sm btn-success" href="/maintenance-request">
+                                    <a class="plans-action plans-action-success" href="/maintenance-request">
                                         Solicitar
                                     </a>
                                 </div>
@@ -35710,6 +36707,126 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
             grid-template-columns: repeat(2, 1fr);
         }
     }
+
+    /* ============================================================
+       Mejora visual botones Acciones - Planes de mantenimiento
+       ============================================================ */
+
+    .plans-table th:last-child,
+    .plans-table td:last-child {
+        width: 140px;
+        min-width: 140px;
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    .plans-table td:last-child {
+        padding-right: .25rem;
+    }
+
+    .plans-table .row-actions {
+        display: grid !important;
+        grid-template-columns: 1fr;
+        gap: .34rem;
+        width: 100%;
+        min-width: 125px;
+        align-items: stretch;
+    }
+
+    .plans-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 29px;
+        width: 100%;
+        border-radius: .48rem;
+        padding: .30rem .38rem;
+        font-size: .66rem;
+        font-weight: 950;
+        line-height: 1.1;
+        text-decoration: none;
+        border: 1px solid transparent;
+        background: #fff;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .plans-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .25rem .55rem rgba(15, 23, 42, .12);
+        text-decoration: none;
+    }
+
+    .plans-action-neutral {
+        border-color: #64748b;
+        color: #334155;
+        background: #f8fafc;
+    }
+
+    .plans-action-neutral:hover {
+        color: #1e293b;
+        background: #e2e8f0;
+    }
+
+    .plans-action-primary {
+        border-color: #2563eb;
+        color: #1d4ed8;
+        background: #eff6ff;
+    }
+
+    .plans-action-primary:hover {
+        color: #1e40af;
+        background: #dbeafe;
+    }
+
+    .plans-action-success {
+        border-color: #059669;
+        color: #047857;
+        background: #ecfdf5;
+    }
+
+    .plans-action-success:hover {
+        color: #065f46;
+        background: #d1fae5;
+    }
+
+    .plans-table {
+        width: 100%;
+        table-layout: fixed;
+    }
+
+    .plans-table td {
+        vertical-align: top;
+        overflow-wrap: anywhere;
+    }
+
+    .plans-table td strong,
+    .plans-table td small {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+    }
+
+    .plans-table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    @@media (max-width: 1300px) {
+        .plans-table th:last-child,
+        .plans-table td:last-child {
+            width: 120px;
+            min-width: 120px;
+        }
+
+        .plans-action {
+            font-size: .62rem;
+            min-height: 27px;
+            padding: .26rem .30rem;
+            white-space: normal;
+        }
+    }
+
 </style>
 
 @code {
@@ -35832,6 +36949,7 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
         public string? LastProvider { get; set; }
     }
 }
+
 
 
 ============================================================
@@ -38298,6 +39416,7 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
 @page "/physical-counts/{Id:guid}"
 @rendermode InteractiveServer
 @using System.Net.Http.Json
+@using Microsoft.AspNetCore.Components.Forms
 @using Navi.ToolsAssets.Admin.Components.Security
 @using Navi.ToolsAssets.Admin.Services.Auth
 @inject IHttpClientFactory HttpClientFactory
@@ -38441,7 +39560,7 @@ else if (board is not null)
                             <th>Diferencias</th>
                             <th>Avance</th>
                             <th>Fechas</th>
-                            <th>Hoja de vida</th>
+                            <th>Acciones</th>
                         </tr>
                     </thead>
 
@@ -38462,21 +39581,21 @@ else if (board is not null)
                                 </td>
 
                                 <td>@participant.ExpectedItems</td>
-                                <td>@participant.CountedItems</td>
-                                <td>@participant.PendingItems</td>
+                                <td>@GetParticipantReportedCount(participant)</td>
+                                <td>@GetParticipantPendingCount(participant)</td>
 
                                 <td>
-                                    <small>Faltantes: @participant.MissingItems</small>
-                                    <small>Diferentes: @participant.DifferentItems</small>
-                                    <small>Dañadas: @participant.DamagedItems</small>
-                                    <small>Sobrantes: @participant.ExtraItems</small>
-                                </td>
+    @foreach (var diffLine in GetParticipantDifferenceLines(participant))
+    {
+        <small>@diffLine</small>
+    }
+</td>
 
                                 <td>
                                     <div class="pc-progress">
-                                        <div style="width:@participant.Progress%"></div>
+                                        <div style="width:@GetParticipantProgress(participant)%"></div>
                                     </div>
-                                    <small>@participant.Progress%</small>
+                                    <small>@GetParticipantProgress(participant)%</small>
                                 </td>
 
                                 <td>
@@ -38484,6 +39603,28 @@ else if (board is not null)
                                     <small>Finalizó: @FormatDate(participant.FinishedAt)</small>
                                     <small>Última: @FormatDate(participant.LastActivityAt)</small>
                                 </td>
+
+                                <td>
+    <div class="row-actions">
+        <button class="pc-action pc-action-success"
+                type="button"
+                @onclick="() => StartParticipantAsync(participant.Id)">
+            Iniciar
+        </button>
+
+        <button class="pc-action pc-action-neutral"
+                type="button"
+                @onclick="() => FinishParticipantAsync(participant.Id)">
+            Finalizar
+        </button>
+
+        <button class="pc-action pc-action-primary"
+                type="button"
+                @onclick="() => LoadPendingToolsAsync(participant.Id)">
+            Pendientes
+        </button>
+    </div>
+</td>
 
                                 
                             </tr>
@@ -38525,6 +39666,7 @@ else if (board is not null)
                                 <th>Responsable</th>
                                 <th>Estado operativo</th>
                                 <th>Estado físico</th>
+                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -38540,12 +39682,12 @@ else if (board is not null)
                                     <td>@tool.PhysicalStatus</td>
                                 <td>
                                     <div class="pc-pending-actions">
-                                        <a class="btn btn-sm btn-outline-primary"
+                                        <a class="pc-action pc-action-primary"
                                            href="@($"/physical-counts/{Id}/participants/{GetSelectedPendingParticipantId()}/pending-tools/{GetPendingToolId(tool)}")">
                                             Detalle / Reportar
                                         </a>
 
-                                        <a class="btn btn-sm btn-outline-danger"
+                                        <a class="pc-action pc-action-danger"
                                            href="@($"/physical-counts/{Id}/participants/{GetSelectedPendingParticipantId()}/pending-tools/{GetPendingToolId(tool)}?mode=reject")">
                                             Rechazar
                                         </a>
@@ -38560,40 +39702,56 @@ else if (board is not null)
         </section>
     }
 
-        <section class="pc-card">
-                <div class="pc-card-title">
-            <div class="pc-reported-section-header pc-reported-section-header--top">
-                <div>
-                    <h3>
-                        @if (selectedPending is null)
-                        {
-                            <span>Registros reportados por usuario</span>
-                        }
-                        else
-                        {
-                            <span>Registros reportados de @(selectedPending?.DisplayName ?? "Usuario seleccionado")</span>
-                        }
-                    </h3>
-                    <p>
-                        @if (selectedPending is null)
-                        {
-                            <span>Seleccione un participante en la tabla superior y presione Pendientes para ver solo sus registros.</span>
-                        }
-                        else
-                        {
-                            <span>Vista informativa del usuario seleccionado: activos asignados, reportados, completos, pendientes o por conciliar. No permite editar ni tomar decisiones.</span>
-                        }
-                    </p>
-                </div>
+                <section class="pc-card pc-reported-user-card">
+        <div class="pc-card-title">
+            <div>
+                <h3>
+                    @if (selectedPending is null)
+                    {
+                        <span>Registros reportados por usuario</span>
+                    }
+                    else
+                    {
+                        <span>Registros reportados de @(selectedPending?.DisplayName ?? "Usuario seleccionado")</span>
+                    }
+                </h3>
+                <p>
+                    @if (selectedPending is null)
+                    {
+                        <span>Seleccione un participante y presione <strong>Pendientes</strong> para ver sus registros y agregar herramientas no listadas.</span>
+                    }
+                    else
+                    {
+                        <span>Solo se muestran los registros de este usuario: herramientas validadas, rechazadas, no encontradas o no listadas.</span>
+                    }
+                </p>
+            </div>
 
-                <div class="pc-reported-section-actions pc-reported-section-actions--right">
-                    <a class="pc-reported-inline-btn" href="@($"/physical-counts/{Id}/reported-items")">
-                        Ir a conciliación global
-                    </a>
-                </div>
+            <div class="pc-actions">
+                @if (selectedPending is not null)
+                {
+                    <button type="button"
+                            class="pc-action pc-action-primary"
+                            @onclick="ToggleQuickReportForm">
+                        @(showQuickReportForm ? "Ocultar formulario" : "Agregar no listada")
+                    </button>
+                }
+
+                <a class="pc-action pc-action-primary" href="@GetReportedItemsUrl()">
+                    Ir a conciliación global
+                </a>
             </div>
         </div>
-<div class="pc-user-progress">
+
+        @if (selectedPending is null)
+        {
+            <div class="pc-empty">
+                Seleccione un participante en la tabla superior y presione <strong>Pendientes</strong>.
+            </div>
+        }
+        else
+        {
+            <div class="pc-user-progress">
                 <article>
                     <span>Usuario</span>
                     <strong>@(selectedPending?.DisplayName ?? "Usuario seleccionado")</strong>
@@ -38608,7 +39766,7 @@ else if (board is not null)
 
                 <article>
                     <span>Pendientes</span>
-                    <strong>@(selectedPending?.PendingItems ?? 0)</strong>
+                    <strong>@GetSelectedPendingVisualCount()</strong>
                     <small>Sin validar</small>
                 </article>
 
@@ -38618,15 +39776,137 @@ else if (board is not null)
                     <small>Registros del usuario</small>
                 </article>
             </div>
-            <div class="pc-readonly-note">
-                Esta sección es solo informativa. No permite editar, crear, rechazar ni conciliar.
-                Para decisiones administrativas use la vista de conciliación global.
-            </div>
+
+            @if (showQuickReportForm)
+            {
+                <div class="pc-selected-user-banner">
+                    <strong>Usuario que reporta:</strong>
+                    <span>@(selectedPending?.DisplayName ?? "Usuario seleccionado")</span>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(quickReportError))
+                {
+                    <div class="pc-alert pc-alert-danger">@quickReportError</div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(quickReportSuccess))
+                {
+                    <div class="pc-alert pc-alert-success">@quickReportSuccess</div>
+                }
+
+                <EditForm Model="quickReportedItem" OnSubmit="SaveQuickReportedItemAsync">
+                    <div class="pc-report-form-grid">
+                        <label>
+                            Tipo de reporte *
+                            <select @bind="quickReportedItem.ReportType">
+                                <option value="ExtraNotListed">Herramienta / activo no listado</option>
+                                <option value="Damaged">Activo dañado</option>
+                                <option value="ReturnedOrDelivered">Activo devuelto / entregado</option>
+                            </select>
+                        </label>
+
+                        <label>
+                            Tipo de activo *
+                            <select @bind="quickReportedItem.AssetTypeName">
+                                <option value="Herramienta">Herramienta</option>
+                                <option value="Activo fijo">Activo fijo</option>
+                                <option value="Equipo tecnológico">Equipo tecnológico</option>
+                                <option value="Equipo de medición">Equipo de medición</option>
+                            </select>
+                        </label>
+
+                        <label>
+                            Código / placa visible *
+                            <input @bind="quickReportedItem.ReportedCode"
+                                   placeholder="Ej: AGU-NO-SIS-001..." />
+                        </label>
+
+                        <label>
+                            Nombre del activo / herramienta *
+                            <input @bind="quickReportedItem.ReportedName"
+                                   placeholder="Ej: Taladro, gato, escáner..." />
+                        </label>
+
+                        <label>
+                            Categoría *
+                            <input @bind="quickReportedItem.CategoryName"
+                                   placeholder="Ej: Eléctrica, hidráulica, cómputo..." />
+                        </label>
+
+                        <label>
+                            Sede *
+                            <input @bind="quickReportedItem.BranchCode" />
+                        </label>
+
+                        <label>
+                            Ubicación encontrada *
+                            <input @bind="quickReportedItem.FoundLocation" />
+                        </label>
+
+                        <label>
+                            Estado físico *
+                            <select @bind="quickReportedItem.PhysicalStatus">
+                                <option value="Bueno">Bueno</option>
+                                <option value="Regular">Regular</option>
+                                <option value="Dañado">Dañado</option>
+                                <option value="No encontrado">No encontrado</option>
+                            </select>
+                        </label>
+
+                        <label>
+                            Serial
+                            <input @bind="quickReportedItem.SerialNumber" />
+                        </label>
+
+                        <label>
+                            Marca
+                            <input @bind="quickReportedItem.Brand" />
+                        </label>
+
+                        <label>
+                            Modelo
+                            <input @bind="quickReportedItem.Model" />
+                        </label>
+
+                        <label>
+                            Estado operativo
+                            <input @bind="quickReportedItem.OperationalStatus" />
+                        </label>
+                    </div>
+
+                    <label class="pc-report-full">
+                        Observación *
+                        <textarea rows="3"
+                                  @bind="quickReportedItem.Observation"
+                                  placeholder="Describa lo que reportó el usuario y cualquier detalle para conciliación."></textarea>
+                    </label>
+
+                    <label class="pc-check-row">
+                        <input type="checkbox" @bind="quickReportedItem.RequiresUserClarification" />
+                        Requiere llamar/contactar al usuario para aclaración
+                    </label>
+
+                    <div class="pc-form-actions">
+                        <button type="submit"
+                                class="pc-primary-btn"
+                                disabled="@isSavingQuickReport">
+                            @(isSavingQuickReport ? "Guardando..." : "Guardar registro reportado")
+                        </button>
+
+                        <button type="button"
+                                class="pc-secondary-btn"
+                                disabled="@isSavingQuickReport"
+                                @onclick="ResetQuickReportedItemForm">
+                            Limpiar
+                        </button>
+                    </div>
+                </EditForm>
+            }
 
             @if (!SelectedParticipantReportedItems.Any())
             {
                 <div class="pc-empty">
-                    Este usuario aún no tiene registros reportados. Cuando use Detalle / Reportar o Rechazar, aparecerán aquí.
+                    Este usuario aún no tiene registros reportados. Cuando use <strong>Detalle / Reportar</strong>, <strong>Rechazar</strong> o <strong>Agregar no listada</strong>, aparecerán aquí.
                 </div>
             }
             else
@@ -38656,10 +39936,12 @@ else if (board is not null)
 
                                     <td>
                                         <strong>@Display(item.ToolName ?? item.ReportedName)</strong>
+
                                         @if (!string.IsNullOrWhiteSpace(item.SerialNumber))
                                         {
                                             <small>Serial: @item.SerialNumber</small>
                                         }
+
                                         @if (!string.IsNullOrWhiteSpace(item.Brand) || !string.IsNullOrWhiteSpace(item.Model))
                                         {
                                             <small>@Display(item.Brand) @Display(item.Model)</small>
@@ -38695,13 +39977,6 @@ else if (board is not null)
         }
     </section>
 }
-
-
-            
-
-            
-        }
-    
 
 </PermissionGuard>
 
@@ -39138,10 +40413,6 @@ else if (board is not null)
         min-width: 180px;
     }
 
-    .pc-add-report-card .pc-reported-section-actions--right a {
-        display: none !important;
-    }
-
     @@media (max-width: 900px) {
         .pc-reported-section-header--top {
             flex-direction: column;
@@ -39154,19 +40425,156 @@ else if (board is not null)
         }
     }
 
-    .pc-readonly-note {
-        border: 1px solid #bfdbfe;
-        background: #eff6ff;
-        color: #1e3a8a;
-        border-radius: .75rem;
-        padding: .7rem .85rem;
-        margin: .75rem 0;
-        font-weight: 750;
-    }
-
     .pc-card .btn-outline-primary {
         font-weight: 800;
     }
+
+    .pc-pending-actions {
+        display: flex;
+        gap: .35rem;
+        flex-wrap: wrap;
+    }
+
+    .pc-reported-user-card {
+        border: 1px solid #dbeafe;
+    }
+
+    /* ============================================================
+       Mejora visual botones Acciones - Detalle toma física
+       ============================================================ */
+
+    .participants-table th:last-child,
+    .participants-table td:last-child,
+    .physical-count-participants th:last-child,
+    .physical-count-participants td:last-child,
+    .pc-table th:last-child,
+    .pc-table td:last-child {
+        width: 135px;
+        min-width: 135px;
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    .participant-actions,
+    .pc-participant-actions,
+    .row-actions {
+        display: grid !important;
+        grid-template-columns: 1fr;
+        gap: .32rem;
+        width: 100%;
+        min-width: 118px;
+        align-items: stretch;
+    }
+
+    .pc-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 29px;
+        width: 100%;
+        border-radius: .48rem;
+        padding: .30rem .40rem;
+        font-size: .66rem;
+        font-weight: 950;
+        line-height: 1.1;
+        text-decoration: none;
+        border: 1px solid transparent;
+        background: #fff;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .pc-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .25rem .55rem rgba(15, 23, 42, .12);
+        text-decoration: none;
+    }
+
+    .pc-action-primary {
+        border-color: #2563eb;
+        color: #1d4ed8;
+        background: #eff6ff;
+    }
+
+    .pc-action-primary:hover {
+        color: #1e40af;
+        background: #dbeafe;
+    }
+
+    .pc-action-success {
+        border-color: #059669;
+        color: #047857;
+        background: #ecfdf5;
+    }
+
+    .pc-action-success:hover {
+        color: #065f46;
+        background: #d1fae5;
+    }
+
+    .pc-action-neutral {
+        border-color: #334155;
+        color: #334155;
+        background: #f8fafc;
+    }
+
+    .pc-action-neutral:hover {
+        color: #1e293b;
+        background: #e2e8f0;
+    }
+
+    .pc-action-danger {
+        border-color: #ef4444;
+        color: #dc2626;
+        background: #fff1f2;
+    }
+
+    .pc-action-danger:hover {
+        color: #b91c1c;
+        background: #ffe4e6;
+    }
+
+    .pc-action[disabled],
+    .pc-action:disabled {
+        opacity: .55;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+
+    .physical-count-detail table,
+    .participants-table,
+    .pc-table {
+        width: 100%;
+        table-layout: fixed;
+    }
+
+    .physical-count-detail td,
+    .participants-table td,
+    .pc-table td {
+        vertical-align: top;
+        overflow-wrap: anywhere;
+    }
+
+    @@media (max-width: 1300px) {
+        .participants-table th:last-child,
+        .participants-table td:last-child,
+        .physical-count-participants th:last-child,
+        .physical-count-participants td:last-child,
+        .pc-table th:last-child,
+        .pc-table td:last-child {
+            width: 120px;
+            min-width: 120px;
+        }
+
+        .pc-action {
+            font-size: .62rem;
+            min-height: 27px;
+            padding: .26rem .32rem;
+        }
+    }
+
 </style>
 
 @code {
@@ -39219,6 +40627,106 @@ else if (board is not null)
         }
 
         return false;
+    }
+    
+    private List<ReportedItem> GetReportsForParticipant(ParticipantItem participant)
+    {
+        return (reportedItemsBoard?.Items ?? new())
+            .Where(item =>
+                item.PhysicalCountParticipantId == participant.Id ||
+                (!string.IsNullOrWhiteSpace(item.ParticipantName) &&
+                    item.ParticipantName.Equals(participant.DisplayName, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(item.ParticipantUserName) &&
+                    item.ParticipantUserName.Equals(participant.UserName, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+    }
+
+    private int GetParticipantReportedCount(ParticipantItem participant)
+    {
+        var reports = GetReportsForParticipant(participant);
+        return reports.Count;
+    }
+
+    private int GetParticipantPendingCount(ParticipantItem participant)
+    {
+        var reported = GetParticipantReportedCount(participant);
+        var expected = participant.ExpectedItems;
+
+        if (expected <= 0)
+        {
+            return participant.PendingItems;
+        }
+
+        var pending = expected - reported;
+        return pending < 0 ? 0 : pending;
+    }
+
+    private int GetParticipantProgress(ParticipantItem participant)
+    {
+        var expected = participant.ExpectedItems;
+
+        if (expected <= 0)
+        {
+            return Convert.ToInt32(Math.Round(participant.Progress, 0, MidpointRounding.AwayFromZero));
+        }
+
+        var reported = GetParticipantReportedCount(participant);
+        var progress = (int)Math.Round((reported * 100.0) / expected);
+
+        if (progress < 0)
+        {
+            return 0;
+        }
+
+        if (progress > 100)
+        {
+            return 100;
+        }
+
+        return progress;
+    }
+
+    private IReadOnlyList<string> GetParticipantDifferenceLines(ParticipantItem participant)
+    {
+        var reports = GetReportsForParticipant(participant);
+
+        var missing = reports.Count(x => IsReportType(x, "NotFound"));
+        var extra = reports.Count(x => IsReportType(x, "ExtraNotListed"));
+        var damaged = reports.Count(x => IsReportType(x, "Damaged"));
+        var returned = reports.Count(x => IsReportType(x, "ReturnedOrDelivered"));
+
+        return new[]
+        {
+            $"Faltantes: {missing}",
+            $"No listadas: {extra}",
+            $"Dañadas: {damaged}",
+            $"Devueltas: {returned}"
+        };
+    }
+
+    private int GetSelectedPendingVisualCount()
+    {
+        if (selectedPending is null)
+        {
+            return 0;
+        }
+
+        var expected = selectedPending.ExpectedItems;
+        var reported = SelectedParticipantReportedItems.Count();
+
+        if (expected <= 0)
+        {
+            return selectedPending.PendingItems;
+        }
+
+        var pending = expected - reported;
+        return pending < 0 ? 0 : pending;
+    }
+
+    private static bool IsReportType(ReportedItem item, string reportType)
+    {
+        return !string.IsNullOrWhiteSpace(item.ReportType) &&
+               item.ReportType.Equals(reportType, StringComparison.OrdinalIgnoreCase);
     }
     private IEnumerable<ParticipantItem> FilteredParticipants =>
         (board?.Participants ?? new())
@@ -39334,6 +40842,16 @@ else if (board is not null)
             "Participante finalizado.");
     }
 
+    
+    private string GetReportedItemsUrl()
+    {
+        if (selectedPending is not null)
+        {
+            return $"/physical-counts/{Id}/reported-items?participantId={selectedPending.Id}";
+        }
+
+        return $"/physical-counts/{Id}/reported-items";
+    }
     private async Task LoadPendingToolsAsync(Guid participantId)
     {
         errorMessage = null;
@@ -39403,6 +40921,16 @@ else if (board is not null)
         }
     }
 
+    
+    private string GetReportedItemsReadOnlyUrl()
+    {
+        if (selectedPending is not null)
+        {
+            return $"/physical-counts/{Id}/reported-items?participantId={selectedPending.Id}";
+        }
+
+        return $"/physical-counts/{Id}/reported-items";
+    }
     private void GoBack()
     {
         NavigationManager.NavigateTo("/physical-counts");
@@ -40012,6 +41540,143 @@ else if (board is not null)
         filter: brightness(.96);
         text-decoration: none;
     }
+
+    /* ============================================================
+       Mejora visual botones Acciones - Detalle toma física
+       ============================================================ */
+
+    .participants-table th:last-child,
+    .participants-table td:last-child,
+    .physical-count-participants th:last-child,
+    .physical-count-participants td:last-child,
+    .pc-table th:last-child,
+    .pc-table td:last-child {
+        width: 135px;
+        min-width: 135px;
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    .participant-actions,
+    .pc-participant-actions,
+    .row-actions {
+        display: grid !important;
+        grid-template-columns: 1fr;
+        gap: .32rem;
+        width: 100%;
+        min-width: 118px;
+        align-items: stretch;
+    }
+
+    .pc-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 29px;
+        width: 100%;
+        border-radius: .48rem;
+        padding: .30rem .40rem;
+        font-size: .66rem;
+        font-weight: 950;
+        line-height: 1.1;
+        text-decoration: none;
+        border: 1px solid transparent;
+        background: #fff;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .pc-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .25rem .55rem rgba(15, 23, 42, .12);
+        text-decoration: none;
+    }
+
+    .pc-action-primary {
+        border-color: #2563eb;
+        color: #1d4ed8;
+        background: #eff6ff;
+    }
+
+    .pc-action-primary:hover {
+        color: #1e40af;
+        background: #dbeafe;
+    }
+
+    .pc-action-success {
+        border-color: #059669;
+        color: #047857;
+        background: #ecfdf5;
+    }
+
+    .pc-action-success:hover {
+        color: #065f46;
+        background: #d1fae5;
+    }
+
+    .pc-action-neutral {
+        border-color: #334155;
+        color: #334155;
+        background: #f8fafc;
+    }
+
+    .pc-action-neutral:hover {
+        color: #1e293b;
+        background: #e2e8f0;
+    }
+
+    .pc-action-danger {
+        border-color: #ef4444;
+        color: #dc2626;
+        background: #fff1f2;
+    }
+
+    .pc-action-danger:hover {
+        color: #b91c1c;
+        background: #ffe4e6;
+    }
+
+    .pc-action[disabled],
+    .pc-action:disabled {
+        opacity: .55;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+
+    .physical-count-detail table,
+    .participants-table,
+    .pc-table {
+        width: 100%;
+        table-layout: fixed;
+    }
+
+    .physical-count-detail td,
+    .participants-table td,
+    .pc-table td {
+        vertical-align: top;
+        overflow-wrap: anywhere;
+    }
+
+    @@media (max-width: 1300px) {
+        .participants-table th:last-child,
+        .participants-table td:last-child,
+        .physical-count-participants th:last-child,
+        .physical-count-participants td:last-child,
+        .pc-table th:last-child,
+        .pc-table td:last-child {
+            width: 120px;
+            min-width: 120px;
+        }
+
+        .pc-action {
+            font-size: .62rem;
+            min-height: 27px;
+            padding: .26rem .32rem;
+        }
+    }
+
 </style>
 
 
@@ -40068,7 +41733,153 @@ else if (board is not null)
             min-width: 0;
         }
     }
+
+    /* ============================================================
+       Mejora visual botones Acciones - Detalle toma física
+       ============================================================ */
+
+    .participants-table th:last-child,
+    .participants-table td:last-child,
+    .physical-count-participants th:last-child,
+    .physical-count-participants td:last-child,
+    .pc-table th:last-child,
+    .pc-table td:last-child {
+        width: 135px;
+        min-width: 135px;
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    .participant-actions,
+    .pc-participant-actions,
+    .row-actions {
+        display: grid !important;
+        grid-template-columns: 1fr;
+        gap: .32rem;
+        width: 100%;
+        min-width: 118px;
+        align-items: stretch;
+    }
+
+    .pc-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 29px;
+        width: 100%;
+        border-radius: .48rem;
+        padding: .30rem .40rem;
+        font-size: .66rem;
+        font-weight: 950;
+        line-height: 1.1;
+        text-decoration: none;
+        border: 1px solid transparent;
+        background: #fff;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .pc-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .25rem .55rem rgba(15, 23, 42, .12);
+        text-decoration: none;
+    }
+
+    .pc-action-primary {
+        border-color: #2563eb;
+        color: #1d4ed8;
+        background: #eff6ff;
+    }
+
+    .pc-action-primary:hover {
+        color: #1e40af;
+        background: #dbeafe;
+    }
+
+    .pc-action-success {
+        border-color: #059669;
+        color: #047857;
+        background: #ecfdf5;
+    }
+
+    .pc-action-success:hover {
+        color: #065f46;
+        background: #d1fae5;
+    }
+
+    .pc-action-neutral {
+        border-color: #334155;
+        color: #334155;
+        background: #f8fafc;
+    }
+
+    .pc-action-neutral:hover {
+        color: #1e293b;
+        background: #e2e8f0;
+    }
+
+    .pc-action-danger {
+        border-color: #ef4444;
+        color: #dc2626;
+        background: #fff1f2;
+    }
+
+    .pc-action-danger:hover {
+        color: #b91c1c;
+        background: #ffe4e6;
+    }
+
+    .pc-action[disabled],
+    .pc-action:disabled {
+        opacity: .55;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+
+    .physical-count-detail table,
+    .participants-table,
+    .pc-table {
+        width: 100%;
+        table-layout: fixed;
+    }
+
+    .physical-count-detail td,
+    .participants-table td,
+    .pc-table td {
+        vertical-align: top;
+        overflow-wrap: anywhere;
+    }
+
+    @@media (max-width: 1300px) {
+        .participants-table th:last-child,
+        .participants-table td:last-child,
+        .physical-count-participants th:last-child,
+        .physical-count-participants td:last-child,
+        .pc-table th:last-child,
+        .pc-table td:last-child {
+            width: 120px;
+            min-width: 120px;
+        }
+
+        .pc-action {
+            font-size: .62rem;
+            min-height: 27px;
+            padding: .26rem .32rem;
+        }
+    }
+
 </style>
+
+
+
+
+
+
+
+
+
 
 
 
@@ -41856,208 +43667,334 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
 
 @page "/physical-counts/{Id:guid}/reported-items"
 @rendermode InteractiveServer
+
 @using System.Net.Http.Json
+@using Microsoft.AspNetCore.Components
 @using Navi.ToolsAssets.Admin.Components.Security
+
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager NavigationManager
 
-<PageTitle>Registros reportados</PageTitle>
+<PageTitle>Registros reportados por usuario</PageTitle>
 
 <PermissionGuard Permission="PhysicalCounts.View" ModuleName="Registros reportados">
 
-<section class="ri-hero">
-    <div>
-        <span class="ri-pill">TOMA FÍSICA · REGISTROS REPORTADOS</span>
-        <h2>Registros reportados</h2>
-        <p>Administra la conciliación de lo reportado durante la toma física: encontrados, faltantes, diferencias, herramientas no listadas, aprobaciones, rechazos y creación controlada en Inventario de AF.</p>
-    </div>
+    <section class="ri-hero">
+        <div>
+            <span class="ri-pill">TOMA FÍSICA · REGISTROS REPORTADOS</span>
+            <h2>Registros reportados</h2>
 
-    <div class="ri-actions">
-        <button class="btn btn-light" @onclick="LoadAsync">Actualizar</button>
-        <button class="btn btn-outline-light" @onclick="GoBack">Volver</button>
-    </div>
-</section>
-
-@if (!string.IsNullOrWhiteSpace(successMessage))
-{
-    <div class="alert alert-success">@successMessage</div>
-}
-
-@if (!string.IsNullOrWhiteSpace(errorMessage))
-{
-    <div class="alert alert-danger">@errorMessage</div>
-}
-
-@if (isLoading && board is null)
-{
-    <div class="ri-empty">Cargando registros reportados...</div>
-}
-else if (board is not null)
-{
-    <section class="ri-kpis">
-        <article><span>Total</span><strong>@board.Summary.Total</strong><small>Registros</small></article>
-        <article><span>No listadas</span><strong>@board.Summary.ExtraNotListed</strong><small>Por conciliar</small></article>
-        <article><span>Dañadas</span><strong>@board.Summary.Damaged</strong><small>Posible mantenimiento</small></article>
-        <article><span>Devueltas</span><strong>@board.Summary.ReturnedOrDelivered</strong><small>Validar entrega</small></article>
-        <article><span>Aclaración</span><strong>@board.Summary.RequiresUserClarification</strong><small>Contactar usuario</small></article>
-        <article><span>Sin mínimos</span><strong>@board.Summary.MissingMinimumData</strong><small>No aptas para crear</small></article>
-    </section>
-
-    
-
-    <section class="ri-card">
-        <div class="ri-card-title">
-            <div>
-                <h3>Registros reportados</h3>
-                <p>Vista de conciliación global para revisar, filtrar y tomar decisiones administrativas sobre lo reportado en campo.</p>
-            </div>
-
-            <input class="form-control ri-search"
-                   placeholder="Buscar código, nombre, responsable, categoría..."
-                   @bind="searchText"
-                   @bind:event="oninput" />
+            @if (SelectedParticipant is not null)
+            {
+                <p>
+                    Vista informativa de los registros reportados por
+                    <strong>@SelectedParticipant.DisplayName</strong>.
+                    Aquí no se realizan acciones administrativas.
+                </p>
+            }
+            else
+            {
+                <p>
+                    Vista informativa de registros reportados durante la toma física.
+                    Para ver solo un usuario, ingrese desde el botón de la toma física.
+                </p>
+            }
         </div>
 
-        @if (!FilteredItems.Any())
-        {
-            <div class="ri-empty">No hay registros reportados para esta toma física.</div>
-        }
-        else
-        {
-            <div class="ri-table-wrapper">
-                <table class="ri-table">
-                    <thead>
-                        <tr>
-                            <th>Tipo</th>
-                            <th>Código / nombre</th>
-                            <th>Clasificación</th>
-                            <th>Ubicación / responsable</th>
-                            <th>Estado</th>
-                            <th>Datos mínimos</th>
-                            <th>Conciliación</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
+        <div class="ri-actions">
+            <button class="btn btn-light" type="button" @onclick="LoadAsync" disabled="@isLoading">
+                @(isLoading ? "Actualizando..." : "Actualizar")
+            </button>
 
-                    <tbody>
-                        @foreach (var item in FilteredItems)
+            <button class="btn btn-outline-light" type="button" @onclick="GoBack">
+                Volver
+            </button>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    @if (isLoading && board is null)
+    {
+        <div class="ri-empty">Cargando registros reportados...</div>
+    }
+    else if (board is null)
+    {
+        <div class="ri-empty">No se pudo cargar la información de registros reportados.</div>
+    }
+    else
+    {
+        <section class="ri-context-card">
+            <div>
+                <span>Toma física</span>
+                <strong>@Display(board.CountNumber)</strong>
+                <small>@Display(board.BranchCode) - @Display(board.BranchName)</small>
+            </div>
+
+            <div>
+                <span>Responsable / usuario</span>
+                <strong>@Display(SelectedParticipant?.DisplayName ?? CurrentResponsibleName)</strong>
+                <small>@Display(SelectedParticipant?.UserName)</small>
+            </div>
+
+            <div>
+                <span>Modo</span>
+                <strong>Solo lectura</strong>
+                <small>Las decisiones se hacen en el menú Conciliación</small>
+            </div>
+        </section>
+
+        <section class="ri-kpis">
+            <article>
+                <span>Total</span>
+                <strong>@VisibleItems.Count()</strong>
+                <small>Registros del usuario</small>
+            </article>
+
+            <article>
+                <span>Completos</span>
+                <strong>@VisibleItems.Count(IsComplete)</strong>
+                <small>Validados o creados</small>
+            </article>
+
+            <article>
+                <span>Pendientes</span>
+                <strong>@VisibleItems.Count(IsPending)</strong>
+                <small>Por conciliación</small>
+            </article>
+
+            <article>
+                <span>No listadas</span>
+                <strong>@VisibleItems.Count(x => IsReportType(x, "ExtraNotListed"))</strong>
+                <small>Reportes nuevos</small>
+            </article>
+
+            <article>
+                <span>No encontradas</span>
+                <strong>@VisibleItems.Count(x => IsReportType(x, "NotFound"))</strong>
+                <small>Faltantes</small>
+            </article>
+
+            <article>
+                <span>Aclaración</span>
+                <strong>@VisibleItems.Count(x => x.RequiresUserClarification || IsStatus(x, "RequiresUserClarification"))</strong>
+                <small>Requieren contacto</small>
+            </article>
+        </section>
+
+        <section class="ri-card ri-filter-card">
+            <div class="ri-card-title">
+                <div>
+                    <h3>Consulta de registros</h3>
+                    <p>
+                        Esta vista solo permite consultar la información reportada por el usuario.
+                        No incluye acciones de conciliación.
+                    </p>
+                </div>
+
+                <button class="btn btn-sm btn-outline-secondary" type="button" @onclick="ClearFilters">
+                    Limpiar filtros
+                </button>
+            </div>
+
+            <div class="ri-filter-grid ri-filter-grid-simple">
+                <label>
+                    Buscar
+                    <input class="form-control"
+                           placeholder="Código, nombre, serial, categoría, observación..."
+                           @bind="searchText"
+                           @bind:event="oninput" />
+                </label>
+
+                <label>
+                    Desde
+                    <input class="form-control"
+                           placeholder="yyyy-MM-dd"
+                           @bind="filterFromDateText" />
+                </label>
+
+                <label>
+                    Hasta
+                    <input class="form-control"
+                           placeholder="yyyy-MM-dd"
+                           @bind="filterToDateText" />
+                </label>
+            </div>
+
+            <div class="ri-filter-checks">
+                <label>
+                    <input type="checkbox" @bind="onlyCreatedAssets" />
+                    Mostrar solo activos creados en inventario
+                </label>
+
+                <label>
+                    <input type="checkbox" @bind="onlyExtraNotListed" />
+                    Mostrar solo herramientas no listadas
+                </label>
+            </div>
+        </section>
+
+        <section class="ri-card">
+            <div class="ri-card-title">
+                <div>
+                    <h3>
+                        @if (SelectedParticipant is not null)
                         {
+                            <span>Registros reportados de @SelectedParticipant.DisplayName</span>
+                        }
+                        else if (!string.IsNullOrWhiteSpace(CurrentResponsibleName))
+                        {
+                            <span>Registros reportados de @CurrentResponsibleName</span>
+                        }
+                        else
+                        {
+                            <span>Registros reportados</span>
+                        }
+                    </h3>
+                    <p>
+                        Se muestran los registros encontrados, rechazados, no encontrados o no listados.
+                        Las acciones administrativas se realizan únicamente en el módulo Conciliación.
+                    </p>
+                </div>
+
+                <div class="ri-result-counter">
+                    <span>Filtrados</span>
+                    <strong>@FilteredItems.Count()</strong>
+                </div>
+            </div>
+
+            @if (!FilteredItems.Any())
+            {
+                <div class="ri-empty">
+                    No hay registros reportados para el usuario seleccionado.
+                </div>
+            }
+            else
+            {
+                <div class="ri-table-wrapper">
+                    <table class="ri-table">
+                        <thead>
                             <tr>
-                                <td>
-                                    <span class="ri-badge">@item.ReportTypeLabel</span>
-                                    <small>@item.ParticipantName</small>
-                                    <small>@item.ParticipantUserName</small>
-                                </td>
+                                <th>Tipo / usuario</th>
+                                <th>Código / activo</th>
+                                <th>Clasificación</th>
+                                <th>Ubicación / responsable</th>
+                                <th>Estado reportado</th>
+                                <th>Datos mínimos</th>
+                                <th>Estado conciliación</th>
+                                <th>Consulta</th>
+                            </tr>
+                        </thead>
 
-                                <td>
-                                    <strong>@Display(item.ReportedCode)</strong>
-                                    <span>@item.ReportedName</span>
-                                    <small>Serial: @Display(item.SerialNumber)</small>
-                                    <small>Marca: @Display(item.Brand)</small>
-                                    <small>Modelo: @Display(item.Model)</small>
-                                </td>
+                        <tbody>
+                            @foreach (var item in FilteredItems)
+                            {
+                                var lifeRecordId = GetLifeRecordId(item);
 
-                                <td>
-                                    <small>Tipo: @Display(item.AssetTypeName)</small>
-                                    <small>Categoría: @Display(item.CategoryName)</small>
-                                </td>
+                                <tr class="@GetRowClass(item)">
+                                    <td>
+                                        <span class="@GetReportTypeClass(item)">
+                                            @GetReportTypeLabel(item)
+                                        </span>
 
-                                <td>
-                                    <small>Sede: @Display(item.BranchCode)</small>
-                                    <small>Ubicación: @Display(item.FoundLocation)</small>
-                                    <small>Responsable: @Display(item.ResponsibleName)</small>
-                                </td>
+                                        <small>@Display(item.ParticipantName)</small>
+                                        <small>@Display(item.ParticipantUserName)</small>
+                                    </td>
 
-                                <td>
-                                    <small>Físico: @Display(item.PhysicalStatus)</small>
-                                    <small>Operativo: @Display(item.OperationalStatus)</small>
-                                    <small>Reportó: @Display(item.ReportedBy)</small>
-                                    <small>@FormatDate(item.ReportedAt)</small>
-                                </td>
+                                    <td>
+                                        <strong>@Display(item.ToolInternalCode ?? item.ReportedCode ?? item.MatchedToolInternalCode)</strong>
+                                        <span>@Display(item.ToolName ?? item.ReportedName ?? item.MatchedToolName)</span>
 
-                                <td>
-                                    @if (item.MinimumDataCompleted)
-                                    {
-                                        <span class="ri-status ok">Completos</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="ri-status warn">Incompletos</span>
-                                        <small>@Display(item.MissingRequiredData)</small>
-                                    }
-                                </td>
+                                        @if (!string.IsNullOrWhiteSpace(item.SerialNumber))
+                                        {
+                                            <small>Serial: @item.SerialNumber</small>
+                                        }
 
-                                <td>
-                                    <span class="@GetStatusClass(item.ReconciliationStatus)">
-                                        @GetVisualReconciliationLabel(item)
-                                    </span>
-                                    <small>@Display(item.SuggestedAction)</small>
-                                    <small>@Display(item.ReconciliationObservation)</small>
+                                        @if (!string.IsNullOrWhiteSpace(item.Brand) || !string.IsNullOrWhiteSpace(item.Model))
+                                        {
+                                            <small>Marca/Modelo: @Display(item.Brand) @Display(item.Model)</small>
+                                        }
 
-                                    @if (item.CreatedToolAssetId.HasValue && item.CreatedToolAssetId.Value != Guid.Empty)
-                                    {
-                                        <small>Activo creado: @item.CreatedToolAssetId</small>
-                                    }
-                                </td>
-
-                                <td>
-                                    <div class="ri-row-actions">
                                         @if (item.CreatedToolAssetId.HasValue && item.CreatedToolAssetId.Value != Guid.Empty)
                                         {
-                                            <span class="ri-status done">Creado en Inventario</span>
-
-                                            <button class="btn btn-sm btn-success" @onclick="() => ViewCreatedToolAsync(item.CreatedToolAssetId.Value)">
-                                                Ver activo
-                                            </button>
-
-                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => VoidCreatedInventoryAssetAsync(item.Id)">
-                                                Anular activo creado
-                                            </button>
+                                            <small class="ri-created-id">Activo creado en inventario: @item.CreatedToolAssetId</small>
                                         }
-                                        else if (item.Rejected || item.ReconciliationStatus == "Rejected")
-                                        {
-                                            <span class="ri-status danger">Rechazado / No procede</span>
-                                        }
-                                        else if (item.RequiresUserClarification || item.ReconciliationStatus == "RequiresUserClarification")
-                                        {
-                                            <span class="ri-status warn">Pendiente de aclaración</span>
+                                    </td>
 
-                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => ResolveClarificationAsync(item.Id)">
-                                                Marcar aclarado
-                                            </button>
+                                    <td>
+                                        <small>Tipo: @Display(item.AssetTypeName)</small>
+                                        <small>Categoría: @Display(item.CategoryName)</small>
+                                    </td>
 
-                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => RejectAsync(item.Id)">
-                                                Rechazar
-                                            </button>
+                                    <td>
+                                        <small>Sede: @Display(item.BranchCode)</small>
+                                        <small>Ubicación: @Display(item.FoundLocation)</small>
+                                        <small>Responsable: @Display(item.ResponsibleName)</small>
+                                    </td>
+
+                                    <td>
+                                        <small>Físico: @Display(item.PhysicalStatus)</small>
+                                        <small>Operativo: @Display(item.OperationalStatus)</small>
+                                        <small>Reportó: @Display(item.ReportedBy)</small>
+                                        <small>Fecha: @FormatDate(item.ReportedAt)</small>
+                                    </td>
+
+                                    <td>
+                                        @if (item.MinimumDataCompleted)
+                                        {
+                                            <span class="ri-status ok">Completos</span>
                                         }
                                         else
                                         {
-                                            <button class="btn btn-sm btn-outline-warning" @onclick="() => RequestClarificationAsync(item.Id)">Aclarar</button>
+                                            <span class="ri-status danger">Sin mínimos</span>
+                                            <small>@Display(item.MissingRequiredData)</small>
+                                        }
+                                    </td>
 
-                                            <button class="btn btn-sm btn-outline-success" @onclick="() => ApproveCreationAsync(item.Id)">
-                                                Aprobar creación
-                                            </button>
+                                    <td>
+                                        <span class="@GetStatusClass(item)">
+                                            @GetVisualReconciliationLabel(item)
+                                        </span>
 
-                                            @if (item.ReportType == "ExtraNotListed" && item.MinimumDataCompleted && item.ApprovedForCreation)
+                                        <small>@Display(item.SuggestedAction)</small>
+                                        <small>@Display(item.ReconciliationObservation)</small>
+                                    </td>
+
+                                    <td>
+                                        <div class="ri-row-actions">
+                                            @if (lifeRecordId.HasValue)
                                             {
-                                                <button class="btn btn-sm btn-success" @onclick="() => CreateInventoryAssetAsync(item.Id)">
-                                                    Crear en Inventario
-                                                </button>
+                                                <a class="btn btn-sm btn-outline-primary"
+                                                   href="@($"/tools/{lifeRecordId.Value}/technical-life-record")">
+                                                    Hoja de vida
+                                                </a>
                                             }
 
-                                            <button class="btn btn-sm btn-outline-dark" @onclick="() => ReconcileAsync(item.Id)">Conciliar</button>
-                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => RejectAsync(item.Id)">Rechazar</button>
-                                        }
-                                    </div>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        }
-    </section>
-}
+                                            @if (item.CreatedToolAssetId.HasValue && item.CreatedToolAssetId.Value != Guid.Empty)
+                                            {
+                                                <a class="btn btn-sm btn-success"
+                                                   href="@($"/tools/{item.CreatedToolAssetId.Value}")">
+                                                    Ver activo
+                                                </a>
+                                            }
+
+                                            @if (!lifeRecordId.HasValue && !item.CreatedToolAssetId.HasValue)
+                                            {
+                                                <span class="ri-muted">Pendiente de creación</span>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
 
 </PermissionGuard>
 
@@ -42093,12 +44030,52 @@ else if (board is not null)
     .ri-hero p {
         margin: 0;
         color: rgba(255,255,255,.88);
+        font-size: .82rem;
+        font-weight: 700;
     }
 
     .ri-actions {
         display: flex;
         gap: .45rem;
         align-items: flex-start;
+    }
+
+    .ri-context-card {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: .65rem;
+        margin-bottom: .8rem;
+    }
+
+    .ri-context-card > div,
+    .ri-kpis article {
+        border: 1px solid #dfe3e8;
+        border-left: 4px solid #7b0d8e;
+        border-radius: .75rem;
+        padding: .65rem;
+        background: white;
+    }
+
+    .ri-context-card span,
+    .ri-kpis span {
+        display: block;
+        font-size: .65rem;
+        font-weight: 950;
+        color: #526071;
+        text-transform: uppercase;
+    }
+
+    .ri-context-card strong,
+    .ri-kpis strong {
+        display: block;
+        font-size: 1rem;
+        font-weight: 950;
+    }
+
+    .ri-context-card small,
+    .ri-kpis small {
+        color: #657083;
+        font-size: .72rem;
     }
 
     .ri-kpis {
@@ -42108,26 +44085,8 @@ else if (board is not null)
         margin-bottom: .8rem;
     }
 
-    .ri-kpis article {
-        border: 1px solid #dfe3e8;
-        border-left: 4px solid #7b0d8e;
-        border-radius: .75rem;
-        padding: .65rem;
-        background: white;
-    }
-
-    .ri-kpis span {
-        display: block;
-        font-size: .65rem;
-        font-weight: 950;
-        color: #526071;
-        text-transform: uppercase;
-    }
-
     .ri-kpis strong {
-        display: block;
         font-size: 1.25rem;
-        font-weight: 950;
     }
 
     .ri-card {
@@ -42159,45 +44118,61 @@ else if (board is not null)
         font-size: .78rem;
     }
 
-    .ri-form-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(220px, 1fr));
-        gap: .75rem;
+    .ri-result-counter {
+        min-width: 105px;
+        border: 1px solid #dbeafe;
+        border-radius: .75rem;
+        padding: .45rem .65rem;
+        text-align: right;
+        background: #eff6ff;
     }
 
-    .ri-form-grid label {
+    .ri-result-counter span {
         display: block;
-        margin-bottom: .25rem;
+        font-size: .65rem;
+        color: #1d4ed8;
+        font-weight: 950;
+        text-transform: uppercase;
+    }
+
+    .ri-result-counter strong {
+        font-size: 1.2rem;
+        font-weight: 950;
+    }
+
+    .ri-filter-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(180px, 1fr));
+        gap: .65rem;
+    }
+
+    .ri-filter-grid-simple {
+        grid-template-columns: 2fr 1fr 1fr;
+    }
+
+    .ri-filter-grid label {
+        display: flex;
+        flex-direction: column;
+        gap: .25rem;
         font-size: .72rem;
         font-weight: 950;
         color: #2b3340;
     }
 
-    .ri-full {
-        grid-column: 1 / -1;
-    }
-
-    .ri-check {
+    .ri-filter-checks {
         display: flex;
-        gap: .45rem;
-        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-top: .75rem;
     }
 
-    .ri-check label {
-        margin: 0;
+    .ri-filter-checks label {
+        display: flex;
+        align-items: center;
+        gap: .35rem;
         font-size: .78rem;
         font-weight: 800;
-    }
-
-    .ri-form-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: .45rem;
-        margin-top: .8rem;
-    }
-
-    .ri-search {
-        max-width: 360px;
+        color: #334155;
     }
 
     .ri-table-wrapper {
@@ -42206,7 +44181,7 @@ else if (board is not null)
 
     .ri-table {
         width: 100%;
-        min-width: 1280px;
+        min-width: 1420px;
         table-layout: fixed;
         border-collapse: collapse;
         font-size: .72rem;
@@ -42237,9 +44212,22 @@ else if (board is not null)
         font-size: .64rem;
     }
 
+    .ri-row-complete {
+        background: #fbfffd;
+    }
+
+    .ri-row-pending {
+        background: #fffdf7;
+    }
+
+    .ri-created-id {
+        color: #047857 !important;
+        font-weight: 900;
+    }
+
     .ri-badge,
     .ri-status {
-        display: inline-flex;
+        display: inline-flex !important;
         width: fit-content;
         border-radius: 999px;
         padding: .15rem .45rem;
@@ -42251,6 +44239,12 @@ else if (board is not null)
         background: #f1e3f8;
         color: #5b006b;
     }
+
+    .ri-badge.found { background: #d1e7dd; color: #0f5132; }
+    .ri-badge.missing { background: #f8d7da; color: #842029; }
+    .ri-badge.extra { background: #f1e3f8; color: #5b006b; }
+    .ri-badge.damage { background: #ffe4e6; color: #9f1239; }
+    .ri-badge.returned { background: #cff4fc; color: #055160; }
 
     .ri-status.ok,
     .ri-status.done {
@@ -42285,6 +44279,12 @@ else if (board is not null)
         padding: .22rem .42rem;
     }
 
+    .ri-muted {
+        color: #64748b;
+        font-size: .72rem;
+        font-weight: 800;
+    }
+
     .ri-empty {
         padding: .9rem;
         border-radius: .75rem;
@@ -42293,17 +44293,26 @@ else if (board is not null)
         color: #526071;
     }
 
-    @@media (max-width: 1100px) {
-        .ri-kpis {
+    @@media (max-width: 1200px) {
+        .ri-kpis,
+        .ri-context-card,
+        .ri-filter-grid,
+        .ri-filter-grid-simple {
             grid-template-columns: repeat(2, 1fr);
         }
 
-        .ri-form-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .ri-hero {
+        .ri-hero,
+        .ri-card-title {
             flex-direction: column;
+        }
+    }
+
+    @@media (max-width: 700px) {
+        .ri-kpis,
+        .ri-context-card,
+        .ri-filter-grid,
+        .ri-filter-grid-simple {
+            grid-template-columns: 1fr;
         }
     }
 </style>
@@ -42311,39 +44320,55 @@ else if (board is not null)
 @code {
     [Parameter] public Guid Id { get; set; }
 
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "participantId")]
+    public Guid? ParticipantId { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "responsible")]
+    public string? ResponsibleQuery { get; set; }
+
     private ReportedItemsBoard? board;
-    private List<ParticipantItem> participants = new();
-    private ReportedItemForm form = new();
+    private ParticipantBoard? participantBoard;
     private bool isLoading;
-    private bool showForm;
     private string? errorMessage;
-    private string? successMessage;
+
     private string? searchText;
+    private string? filterFromDateText;
+    private string? filterToDateText;
+    private bool onlyCreatedAssets;
+    private bool onlyExtraNotListed;
 
-    private IEnumerable<ReportedItemDto> FilteredItems
-    {
-        get
-        {
-            var items = board?.Items ?? new();
+    private List<ReportedItemDto> AllItems => board?.Items ?? new();
 
-            if (string.IsNullOrWhiteSpace(searchText))
-            {
-                return items;
-            }
+    private ParticipantItem? SelectedParticipant =>
+        ParticipantId.HasValue
+            ? (participantBoard?.Participants ?? new()).FirstOrDefault(x => x.Id == ParticipantId.Value)
+            : null;
 
-            var term = searchText.Trim();
+    private string? CurrentResponsibleName =>
+        SelectedParticipant?.DisplayName ??
+        ResponsibleQuery ??
+        AllItems
+            .Select(x => x.ResponsibleName ?? x.ParticipantName)
+            .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
 
-            return items.Where(x =>
-                Contains(x.ReportedCode, term) ||
-                Contains(x.ReportedName, term) ||
-                Contains(x.SerialNumber, term) ||
-                Contains(x.AssetTypeName, term) ||
-                Contains(x.CategoryName, term) ||
-                Contains(x.ResponsibleName, term) ||
-                Contains(x.FoundLocation, term) ||
-                Contains(x.ReportTypeLabel, term));
-        }
-    }
+    private IEnumerable<ReportedItemDto> VisibleItems =>
+        AllItems
+            .Where(MatchesSelectedResponsible)
+            .OrderBy(GetPriority)
+            .ThenByDescending(x => x.ReportedAt);
+
+
+    private IEnumerable<ReportedItemDto> FilteredItems =>
+        VisibleItems
+            .Where(MatchesSearch)
+
+            .Where(MatchesDateRange)
+            .Where(MatchesOnlyCreated)
+            .Where(MatchesOnlyExtraNotListed)
+            .OrderBy(GetPriority)
+            .ThenByDescending(x => x.ReportedAt);
 
     protected override async Task OnInitializedAsync()
     {
@@ -42361,12 +44386,13 @@ else if (board is not null)
 
             board = await api.GetFromJsonAsync<ReportedItemsBoard>($"api/physical-counts/{Id}/reported-items-board");
 
-            var participantBoard = await api.GetFromJsonAsync<ParticipantBoard>($"api/physical-counts/{Id}/participants-board");
-            participants = participantBoard?.Participants ?? new();
-
-            if (board is not null && string.IsNullOrWhiteSpace(form.BranchCode))
+            try
             {
-                form.BranchCode = board.BranchCode;
+                participantBoard = await api.GetFromJsonAsync<ParticipantBoard>($"api/physical-counts/{Id}/participants-board");
+            }
+            catch
+            {
+                participantBoard = new ParticipantBoard();
             }
         }
         catch (Exception ex)
@@ -42391,228 +44417,214 @@ else if (board is not null)
         return api;
     }
 
-    private void ToggleForm()
+    private void ClearFilters()
     {
-        showForm = !showForm;
-
-        if (showForm && board is not null)
-        {
-            form.BranchCode = board.BranchCode;
-            form.ReportType = "ExtraNotListed";
-            form.RequiresUserClarification = true;
-        }
+        searchText = null;
+        filterFromDateText = null;
+        filterToDateText = null;
+        onlyCreatedAssets = false;
+        onlyExtraNotListed = false;
     }
 
-    private void ClearForm()
+    private bool MatchesSelectedResponsible(ReportedItemDto item)
     {
-        form = new ReportedItemForm
+        if (ParticipantId.HasValue)
         {
-            ReportType = "ExtraNotListed",
-            BranchCode = board?.BranchCode,
-            RequiresUserClarification = true
-        };
-    }
-
-    private async Task SaveAsync()
-    {
-        errorMessage = null;
-        successMessage = null;
-
-        if (form.ParticipantId is null || form.ParticipantId == Guid.Empty)
-        {
-            errorMessage = "Debe seleccionar el participante o usuario que reporta.";
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(form.ReportedName) && string.IsNullOrWhiteSpace(form.ReportedCode))
-        {
-            errorMessage = "Debe ingresar al menos el nombre o código del activo/herramienta reportada.";
-            return;
-        }
-
-        try
-        {
-            var api = CreateApiClient();
-
-            var response = await api.PostAsJsonAsync(
-                $"api/physical-counts/participants/{form.ParticipantId}/reported-items",
-                form);
-
-            if (!response.IsSuccessStatusCode)
+            if (item.PhysicalCountParticipantId.HasValue &&
+                item.PhysicalCountParticipantId.Value == ParticipantId.Value)
             {
-                var detail = await response.Content.ReadAsStringAsync();
-                errorMessage = $"No se pudo guardar el registro reportado. {detail}";
-                return;
+                return true;
             }
 
-            successMessage = "Registro reportado guardado correctamente.";
-            ClearForm();
-            showForm = false;
-            await LoadAsync();
-        }
-        catch (Exception ex)
-        {
-            errorMessage = $"Error guardando registro reportado: {ex.Message}";
-        }
-    }
+            var participant = SelectedParticipant;
 
-
-
-    private Task ViewCreatedToolAsync(Guid toolAssetId)
-    {
-        NavigationManager.NavigateTo($"/tools/{toolAssetId}");
-        return Task.CompletedTask;
-    }
-
-    private async Task VoidCreatedInventoryAssetAsync(Guid id)
-    {
-        errorMessage = null;
-        successMessage = null;
-
-        try
-        {
-            var api = CreateApiClient();
-
-            var response = await api.PatchAsJsonAsync(
-                $"api/physical-counts/reported-items/{id}/void-created-tool-asset",
-                new
-                {
-                    ActionBy = "admin",
-                    Observation = "Activo anulado desde conciliación porque el reporte no procede."
-                });
-
-            if (!response.IsSuccessStatusCode)
+            if (participant is null)
             {
-                var detail = await response.Content.ReadAsStringAsync();
-                errorMessage = $"No se pudo anular el activo creado. {detail}";
-                return;
+                return false;
             }
 
-            successMessage = "Activo creado anulado correctamente. El registro queda rechazado y conserva trazabilidad.";
-            await LoadAsync();
+            return MatchesParticipantText(item, participant.DisplayName, participant.UserName);
         }
-        catch (Exception ex)
+
+        if (!string.IsNullOrWhiteSpace(ResponsibleQuery))
         {
-            errorMessage = $"Error anulando activo creado: {ex.Message}";
+            return MatchesParticipantText(item, ResponsibleQuery, ResponsibleQuery);
         }
+
+        return true;
     }
-    private async Task CreateInventoryAssetAsync(Guid id)
+
+
+    private static bool MatchesParticipantText(ReportedItemDto item, string? name, string? userName)
     {
-        errorMessage = null;
-        successMessage = null;
-
-        try
+        if (!string.IsNullOrWhiteSpace(name))
         {
-            var api = CreateApiClient();
-
-            var response = await api.PostAsJsonAsync(
-                $"api/physical-counts/reported-items/{id}/create-tool-asset",
-                new
-                {
-                    ActionBy = "admin",
-                    CreateMissingCatalogs = true,
-                    Observation = "Activo creado en Inventario de AF desde registro reportado en toma física."
-                });
-
-            if (!response.IsSuccessStatusCode)
+            if (!string.IsNullOrWhiteSpace(item.ParticipantName) &&
+                item.ParticipantName.Equals(name, StringComparison.OrdinalIgnoreCase))
             {
-                var detail = await response.Content.ReadAsStringAsync();
-                errorMessage = $"No se pudo crear el activo en Inventario de AF. {detail}";
-                return;
+                return true;
             }
 
-            var created = await response.Content.ReadFromJsonAsync<CreatedInventoryAssetResponse>();
-
-            successMessage = created is null
-                ? "Activo creado correctamente en Inventario de AF."
-                : $"Activo creado correctamente en Inventario de AF: {created.InternalCode} - {created.Name}";
-
-            await LoadAsync();
-
-            if (created is not null && created.ToolAssetId != Guid.Empty)
+            if (!string.IsNullOrWhiteSpace(item.ResponsibleName) &&
+                item.ResponsibleName.Equals(name, StringComparison.OrdinalIgnoreCase))
             {
-                NavigationManager.NavigateTo($"/tools/{created.ToolAssetId}");
+                return true;
             }
         }
-        catch (Exception ex)
+
+        if (!string.IsNullOrWhiteSpace(userName))
         {
-            errorMessage = $"Error creando activo en Inventario de AF: {ex.Message}";
-        }
-    }
-
-    private async Task ResolveClarificationAsync(Guid id)
-    {
-        await PatchAsync(
-            $"api/physical-counts/reported-items/{id}/resolve-clarification",
-            "Aclaración recibida del usuario. Registro disponible nuevamente para revisión.",
-            "Registro marcado como aclarado.");
-    }
-    private async Task RequestClarificationAsync(Guid id)
-    {
-        await PatchAsync(
-            $"api/physical-counts/reported-items/{id}/request-clarification",
-            "Se requiere contactar al usuario para ampliar información del registro reportado.",
-            "Registro marcado para aclaración.");
-    }
-
-    private async Task ApproveCreationAsync(Guid id)
-    {
-        await PatchAsync(
-            $"api/physical-counts/reported-items/{id}/approve-creation",
-            "Registro aprobado para creación en Inventario de AF.",
-            "Registro aprobado para creación.");
-    }
-
-    private async Task ReconcileAsync(Guid id)
-    {
-        await PatchAsync(
-            $"api/physical-counts/reported-items/{id}/reconcile",
-            "Registro conciliado manualmente desde administración.",
-            "Registro conciliado.");
-    }
-
-    private async Task RejectAsync(Guid id)
-    {
-        await PatchAsync(
-            $"api/physical-counts/reported-items/{id}/reject",
-            "Reporte rechazado en conciliación.",
-            "Registro rechazado.");
-    }
-
-    private async Task PatchAsync(string url, string observation, string okMessage)
-    {
-        errorMessage = null;
-        successMessage = null;
-
-        try
-        {
-            var api = CreateApiClient();
-
-            var response = await api.PatchAsJsonAsync(url, new
+            if (!string.IsNullOrWhiteSpace(item.ParticipantUserName) &&
+                item.ParticipantUserName.Equals(userName, StringComparison.OrdinalIgnoreCase))
             {
-                ActionBy = "admin",
-                Observation = observation
-            });
-
-            if (!response.IsSuccessStatusCode)
-            {
-                var detail = await response.Content.ReadAsStringAsync();
-                errorMessage = $"No se pudo completar la acción. {detail}";
-                return;
+                return true;
             }
+        }
 
-            successMessage = okMessage;
-            await LoadAsync();
-        }
-        catch (Exception ex)
-        {
-            errorMessage = $"Error ejecutando acción: {ex.Message}";
-        }
+        return false;
     }
 
-    private void GoBack()
+    private bool MatchesSearch(ReportedItemDto item)
     {
-        NavigationManager.NavigateTo($"/physical-counts/{Id}");
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            return true;
+        }
+
+        var term = searchText.Trim();
+
+        return Contains(item.ReportedCode, term) ||
+               Contains(item.ReportedName, term) ||
+               Contains(item.ToolInternalCode, term) ||
+               Contains(item.ToolName, term) ||
+               Contains(item.MatchedToolInternalCode, term) ||
+               Contains(item.MatchedToolName, term) ||
+               Contains(item.SerialNumber, term) ||
+               Contains(item.Brand, term) ||
+               Contains(item.Model, term) ||
+               Contains(item.AssetTypeName, term) ||
+               Contains(item.CategoryName, term) ||
+               Contains(item.ResponsibleName, term) ||
+               Contains(item.ParticipantName, term) ||
+               Contains(item.ParticipantUserName, term) ||
+               Contains(item.FoundLocation, term) ||
+               Contains(item.ReportTypeLabel, term) ||
+               Contains(item.ReconciliationStatusLabel, term) ||
+               Contains(item.ReconciliationObservation, term) ||
+               Contains(item.Observation, term);
+    }
+
+
+
+    private bool MatchesDateRange(ReportedItemDto item)
+    {
+        if (!item.ReportedAt.HasValue)
+        {
+            return true;
+        }
+
+        var date = item.ReportedAt.Value.Date;
+
+        if (DateTime.TryParse(filterFromDateText, out var fromDate) && date < fromDate.Date)
+        {
+            return false;
+        }
+
+        if (DateTime.TryParse(filterToDateText, out var toDate) && date > toDate.Date)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool MatchesOnlyCreated(ReportedItemDto item)
+    {
+        if (!onlyCreatedAssets)
+        {
+            return true;
+        }
+
+        return item.CreatedToolAssetId.HasValue &&
+               item.CreatedToolAssetId.Value != Guid.Empty;
+    }
+
+    private bool MatchesOnlyExtraNotListed(ReportedItemDto item)
+    {
+        if (!onlyExtraNotListed)
+        {
+            return true;
+        }
+
+        return item.ReportType.Equals("ExtraNotListed", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int GetPriority(ReportedItemDto item)
+    {
+        if (item.RequiresUserClarification || IsStatus(item, "RequiresUserClarification"))
+        {
+            return 1;
+        }
+
+        if (!item.MinimumDataCompleted)
+        {
+            return 2;
+        }
+
+        if (IsStatus(item, "MatchedInSystem"))
+        {
+            return 3;
+        }
+
+        if (IsStatus(item, "ApprovedForCreation"))
+        {
+            return 4;
+        }
+
+        if (item.ReportType.Equals("ExtraNotListed", StringComparison.OrdinalIgnoreCase))
+        {
+            return 5;
+        }
+
+        if (IsStatus(item, "PendingReview") || IsStatus(item, "NotFoundInSystem"))
+        {
+            return 6;
+        }
+
+        if (IsComplete(item))
+        {
+            return 20;
+        }
+
+        if (item.Rejected || IsStatus(item, "Rejected"))
+        {
+            return 30;
+        }
+
+        return 10;
+    }
+
+    private static bool IsPending(ReportedItemDto item)
+    {
+        return !IsComplete(item) &&
+               !item.Rejected &&
+               !IsStatus(item, "Rejected");
+    }
+
+    private static bool IsComplete(ReportedItemDto item)
+    {
+        return IsStatus(item, "Reconciled") ||
+               item.CreatedToolAssetId.HasValue && item.CreatedToolAssetId.Value != Guid.Empty;
+    }
+
+    private static bool IsReportType(ReportedItemDto item, string type)
+    {
+        return item.ReportType.Equals(type, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsStatus(ReportedItemDto item, string status)
+    {
+        return item.ReconciliationStatus.Equals(status, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool Contains(string? value, string term)
@@ -42621,73 +44633,109 @@ else if (board is not null)
                value.Contains(term, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string Display(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? "—" : value;
-
-    private static string FormatDate(DateTime? value) =>
-        value.HasValue ? value.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm") : "—";
-
-    private static string GetStatusClass(string status) => status switch
+    private static string Display(string? value)
     {
-        "PendingReview" => "ri-status pending",
-        "NotFoundInSystem" => "ri-status danger",
-        "MatchedInSystem" => "ri-status info",
-        "RequiresUserClarification" => "ri-status warn",
-        "ApprovedForCreation" => "ri-status ok",
-        "Rejected" => "ri-status danger",
-        "Reconciled" => "ri-status done",
-        _ => "ri-status pending"
-    };
-
-
-    private sealed class CreatedInventoryAssetResponse
-    {
-        public string? Message { get; set; }
-        public Guid ReportedItemId { get; set; }
-        public Guid ToolAssetId { get; set; }
-        public string InternalCode { get; set; } = string.Empty;
-        public string Name { get; set; } = string.Empty;
-        public string? BranchCode { get; set; }
-        public string? LocationCode { get; set; }
-        public string? ResponsibleName { get; set; }
-        public string? ToolTypeName { get; set; }
-        public string? ToolCategoryName { get; set; }
-        public string? ReconciliationStatus { get; set; }
-    }
-    private sealed class ReportedItemForm
-    {
-        public Guid? ParticipantId { get; set; }
-        public string ReportType { get; set; } = "ExtraNotListed";
-        public string? ReportedCode { get; set; }
-        public string? ReportedName { get; set; }
-        public string? SerialNumber { get; set; }
-        public string? Brand { get; set; }
-        public string? Model { get; set; }
-        public string? AssetTypeName { get; set; }
-        public string? CategoryName { get; set; }
-        public string? BranchCode { get; set; }
-        public string? FoundLocation { get; set; }
-        public string? ResponsibleName { get; set; }
-        public string? PhysicalStatus { get; set; }
-        public string? OperationalStatus { get; set; }
-        public string? Observation { get; set; }
-        public string? ReportedBy { get; set; } = "admin";
-        public bool RequiresUserClarification { get; set; } = true;
+        return string.IsNullOrWhiteSpace(value) ? "—" : value;
     }
 
-    private sealed class ReportedItemsBoard
+    private static string FormatDate(DateTime? value)
     {
-        public Guid Id { get; set; }
-        public string CountNumber { get; set; } = string.Empty;
-        public Guid BranchId { get; set; }
-        public string? BranchCode { get; set; }
-        public string? BranchName { get; set; }
-        public string Status { get; set; } = string.Empty;
-        public string StatusLabel { get; set; } = string.Empty;
-        public ReportedItemsSummary Summary { get; set; } = new();
-        public List<ReportedItemDto> Items { get; set; } = new();
+        return value.HasValue ? value.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm") : "—";
     }
 
+    private static Guid? GetLifeRecordId(ReportedItemDto item)
+    {
+        if (item.ToolAssetId.HasValue && item.ToolAssetId.Value != Guid.Empty)
+        {
+            return item.ToolAssetId.Value;
+        }
+
+        if (item.MatchedToolAssetId.HasValue && item.MatchedToolAssetId.Value != Guid.Empty)
+        {
+            return item.MatchedToolAssetId.Value;
+        }
+
+        if (item.CreatedToolAssetId.HasValue && item.CreatedToolAssetId.Value != Guid.Empty)
+        {
+            return item.CreatedToolAssetId.Value;
+        }
+
+        return null;
+    }
+
+    private static string GetReportTypeLabel(ReportedItemDto item)
+    {
+        if (!string.IsNullOrWhiteSpace(item.ReportTypeLabel))
+        {
+            return item.ReportTypeLabel;
+        }
+
+        return item.ReportType switch
+        {
+            "Found" => "Encontrada",
+            "NotFound" => "No encontrada",
+            "ExtraNotListed" => "Herramienta no listada",
+            "Damaged" => "Dañada",
+            "ReturnedOrDelivered" => "Devuelta / entregada",
+            _ => Display(item.ReportType)
+        };
+    }
+
+    private static string GetReportTypeClass(ReportedItemDto item)
+    {
+        return item.ReportType switch
+        {
+            "Found" => "ri-badge found",
+            "NotFound" => "ri-badge missing",
+            "ExtraNotListed" => "ri-badge extra",
+            "Damaged" => "ri-badge damage",
+            "ReturnedOrDelivered" => "ri-badge returned",
+            _ => "ri-badge"
+        };
+    }
+
+    private static string GetStatusClass(ReportedItemDto item)
+    {
+        if (item.Rejected || IsStatus(item, "Rejected"))
+        {
+            return "ri-status danger";
+        }
+
+        if (item.RequiresUserClarification || IsStatus(item, "RequiresUserClarification"))
+        {
+            return "ri-status warn";
+        }
+
+        if (item.CreatedToolAssetId.HasValue && item.CreatedToolAssetId.Value != Guid.Empty)
+        {
+            return "ri-status done";
+        }
+
+        return item.ReconciliationStatus switch
+        {
+            "PendingReview" => "ri-status pending",
+            "NotFoundInSystem" => "ri-status danger",
+            "MatchedInSystem" => "ri-status info",
+            "ApprovedForCreation" => "ri-status ok",
+            "Reconciled" => "ri-status done",
+            _ => "ri-status pending"
+        };
+    }
+
+    private static string GetRowClass(ReportedItemDto item)
+    {
+        if (IsComplete(item))
+        {
+            return "ri-row-complete";
+        }
+
+        if (item.Rejected || IsStatus(item, "Rejected"))
+        {
+            return string.Empty;
+        }
+
+        return "ri-row-pending";
+    }
 
     private static string GetVisualReconciliationLabel(ReportedItemDto item)
     {
@@ -42738,15 +44786,42 @@ else if (board is not null)
             return "Pendiente de revisión";
         }
 
-        if (string.IsNullOrWhiteSpace(label))
-        {
-            return string.IsNullOrWhiteSpace(status) ? "Pendiente de revisión" : status;
-        }
-
-        return label
-            .Replace("Conciliada", "Completo", StringComparison.OrdinalIgnoreCase)
-            .Replace("Conciliado", "Completo", StringComparison.OrdinalIgnoreCase);
+        return string.IsNullOrWhiteSpace(label)
+            ? (string.IsNullOrWhiteSpace(status) ? "Pendiente de revisión" : status)
+            : label.Replace("Conciliada", "Completo", StringComparison.OrdinalIgnoreCase)
+                   .Replace("Conciliado", "Completo", StringComparison.OrdinalIgnoreCase);
     }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo($"/physical-counts/{Id}");
+    }
+
+    private sealed class ParticipantBoard
+    {
+        public List<ParticipantItem> Participants { get; set; } = new();
+    }
+
+    private sealed class ParticipantItem
+    {
+        public Guid Id { get; set; }
+        public string DisplayName { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
+    }
+
+    private sealed class ReportedItemsBoard
+    {
+        public Guid Id { get; set; }
+        public string CountNumber { get; set; } = string.Empty;
+        public Guid BranchId { get; set; }
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public string StatusLabel { get; set; } = string.Empty;
+        public ReportedItemsSummary Summary { get; set; } = new();
+        public List<ReportedItemDto> Items { get; set; } = new();
+    }
+
     private sealed class ReportedItemsSummary
     {
         public int Total { get; set; }
@@ -42768,6 +44843,7 @@ else if (board is not null)
     private sealed class ReportedItemDto
     {
         public Guid Id { get; set; }
+        public Guid? PhysicalCountParticipantId { get; set; }
         public string? ParticipantName { get; set; }
         public string? ParticipantUserName { get; set; }
         public string ReportType { get; set; } = string.Empty;
@@ -42804,28 +44880,7 @@ else if (board is not null)
         public bool Rejected { get; set; }
         public string? SuggestedAction { get; set; }
     }
-
-    private sealed class ParticipantBoard
-    {
-        public List<ParticipantItem> Participants { get; set; } = new();
-    }
-
-    private sealed class ParticipantItem
-    {
-        public Guid Id { get; set; }
-        public string DisplayName { get; set; } = string.Empty;
-        public string UserName { get; set; } = string.Empty;
-    }
 }
-
-
-
-
-
-
-
-
-
 
 
 
@@ -42977,19 +45032,19 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
 
                                 <td>
                                     <div class="row-actions">
-                                        <a class="btn btn-sm btn-primary" href="@($"/physical-counts/{item.Id}")">
-                                            Abrir detalle
+                                        <a class="tf-action tf-action-primary" href="@($"/physical-counts/{item.Id}")">
+                                            Detalle
                                         </a>
 
-                                        <button class="btn btn-sm btn-outline-success" @onclick="() => StartAsync(item.Id)">
+                                        <button class="tf-action tf-action-success" @onclick="() => StartAsync(item.Id)">
                                             Iniciar
                                         </button>
 
-                                        <button class="btn btn-sm btn-outline-dark" @onclick="() => CompleteAsync(item.Id)">
+                                        <button class="tf-action tf-action-neutral" @onclick="() => CompleteAsync(item.Id)">
                                             Cerrar
                                         </button>
 
-                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => CancelAsync(item.Id)">
+                                        <button class="tf-action tf-action-danger" @onclick="() => CancelAsync(item.Id)">
                                             Cancelar
                                         </button>
                                     </div>
@@ -43215,6 +45270,128 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
             align-items: stretch;
         }
     }
+
+    /* ============================================================
+       Mejora visual botones Acciones - Tomas físicas
+       ============================================================ */
+
+    .tf-table th:last-child,
+    .tf-table td:last-child {
+        width: 150px;
+        min-width: 150px;
+        text-align: center;
+    }
+
+    .tf-table td:last-child {
+        vertical-align: middle;
+    }
+
+    .row-actions {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .35rem;
+        width: 100%;
+        min-width: 140px;
+        align-items: stretch;
+    }
+
+    .tf-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 30px;
+        width: 100%;
+        border-radius: .48rem;
+        padding: .32rem .42rem;
+        font-size: .68rem;
+        font-weight: 950;
+        line-height: 1.1;
+        text-decoration: none;
+        border: 1px solid transparent;
+        background: #fff;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .tf-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .25rem .55rem rgba(15, 23, 42, .12);
+        text-decoration: none;
+    }
+
+    .tf-action-primary {
+        border-color: #2563eb;
+        color: #1d4ed8;
+        background: #eff6ff;
+    }
+
+    .tf-action-primary:hover {
+        color: #1e40af;
+        background: #dbeafe;
+    }
+
+    .tf-action-success {
+        border-color: #059669;
+        color: #047857;
+        background: #ecfdf5;
+    }
+
+    .tf-action-success:hover {
+        color: #065f46;
+        background: #d1fae5;
+    }
+
+    .tf-action-neutral {
+        border-color: #334155;
+        color: #334155;
+        background: #f8fafc;
+    }
+
+    .tf-action-neutral:hover {
+        color: #1e293b;
+        background: #e2e8f0;
+    }
+
+    .tf-action-danger {
+        border-color: #ef4444;
+        color: #dc2626;
+        background: #fff1f2;
+    }
+
+    .tf-action-danger:hover {
+        color: #b91c1c;
+        background: #ffe4e6;
+    }
+
+    .tf-table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    .tf-table {
+        min-width: 980px;
+    }
+
+    @@media (max-width: 1300px) {
+        .tf-table th:last-child,
+        .tf-table td:last-child {
+            width: 135px;
+            min-width: 135px;
+        }
+
+        .row-actions {
+            grid-template-columns: 1fr;
+            min-width: 120px;
+        }
+
+        .tf-action {
+            font-size: .64rem;
+            min-height: 28px;
+            padding: .28rem .35rem;
+        }
+    }
+
 </style>
 
 @code {
@@ -43419,6 +45596,7 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
         public string? Notes { get; set; }
     }
 }
+
 
 
 ============================================================
@@ -43672,7 +45850,7 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
             <div class="rec-section-title">
                 <div>
                     <h2>Registros para conciliación</h2>
-                    <p>No se crean registros desde esta vista. Aquí solo se revisa y se toman decisiones administrativas.</p>
+                    <p>Vista administrativa de decisión. Aquí se revisan diferencias, se solicitan aclaraciones, se aprueba creación, se concilia o se rechaza.</p>
                 </div>
 
                 @if (board is not null)
@@ -43706,23 +45884,23 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
                     <table class="rec-table">
                         <thead>
                             <tr>
-                                <th>Tipo</th>
-                                <th>Código / nombre</th>
-                                <th>Usuario</th>
-                                <th>Clasificación</th>
-                                <th>Ubicación / responsable</th>
-                                <th>Estado reportado</th>
-                                <th>Conciliación</th>
-                                <th>Datos mínimos</th>
-                                <th>Fecha</th>
-                                <th>Acciones</th>
+                                <th class="rec-col-type">Tipo</th>
+                                <th class="rec-col-code">Código / nombre</th>
+                                <th class="rec-col-user">Usuario</th>
+                                <th class="rec-col-class">Clasificación</th>
+                                <th class="rec-col-location">Ubicación / responsable</th>
+                                <th class="rec-col-status">Estado reportado</th>
+                                <th class="rec-col-reconciliation">Conciliación</th>
+                                <th class="rec-col-minimum">Datos mínimos</th>
+                                <th class="rec-col-date">Fecha</th>
+                                <th class="rec-col-actions">Acciones</th>
                             </tr>
                         </thead>
 
                         <tbody>
                             @foreach (var item in FilteredItems)
                             {
-                                <tr>
+                                <tr class="rec-data-row">
                                     <td>
                                         <span class="@GetReportTypeClass(item)">
                                             @GetReportTypeLabel(item)
@@ -44855,7 +47033,491 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
             grid-template-columns: 1fr;
         }
     }
+
+    /* ============================================================
+       Mejoras visuales Conciliación
+       No cambia lógica, solo presentación
+       ============================================================ */
+
+    .rec-card {
+        box-shadow: 0 .45rem 1.1rem rgba(15, 23, 42, .06);
+    }
+
+    .rec-kpi-grid article {
+        position: relative;
+        overflow: hidden;
+        min-height: 82px;
+        box-shadow: 0 .35rem .8rem rgba(15, 23, 42, .04);
+        transition: transform .15s ease, box-shadow .15s ease;
+    }
+
+    .rec-kpi-grid article:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .55rem 1.1rem rgba(15, 23, 42, .08);
+    }
+
+    .rec-kpi-grid article::after {
+        content: "";
+        position: absolute;
+        right: -.8rem;
+        top: -.8rem;
+        width: 3rem;
+        height: 3rem;
+        border-radius: 999px;
+        background: rgba(124, 22, 136, .08);
+    }
+
+    .rec-table-wrapper {
+        border: 1px solid #e5e7eb;
+        border-radius: .85rem;
+        overflow: auto;
+        max-height: calc(100vh - 310px);
+        background: #fff;
+    }
+
+    .rec-table {
+        border-collapse: separate;
+        border-spacing: 0;
+        min-width: 1580px;
+        font-size: .76rem;
+    }
+
+    .rec-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 4;
+        background: #fff;
+        border-bottom: 2px solid #1f2937;
+        padding: .65rem .6rem;
+        letter-spacing: .02rem;
+        white-space: nowrap;
+    }
+
+    .rec-data-row {
+        transition: background .12s ease;
+    }
+
+    .rec-data-row:hover {
+        background: #fbf4ff;
+    }
+
+    .rec-table td {
+        padding: .72rem .6rem;
+        border-bottom: 1px solid #edf0f4;
+    }
+
+    .rec-table td strong {
+        color: #111827;
+        font-weight: 950;
+        line-height: 1.25;
+    }
+
+    .rec-table td span {
+        color: #334155;
+        line-height: 1.28;
+    }
+
+    .rec-table td small {
+        color: #64748b;
+        line-height: 1.25;
+    }
+
+    .rec-table td small:not(.rec-created) {
+        max-width: 240px;
+    }
+
+    .rec-col-type {
+        width: 95px;
+    }
+
+    .rec-col-code {
+        width: 220px;
+    }
+
+    .rec-col-user {
+        width: 150px;
+    }
+
+    .rec-col-class {
+        width: 145px;
+    }
+
+    .rec-col-location {
+        width: 205px;
+    }
+
+    .rec-col-status {
+        width: 255px;
+    }
+
+    .rec-col-reconciliation {
+        width: 235px;
+    }
+
+    .rec-col-minimum {
+        width: 110px;
+    }
+
+    .rec-col-date {
+        width: 95px;
+    }
+
+    .rec-col-actions {
+        width: 205px;
+        text-align: center !important;
+    }
+
+    .rec-table th:last-child,
+    .rec-table td:last-child {
+        position: sticky;
+        right: 0;
+        background: #fff;
+        z-index: 3;
+        box-shadow: -8px 0 14px rgba(15, 23, 42, .05);
+    }
+
+    .rec-table thead th:last-child {
+        z-index: 5;
+    }
+
+    .rec-data-row:hover td:last-child {
+        background: #fbf4ff;
+    }
+
+    .rec-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .35rem;
+        min-width: 190px;
+    }
+
+    .rec-action {
+        min-height: 31px;
+        border-radius: .5rem;
+        font-size: .7rem;
+        font-weight: 950;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .rec-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .3rem .55rem rgba(15, 23, 42, .12);
+    }
+
+    .rec-action.warn {
+        background: #fff7ed;
+        border-color: #f59e0b;
+        color: #9a3412;
+    }
+
+    .rec-action.warn:hover {
+        background: #ffedd5;
+    }
+
+    .rec-action.ok {
+        background: #ecfdf5;
+        border-color: #059669;
+        color: #047857;
+    }
+
+    .rec-action.ok:hover {
+        background: #d1fae5;
+    }
+
+    .rec-action.ok-fill {
+        background: #059669;
+        border-color: #047857;
+        color: #fff;
+    }
+
+    .rec-action.ok-fill:hover {
+        background: #047857;
+    }
+
+    .rec-action.neutral {
+        background: #f8fafc;
+        border-color: #334155;
+        color: #334155;
+    }
+
+    .rec-action.neutral:hover {
+        background: #e2e8f0;
+    }
+
+    .rec-action.danger {
+        background: #fff1f2;
+        border-color: #ef4444;
+        color: #dc2626;
+    }
+
+    .rec-action.danger:hover {
+        background: #ffe4e6;
+    }
+
+    .rec-pill-ok,
+    .rec-pill-danger,
+    .rec-pill-danger-soft,
+    .rec-pill-purple,
+    .rec-pill-warning,
+    .rec-pill-info,
+    .rec-pill-neutral {
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.35);
+        white-space: nowrap;
+    }
+
+    .rec-pill-ok {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .rec-pill-danger {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .rec-pill-danger-soft {
+        background: #ffe4e6;
+        color: #9f1239;
+    }
+
+    .rec-pill-purple {
+        background: #f3e8ff;
+        color: #7e22ce;
+    }
+
+    .rec-pill-warning {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .rec-pill-info {
+        background: #dbeafe;
+        color: #1e40af;
+    }
+
+    .rec-pill-neutral {
+        background: #e2e8f0;
+        color: #334155;
+    }
+
+    .rec-count-context {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: .75rem;
+        padding: .55rem .75rem;
+        min-width: 180px;
+    }
+
+    .rec-count-context strong {
+        color: #1f2937;
+        font-size: .9rem;
+    }
+
+    .rec-count-context span {
+        color: #64748b;
+        font-size: .8rem;
+        font-weight: 800;
+    }
+
+    .rec-filter-grid input:focus,
+    .rec-filter-grid select:focus,
+    .rec-search input:focus {
+        outline: 0;
+        border-color: #8a1296;
+        box-shadow: 0 0 0 .18rem rgba(138, 18, 150, .12);
+    }
+
+    .rec-empty {
+        border: 1px dashed #cbd5e1;
+    }
+
+    @@media (max-width: 1200px) {
+        .rec-table-wrapper {
+            max-height: none;
+        }
+
+        .rec-table th:last-child,
+        .rec-table td:last-child {
+            position: static;
+            box-shadow: none;
+        }
+    }
+
+
+    /* ============================================================
+       Corrección responsive Conciliación
+       Quita scroll interno, ajusta tabla y botones
+       ============================================================ */
+
+    .rec-table-wrapper {
+        width: 100% !important;
+        max-height: none !important;
+        overflow-x: visible !important;
+        overflow-y: visible !important;
+        border: 1px solid #e5e7eb;
+        border-radius: .85rem;
+        background: #fff;
+    }
+
+    .rec-table {
+        width: 100% !important;
+        min-width: 0 !important;
+        table-layout: fixed !important;
+        border-collapse: collapse !important;
+        font-size: .72rem !important;
+    }
+
+    .rec-table thead th {
+        position: static !important;
+        top: auto !important;
+        z-index: auto !important;
+        background: #fff;
+        padding: .55rem .45rem !important;
+        white-space: normal !important;
+        line-height: 1.15;
+    }
+
+    .rec-table th:last-child,
+    .rec-table td:last-child {
+        position: static !important;
+        right: auto !important;
+        z-index: auto !important;
+        box-shadow: none !important;
+        background: transparent !important;
+    }
+
+    .rec-table td {
+        padding: .55rem .45rem !important;
+        vertical-align: top;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+    }
+
+    .rec-table td strong,
+    .rec-table td span,
+    .rec-table td small {
+        max-width: 100% !important;
+        overflow-wrap: anywhere;
+        word-break: normal;
+    }
+
+    .rec-col-type {
+        width: 7% !important;
+    }
+
+    .rec-col-code {
+        width: 14% !important;
+    }
+
+    .rec-col-user {
+        width: 10% !important;
+    }
+
+    .rec-col-class {
+        width: 10% !important;
+    }
+
+    .rec-col-location {
+        width: 14% !important;
+    }
+
+    .rec-col-status {
+        width: 15% !important;
+    }
+
+    .rec-col-reconciliation {
+        width: 14% !important;
+    }
+
+    .rec-col-minimum {
+        width: 7% !important;
+    }
+
+    .rec-col-date {
+        width: 6% !important;
+    }
+
+    .rec-col-actions {
+        width: 13% !important;
+        text-align: center !important;
+    }
+
+    .rec-actions {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: .28rem !important;
+        min-width: 0 !important;
+        width: 100% !important;
+    }
+
+    .rec-action {
+        width: 100% !important;
+        min-height: 28px !important;
+        padding: .32rem .35rem !important;
+        font-size: .66rem !important;
+        line-height: 1.1 !important;
+        white-space: normal !important;
+        text-align: center !important;
+        border-radius: .42rem !important;
+    }
+
+    .rec-action.ok {
+        background: #ecfdf5;
+        border-color: #059669;
+        color: #047857;
+    }
+
+    .rec-action.warn {
+        background: #fff7ed;
+        border-color: #f59e0b;
+        color: #9a3412;
+    }
+
+    .rec-action.neutral {
+        background: #f8fafc;
+        border-color: #334155;
+        color: #334155;
+    }
+
+    .rec-action.danger {
+        background: #fff1f2;
+        border-color: #ef4444;
+        color: #dc2626;
+    }
+
+    .rec-data-row:hover td:last-child {
+        background: transparent !important;
+    }
+
+    .rec-pill-ok,
+    .rec-pill-danger,
+    .rec-pill-danger-soft,
+    .rec-pill-purple,
+    .rec-pill-warning,
+    .rec-pill-info,
+    .rec-pill-neutral {
+        white-space: normal !important;
+        line-height: 1.15 !important;
+        text-align: center;
+    }
+
+    @@media (max-width: 1450px) {
+        .rec-table {
+            font-size: .68rem !important;
+        }
+
+        .rec-action {
+            font-size: .62rem !important;
+            padding: .28rem .3rem !important;
+        }
+    }
+
 </style>
+
+
+
+
 
 
 
@@ -48860,168 +51522,286 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
 
 @page "/settings/users"
 @rendermode InteractiveServer
+
+@using System.Net.Http.Json
 @using Navi.ToolsAssets.Admin.Services.Auth
+
 @inject IHttpClientFactory HttpClientFactory
 @inject WebAuthSessionService AuthSession
 
 <PageTitle>Usuarios - Configuración</PageTitle>
 
-<section class="users-tech-banner">
-    <div>
-        <span class="users-tech-pill">CONFIGURACIÓN</span>
-        <h2>Usuarios</h2>
-        <p>Crea, edita, activa o bloquea usuarios del sistema y asigna rol, sede y estado operativo.</p>
-    </div>
-
-    <div class="users-tech-side">
-        <div class="users-tech-status">
-            <span>Usuarios</span>
-            <strong>@users.Count registrados</strong>
+<section class="users-page">
+    <section class="users-hero">
+        <div>
+            <span class="users-pill">CONFIGURACIÓN</span>
+            <h2>Usuarios</h2>
+            <p>Crea, edita, activa o bloquea usuarios del sistema, asigna rol, sede y contraseña de acceso.</p>
         </div>
 
-        <a class="btn btn-sm btn-outline-light users-back-button" href="/settings">
-            Volver a Configuración
-        </a>
-    </div>
-</section>
-
-<section class="settings-crud-layout">
-    <div class="settings-crud-form">
-        <h2>@(editingId is null ? "Crear usuario" : "Editar usuario")</h2>
-
-        <EditForm Model="formModel" OnValidSubmit="SaveAsync">
-            <DataAnnotationsValidator />
-
-            <div class="mb-3">
-                <label class="form-label">Usuario</label>
-                <InputText class="form-control" @bind-Value="formModel.UserName" placeholder="admin, tecnico, auditor" disabled="@(!CanManageUsers)" />
+        <div class="users-hero-side">
+            <div class="users-kpi">
+                <span>Usuarios registrados</span>
+                <strong>@users.Count</strong>
+                <small>Total de usuarios</small>
             </div>
 
-            <div class="mb-3">
-                <label class="form-label">Nombre completo</label>
-                <InputText class="form-control" @bind-Value="formModel.DisplayName" disabled="@(!CanManageUsers)" />
-            </div>
+            <button class="btn btn-outline-light users-refresh" type="button" @onclick="LoadAsync" disabled="@isLoading">
+                @(isLoading ? "Actualizando..." : "Actualizar")
+            </button>
+        </div>
+    </section>
 
-            <div class="mb-3">
-                <label class="form-label">Correo</label>
-                <InputText class="form-control" @bind-Value="formModel.Email" disabled="@(!CanManageUsers)" />
-            </div>
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <div class="@messageClass">@message</div>
+    }
 
-            <div class="mb-3">
-                <label class="form-label">Cargo</label>
-                <InputText class="form-control" @bind-Value="formModel.Position" disabled="@(!CanManageUsers)" />
-            </div>
+    <section class="users-grid"><div class="users-left-stack">
+        <div class="users-card users-create-card">
+            <h3>@(editingId is null ? "Crear usuario" : "Editar usuario")</h3>
 
-            <div class="mb-3">
-                <label class="form-label">Área</label>
-                <InputText class="form-control" @bind-Value="formModel.Area" disabled="@(!CanManageUsers)" />
-            </div>
+            <EditForm Model="formModel" OnValidSubmit="SaveAsync">
+                <DataAnnotationsValidator />
 
-            <div class="mb-3">
-                <label class="form-label">Rol</label>
-                <InputSelect class="form-select" @bind-Value="formModel.AppRoleId" disabled="@(!CanManageUsers)">
-                    <option value="">Seleccione rol</option>
-                    @foreach (var role in roles)
+                <label>
+                    Documento / identificación <strong class="users-required-star">*</strong>
+                    <InputText class="form-control"
+                               @bind-Value="formModel.UserName"
+                               placeholder="Ingrese número de documento"
+                               disabled="@(!CanManageUsers)" />
+                </label>
+
+                <label>
+                    Nombre completo <strong class="users-required-star">*</strong>
+                    <InputText class="form-control"
+                               @bind-Value="formModel.DisplayName"
+                               placeholder="Ingrese nombre completo"
+                               disabled="@(!CanManageUsers)" />
+                </label>
+
+                <label>
+                    Correo
+                    <InputText class="form-control"
+                               @bind-Value="formModel.Email"
+                               placeholder="usuario@empresa.com"
+                               disabled="@(!CanManageUsers)" />
+                </label>
+
+                <label>
+                    Cargo
+                    <InputText class="form-control"
+                               @bind-Value="formModel.Position"
+                               placeholder="Ingrese cargo"
+                               disabled="@(!CanManageUsers)" />
+                </label>
+
+                <label>
+                    Área
+                    <InputText class="form-control"
+                               @bind-Value="formModel.Area"
+                               placeholder="Ingrese área"
+                               disabled="@(!CanManageUsers)" />
+                </label>
+
+                <label>
+                    Rol <strong class="users-required-star">*</strong>
+                    <InputSelect class="form-select" @bind-Value="formModel.AppRoleId" disabled="@(!CanManageUsers)">
+                        <option value="">Seleccione rol</option>
+                        @foreach (var role in roles)
+                        {
+                            <option value="@role.Id">@role.Name</option>
+                        }
+                    </InputSelect>
+                </label>
+
+                <label>
+                    Sede
+                    <InputSelect class="form-select" @bind-Value="formModel.BranchId" disabled="@(!CanManageUsers)">
+                        <option value="">Todas / Sin sede</option>
+                        @foreach (var branch in branches)
+                        {
+                            <option value="@branch.Id">@branch.Code - @branch.Name</option>
+                        }
+                    </InputSelect>
+                </label>
+
+                <label class="users-switch-row">
+                    <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive" disabled="@(!CanManageUsers)" />
+                    <span>Usuario activo en el sistema</span>
+                </label>
+
+                <div class="users-actions">
+                    @if (CanManageUsers)
                     {
-                        <option value="@role.Id">@role.Name</option>
+                        <button class="btn btn-primary" type="submit">
+                            @(editingId is null ? "Guardar" : "Guardar cambios")
+                        </button>
                     }
-                </InputSelect>
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label">Sede</label>
-                <InputSelect class="form-select" @bind-Value="formModel.BranchId" disabled="@(!CanManageUsers)">
-                    <option value="">Todas / Sin sede</option>
-                    @foreach (var branch in branches)
+                    else
                     {
-                        <option value="@branch.Id">@branch.Code - @branch.Name</option>
+                        <span class="permission-action-denied">Solo consulta</span>
                     }
-                </InputSelect>
-            </div>
 
-            <div class="form-check mb-3">
-                <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive" disabled="@(!CanManageUsers)" />
-                <label class="form-check-label">Activo</label>
-            </div>
+                    <button class="btn btn-outline-secondary" type="button" @onclick="ClearForm">Limpiar</button>
+                </div>
+            </EditForm>
+        </div>
 
-            @if (!string.IsNullOrWhiteSpace(message))
-            {
-                <div class="@messageClass">@message</div>
-            }
-
-            <div class="settings-crud-actions">
-                @if (CanManageUsers)
+                    <section class="users-edit-panel users-password-panel-left">
+                @if (editingId is null)
                 {
-                    <button class="btn btn-primary" type="submit">Guardar</button>
+                    <h3>Contraseña de acceso</h3>
+
+                    <div class="users-edit-box">
+                        <p>Defina la contraseña inicial del usuario que se va a crear.</p>
+
+                        <div class="users-password-change-grid">
+                            <label>
+                                Contraseña <strong class="users-required-star">*</strong>
+                                <InputText class="form-control"
+                                           type="password"
+                                           @bind-Value="formModel.Password"
+                                           placeholder="Ingrese contraseña"
+                                           disabled="@(!CanManageUsers)" />
+                            </label>
+
+                            <label>
+                                Confirmar <strong class="users-required-star">*</strong>
+                                <InputText class="form-control"
+                                           type="password"
+                                           @bind-Value="formModel.ConfirmPassword"
+                                           placeholder="Confirme la contraseña"
+                                           disabled="@(!CanManageUsers)" />
+                            </label>
+                        </div>
+                    </div>
+                }
+                else if (selectedUser is null)
+                {
+                    <h3>Cambiar contraseña de acceso</h3>
+
+                    <div class="users-empty">
+                        Seleccione un usuario con <strong>Cambiar contraseña</strong>.
+                    </div>
                 }
                 else
                 {
-                    <span class="permission-action-denied">Solo consulta</span>
-                }
-                <button class="btn btn-outline-secondary" type="button" @onclick="ClearForm">Limpiar</button>
-            </div>
-        </EditForm>
-    </div>
+                    <h3>Cambiar contraseña de acceso</h3>
 
-    <div class="settings-crud-table">
-        <div class="settings-table-header">
-            <h2>Usuarios registrados</h2>
-            <button class="btn btn-sm btn-outline-primary" @onclick="LoadAsync">Actualizar</button>
+                    <div class="users-selected-card compact">
+                        <div>
+                            <span>Usuario seleccionado</span>
+                            <strong>@selectedUser.DisplayName</strong>
+                            <small>Documento: @selectedUser.UserName</small>
+                        </div>
+
+                        <span class="users-status @(selectedUser.IsActive ? "active" : "inactive")">
+                            @(selectedUser.IsActive ? "Activo" : "Inactivo")
+                        </span>
+                    </div>
+
+                    <div class="users-edit-box">
+                        <p>Este cambio solo modifica la contraseña. Los datos del usuario se actualizan con <strong>Guardar cambios</strong>.</p>
+
+                        <div class="users-password-change-grid">
+                            <label>
+                                Nueva contraseña
+                                <input class="form-control"
+                                       type="password"
+                                       @bind="passwordModel.NewPassword"
+                                       placeholder="Ingrese nueva contraseña"
+                                       disabled="@(!CanManageUsers)" />
+                            </label>
+
+                            <label>
+                                Confirmar
+                                <input class="form-control"
+                                       type="password"
+                                       @bind="passwordModel.ConfirmPassword"
+                                       placeholder="Confirme la nueva contraseña"
+                                       disabled="@(!CanManageUsers)" />
+                            </label>
+                        </div>
+
+                        <div class="users-edit-actions password-actions">
+                            <button class="btn btn-outline-secondary" type="button" @onclick="ClearForm">Cancelar</button>
+
+                            @if (CanManageUsers)
+                            {
+                                <button class="btn btn-outline-purple" type="button" @onclick="ChangePasswordAsync">
+                                    Cambiar contraseña
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+            </section>
         </div>
 
-        @if (isLoading)
-        {
-            <p>Cargando usuarios...</p>
-        }
-        else if (users.Count == 0)
-        {
-            <div class="alert alert-info">No hay usuarios registrados.</div>
-        }
-        else
-        {
-            <table class="table table-hover align-middle">
-                <thead>
-                    <tr>
-                        <th>Usuario</th>
-                        <th>Nombre</th>
-                        <th>Rol</th>
-                        <th>Sede</th>
-                        <th>Estado</th>
-                        <th class="text-end">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var user in users)
-                    {
-                        <tr>
-                            <td><strong>@user.UserName</strong></td>
-                            <td>
-                                <div>@user.DisplayName</div>
-                                <small class="text-muted">@user.Email</small>
-                            </td>
-                            <td>@user.Role?.Name</td>
-                            <td>@(user.Branch is null ? "Todas" : $"{user.Branch.Code} - {user.Branch.Name}")</td>
-                            <td>
-                                <span class="badge @(user.IsActive ? "bg-success" : "bg-secondary")">
-                                    @(user.IsActive ? "Activo" : "Inactivo")
-                                </span>
-                            </td>
-                            <td class="text-end">
-                                @if (CanManageUsers)
-                                    {
-                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(user)">Editar</button>
-                                    }
-                                @if (CanManageUsers)
-                                    {
-                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(user.Id)">Eliminar</button>
-                                    }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        }
-    </div>
+        <div class="users-card users-table-card">
+            <div class="users-table-head">
+                <h3>Usuarios registrados</h3>
+
+                <input class="form-control users-search"
+                       placeholder="Buscar por documento, nombre, correo o rol..."
+                       @bind="searchText"
+                       @bind:event="oninput" />
+            </div>
+
+            @if (isLoading)
+            {
+                <div class="users-empty">Cargando usuarios...</div>
+            }
+            else if (!FilteredUsers.Any())
+            {
+                <div class="users-empty">No hay usuarios registrados.</div>
+            }
+            else
+            {
+                <div class="users-table-wrapper">
+                    <table class="table table-hover align-middle users-table">
+                        <thead>
+                            <tr>
+                                <th>Documento</th>
+                                <th>Nombre</th>
+                                <th>Correo</th>
+                                <th>Rol</th>
+                                <th>Sede</th>
+                                <th>Estado</th>
+                                <th class="text-end">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var user in FilteredUsers)
+                            {
+                                <tr class="@(selectedUser?.Id == user.Id ? "users-selected-row" : null)">
+                                    <td><strong>@user.UserName</strong></td>
+                                    <td>@user.DisplayName</td>
+                                    <td>@Display(user.Email)</td>
+                                    <td>@Display(user.Role?.Name)</td>
+                                    <td>@(user.Branch is null ? "Todas" : $"{user.Branch.Code} - {user.Branch.Name}")</td>
+                                    <td>
+                                        <span class="users-status @(user.IsActive ? "active" : "inactive")">
+                                            @(user.IsActive ? "Activo" : "Inactivo")
+                                        </span>
+                                    </td>
+                                    <td class="text-end">
+                                        @if (CanManageUsers)
+                                        {
+                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(user)">Editar</button>
+                                            <button class="btn btn-sm btn-outline-purple" @onclick="() => SelectPasswordUser(user)">Cambiar contraseña</button>
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(user.Id)">Eliminar</button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </section>
 </section>
 
 @code {
@@ -49032,11 +51812,19 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
     private List<UserDto> users = new();
     private List<RoleDto> roles = new();
     private List<BranchDto> branches = new();
+
     private UserFormModel formModel = new();
+    private PasswordFormModel passwordModel = new();
+
     private Guid? editingId;
+    private UserDto? selectedUser;
     private bool isLoading;
+    private string? searchText;
     private string message = string.Empty;
     private string messageClass = "alert alert-info";
+
+    private IEnumerable<UserDto> FilteredUsers =>
+        users.Where(MatchesSearch).OrderBy(x => x.UserName);
 
     protected override async Task OnInitializedAsync()
     {
@@ -49053,6 +51841,11 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
             users = await Api.GetFromJsonAsync<List<UserDto>>("api/settings/users") ?? new();
             roles = await Api.GetFromJsonAsync<List<RoleDto>>("api/settings/roles") ?? new();
             branches = await Api.GetFromJsonAsync<List<BranchDto>>("api/organization/branches") ?? new();
+
+            if (selectedUser is not null)
+            {
+                selectedUser = users.FirstOrDefault(x => x.Id == selectedUser.Id);
+            }
         }
         catch (Exception ex)
         {
@@ -49064,6 +51857,23 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
         }
     }
 
+    private bool MatchesSearch(UserDto user)
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            return true;
+        }
+
+        var term = searchText.Trim();
+
+        return Contains(user.UserName, term) ||
+               Contains(user.DisplayName, term) ||
+               Contains(user.Email, term) ||
+               Contains(user.Role?.Name, term) ||
+               Contains(user.Branch?.Code, term) ||
+               Contains(user.Branch?.Name, term);
+    }
+
     private async Task SaveAsync()
     {
         message = string.Empty;
@@ -49072,8 +51882,37 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
             string.IsNullOrWhiteSpace(formModel.DisplayName) ||
             formModel.AppRoleId is null)
         {
-            ShowError("Usuario, nombre y rol son obligatorios.");
+            ShowError("Documento/identificación, nombre y rol son obligatorios.");
             return;
+        }
+
+        var wantsToChangePassword =
+            !string.IsNullOrWhiteSpace(formModel.Password) ||
+            !string.IsNullOrWhiteSpace(formModel.ConfirmPassword);
+
+        if (editingId is null || wantsToChangePassword)
+        {
+            if (string.IsNullOrWhiteSpace(formModel.Password) ||
+                string.IsNullOrWhiteSpace(formModel.ConfirmPassword))
+            {
+                ShowError(editingId is null
+                    ? "Debe ingresar y confirmar la contraseña de acceso."
+                    : "Para cambiar la contraseña debe ingresar y confirmar la nueva contraseña.");
+
+                return;
+            }
+
+            if (!string.Equals(formModel.Password, formModel.ConfirmPassword, StringComparison.Ordinal))
+            {
+                ShowError("Las contraseñas no coinciden.");
+                return;
+            }
+
+            if (formModel.Password.Trim().Length < 4)
+            {
+                ShowError("La contraseña debe tener mínimo 4 caracteres.");
+                return;
+            }
         }
 
         var request = new
@@ -49083,36 +51922,60 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
             email = formModel.Email,
             position = formModel.Position,
             area = formModel.Area,
+            password = editingId is null ? formModel.Password : null,
             appRoleId = formModel.AppRoleId.Value,
             branchId = formModel.BranchId,
             responsiblePersonId = (Guid?)null,
             isActive = formModel.IsActive,
-            changedBy = "admin-web"
+            changedBy = AuthSession.AuditUser
         };
 
         try
         {
-            HttpResponseMessage response;
-
-            if (editingId is null)
-            {
-                response = await Api.PostAsJsonAsync("api/settings/users", request);
-            }
-            else
-            {
-                response = await Api.PutAsJsonAsync($"api/settings/users/{editingId}", request);
-            }
+            HttpResponseMessage response = editingId is null
+                ? await Api.PostAsJsonAsync("api/settings/users", request)
+                : await Api.PutAsJsonAsync($"api/settings/users/{editingId}", request);
 
             if (!response.IsSuccessStatusCode)
             {
-                var error = await response.Content.ReadAsStringAsync();
-                ShowError(error);
+                ShowError(await response.Content.ReadAsStringAsync());
                 return;
             }
 
-            ShowSuccess(editingId is null ? "Usuario creado correctamente." : "Usuario actualizado correctamente.");
-            ClearForm();
+            var passwordChanged = false;
+
+            if (editingId is not null && wantsToChangePassword)
+            {
+                var passwordResponse = await Api.PutAsJsonAsync($"api/settings/users/{editingId}/password", new
+                {
+                    password = formModel.Password,
+                    changedBy = AuthSession.AuditUser
+                });
+
+                if (!passwordResponse.IsSuccessStatusCode)
+                {
+                    ShowError(await passwordResponse.Content.ReadAsStringAsync());
+                    return;
+                }
+
+                passwordChanged = true;
+            }
+
+            ShowSuccess(editingId is null
+                ? "Usuario creado correctamente."
+                : passwordChanged
+                    ? "Usuario y contraseña actualizados correctamente."
+                    : "Usuario actualizado correctamente. La contraseña no fue modificada.");
+
+            formModel.Password = null;
+            formModel.ConfirmPassword = null;
+
             await LoadAsync();
+
+            if (editingId is null)
+            {
+                ClearForm();
+            }
         }
         catch (Exception ex)
         {
@@ -49120,9 +51983,55 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
         }
     }
 
+    private async Task ChangePasswordAsync()
+    {
+        if (selectedUser is null)
+        {
+            ShowError("Debe seleccionar un usuario.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(passwordModel.NewPassword) ||
+            string.IsNullOrWhiteSpace(passwordModel.ConfirmPassword))
+        {
+            ShowError("Debe ingresar y confirmar la nueva contraseña.");
+            return;
+        }
+
+        if (!string.Equals(passwordModel.NewPassword, passwordModel.ConfirmPassword, StringComparison.Ordinal))
+        {
+            ShowError("Las contraseñas no coinciden.");
+            return;
+        }
+
+        try
+        {
+            var response = await Api.PutAsJsonAsync($"api/settings/users/{selectedUser.Id}/password", new
+            {
+                password = passwordModel.NewPassword,
+                changedBy = AuthSession.AuditUser
+            });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ShowError(await response.Content.ReadAsStringAsync());
+                return;
+            }
+
+            passwordModel = new();
+            ShowSuccess("Contraseña actualizada correctamente.");
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Error cambiando contraseña: {ex.Message}");
+        }
+    }
+
     private void Edit(UserDto user)
     {
         editingId = user.Id;
+        selectedUser = user;
+        passwordModel = new();
 
         formModel = new UserFormModel
         {
@@ -49137,20 +52046,25 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
         };
     }
 
+    private void SelectPasswordUser(UserDto user)
+    {
+        Edit(user);
+    }
+
     private async Task DeleteAsync(Guid id)
     {
         try
         {
-            var response = await Api.DeleteAsync($"api/settings/users/{id}?changedBy=admin-web");
+            var response = await Api.DeleteAsync($"api/settings/users/{id}?changedBy={AuthSession.AuditUser}");
 
             if (!response.IsSuccessStatusCode)
             {
-                var error = await response.Content.ReadAsStringAsync();
-                ShowError(error);
+                ShowError(await response.Content.ReadAsStringAsync());
                 return;
             }
 
             ShowSuccess("Usuario eliminado correctamente.");
+            ClearForm();
             await LoadAsync();
         }
         catch (Exception ex)
@@ -49162,7 +52076,9 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
     private void ClearForm()
     {
         editingId = null;
+        selectedUser = null;
         formModel = new UserFormModel();
+        passwordModel = new PasswordFormModel();
     }
 
     private void ShowSuccess(string value)
@@ -49175,6 +52091,17 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
     {
         message = value;
         messageClass = "alert alert-danger";
+    }
+
+    private static bool Contains(string? value, string term)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+               value.Contains(term, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "—" : value;
     }
 
     private sealed class UserDto
@@ -49211,116 +52138,376 @@ FILE: C:\Users\yquinto\OneDrive - Navitrans\Escritorio\Documentos\Herramientas\H
         public string? Email { get; set; }
         public string? Position { get; set; }
         public string? Area { get; set; }
+        public string? Password { get; set; }
+        public string? ConfirmPassword { get; set; }
         public Guid? AppRoleId { get; set; }
         public Guid? BranchId { get; set; }
         public bool IsActive { get; set; } = true;
     }
+
+    private sealed class PasswordFormModel
+    {
+        public string? NewPassword { get; set; }
+        public string? ConfirmPassword { get; set; }
+    }
 }
 
 <style>
-    /* USERS TECH BANNER STYLE */
+    .users-page {
+        display: grid;
+        gap: .85rem;
+    }
 
-    .users-tech-banner {
-        background: linear-gradient(135deg, #050008 0%, #280032 45%, #5c006b 100%);
-        color: #ffffff;
-        border-radius: 0.85rem;
-        padding: 1.25rem 1.4rem;
-        margin-bottom: 1rem;
-        min-height: 105px;
+    .users-hero {
+        background: linear-gradient(135deg, #08000c 0%, #2b0035 48%, #760088 100%);
+        color: white;
+        border-radius: .95rem;
+        padding: 1.1rem 1.25rem;
         display: flex;
         justify-content: space-between;
-        align-items: stretch;
         gap: 1rem;
-        box-shadow: 0 0.65rem 1.35rem rgba(75, 0, 92, 0.22);
+        box-shadow: 0 .8rem 1.5rem rgba(75,0,92,.22);
     }
 
-    .users-tech-pill {
+    .users-pill {
         display: inline-flex;
-        background: rgba(255, 255, 255, 0.12);
-        border: 1px solid rgba(255, 255, 255, 0.35);
-        color: #ffffff;
+        border: 1px solid rgba(255,255,255,.35);
+        background: rgba(255,255,255,.12);
         border-radius: 999px;
-        padding: 0.22rem 0.65rem;
-        font-size: 0.7rem;
-        font-weight: 900;
-        letter-spacing: 0.04rem;
-        margin-bottom: 0.6rem;
+        padding: .2rem .6rem;
+        font-size: .68rem;
+        font-weight: 950;
+        margin-bottom: .5rem;
     }
 
-    .users-tech-banner h2 {
+    .users-hero h2 {
+        margin: 0;
         font-size: 1.65rem;
         font-weight: 950;
-        margin: 0;
-        color: #ffffff;
     }
 
-    .users-tech-banner p {
-        margin: 0.35rem 0 0 0;
-        color: rgba(255, 255, 255, 0.78);
-        font-size: 0.9rem;
+    .users-hero p {
+        margin: .25rem 0 0;
+        color: rgba(255,255,255,.8);
+        font-size: .9rem;
     }
 
-    .users-tech-side {
-        min-width: 185px;
+    .users-hero-side {
         display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        align-items: stretch;
-        gap: 0.65rem;
+        align-items: center;
+        gap: .75rem;
     }
 
-    .users-tech-status {
-        display: grid;
-        gap: 0.2rem;
-        background: rgba(255, 255, 255, 0.12);
-        border-radius: 0.65rem;
-        padding: 0.55rem 0.75rem;
+    .users-kpi {
+        min-width: 190px;
+        border-radius: .7rem;
+        background: rgba(255,255,255,.12);
+        padding: .65rem .8rem;
         text-align: right;
     }
 
-    .users-tech-status span {
-        color: #ffdd57;
+    .users-kpi span,
+    .users-kpi small {
+        display: block;
+        font-size: .72rem;
+        color: rgba(255,255,255,.8);
+    }
+
+    .users-kpi strong {
+        display: block;
+        font-size: 1.35rem;
+        font-weight: 950;
+    }
+
+    .users-refresh {
+        height: 34px;
+        font-weight: 850;
+    }
+
+    .users-left-stack {
+        display: grid;
+        gap: .85rem;
+        align-self: start;
+    }
+
+    .users-grid {
+        display: grid;
+        grid-template-columns: 330px 1fr;
+        gap: .85rem;
+        align-items: start;
+    }
+
+    .users-card,
+    .users-password-panel-left {
+        width: 100%;
+    }
+
+    .users-edit-panel {
+        background: white;
+        border: 1px solid #e4e7ee;
+        border-radius: .85rem;
+        padding: .85rem;
+        box-shadow: 0 .35rem .9rem rgba(0,0,0,.04);
+    }
+
+    .users-card h3,
+    .users-edit-panel h3 {
+        margin: 0 0 .8rem;
+        color: #2b0035;
+        font-size: 1rem;
+        font-weight: 950;
+    }
+
+    .users-create-card label,
+    .users-edit-box label {
+        display: grid;
+        gap: .25rem;
+        margin-bottom: .55rem;
+        font-size: .75rem;
         font-weight: 900;
-        font-size: 0.75rem;
+        color: #33263c;
     }
 
-    .users-tech-status strong {
-        color: #ffffff;
-        font-size: 0.82rem;
+    .users-create-card label .form-control,
+    .users-create-card label .form-select,
+    .users-edit-box label .form-control,
+    .users-edit-box label .form-select {
+        margin-top: .25rem;
     }
 
-    .users-back-button {
-        height: 32px;
-        display: inline-flex;
+    .users-create-card strong,
+    .users-edit-box strong {
+        color: #be123c;
+    }
+
+    .users-password-change-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+
+    .users-password-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: .55rem;
+    }
+
+    .users-switch-row {
+        display: flex !important;
         align-items: center;
-        justify-content: center;
-        font-size: 0.78rem;
+        gap: .45rem;
+        margin: .45rem 0 .7rem;
+    }
+
+    .users-actions,
+    .password-actions {
+        justify-content: flex-start !important;
+        border-top: 0 !important;
+        padding-top: .65rem !important;
+    }
+
+    .users-edit-actions {
+        display: flex;
+        gap: .45rem;
+        justify-content: flex-start;
+        margin-top: .75rem;
+    }
+
+    .users-table-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .75rem;
+        margin-bottom: .55rem;
+    }
+
+    .users-search {
+        max-width: 360px;
+    }
+
+    .users-table-wrapper {
+        overflow-x: auto;
+    }
+
+    .users-table {
+        min-width: 1050px;
+        font-size: .78rem;
+    }
+
+    .users-table th {
+        color: #33263c;
+        border-bottom: 1px solid #1f1425;
+        font-size: .7rem;
+        text-transform: uppercase;
+    }
+
+    .users-status {
+        display: inline-flex;
+        border-radius: 999px;
+        padding: .18rem .52rem;
+        font-size: .68rem;
+        font-weight: 950;
+    }
+
+    .users-status.active {
+        background: #d1e7dd;
+        color: #0f5132;
+    }
+
+    .users-status.inactive {
+        background: #e5e7eb;
+        color: #374151;
+    }
+
+    .btn-outline-purple {
+        border-color: #7b0d8e;
+        color: #6b087b;
         font-weight: 800;
-        border-color: rgba(255, 255, 255, 0.65);
-        color: #ffffff;
-        background: rgba(255, 255, 255, 0.08);
     }
 
-    .users-back-button:hover {
-        color: #4b005c;
-        background: #ffffff;
-        border-color: #ffffff;
+    .btn-outline-purple:hover {
+        background: #7b0d8e;
+        color: white;
     }
 
-    @@media (max-width: 1100px) {
-        .users-tech-banner {
+    .users-selected-row {
+        background: #fbf4ff;
+    }
+
+    .users-empty {
+        background: #f8fafc;
+        border: 1px dashed #d7dce5;
+        border-radius: .7rem;
+        padding: .85rem;
+        color: #64748b;
+        font-weight: 800;
+    }
+
+    .users-selected-card.compact {
+        padding: .6rem;
+        margin-bottom: .65rem;
+    }
+
+    .users-selected-card {
+        background: #fbf4ff;
+        border: 1px solid #ead4f5;
+        border-radius: .75rem;
+        padding: .75rem;
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: center;
+        margin-bottom: .85rem;
+    }
+
+    .users-selected-card span,
+    .users-selected-card small {
+        display: block;
+        color: #7a7086;
+        font-size: .72rem;
+        font-weight: 800;
+    }
+
+    .users-selected-card strong {
+        display: block;
+        color: #2b0035;
+        font-size: .95rem;
+        font-weight: 950;
+    }
+
+    .users-edit-grid {
+        display: grid;
+        grid-template-columns: 1.35fr 1fr;
+        gap: .85rem;
+    }
+
+    .users-edit-box {
+        border: 1px solid #e5e7eb;
+        border-radius: .75rem;
+        padding: .8rem;
+    }
+
+    .users-edit-box h4 {
+        margin: 0 0 .65rem;
+        color: #3b0045;
+        font-size: .9rem;
+        font-weight: 950;
+    }
+
+    .users-edit-box p {
+        margin: -.3rem 0 .7rem;
+        color: #64748b;
+        font-size: .75rem;
+    }
+
+    .users-edit-fields {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: .6rem;
+    }
+
+    .password-actions {
+        justify-content: flex-start !important;
+        border-top: 0 !important;
+        padding-top: .65rem !important;
+    }
+
+    .users-edit-actions {
+        justify-content: flex-end;
+        border-top: 1px solid #eef0f4;
+        padding-top: .85rem;
+    }
+
+    @@media (max-width: 1200px) {
+        .users-grid,
+        .users-edit-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .users-hero,
+        .users-table-head {
             flex-direction: column;
+            align-items: stretch;
         }
 
-        .users-tech-side {
-            width: 100%;
+        .users-search {
+            max-width: none;
         }
 
-        .users-tech-status {
-            text-align: left;
+        .users-edit-fields {
+            grid-template-columns: 1fr;
         }
     }
+
+    /* Ajuste visual: asteriscos al lado del texto del campo */
+    .users-create-card label,
+    .users-edit-box label {
+        display: block !important;
+        margin-bottom: .55rem;
+        font-size: .75rem;
+        font-weight: 900;
+        color: #33263c;
+    }
+
+    .users-required-star {
+        display: inline !important;
+        color: #be123c;
+        margin-left: .18rem;
+        font-size: .78rem;
+        font-weight: 950;
+        line-height: 1;
+        vertical-align: baseline;
+    }
+
+    .users-create-card label .form-control,
+    .users-create-card label .form-select,
+    .users-edit-box label .form-control,
+    .users-edit-box label .form-select {
+        display: block;
+        width: 100%;
+        margin-top: .25rem;
+    }
+
 </style>
+
+
+
 
 
 

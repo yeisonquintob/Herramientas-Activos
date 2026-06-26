@@ -1,0 +1,33 @@
+﻿using Navi.ToolsAssets.Domain.Common.Base;
+using Navi.ToolsAssets.Domain.Entities.Organization;
+
+namespace Navi.ToolsAssets.Domain.Entities.Security;
+
+public class AppUser : BaseEntity
+{
+    public string UserName { get; set; } = string.Empty;
+
+    public string DisplayName { get; set; } = string.Empty;
+
+    public string? Email { get; set; }
+
+    public string? Position { get; set; }
+
+    public string? Area { get; set; }
+
+    public Guid AppRoleId { get; set; }
+
+    public AppRole? AppRole { get; set; }
+
+    public Guid? BranchId { get; set; }
+
+    public Branch? Branch { get; set; }
+
+    public Guid? ResponsiblePersonId { get; set; }
+
+    public ResponsiblePerson? ResponsiblePerson { get; set; }
+
+    public bool IsActive { get; set; } = true;
+
+    public DateTime? LastLoginAt { get; set; }
+}

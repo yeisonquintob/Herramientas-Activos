@@ -191,19 +191,19 @@ else if (board is not null)
 
                                 <td>
     <div class="row-actions">
-        <button class="btn btn-sm btn-outline-success"
+        <button class="pc-action pc-action-success"
                 type="button"
                 @onclick="() => StartParticipantAsync(participant.Id)">
             Iniciar
         </button>
 
-        <button class="btn btn-sm btn-outline-dark"
+        <button class="pc-action pc-action-neutral"
                 type="button"
                 @onclick="() => FinishParticipantAsync(participant.Id)">
             Finalizar
         </button>
 
-        <button class="btn btn-sm btn-outline-primary"
+        <button class="pc-action pc-action-primary"
                 type="button"
                 @onclick="() => LoadPendingToolsAsync(participant.Id)">
             Pendientes
@@ -267,12 +267,12 @@ else if (board is not null)
                                     <td>@tool.PhysicalStatus</td>
                                 <td>
                                     <div class="pc-pending-actions">
-                                        <a class="btn btn-sm btn-outline-primary"
+                                        <a class="pc-action pc-action-primary"
                                            href="@($"/physical-counts/{Id}/participants/{GetSelectedPendingParticipantId()}/pending-tools/{GetPendingToolId(tool)}")">
                                             Detalle / Reportar
                                         </a>
 
-                                        <a class="btn btn-sm btn-outline-danger"
+                                        <a class="pc-action pc-action-danger"
                                            href="@($"/physical-counts/{Id}/participants/{GetSelectedPendingParticipantId()}/pending-tools/{GetPendingToolId(tool)}?mode=reject")">
                                             Rechazar
                                         </a>
@@ -316,13 +316,13 @@ else if (board is not null)
                 @if (selectedPending is not null)
                 {
                     <button type="button"
-                            class="btn btn-sm btn-outline-primary"
+                            class="pc-action pc-action-primary"
                             @onclick="ToggleQuickReportForm">
                         @(showQuickReportForm ? "Ocultar formulario" : "Agregar no listada")
                     </button>
                 }
 
-                <a class="btn btn-sm btn-outline-primary" href="@GetReportedItemsUrl()">
+                <a class="pc-action pc-action-primary" href="@GetReportedItemsUrl()">
                     Ir a conciliación global
                 </a>
             </div>
@@ -1023,6 +1023,143 @@ else if (board is not null)
     .pc-reported-user-card {
         border: 1px solid #dbeafe;
     }
+
+    /* ============================================================
+       Mejora visual botones Acciones - Detalle toma física
+       ============================================================ */
+
+    .participants-table th:last-child,
+    .participants-table td:last-child,
+    .physical-count-participants th:last-child,
+    .physical-count-participants td:last-child,
+    .pc-table th:last-child,
+    .pc-table td:last-child {
+        width: 135px;
+        min-width: 135px;
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    .participant-actions,
+    .pc-participant-actions,
+    .row-actions {
+        display: grid !important;
+        grid-template-columns: 1fr;
+        gap: .32rem;
+        width: 100%;
+        min-width: 118px;
+        align-items: stretch;
+    }
+
+    .pc-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 29px;
+        width: 100%;
+        border-radius: .48rem;
+        padding: .30rem .40rem;
+        font-size: .66rem;
+        font-weight: 950;
+        line-height: 1.1;
+        text-decoration: none;
+        border: 1px solid transparent;
+        background: #fff;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .pc-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .25rem .55rem rgba(15, 23, 42, .12);
+        text-decoration: none;
+    }
+
+    .pc-action-primary {
+        border-color: #2563eb;
+        color: #1d4ed8;
+        background: #eff6ff;
+    }
+
+    .pc-action-primary:hover {
+        color: #1e40af;
+        background: #dbeafe;
+    }
+
+    .pc-action-success {
+        border-color: #059669;
+        color: #047857;
+        background: #ecfdf5;
+    }
+
+    .pc-action-success:hover {
+        color: #065f46;
+        background: #d1fae5;
+    }
+
+    .pc-action-neutral {
+        border-color: #334155;
+        color: #334155;
+        background: #f8fafc;
+    }
+
+    .pc-action-neutral:hover {
+        color: #1e293b;
+        background: #e2e8f0;
+    }
+
+    .pc-action-danger {
+        border-color: #ef4444;
+        color: #dc2626;
+        background: #fff1f2;
+    }
+
+    .pc-action-danger:hover {
+        color: #b91c1c;
+        background: #ffe4e6;
+    }
+
+    .pc-action[disabled],
+    .pc-action:disabled {
+        opacity: .55;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+
+    .physical-count-detail table,
+    .participants-table,
+    .pc-table {
+        width: 100%;
+        table-layout: fixed;
+    }
+
+    .physical-count-detail td,
+    .participants-table td,
+    .pc-table td {
+        vertical-align: top;
+        overflow-wrap: anywhere;
+    }
+
+    @@media (max-width: 1300px) {
+        .participants-table th:last-child,
+        .participants-table td:last-child,
+        .physical-count-participants th:last-child,
+        .physical-count-participants td:last-child,
+        .pc-table th:last-child,
+        .pc-table td:last-child {
+            width: 120px;
+            min-width: 120px;
+        }
+
+        .pc-action {
+            font-size: .62rem;
+            min-height: 27px;
+            padding: .26rem .32rem;
+        }
+    }
+
 </style>
 
 @code {
@@ -1988,6 +2125,143 @@ else if (board is not null)
         filter: brightness(.96);
         text-decoration: none;
     }
+
+    /* ============================================================
+       Mejora visual botones Acciones - Detalle toma física
+       ============================================================ */
+
+    .participants-table th:last-child,
+    .participants-table td:last-child,
+    .physical-count-participants th:last-child,
+    .physical-count-participants td:last-child,
+    .pc-table th:last-child,
+    .pc-table td:last-child {
+        width: 135px;
+        min-width: 135px;
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    .participant-actions,
+    .pc-participant-actions,
+    .row-actions {
+        display: grid !important;
+        grid-template-columns: 1fr;
+        gap: .32rem;
+        width: 100%;
+        min-width: 118px;
+        align-items: stretch;
+    }
+
+    .pc-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 29px;
+        width: 100%;
+        border-radius: .48rem;
+        padding: .30rem .40rem;
+        font-size: .66rem;
+        font-weight: 950;
+        line-height: 1.1;
+        text-decoration: none;
+        border: 1px solid transparent;
+        background: #fff;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .pc-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .25rem .55rem rgba(15, 23, 42, .12);
+        text-decoration: none;
+    }
+
+    .pc-action-primary {
+        border-color: #2563eb;
+        color: #1d4ed8;
+        background: #eff6ff;
+    }
+
+    .pc-action-primary:hover {
+        color: #1e40af;
+        background: #dbeafe;
+    }
+
+    .pc-action-success {
+        border-color: #059669;
+        color: #047857;
+        background: #ecfdf5;
+    }
+
+    .pc-action-success:hover {
+        color: #065f46;
+        background: #d1fae5;
+    }
+
+    .pc-action-neutral {
+        border-color: #334155;
+        color: #334155;
+        background: #f8fafc;
+    }
+
+    .pc-action-neutral:hover {
+        color: #1e293b;
+        background: #e2e8f0;
+    }
+
+    .pc-action-danger {
+        border-color: #ef4444;
+        color: #dc2626;
+        background: #fff1f2;
+    }
+
+    .pc-action-danger:hover {
+        color: #b91c1c;
+        background: #ffe4e6;
+    }
+
+    .pc-action[disabled],
+    .pc-action:disabled {
+        opacity: .55;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+
+    .physical-count-detail table,
+    .participants-table,
+    .pc-table {
+        width: 100%;
+        table-layout: fixed;
+    }
+
+    .physical-count-detail td,
+    .participants-table td,
+    .pc-table td {
+        vertical-align: top;
+        overflow-wrap: anywhere;
+    }
+
+    @@media (max-width: 1300px) {
+        .participants-table th:last-child,
+        .participants-table td:last-child,
+        .physical-count-participants th:last-child,
+        .physical-count-participants td:last-child,
+        .pc-table th:last-child,
+        .pc-table td:last-child {
+            width: 120px;
+            min-width: 120px;
+        }
+
+        .pc-action {
+            font-size: .62rem;
+            min-height: 27px;
+            padding: .26rem .32rem;
+        }
+    }
+
 </style>
 
 
@@ -2044,7 +2318,145 @@ else if (board is not null)
             min-width: 0;
         }
     }
+
+    /* ============================================================
+       Mejora visual botones Acciones - Detalle toma física
+       ============================================================ */
+
+    .participants-table th:last-child,
+    .participants-table td:last-child,
+    .physical-count-participants th:last-child,
+    .physical-count-participants td:last-child,
+    .pc-table th:last-child,
+    .pc-table td:last-child {
+        width: 135px;
+        min-width: 135px;
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    .participant-actions,
+    .pc-participant-actions,
+    .row-actions {
+        display: grid !important;
+        grid-template-columns: 1fr;
+        gap: .32rem;
+        width: 100%;
+        min-width: 118px;
+        align-items: stretch;
+    }
+
+    .pc-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 29px;
+        width: 100%;
+        border-radius: .48rem;
+        padding: .30rem .40rem;
+        font-size: .66rem;
+        font-weight: 950;
+        line-height: 1.1;
+        text-decoration: none;
+        border: 1px solid transparent;
+        background: #fff;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .pc-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .25rem .55rem rgba(15, 23, 42, .12);
+        text-decoration: none;
+    }
+
+    .pc-action-primary {
+        border-color: #2563eb;
+        color: #1d4ed8;
+        background: #eff6ff;
+    }
+
+    .pc-action-primary:hover {
+        color: #1e40af;
+        background: #dbeafe;
+    }
+
+    .pc-action-success {
+        border-color: #059669;
+        color: #047857;
+        background: #ecfdf5;
+    }
+
+    .pc-action-success:hover {
+        color: #065f46;
+        background: #d1fae5;
+    }
+
+    .pc-action-neutral {
+        border-color: #334155;
+        color: #334155;
+        background: #f8fafc;
+    }
+
+    .pc-action-neutral:hover {
+        color: #1e293b;
+        background: #e2e8f0;
+    }
+
+    .pc-action-danger {
+        border-color: #ef4444;
+        color: #dc2626;
+        background: #fff1f2;
+    }
+
+    .pc-action-danger:hover {
+        color: #b91c1c;
+        background: #ffe4e6;
+    }
+
+    .pc-action[disabled],
+    .pc-action:disabled {
+        opacity: .55;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+
+    .physical-count-detail table,
+    .participants-table,
+    .pc-table {
+        width: 100%;
+        table-layout: fixed;
+    }
+
+    .physical-count-detail td,
+    .participants-table td,
+    .pc-table td {
+        vertical-align: top;
+        overflow-wrap: anywhere;
+    }
+
+    @@media (max-width: 1300px) {
+        .participants-table th:last-child,
+        .participants-table td:last-child,
+        .physical-count-participants th:last-child,
+        .physical-count-participants td:last-child,
+        .pc-table th:last-child,
+        .pc-table td:last-child {
+            width: 120px;
+            min-width: 120px;
+        }
+
+        .pc-action {
+            font-size: .62rem;
+            min-height: 27px;
+            padding: .26rem .32rem;
+        }
+    }
+
 </style>
+
 
 
 

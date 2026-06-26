@@ -1,0 +1,1695 @@
+﻿@page "/reconciliation"
+@rendermode InteractiveServer
+
+@using System.Net.Http.Json
+@using Navi.ToolsAssets.Admin.Components.Security
+@using Navi.ToolsAssets.Admin.Services.Auth
+
+@inject IHttpClientFactory HttpClientFactory
+@inject WebAuthSessionService AuthSession
+@inject NavigationManager Navigation
+
+<PageTitle>Conciliación</PageTitle>
+
+<PermissionGuard Permission="PhysicalCounts.View">
+    <div class="reconciliation-page">
+        <section class="rec-hero">
+            <div>
+                <span class="rec-badge">Conciliación de toma física</span>
+                <h1>Conciliación</h1>
+                <p>
+                    Revisa lo reportado por los usuarios, filtra diferencias y toma decisiones:
+                    aclarar, aprobar creación, crear en Inventario de AF, conciliar o rechazar.
+                </p>
+            </div>
+
+            <div class="rec-hero-actions">
+                <button type="button" class="rec-outline-btn" @onclick="LoadAsync" disabled="@isLoading">
+                    @(isLoading ? "Actualizando..." : "Actualizar")
+                </button>
+
+                @if (SelectedCountId.HasValue)
+                {
+                    <a class="rec-outline-btn" href="@($"/physical-counts/{SelectedCountId}")">
+                        Ver toma
+                    </a>
+                }
+            </div>
+        </section>
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="rec-alert rec-alert-danger">@errorMessage</div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(successMessage))
+        {
+            <div class="rec-alert rec-alert-success">@successMessage</div>
+        }
+
+        <section class="rec-card">
+            <div class="rec-section-title">
+                <div>
+                    <h2>Filtros de conciliación</h2>
+                    <p>Selecciona una toma física y filtra por sede, usuario, tipo, estado, fechas o texto.</p>
+                </div>
+
+                <button type="button" class="rec-secondary-btn" @onclick="ClearFilters">
+                    Limpiar filtros
+                </button>
+            </div>
+
+            <div class="rec-filter-grid">
+                <label>
+                    Toma física
+                    <select @bind="selectedCountIdText" @bind:after="OnSelectedCountChangedAsync">
+                        <option value="">Seleccione toma...</option>
+                        @foreach (var count in physicalCounts)
+                        {
+                            <option value="@count.Id">
+                                @count.CountNumber - @count.BranchCode - @count.StatusLabel
+                            </option>
+                        }
+                    </select>
+                </label>
+
+                <label>
+                    Sede
+                    <select @bind="filterBranch">
+                        <option value="">Todas las sedes</option>
+                        @foreach (var branch in BranchOptions)
+                        {
+                            <option value="@branch">@branch</option>
+                        }
+                    </select>
+                </label>
+
+                <label>
+                    Usuario / participante
+                    <select @bind="filterParticipant">
+                        <option value="">Todos los usuarios</option>
+                        @foreach (var participant in ParticipantOptions)
+                        {
+                            <option value="@participant">@participant</option>
+                        }
+                    </select>
+                </label>
+
+                <label>
+                    Tipo de reporte
+                    <select @bind="filterReportType">
+                        <option value="">Todos</option>
+                        <option value="Found">Encontrada / validada</option>
+                        <option value="NotFound">No encontrada</option>
+                        <option value="ExtraNotListed">No listada</option>
+                        <option value="Damaged">Dañada</option>
+                        <option value="ReturnedOrDelivered">Devuelta / entregada</option>
+                    </select>
+                </label>
+
+                <label>
+                    Estado de conciliación
+                    <select @bind="filterReconciliationStatus">
+                        <option value="">Todos</option>
+                        <option value="PendingReview">Pendiente revisión</option>
+                        <option value="NotFoundInSystem">Pendiente creación</option>
+                        <option value="MatchedInSystem">Pendiente conciliación</option>
+                        <option value="RequiresUserClarification">Requiere aclaración</option>
+                        <option value="ApprovedForCreation">Aprobado para creación</option>
+                        <option value="Reconciled">Conciliado / completo</option>
+                        <option value="Rejected">Rechazado</option>
+                    </select>
+                </label>
+
+                <label>
+                    Datos mínimos
+                    <select @bind="filterMinimumData">
+                        <option value="">Todos</option>
+                        <option value="Complete">Completos</option>
+                        <option value="Missing">Sin mínimos</option>
+                    </select>
+                </label>
+
+                <label>
+                    Desde
+                    <input @bind="filterFromDateText" placeholder="yyyy-MM-dd" />
+                </label>
+
+                <label>
+                    Hasta
+                    <input @bind="filterToDateText" placeholder="yyyy-MM-dd" />
+                </label>
+            </div>
+
+            <div class="rec-filter-bottom">
+                <label class="rec-search">
+                    Buscar
+                    <input @bind="searchText" @bind:event="oninput" placeholder="Código, nombre, serial, usuario, categoría, observación..." />
+                </label>
+
+                <label class="rec-check">
+                    <input type="checkbox" @bind="onlyPending" />
+                    Mostrar solo pendientes de decisión
+                </label>
+            </div>
+        </section>
+
+        <section class="rec-kpi-grid">
+            <article>
+                <span>Total filtrado</span>
+                <strong>@FilteredItems.Count()</strong>
+                <small>Registros visibles</small>
+            </article>
+
+            <article>
+                <span>No listadas</span>
+                <strong>@FilteredItems.Count(x => x.ReportType == "ExtraNotListed")</strong>
+                <small>Posible creación</small>
+            </article>
+
+            <article>
+                <span>Pendiente creación</span>
+                <strong>@FilteredItems.Count(x => IsPendingCreation(x))</strong>
+                <small>Aprobar o crear</small>
+            </article>
+
+            <article>
+                <span>Pendiente conciliación</span>
+                <strong>@FilteredItems.Count(x => x.ReconciliationStatus == "MatchedInSystem")</strong>
+                <small>Revisar trazabilidad</small>
+            </article>
+
+            <article>
+                <span>Aclaración</span>
+                <strong>@FilteredItems.Count(x => x.RequiresUserClarification || x.ReconciliationStatus == "RequiresUserClarification")</strong>
+                <small>Contactar usuario</small>
+            </article>
+
+            <article>
+                <span>Completos</span>
+                <strong>@FilteredItems.Count(x => x.ReconciliationStatus == "Reconciled")</strong>
+                <small>Conciliados</small>
+            </article>
+        </section>
+
+        <section class="rec-card">
+            <div class="rec-section-title">
+                <div>
+                    <h2>Registros para conciliación</h2>
+                    <p>Vista administrativa de decisión. Aquí se revisan diferencias, se solicitan aclaraciones, se aprueba creación, se concilia o se rechaza.</p>
+                </div>
+
+                @if (board is not null)
+                {
+                    <div class="rec-count-context">
+                        <strong>@board.CountNumber</strong>
+                        <span>@board.BranchCode - @board.BranchName</span>
+                    </div>
+                }
+            </div>
+
+            @if (isLoading)
+            {
+                <div class="rec-empty">Cargando información de conciliación...</div>
+            }
+            else if (!physicalCounts.Any())
+            {
+                <div class="rec-empty">No existen tomas físicas creadas.</div>
+            }
+            else if (board is null)
+            {
+                <div class="rec-empty">Seleccione una toma física para iniciar la conciliación.</div>
+            }
+            else if (!FilteredItems.Any())
+            {
+                <div class="rec-empty">No hay registros que coincidan con los filtros seleccionados.</div>
+            }
+            else
+            {
+                <div class="rec-table-wrapper">
+                    <table class="rec-table">
+                        <thead>
+                            <tr>
+                                <th class="rec-col-type">Tipo</th>
+                                <th class="rec-col-code">Código / nombre</th>
+                                <th class="rec-col-user">Usuario</th>
+                                <th class="rec-col-class">Clasificación</th>
+                                <th class="rec-col-location">Ubicación / responsable</th>
+                                <th class="rec-col-status">Estado reportado</th>
+                                <th class="rec-col-reconciliation">Conciliación</th>
+                                <th class="rec-col-minimum">Datos mínimos</th>
+                                <th class="rec-col-date">Fecha</th>
+                                <th class="rec-col-actions">Acciones</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var item in FilteredItems)
+                            {
+                                <tr class="rec-data-row">
+                                    <td>
+                                        <span class="@GetReportTypeClass(item)">
+                                            @GetReportTypeLabel(item)
+                                        </span>
+                                        <small>@Display(item.ReportType)</small>
+                                    </td>
+
+                                    <td>
+                                        <strong>@Display(item.ToolInternalCode ?? item.ReportedCode ?? item.MatchedToolInternalCode)</strong>
+                                        <span>@Display(item.ToolName ?? item.ReportedName ?? item.MatchedToolName)</span>
+
+                                        @if (!string.IsNullOrWhiteSpace(item.SerialNumber))
+                                        {
+                                            <small>Serial: @item.SerialNumber</small>
+                                        }
+
+                                        @if (!string.IsNullOrWhiteSpace(item.Brand) || !string.IsNullOrWhiteSpace(item.Model))
+                                        {
+                                            <small>@Display(item.Brand) @Display(item.Model)</small>
+                                        }
+
+                                        @if (item.CreatedToolAssetId.HasValue)
+                                        {
+                                            <small class="rec-created">Creado en inventario</small>
+                                        }
+                                    </td>
+
+                                    <td>
+                                        <strong>@Display(item.ParticipantName ?? item.ResponsibleName)</strong>
+                                        <small>@Display(item.ParticipantUserName)</small>
+                                        <small>Reportó: @Display(item.ReportedBy)</small>
+                                    </td>
+
+                                    <td>
+                                        <span>Tipo: @Display(item.AssetTypeName)</span>
+                                        <small>Categoría: @Display(item.CategoryName)</small>
+                                    </td>
+
+                                    <td>
+                                        <span>Sede: @Display(item.BranchCode ?? board.BranchCode)</span>
+                                        <small>Ubicación: @Display(item.FoundLocation)</small>
+                                        <small>Responsable: @Display(item.ResponsibleName)</small>
+                                    </td>
+
+                                    <td>
+                                        <span>Físico: @Display(item.PhysicalStatus)</span>
+                                        <small>Operativo: @Display(item.OperationalStatus)</small>
+                                        <small>@Display(item.Observation)</small>
+                                    </td>
+
+                                    <td>
+                                        <span class="@GetReconciliationStatusClass(item)">
+                                            @GetReconciliationLabel(item)
+                                        </span>
+                                        <small>@Display(item.ReconciliationObservation)</small>
+                                    </td>
+
+                                    <td>
+                                        @if (item.MinimumDataCompleted)
+                                        {
+                                            <span class="rec-pill-ok">Completos</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="rec-pill-danger">Sin mínimos</span>
+                                            <small>@Display(item.MissingRequiredData)</small>
+                                        }
+                                    </td>
+
+                                    <td>
+                                        @FormatDate(item.ReportedAt)
+                                    </td>
+
+                                    <td>
+                                        <div class="rec-actions">
+                                            @if (CanRequestClarification(item))
+                                            {
+                                                <button type="button" class="rec-action warn" @onclick="() => RequestClarificationAsync(item.Id)">
+                                                    Aclarar
+                                                </button>
+                                            }
+
+                                            @if (CanResolveClarification(item))
+                                            {
+                                                <button type="button" class="rec-action neutral" @onclick="() => ResolveClarificationAsync(item.Id)">
+                                                    Aclarado
+                                                </button>
+                                            }
+
+                                            @if (CanApproveCreation(item))
+                                            {
+                                                <button type="button" class="rec-action ok" @onclick="() => ApproveCreationAsync(item.Id)">
+                                                    Aprobar creación
+                                                </button>
+                                            }
+
+                                            @if (CanCreateInventoryAsset(item))
+                                            {
+                                                <button type="button" class="rec-action ok-fill" @onclick="() => CreateInventoryAssetAsync(item.Id)">
+                                                    Crear activo
+                                                </button>
+                                            }
+
+                                            @if (CanReconcile(item))
+                                            {
+                                                <button type="button" class="rec-action neutral" @onclick="() => ReconcileAsync(item.Id)">
+                                                    Conciliar
+                                                </button>
+                                            }
+
+                                            @if (CanReject(item))
+                                            {
+                                                <button type="button" class="rec-action danger" @onclick="() => RejectAsync(item.Id)">
+                                                    Rechazar
+                                                </button>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    </div>
+</PermissionGuard>
+
+@code {
+    private bool isLoading;
+    private string? errorMessage;
+    private string? successMessage;
+
+    private List<PhysicalCountListItem> physicalCounts = new();
+    private ReportedItemsBoard? board;
+
+    private string? selectedCountIdText;
+    private string? filterBranch;
+    private string? filterParticipant;
+    private string? filterReportType;
+    private string? filterReconciliationStatus;
+    private string? filterMinimumData;
+    private string? filterFromDateText;
+    private string? filterToDateText;
+    private string? searchText;
+    private bool onlyPending = true;
+
+    private Guid? SelectedCountId =>
+        Guid.TryParse(selectedCountIdText, out var id)
+            ? id
+            : null;
+
+    private IEnumerable<ReportedItem> AllItems =>
+        board?.Items ?? Enumerable.Empty<ReportedItem>();
+
+    private IEnumerable<string> BranchOptions =>
+        AllItems
+            .Select(x => (x.BranchCode ?? board?.BranchCode) ?? string.Empty)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x);
+
+    private IEnumerable<string> ParticipantOptions =>
+        AllItems
+            .Select(x => (x.ParticipantName ?? x.ResponsibleName) ?? string.Empty)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x);
+
+    private IEnumerable<ReportedItem> FilteredItems =>
+        AllItems
+            .Where(MatchesBranch)
+            .Where(MatchesParticipant)
+            .Where(MatchesReportType)
+            .Where(MatchesReconciliationStatus)
+            .Where(MatchesMinimumData)
+            .Where(MatchesDateRange)
+            .Where(MatchesPending)
+            .Where(MatchesSearch)
+            .OrderBy(x => GetPriority(x))
+            .ThenByDescending(x => x.ReportedAt);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var api = CreateApiClient();
+
+            physicalCounts = await api.GetFromJsonAsync<List<PhysicalCountListItem>>("api/physical-counts") ?? new();
+
+            physicalCounts = physicalCounts
+                .OrderByDescending(x => x.StartedAt ?? x.CreatedAt)
+                .ThenByDescending(x => x.CountNumber)
+                .ToList();
+
+            if (string.IsNullOrWhiteSpace(selectedCountIdText) && physicalCounts.Any())
+            {
+                selectedCountIdText = physicalCounts.First().Id.ToString();
+            }
+
+            await LoadBoardAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error cargando conciliación: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OnSelectedCountChangedAsync()
+    {
+        board = null;
+        errorMessage = null;
+        successMessage = null;
+        await LoadBoardAsync();
+    }
+
+    private async Task LoadBoardAsync()
+    {
+        if (!SelectedCountId.HasValue)
+        {
+            board = null;
+            return;
+        }
+
+        var api = CreateApiClient();
+        board = await api.GetFromJsonAsync<ReportedItemsBoard>($"api/physical-counts/{SelectedCountId.Value}/reported-items-board");
+    }
+
+    private HttpClient CreateApiClient()
+    {
+        return HttpClientFactory.CreateClient("NaviApi");
+    }
+
+    private void ClearFilters()
+    {
+        filterBranch = null;
+        filterParticipant = null;
+        filterReportType = null;
+        filterReconciliationStatus = null;
+        filterMinimumData = null;
+        filterFromDateText = null;
+        filterToDateText = null;
+        searchText = null;
+        onlyPending = true;
+    }
+
+    private bool MatchesBranch(ReportedItem item)
+    {
+        if (string.IsNullOrWhiteSpace(filterBranch))
+        {
+            return true;
+        }
+
+        return (item.BranchCode ?? board?.BranchCode ?? string.Empty)
+            .Equals(filterBranch, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool MatchesParticipant(ReportedItem item)
+    {
+        if (string.IsNullOrWhiteSpace(filterParticipant))
+        {
+            return true;
+        }
+
+        return (item.ParticipantName ?? item.ResponsibleName ?? string.Empty)
+            .Equals(filterParticipant, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool MatchesReportType(ReportedItem item)
+    {
+        if (string.IsNullOrWhiteSpace(filterReportType))
+        {
+            return true;
+        }
+
+        return (item.ReportType ?? string.Empty)
+            .Equals(filterReportType, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool MatchesReconciliationStatus(ReportedItem item)
+    {
+        if (string.IsNullOrWhiteSpace(filterReconciliationStatus))
+        {
+            return true;
+        }
+
+        return item.ReconciliationStatus
+            .Equals(filterReconciliationStatus, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool MatchesMinimumData(ReportedItem item)
+    {
+        return filterMinimumData switch
+        {
+            "Complete" => item.MinimumDataCompleted,
+            "Missing" => !item.MinimumDataCompleted,
+            _ => true
+        };
+    }
+
+    private bool MatchesDateRange(ReportedItem item)
+    {
+        if (!item.ReportedAt.HasValue)
+        {
+            return true;
+        }
+
+        var date = item.ReportedAt.Value.Date;
+
+        if (DateTime.TryParse(filterFromDateText, out var from) && date < from.Date)
+        {
+            return false;
+        }
+
+        if (DateTime.TryParse(filterToDateText, out var to) && date > to.Date)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool MatchesPending(ReportedItem item)
+    {
+        if (!onlyPending)
+        {
+            return true;
+        }
+
+        return item.ReconciliationStatus != "Reconciled" &&
+               item.ReconciliationStatus != "Rejected";
+    }
+
+    private bool MatchesSearch(ReportedItem item)
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            return true;
+        }
+
+        var text = searchText.Trim();
+
+        return Contains(item.ToolInternalCode, text) ||
+               Contains(item.ToolName, text) ||
+               Contains(item.ReportedCode, text) ||
+               Contains(item.ReportedName, text) ||
+               Contains(item.SerialNumber, text) ||
+               Contains(item.Brand, text) ||
+               Contains(item.Model, text) ||
+               Contains(item.ParticipantName, text) ||
+               Contains(item.ParticipantUserName, text) ||
+               Contains(item.ResponsibleName, text) ||
+               Contains(item.AssetTypeName, text) ||
+               Contains(item.CategoryName, text) ||
+               Contains(item.FoundLocation, text) ||
+               Contains(item.Observation, text) ||
+               Contains(item.ReconciliationObservation, text);
+    }
+
+    private static bool Contains(string? value, string text)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+               value.Contains(text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int GetPriority(ReportedItem item)
+    {
+        if (item.RequiresUserClarification || item.ReconciliationStatus == "RequiresUserClarification")
+        {
+            return 1;
+        }
+
+        if (item.ReconciliationStatus == "MatchedInSystem")
+        {
+            return 2;
+        }
+
+        if (item.ReconciliationStatus == "ApprovedForCreation")
+        {
+            return 3;
+        }
+
+        if (item.ReportType == "ExtraNotListed")
+        {
+            return 4;
+        }
+
+        if (!item.MinimumDataCompleted)
+        {
+            return 5;
+        }
+
+        if (item.ReconciliationStatus == "PendingReview" || item.ReconciliationStatus == "NotFoundInSystem")
+        {
+            return 6;
+        }
+
+        return 20;
+    }
+
+    private bool IsPendingCreation(ReportedItem item)
+    {
+        return item.ReportType == "ExtraNotListed" &&
+               !item.CreatedToolAssetId.HasValue &&
+               item.ReconciliationStatus != "Rejected" &&
+               item.ReconciliationStatus != "Reconciled";
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "—" : value;
+    }
+
+    private static string FormatDate(DateTime? value)
+    {
+        return value.HasValue ? value.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm") : "—";
+    }
+
+    private static string GetReportTypeLabel(ReportedItem item)
+    {
+        return item.ReportType switch
+        {
+            "Found" => "Encontrada",
+            "NotFound" => "No encontrada",
+            "ExtraNotListed" => "No listada",
+            "Damaged" => "Dañada",
+            "ReturnedOrDelivered" => "Devuelta",
+            _ => string.IsNullOrWhiteSpace(item.ReportTypeLabel) ? Display(item.ReportType) : item.ReportTypeLabel
+        };
+    }
+
+    private static string GetReportTypeClass(ReportedItem item)
+    {
+        return item.ReportType switch
+        {
+            "Found" => "rec-pill-ok",
+            "NotFound" => "rec-pill-danger",
+            "ExtraNotListed" => "rec-pill-purple",
+            "Damaged" => "rec-pill-danger",
+            "ReturnedOrDelivered" => "rec-pill-info",
+            _ => "rec-pill-neutral"
+        };
+    }
+
+    private static string GetReconciliationLabel(ReportedItem item)
+    {
+        if (item.CreatedToolAssetId.HasValue)
+        {
+            return "Creado en inventario";
+        }
+
+        if (item.Rejected || item.ReconciliationStatus == "Rejected")
+        {
+            return "Rechazado";
+        }
+
+        if (item.RequiresUserClarification || item.ReconciliationStatus == "RequiresUserClarification")
+        {
+            return "Requiere aclaración";
+        }
+
+        return item.ReconciliationStatus switch
+        {
+            "Reconciled" => "Conciliado / completo",
+            "ApprovedForCreation" => "Aprobado para creación",
+            "MatchedInSystem" => "Pendiente conciliación",
+            "NotFoundInSystem" => "Pendiente creación",
+            "PendingReview" => "Pendiente revisión",
+            _ => string.IsNullOrWhiteSpace(item.ReconciliationStatusLabel) ? Display(item.ReconciliationStatus) : item.ReconciliationStatusLabel
+        };
+    }
+
+    private static string GetReconciliationStatusClass(ReportedItem item)
+    {
+        if (item.Rejected || item.ReconciliationStatus == "Rejected")
+        {
+            return "rec-pill-danger";
+        }
+
+        if (item.CreatedToolAssetId.HasValue || item.ReconciliationStatus == "Reconciled")
+        {
+            return "rec-pill-ok";
+        }
+
+        if (item.RequiresUserClarification || item.ReconciliationStatus == "RequiresUserClarification")
+        {
+            return "rec-pill-warning";
+        }
+
+        return item.ReconciliationStatus switch
+        {
+            "ApprovedForCreation" => "rec-pill-info",
+            "MatchedInSystem" => "rec-pill-warning",
+            "NotFoundInSystem" => "rec-pill-danger-soft",
+            "PendingReview" => "rec-pill-neutral",
+            _ => "rec-pill-neutral"
+        };
+    }
+
+    private static bool CanRequestClarification(ReportedItem item)
+    {
+        return item.ReconciliationStatus != "Rejected" &&
+               item.ReconciliationStatus != "Reconciled" &&
+               item.ReconciliationStatus != "RequiresUserClarification";
+    }
+
+    private static bool CanResolveClarification(ReportedItem item)
+    {
+        return item.RequiresUserClarification ||
+               item.ReconciliationStatus == "RequiresUserClarification";
+    }
+
+    private static bool CanApproveCreation(ReportedItem item)
+    {
+        return item.ReportType == "ExtraNotListed" &&
+               item.MinimumDataCompleted &&
+               !item.ApprovedForCreation &&
+               !item.CreatedToolAssetId.HasValue &&
+               item.ReconciliationStatus != "ApprovedForCreation" &&
+               item.ReconciliationStatus != "Rejected" &&
+               item.ReconciliationStatus != "Reconciled";
+    }
+
+    private static bool CanCreateInventoryAsset(ReportedItem item)
+    {
+        return item.ReportType == "ExtraNotListed" &&
+               item.MinimumDataCompleted &&
+               !item.CreatedToolAssetId.HasValue &&
+               item.ReconciliationStatus == "ApprovedForCreation";
+    }
+
+    private static bool CanReconcile(ReportedItem item)
+    {
+        return item.ReconciliationStatus != "Reconciled" &&
+               item.ReconciliationStatus != "Rejected";
+    }
+
+    private static bool CanReject(ReportedItem item)
+    {
+        return item.ReconciliationStatus != "Rejected" &&
+               item.ReconciliationStatus != "Reconciled";
+    }
+
+    private async Task RequestClarificationAsync(Guid id)
+    {
+        await PatchReportedItemAsync(
+            id,
+            "request-clarification",
+            "Se requiere contactar al usuario para ampliar información del registro reportado.",
+            "Registro marcado para aclaración.");
+    }
+
+    private async Task ResolveClarificationAsync(Guid id)
+    {
+        await PatchReportedItemAsync(
+            id,
+            "resolve-clarification",
+            "Aclaración recibida del usuario. Registro disponible nuevamente para revisión.",
+            "Registro marcado como aclarado.");
+    }
+
+    private async Task ApproveCreationAsync(Guid id)
+    {
+        await PatchReportedItemAsync(
+            id,
+            "approve-creation",
+            "Registro aprobado para creación en Inventario de AF.",
+            "Registro aprobado para creación.");
+    }
+
+    private async Task ReconcileAsync(Guid id)
+    {
+        await PatchReportedItemAsync(
+            id,
+            "reconcile",
+            "Registro conciliado manualmente desde administración.",
+            "Registro conciliado correctamente.");
+    }
+
+    private async Task RejectAsync(Guid id)
+    {
+        await PatchReportedItemAsync(
+            id,
+            "reject",
+            "Reporte rechazado desde conciliación.",
+            "Registro rechazado.");
+    }
+
+    private async Task PatchReportedItemAsync(Guid id, string action, string observation, string success)
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var api = CreateApiClient();
+
+            var response = await api.PatchAsJsonAsync(
+                $"api/physical-counts/reported-items/{id}/{action}",
+                new
+                {
+                    ActionBy = AuthSession.UserName ?? "admin",
+                    Observation = observation
+                });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo ejecutar la acción. {(int)response.StatusCode} {detail}";
+                return;
+            }
+
+            successMessage = success;
+            await LoadBoardAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error ejecutando acción: {ex.Message}";
+        }
+    }
+
+    private async Task CreateInventoryAssetAsync(Guid id)
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var api = CreateApiClient();
+
+            var response = await api.PostAsJsonAsync(
+                $"api/physical-counts/reported-items/{id}/create-tool-asset",
+                new
+                {
+                    ActionBy = AuthSession.UserName ?? "admin",
+                    CreateMissingCatalogs = true,
+                    Observation = "Activo creado en Inventario de AF desde conciliación de toma física."
+                });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo crear el activo en Inventario de AF. {(int)response.StatusCode} {detail}";
+                return;
+            }
+
+            successMessage = "Activo creado correctamente en Inventario de AF.";
+            await LoadBoardAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error creando activo: {ex.Message}";
+        }
+    }
+
+    private sealed class PhysicalCountListItem
+    {
+        public Guid Id { get; set; }
+        public string? CountNumber { get; set; }
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string? Status { get; set; }
+        public string? StatusLabel { get; set; }
+        public DateTime? StartedAt { get; set; }
+        public DateTime? CreatedAt { get; set; }
+    }
+
+    private sealed class ReportedItemsBoard
+    {
+        public Guid Id { get; set; }
+        public string? CountNumber { get; set; }
+        public Guid BranchId { get; set; }
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string? Status { get; set; }
+        public string? StatusLabel { get; set; }
+        public List<ReportedItem> Items { get; set; } = new();
+        public ReportedItemsSummary Summary { get; set; } = new();
+    }
+
+    private sealed class ReportedItemsSummary
+    {
+        public int Total { get; set; }
+        public int Found { get; set; }
+        public int NotFound { get; set; }
+        public int ReturnedOrDelivered { get; set; }
+        public int Damaged { get; set; }
+        public int DifferentLocation { get; set; }
+        public int DifferentResponsible { get; set; }
+        public int ExtraNotListed { get; set; }
+        public int PendingReview { get; set; }
+        public int RequiresUserClarification { get; set; }
+        public int ApprovedForCreation { get; set; }
+        public int Reconciled { get; set; }
+        public int Rejected { get; set; }
+        public int MissingMinimumData { get; set; }
+    }
+
+    private sealed class ReportedItem
+    {
+        public Guid Id { get; set; }
+        public Guid PhysicalCountId { get; set; }
+        public Guid? PhysicalCountParticipantId { get; set; }
+
+        public string? ParticipantName { get; set; }
+        public string? ParticipantUserName { get; set; }
+
+        public string? ReportType { get; set; }
+        public string? ReportTypeLabel { get; set; }
+
+        public Guid? ToolAssetId { get; set; }
+        public string? ToolInternalCode { get; set; }
+        public string? ToolName { get; set; }
+
+        public Guid? MatchedToolAssetId { get; set; }
+        public string? MatchedToolInternalCode { get; set; }
+        public string? MatchedToolName { get; set; }
+
+        public Guid? CreatedToolAssetId { get; set; }
+
+        public string? ReportedCode { get; set; }
+        public string? ReportedName { get; set; }
+        public string? SerialNumber { get; set; }
+        public string? Brand { get; set; }
+        public string? Model { get; set; }
+
+        public string? AssetTypeName { get; set; }
+        public string? CategoryName { get; set; }
+
+        public string? BranchCode { get; set; }
+        public string? FoundLocation { get; set; }
+
+        public Guid? ResponsiblePersonId { get; set; }
+        public string? ResponsibleName { get; set; }
+
+        public string? PhysicalStatus { get; set; }
+        public string? OperationalStatus { get; set; }
+        public string? Observation { get; set; }
+
+        public string? ReportedBy { get; set; }
+        public DateTime? ReportedAt { get; set; }
+
+        public string ReconciliationStatus { get; set; } = string.Empty;
+        public string? ReconciliationStatusLabel { get; set; }
+        public string? ReconciliationObservation { get; set; }
+
+        public bool RequiresUserClarification { get; set; }
+        public bool MinimumDataCompleted { get; set; }
+        public string? MissingRequiredData { get; set; }
+
+        public bool ApprovedForCreation { get; set; }
+        public bool Rejected { get; set; }
+        public DateTime? ReconciledAt { get; set; }
+        public string? ReconciledBy { get; set; }
+    }
+}
+
+<style>
+    .reconciliation-page {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .rec-hero {
+        background: linear-gradient(135deg, #1d001f 0%, #65006d 60%, #8a1296 100%);
+        color: #fff;
+        border-radius: 1rem;
+        padding: 1.2rem;
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .rec-badge {
+        display: inline-flex;
+        background: rgba(255,255,255,.12);
+        border: 1px solid rgba(255,255,255,.35);
+        border-radius: 999px;
+        padding: .25rem .6rem;
+        font-size: .72rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .rec-hero h1 {
+        margin: .5rem 0 .2rem;
+        font-size: 1.9rem;
+        font-weight: 950;
+    }
+
+    .rec-hero p {
+        margin: 0;
+        color: #f8e7fb;
+        font-weight: 650;
+    }
+
+    .rec-hero-actions {
+        display: flex;
+        gap: .6rem;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .rec-outline-btn,
+    .rec-secondary-btn,
+    .rec-action {
+        border-radius: .45rem;
+        padding: .5rem .75rem;
+        font-weight: 850;
+        text-decoration: none;
+        cursor: pointer;
+    }
+
+    .rec-outline-btn {
+        border: 1px solid rgba(255,255,255,.7);
+        color: #fff;
+        background: transparent;
+    }
+
+    .rec-secondary-btn {
+        border: 1px solid #94a3b8;
+        color: #334155;
+        background: #fff;
+    }
+
+    .rec-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: .9rem;
+        padding: .9rem;
+    }
+
+    .rec-section-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: .8rem;
+    }
+
+    .rec-section-title h2 {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 950;
+    }
+
+    .rec-section-title p {
+        margin: .2rem 0 0;
+        color: #64748b;
+        font-weight: 600;
+    }
+
+    .rec-filter-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: .75rem;
+    }
+
+    .rec-filter-grid label,
+    .rec-search {
+        display: flex;
+        flex-direction: column;
+        gap: .25rem;
+        font-size: .76rem;
+        font-weight: 850;
+        color: #111827;
+    }
+
+    .rec-filter-grid input,
+    .rec-filter-grid select,
+    .rec-search input {
+        border: 1px solid #cbd5e1;
+        border-radius: .45rem;
+        padding: .55rem .65rem;
+        font-size: .84rem;
+        background: #fff;
+    }
+
+    .rec-filter-bottom {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: .9rem;
+        margin-top: .75rem;
+        align-items: end;
+    }
+
+    .rec-check {
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        font-weight: 850;
+        color: #334155;
+        white-space: nowrap;
+    }
+
+    .rec-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: .7rem;
+    }
+
+    .rec-kpi-grid article {
+        border: 1px solid #e2e8f0;
+        border-left: 4px solid #7c1688;
+        border-radius: .75rem;
+        background: #fff;
+        padding: .75rem;
+    }
+
+    .rec-kpi-grid span {
+        color: #475569;
+        font-size: .7rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .rec-kpi-grid strong {
+        display: block;
+        font-size: 1.4rem;
+        font-weight: 950;
+        margin-top: .15rem;
+    }
+
+    .rec-kpi-grid small {
+        color: #64748b;
+        font-weight: 650;
+    }
+
+    .rec-count-context {
+        text-align: right;
+        color: #334155;
+    }
+
+    .rec-count-context strong,
+    .rec-count-context span {
+        display: block;
+    }
+
+    .rec-table-wrapper {
+        overflow: auto;
+    }
+
+    .rec-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 1450px;
+        font-size: .78rem;
+    }
+
+    .rec-table th {
+        text-align: left;
+        border-bottom: 2px solid #111827;
+        padding: .55rem;
+        font-size: .68rem;
+        text-transform: uppercase;
+        color: #111827;
+    }
+
+    .rec-table td {
+        border-bottom: 1px solid #e2e8f0;
+        padding: .65rem .55rem;
+        vertical-align: top;
+    }
+
+    .rec-table td strong,
+    .rec-table td span,
+    .rec-table td small {
+        display: block;
+    }
+
+    .rec-table td small {
+        color: #64748b;
+        margin-top: .12rem;
+    }
+
+    .rec-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .35rem;
+        min-width: 170px;
+    }
+
+    .rec-action {
+        font-size: .72rem;
+        background: #fff;
+    }
+
+    .rec-action.warn {
+        border: 1px solid #f59e0b;
+        color: #b45309;
+    }
+
+    .rec-action.ok {
+        border: 1px solid #059669;
+        color: #047857;
+    }
+
+    .rec-action.ok-fill {
+        border: 1px solid #047857;
+        background: #059669;
+        color: #fff;
+    }
+
+    .rec-action.neutral {
+        border: 1px solid #334155;
+        color: #334155;
+    }
+
+    .rec-action.danger {
+        border: 1px solid #ef4444;
+        color: #dc2626;
+    }
+
+    .rec-pill-ok,
+    .rec-pill-danger,
+    .rec-pill-danger-soft,
+    .rec-pill-purple,
+    .rec-pill-warning,
+    .rec-pill-info,
+    .rec-pill-neutral {
+        display: inline-flex !important;
+        width: fit-content;
+        border-radius: 999px;
+        padding: .18rem .45rem;
+        font-size: .68rem;
+        font-weight: 950;
+        line-height: 1.2;
+    }
+
+    .rec-pill-ok {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .rec-pill-danger {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .rec-pill-danger-soft {
+        background: #ffe4e6;
+        color: #9f1239;
+    }
+
+    .rec-pill-purple {
+        background: #f3e8ff;
+        color: #7e22ce;
+    }
+
+    .rec-pill-warning {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .rec-pill-info {
+        background: #dbeafe;
+        color: #1e40af;
+    }
+
+    .rec-pill-neutral {
+        background: #e2e8f0;
+        color: #334155;
+    }
+
+    .rec-created {
+        color: #047857 !important;
+        font-weight: 900;
+    }
+
+    .rec-empty {
+        background: #f8fafc;
+        border-radius: .75rem;
+        padding: 1rem;
+        color: #475569;
+        font-weight: 800;
+    }
+
+    .rec-alert {
+        border-radius: .75rem;
+        padding: .75rem .9rem;
+        font-weight: 850;
+    }
+
+    .rec-alert-danger {
+        background: #fee2e2;
+        border: 1px solid #fecaca;
+        color: #991b1b;
+    }
+
+    .rec-alert-success {
+        background: #dcfce7;
+        border: 1px solid #bbf7d0;
+        color: #166534;
+    }
+
+    @@media (max-width: 1200px) {
+        .rec-filter-grid,
+        .rec-kpi-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .rec-filter-bottom {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @@media (max-width: 700px) {
+        .rec-hero,
+        .rec-section-title {
+            flex-direction: column;
+        }
+
+        .rec-filter-grid,
+        .rec-kpi-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* ============================================================
+       Mejoras visuales Conciliación
+       No cambia lógica, solo presentación
+       ============================================================ */
+
+    .rec-card {
+        box-shadow: 0 .45rem 1.1rem rgba(15, 23, 42, .06);
+    }
+
+    .rec-kpi-grid article {
+        position: relative;
+        overflow: hidden;
+        min-height: 82px;
+        box-shadow: 0 .35rem .8rem rgba(15, 23, 42, .04);
+        transition: transform .15s ease, box-shadow .15s ease;
+    }
+
+    .rec-kpi-grid article:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .55rem 1.1rem rgba(15, 23, 42, .08);
+    }
+
+    .rec-kpi-grid article::after {
+        content: "";
+        position: absolute;
+        right: -.8rem;
+        top: -.8rem;
+        width: 3rem;
+        height: 3rem;
+        border-radius: 999px;
+        background: rgba(124, 22, 136, .08);
+    }
+
+    .rec-table-wrapper {
+        border: 1px solid #e5e7eb;
+        border-radius: .85rem;
+        overflow: auto;
+        max-height: calc(100vh - 310px);
+        background: #fff;
+    }
+
+    .rec-table {
+        border-collapse: separate;
+        border-spacing: 0;
+        min-width: 1580px;
+        font-size: .76rem;
+    }
+
+    .rec-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 4;
+        background: #fff;
+        border-bottom: 2px solid #1f2937;
+        padding: .65rem .6rem;
+        letter-spacing: .02rem;
+        white-space: nowrap;
+    }
+
+    .rec-data-row {
+        transition: background .12s ease;
+    }
+
+    .rec-data-row:hover {
+        background: #fbf4ff;
+    }
+
+    .rec-table td {
+        padding: .72rem .6rem;
+        border-bottom: 1px solid #edf0f4;
+    }
+
+    .rec-table td strong {
+        color: #111827;
+        font-weight: 950;
+        line-height: 1.25;
+    }
+
+    .rec-table td span {
+        color: #334155;
+        line-height: 1.28;
+    }
+
+    .rec-table td small {
+        color: #64748b;
+        line-height: 1.25;
+    }
+
+    .rec-table td small:not(.rec-created) {
+        max-width: 240px;
+    }
+
+    .rec-col-type {
+        width: 95px;
+    }
+
+    .rec-col-code {
+        width: 220px;
+    }
+
+    .rec-col-user {
+        width: 150px;
+    }
+
+    .rec-col-class {
+        width: 145px;
+    }
+
+    .rec-col-location {
+        width: 205px;
+    }
+
+    .rec-col-status {
+        width: 255px;
+    }
+
+    .rec-col-reconciliation {
+        width: 235px;
+    }
+
+    .rec-col-minimum {
+        width: 110px;
+    }
+
+    .rec-col-date {
+        width: 95px;
+    }
+
+    .rec-col-actions {
+        width: 205px;
+        text-align: center !important;
+    }
+
+    .rec-table th:last-child,
+    .rec-table td:last-child {
+        position: sticky;
+        right: 0;
+        background: #fff;
+        z-index: 3;
+        box-shadow: -8px 0 14px rgba(15, 23, 42, .05);
+    }
+
+    .rec-table thead th:last-child {
+        z-index: 5;
+    }
+
+    .rec-data-row:hover td:last-child {
+        background: #fbf4ff;
+    }
+
+    .rec-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .35rem;
+        min-width: 190px;
+    }
+
+    .rec-action {
+        min-height: 31px;
+        border-radius: .5rem;
+        font-size: .7rem;
+        font-weight: 950;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .rec-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .3rem .55rem rgba(15, 23, 42, .12);
+    }
+
+    .rec-action.warn {
+        background: #fff7ed;
+        border-color: #f59e0b;
+        color: #9a3412;
+    }
+
+    .rec-action.warn:hover {
+        background: #ffedd5;
+    }
+
+    .rec-action.ok {
+        background: #ecfdf5;
+        border-color: #059669;
+        color: #047857;
+    }
+
+    .rec-action.ok:hover {
+        background: #d1fae5;
+    }
+
+    .rec-action.ok-fill {
+        background: #059669;
+        border-color: #047857;
+        color: #fff;
+    }
+
+    .rec-action.ok-fill:hover {
+        background: #047857;
+    }
+
+    .rec-action.neutral {
+        background: #f8fafc;
+        border-color: #334155;
+        color: #334155;
+    }
+
+    .rec-action.neutral:hover {
+        background: #e2e8f0;
+    }
+
+    .rec-action.danger {
+        background: #fff1f2;
+        border-color: #ef4444;
+        color: #dc2626;
+    }
+
+    .rec-action.danger:hover {
+        background: #ffe4e6;
+    }
+
+    .rec-pill-ok,
+    .rec-pill-danger,
+    .rec-pill-danger-soft,
+    .rec-pill-purple,
+    .rec-pill-warning,
+    .rec-pill-info,
+    .rec-pill-neutral {
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.35);
+        white-space: nowrap;
+    }
+
+    .rec-pill-ok {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .rec-pill-danger {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .rec-pill-danger-soft {
+        background: #ffe4e6;
+        color: #9f1239;
+    }
+
+    .rec-pill-purple {
+        background: #f3e8ff;
+        color: #7e22ce;
+    }
+
+    .rec-pill-warning {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .rec-pill-info {
+        background: #dbeafe;
+        color: #1e40af;
+    }
+
+    .rec-pill-neutral {
+        background: #e2e8f0;
+        color: #334155;
+    }
+
+    .rec-count-context {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: .75rem;
+        padding: .55rem .75rem;
+        min-width: 180px;
+    }
+
+    .rec-count-context strong {
+        color: #1f2937;
+        font-size: .9rem;
+    }
+
+    .rec-count-context span {
+        color: #64748b;
+        font-size: .8rem;
+        font-weight: 800;
+    }
+
+    .rec-filter-grid input:focus,
+    .rec-filter-grid select:focus,
+    .rec-search input:focus {
+        outline: 0;
+        border-color: #8a1296;
+        box-shadow: 0 0 0 .18rem rgba(138, 18, 150, .12);
+    }
+
+    .rec-empty {
+        border: 1px dashed #cbd5e1;
+    }
+
+    @@media (max-width: 1200px) {
+        .rec-table-wrapper {
+            max-height: none;
+        }
+
+        .rec-table th:last-child,
+        .rec-table td:last-child {
+            position: static;
+            box-shadow: none;
+        }
+    }
+
+</style>
+
+
