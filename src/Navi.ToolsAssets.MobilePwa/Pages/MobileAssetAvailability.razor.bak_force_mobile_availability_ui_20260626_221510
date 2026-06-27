@@ -1,0 +1,557 @@
+﻿@page "/asset-availability"
+@page "/mobile/availability"
+@page "/availability-location"
+@page "/available-location"
+@page "/disponible-ubicacion"
+
+@using Navi.ToolsAssets.MobilePwa.Models
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Disponible y ubicación - NAVI Herramientas y AF</PageTitle>
+
+<section class="mobile-page mobile-availability-page">
+    @if (isLoading)
+    {
+        <div class="mobile-loading">Cargando disponible y ubicación...</div>
+    }
+    else if (!Auth.IsAuthenticated)
+    {
+        <div class="mobile-empty">
+            <strong>Sesión requerida</strong>
+            <span>Debes iniciar sesión para gestionar disponibilidad y ubicación.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+        </div>
+    }
+    else
+    {
+        <header class="mobile-av-hero">
+            <div class="mobile-av-top">
+                <button type="button" @onclick="GoHome">Regresar</button>
+                <span>IC-LOC</span>
+            </div>
+
+            <h1>Disponible y ubicación</h1>
+            <p>Consulta, filtra y actualiza sede, ubicación interna y estado operativo.</p>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(message))
+        {
+            <div class="@messageClass">@message</div>
+        }
+
+        <section class="mobile-av-form-card">
+            <div class="mobile-av-form-head">
+                <div>
+                    <strong>Asignar ubicación</strong>
+                    <span>Selecciona un activo y actualiza su sede, ubicación o estado</span>
+                </div>
+
+                <button type="button" @onclick="ClearForm">Limpiar</button>
+            </div>
+
+            @if (selectedTool is not null)
+            {
+                <div class="mobile-av-selected">
+                    <span>@Display(selectedTool.InternalCode)</span>
+                    <strong>@Display(selectedTool.Name)</strong>
+                    <small>@Display(selectedTool.BranchCode) · @Display(selectedTool.LocationName)</small>
+                </div>
+            }
+
+            <div class="mobile-av-fields">
+                <label>
+                    <span>Herramienta / activo</span>
+                    <select value="@form.ToolIdText" @onchange="OnToolChanged">
+                        <option value="">Seleccione activo</option>
+                        @foreach (var tool in tools.OrderBy(x => x.InternalCode))
+                        {
+                            <option value="@tool.Id">@tool.InternalCode - @tool.Name</option>
+                        }
+                    </select>
+                </label>
+
+                <label>
+                    <span>Sede</span>
+                    <select value="@form.BranchIdText" @onchange="OnBranchChanged">
+                        <option value="">Seleccione sede</option>
+                        @foreach (var branch in branches.OrderBy(x => x.Code))
+                        {
+                            <option value="@branch.Id">@branch.Code - @branch.Name</option>
+                        }
+                    </select>
+                </label>
+
+                <label>
+                    <span>Almacén / taller / ubicación</span>
+                    <select value="@form.LocationIdText" @onchange="OnLocationChanged">
+                        <option value="">Sin ubicación</option>
+                        @foreach (var location in AvailableLocations.OrderBy(x => x.Code))
+                        {
+                            <option value="@location.Id">@location.Code - @location.Name</option>
+                        }
+                    </select>
+                </label>
+
+                <label>
+                    <span>Estado operativo</span>
+                    <select @bind="form.OperationalStatus">
+                        <option value="Available">Disponible</option>
+                        <option value="Assigned">Asignada</option>
+                        <option value="Loaned">Prestada</option>
+                        <option value="InMaintenance">En mantenimiento</option>
+                        <option value="Damaged">Dañada</option>
+                        <option value="NotSuitable">No apta</option>
+                        <option value="PendingValidation">Pendiente validación</option>
+                        <option value="NotLocated">No localizada</option>
+                        <option value="PendingDisposal">Pendiente baja</option>
+                        <option value="Disposed">Dada de baja</option>
+                    </select>
+                </label>
+
+                <label>
+                    <span>Observación</span>
+                    <textarea rows="2" @bind="form.Observation" placeholder="Motivo del cambio..."></textarea>
+                </label>
+            </div>
+
+            <div class="mobile-av-form-actions">
+                <button type="button" class="primary" @onclick="SaveAsync" disabled="@isSaving">
+                    @(isSaving ? "Guardando..." : "Guardar cambios")
+                </button>
+
+                <button type="button" @onclick="ReloadAsync" disabled="@isSaving">
+                    Actualizar
+                </button>
+            </div>
+        </section>
+
+        <section class="mobile-av-summary">
+            <article>
+                <strong>@FilteredTools.Count()</strong>
+                <span>Visibles</span>
+            </article>
+
+            <article>
+                <strong>@tools.Count</strong>
+                <span>Total</span>
+            </article>
+
+            <article>
+                <strong>@AvailableCount</strong>
+                <span>Disponibles</span>
+            </article>
+
+            <article>
+                <strong>@LocatedCount</strong>
+                <span>Ubicados</span>
+            </article>
+        </section>
+
+        <section class="mobile-av-filter-card">
+            <input value="@search" @oninput="OnSearchChanged" placeholder="Buscar código, nombre, sede, ubicación..." />
+
+            <div>
+                <select @bind="selectedBranchCode">
+                    <option value="">Todas las sedes</option>
+                    @foreach (var branch in branches.OrderBy(x => x.Code))
+                    {
+                        <option value="@branch.Code">@branch.Code</option>
+                    }
+                </select>
+
+                <select @bind="selectedStatus">
+                    <option value="">Todos los estados</option>
+                    <option value="Available">Disponible</option>
+                    <option value="Assigned">Asignada</option>
+                    <option value="Loaned">Prestada</option>
+                    <option value="InMaintenance">En mantenimiento</option>
+                    <option value="Damaged">Dañada</option>
+                    <option value="NotLocated">No localizada</option>
+                </select>
+            </div>
+        </section>
+
+        @if (!FilteredTools.Any())
+        {
+            <section class="mobile-empty mobile-av-empty">
+                <strong>Sin activos</strong>
+                <span>No se encontraron herramientas con los filtros aplicados.</span>
+            </section>
+        }
+        else
+        {
+            <section class="mobile-av-list">
+                @foreach (var tool in FilteredTools)
+                {
+                    <article class="mobile-av-card">
+                        <div class="mobile-av-card-head">
+                            <div>
+                                <span>@Display(tool.InternalCode)</span>
+                                <strong>@Display(tool.Name)</strong>
+                            </div>
+
+                            <b class="@GetStatusClass(tool.OperationalStatus)">
+                                @StatusLabel(tool.OperationalStatus)
+                            </b>
+                        </div>
+
+                        <div class="mobile-av-card-grid">
+                            <div>
+                                <span>Sede</span>
+                                <strong>@Display(tool.BranchCode)</strong>
+                            </div>
+
+                            <div>
+                                <span>Ubicación</span>
+                                <strong>@Display(tool.LocationName)</strong>
+                            </div>
+
+                            <div>
+                                <span>Responsable</span>
+                                <strong>@Display(tool.ResponsiblePersonName)</strong>
+                            </div>
+
+                            <div>
+                                <span>Físico</span>
+                                <strong>@Display(tool.PhysicalStatus)</strong>
+                            </div>
+                        </div>
+
+                        <div class="mobile-av-card-actions">
+                            <button type="button" @onclick="() => SelectTool(tool)">
+                                Gestionar
+                            </button>
+
+                            <a href="@($"/tools/{tool.Id}")">
+                                Detalle
+                            </a>
+
+                            <a href="@($"/tools/{tool.Id}/life-record")">
+                                Hoja vida
+                            </a>
+                        </div>
+                    </article>
+                }
+            </section>
+        }
+    }
+</section>
+
+@code {
+    private bool isLoading = true;
+    private bool isSaving;
+    private string? message;
+    private string messageClass = "mobile-alert";
+    private string search = string.Empty;
+    private string selectedBranchCode = string.Empty;
+    private string selectedStatus = string.Empty;
+
+    private List<MobileAvailabilityToolDto> tools = new();
+    private List<MobileBranchDto> branches = new();
+    private List<MobileLocationDto> locations = new();
+
+    private MobileAvailabilityForm form = new();
+
+    private MobileAvailabilityToolDto? selectedTool =>
+        form.ToolId.HasValue
+            ? tools.FirstOrDefault(x => x.Id == form.ToolId.Value)
+            : null;
+
+    private IEnumerable<MobileLocationDto> AvailableLocations =>
+        form.BranchId.HasValue
+            ? locations.Where(x => x.BranchId == form.BranchId.Value)
+            : locations;
+
+    private IEnumerable<MobileAvailabilityToolDto> FilteredTools =>
+        tools
+            .Where(x => string.IsNullOrWhiteSpace(search) ||
+                        Contains(x.InternalCode, search) ||
+                        Contains(x.Name, search) ||
+                        Contains(x.SerialNumber, search) ||
+                        Contains(x.BranchCode, search) ||
+                        Contains(x.BranchName, search) ||
+                        Contains(x.LocationName, search) ||
+                        Contains(x.ResponsiblePersonName, search))
+            .Where(x => string.IsNullOrWhiteSpace(selectedBranchCode) ||
+                        string.Equals(x.BranchCode, selectedBranchCode, StringComparison.OrdinalIgnoreCase))
+            .Where(x => string.IsNullOrWhiteSpace(selectedStatus) ||
+                        string.Equals(x.OperationalStatus, selectedStatus, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(x => x.BranchCode)
+            .ThenBy(x => x.InternalCode)
+            .ToList();
+
+    private int AvailableCount =>
+        tools.Count(x => Contains(x.OperationalStatus, "Available") || Contains(x.OperationalStatus, "Disponible"));
+
+    private int LocatedCount =>
+        tools.Count(x => x.LocationId.HasValue || !string.IsNullOrWhiteSpace(x.LocationName));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            isLoading = false;
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            isLoading = true;
+            message = null;
+
+            tools = await Api.GetAvailabilityToolsAsync();
+            branches = await Api.GetBranchesAsync();
+            locations = await Api.GetLocationsAsync();
+
+            tools = tools
+                .OrderBy(x => x.BranchCode)
+                .ThenBy(x => x.InternalCode)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"No se pudo cargar la vista. {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        await LoadAsync();
+    }
+
+    private void OnSearchChanged(ChangeEventArgs args)
+    {
+        search = args.Value?.ToString() ?? string.Empty;
+    }
+
+    private void OnToolChanged(ChangeEventArgs args)
+    {
+        form.ToolId = ParseGuid(args.Value?.ToString());
+
+        var tool = selectedTool;
+
+        if (tool is not null)
+        {
+            SelectTool(tool);
+        }
+    }
+
+    private void OnBranchChanged(ChangeEventArgs args)
+    {
+        form.BranchId = ParseGuid(args.Value?.ToString());
+
+        if (form.LocationId.HasValue &&
+            !locations.Any(x => x.Id == form.LocationId.Value && x.BranchId == form.BranchId))
+        {
+            form.LocationId = null;
+        }
+    }
+
+    private void OnLocationChanged(ChangeEventArgs args)
+    {
+        form.LocationId = ParseGuid(args.Value?.ToString());
+    }
+
+    private void SelectTool(MobileAvailabilityToolDto tool)
+    {
+        form = new MobileAvailabilityForm
+        {
+            ToolId = tool.Id,
+            BranchId = tool.BranchId,
+            LocationId = tool.LocationId,
+            OperationalStatus = string.IsNullOrWhiteSpace(tool.OperationalStatus) ? "Available" : tool.OperationalStatus,
+            Observation = string.Empty
+        };
+
+        message = null;
+        windowScrollTop = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (!form.ToolId.HasValue)
+        {
+            ShowError("Debe seleccionar una herramienta o activo.");
+            return;
+        }
+
+        if (!form.BranchId.HasValue)
+        {
+            ShowError("Debe seleccionar una sede.");
+            return;
+        }
+
+        try
+        {
+            isSaving = true;
+            message = null;
+
+            await Api.UpdateAvailabilityLocationAsync(new MobileAvailabilityLocationRequest
+            {
+                ToolId = form.ToolId.Value,
+                BranchId = form.BranchId.Value,
+                LocationId = form.LocationId,
+                OperationalStatus = form.OperationalStatus,
+                Observation = form.Observation,
+                ChangedBy = Auth.CurrentUser?.UserName ?? "mobile"
+            });
+
+            var savedId = form.ToolId.Value;
+
+            ShowSuccess("Disponibilidad y ubicación actualizadas correctamente.");
+
+            await LoadAsync();
+
+            var tool = tools.FirstOrDefault(x => x.Id == savedId);
+
+            if (tool is not null)
+            {
+                SelectTool(tool);
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowError($"No se pudo guardar. {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private bool windowScrollTop;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (windowScrollTop)
+        {
+            windowScrollTop = false;
+            await Task.Yield();
+        }
+    }
+
+    private void ClearForm()
+    {
+        form = new MobileAvailabilityForm();
+        message = null;
+    }
+
+    private void GoHome()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private void GoLogin()
+    {
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    private void ShowSuccess(string value)
+    {
+        message = value;
+        messageClass = "mobile-alert success";
+    }
+
+    private void ShowError(string value)
+    {
+        message = value;
+        messageClass = "mobile-alert error";
+    }
+
+    private static Guid? ParseGuid(string? value)
+    {
+        return Guid.TryParse(value, out var id) ? id : null;
+    }
+
+    private static bool Contains(string? value, string? query)
+    {
+        if (string.IsNullOrWhiteSpace(value) || string.IsNullOrWhiteSpace(query))
+        {
+            return false;
+        }
+
+        return Normalize(value).Contains(Normalize(query), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Normalize(string value)
+    {
+        return value
+            .Trim()
+            .ToUpperInvariant()
+            .Replace("Á", "A")
+            .Replace("É", "E")
+            .Replace("Í", "I")
+            .Replace("Ó", "O")
+            .Replace("Ú", "U")
+            .Replace("Ü", "U")
+            .Replace("Ñ", "N");
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "-" : value;
+    }
+
+    private static string StatusLabel(string? status)
+    {
+        return status switch
+        {
+            "Available" => "Disponible",
+            "Assigned" => "Asignada",
+            "Loaned" => "Prestada",
+            "InMaintenance" => "En mantenimiento",
+            "Damaged" => "Dañada",
+            "NotSuitable" => "No apta",
+            "PendingValidation" => "Pendiente validación",
+            "NotLocated" => "No localizada",
+            "PendingDisposal" => "Pendiente baja",
+            "Disposed" => "Dada de baja",
+            _ => Display(status)
+        };
+    }
+
+    private static string GetStatusClass(string? status)
+    {
+        return status switch
+        {
+            "Available" => "mobile-av-status ok",
+            "Assigned" => "mobile-av-status assigned",
+            "Loaned" => "mobile-av-status assigned",
+            "InMaintenance" => "mobile-av-status warning",
+            "Damaged" => "mobile-av-status danger",
+            "NotSuitable" => "mobile-av-status danger",
+            "NotLocated" => "mobile-av-status dark",
+            "Disposed" => "mobile-av-status dark",
+            _ => "mobile-av-status neutral"
+        };
+    }
+
+    private sealed class MobileAvailabilityForm
+    {
+        public Guid? ToolId { get; set; }
+        public Guid? BranchId { get; set; }
+        public Guid? LocationId { get; set; }
+        public string OperationalStatus { get; set; } = "Available";
+        public string? Observation { get; set; }
+
+        public string ToolIdText => ToolId?.ToString() ?? string.Empty;
+        public string BranchIdText => BranchId?.ToString() ?? string.Empty;
+        public string LocationIdText => LocationId?.ToString() ?? string.Empty;
+    }
+}
+
+

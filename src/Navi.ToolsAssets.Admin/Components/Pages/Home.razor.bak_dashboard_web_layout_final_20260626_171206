@@ -1,0 +1,1468 @@
+﻿@page "/"
+@page "/dashboard"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.Components
+@using Navi.ToolsAssets.Admin.Components.Shared
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Dashboard - NAVI</PageTitle>
+
+<PermissionGuard Permission="Dashboard.View" ModuleName="Dashboard">
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+else if (isLoading && dashboard is null)
+{
+    <div class="alert alert-info">Cargando dashboard...</div>
+}
+else if (dashboard is not null)
+{
+    <section class="dash-web-final">
+        <section class="dash-hero-final">
+            <div>
+                <span>Estado</span>
+                <p>Control operativo de herramientas, activos, responsables, diferencias, mantenimientos y hojas de vida.</p>
+            </div>
+
+            <div class="dash-hero-actions-final">
+                <strong>En progreso</strong>
+                <button type="button" @onclick="LoadDashboardAsync" disabled="@isLoading">
+                    @(isLoading ? "Actualizando..." : "Actualizar")
+                </button>
+            </div>
+        </section>
+
+        <section class="dash-kpis-final">
+            <article class="purple">
+                <span>PARTICIPANTES</span>
+                <strong>@dashboard.Summary.ActiveResponsibles</strong>
+                <small>Usuario / responsable</small>
+            </article>
+
+            <article class="cyan">
+                <span>EN PROCESO</span>
+                <strong>@GetInProcess()</strong>
+                <small>Inventario activo</small>
+            </article>
+
+            <article class="green">
+                <span>FINALIZADOS</span>
+                <strong>@dashboard.Summary.WithLifeRecord</strong>
+                <small>Con hoja de vida</small>
+            </article>
+
+            <article class="yellow">
+                <span>PENDIENTES</span>
+                <strong>@GetPendingTotal()</strong>
+                <small>Herramientas por validar</small>
+            </article>
+
+            <article class="red">
+                <span>DIFERENCIAS</span>
+                <strong>@GetDifferences()</strong>
+                <small>Conciliación</small>
+            </article>
+
+            <article class="purple">
+                <span>AVANCE</span>
+                <strong>@GetAdvancePercent()%</strong>
+                <small>@dashboard.Summary.WithLifeRecord de @dashboard.Summary.TotalTools</small>
+            </article>
+        </section>
+
+        <section class="dash-main-grid-final">
+            <article class="dash-card-final dash-local-final">
+                <h3>Local de herramientas</h3>
+
+                <div class="dash-local-list-final">
+                    <div>
+                        <span class="dash-local-label">
+                            <b class="dash-svg-icon green">@GetMiniIcon("total")</b>
+                            Total herramientas
+                        </span>
+                        <strong>@dashboard.Summary.TotalTools</strong>
+                    </div>
+
+                    <div>
+                        <span class="dash-local-label">
+                            <b class="dash-svg-icon green">@GetMiniIcon("check")</b>
+                            Disponibles
+                        </span>
+                        <strong>@dashboard.Summary.AvailableTools</strong>
+                    </div>
+
+                    <div>
+                        <span class="dash-local-label">
+                            <b class="dash-svg-icon blue">@GetMiniIcon("user")</b>
+                            Asignadas
+                        </span>
+                        <strong>@dashboard.Summary.AssignedTools</strong>
+                    </div>
+
+                    <div>
+                        <span class="dash-local-label">
+                            <b class="dash-svg-icon cyan">@GetMiniIcon("tool")</b>
+                            En mantenimiento
+                        </span>
+                        <strong>@dashboard.Summary.InMaintenanceTools</strong>
+                    </div>
+
+                    <div>
+                        <span class="dash-local-label">
+                            <b class="dash-svg-icon yellow">@GetMiniIcon("clock")</b>
+                            Pendientes validación
+                        </span>
+                        <strong>@dashboard.Summary.PendingValidationTools</strong>
+                    </div>
+
+                    <div>
+                        <span class="dash-local-label">
+                            <b class="dash-svg-icon red">@GetMiniIcon("close")</b>
+                            Desactivadas / baja
+                        </span>
+                        <strong>@dashboard.Summary.DisposedTools</strong>
+                    </div>
+                </div>
+            </article>
+
+            <article class="dash-card-final dash-maintenance-summary-final">
+                <div class="dash-card-head-final">
+                    <h3>Mantenimientos realizados</h3>
+
+                    <div class="dash-tabs-final">
+                        <span>Por mes</span>
+                        <span>Por día</span>
+                    </div>
+                </div>
+
+                <div class="dash-maintenance-centered-final">
+                    <div>
+                        <span>Por mes</span>
+                        <strong>@dashboard.MaintenanceSummary.ThisMonth</strong>
+                    </div>
+
+                    <div>
+                        <span>Por día</span>
+                        <strong>@dashboard.MaintenanceSummary.Today</strong>
+                    </div>
+
+                    <div>
+                        <span>En proceso</span>
+                        <strong>@dashboard.Summary.InMaintenanceTools</strong>
+                    </div>
+
+                    <div>
+                        <span>Pendientes</span>
+                        <strong>@dashboard.Summary.RequiresMaintenance</strong>
+                    </div>
+                </div>
+            </article>
+
+            <article class="dash-card-final dash-vs-final">
+                <h3>Herramientas vs activos</h3>
+
+                <div class="dash-vs-metrics-final">
+                    <div>
+                        <span>Herramientas</span>
+                        <strong>@dashboard.Summary.ToolsOnly</strong>
+                    </div>
+
+                    <div>
+                        <span>Activos fijos</span>
+                        <strong>@dashboard.Summary.FixedAssets</strong>
+                    </div>
+                </div>
+            </article>
+
+            <article class="dash-card-final dash-chart-card-final">
+                <h3>Distribución de activos fijos</h3>
+
+                <div class="dash-chart-layout-final">
+                    <div class="dash-donut-final xl" style="@GetToolsVsAssetsDonut()">
+                        <div class="dash-donut-center-final">
+                            <strong>@dashboard.Summary.TotalTools</strong>
+                            <span>Total</span>
+                        </div>
+                    </div>
+
+                    <div class="dash-legend-final">
+                        <div>
+                            <i class="purple"></i>
+                            <span>Herramientas</span>
+                            <strong>@dashboard.Summary.ToolsOnly</strong>
+                            <small>@GetPercentLabel(dashboard.Summary.ToolsOnly, dashboard.Summary.TotalTools)</small>
+                        </div>
+
+                        <div>
+                            <i class="blue"></i>
+                            <span>Activos fijos</span>
+                            <strong>@dashboard.Summary.FixedAssets</strong>
+                            <small>@GetPercentLabel(dashboard.Summary.FixedAssets, dashboard.Summary.TotalTools)</small>
+                        </div>
+
+                        <div>
+                            <i class="orange"></i>
+                            <span>Sin código AF</span>
+                            <strong>@dashboard.Summary.ToolsWithoutFixedAssetCode</strong>
+                            <small>@GetPercentLabel(dashboard.Summary.ToolsWithoutFixedAssetCode, dashboard.Summary.TotalTools)</small>
+                        </div>
+                    </div>
+                </div>
+            </article>
+
+            <article class="dash-card-final dash-chart-card-final">
+                <h3>Herramientas por sede</h3>
+
+                <div class="dash-branch-bars-final">
+                    @foreach (var item in GetBranchChartItems())
+                    {
+                        <div>
+                            <strong style="@GetBranchBarStyle(item.Branch.Total, item.Index)"></strong>
+                            <span>@item.Branch.BranchCode</span>
+                            <small>@item.Branch.Total</small>
+                        </div>
+                    }
+                </div>
+            </article>
+
+            <article class="dash-card-final dash-table-card-final">
+                <h3>Resumen por sede / responsable</h3>
+
+                <table class="dash-table-final">
+                    <thead>
+                        <tr>
+                            <th>Sede</th>
+                            <th>Asignadas</th>
+                            <th>Válidas</th>
+                            <th>Diferencias</th>
+                            <th>Avance</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @foreach (var item in dashboard.ToolsByBranch.Take(10))
+                        {
+                            var assigned = GetBranchAssigned(item.Total);
+                            var valid = GetBranchValidated(item.Total);
+                            var difference = GetBranchDifferences(item.Total);
+                            var percent = GetBranchAdvance(item.Total);
+
+                            <tr>
+                                <td>
+                                    <div class="dash-branch-name-final">
+                                        <strong>@item.BranchCode</strong>
+                                        <span>@item.BranchName</span>
+                                    </div>
+                                </td>
+
+                                <td>@assigned</td>
+                                <td>@valid</td>
+
+                                <td>
+                                    <span class="dash-difference-final">@difference</span>
+                                </td>
+
+                                <td>
+                                    <div class="dash-progress-final">
+                                        <span style="@($"width:{percent}%")"></span>
+                                    </div>
+                                    <small>@percent%</small>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </article>
+
+            <article class="dash-card-final dash-chart-card-final equal">
+                <h3>Herramientas por mes</h3>
+
+                <div class="dash-chart-layout-final compact">
+                    <div class="dash-donut-final md" style="@GetMaintenanceDonut()">
+                        <div class="dash-donut-center-final">
+                            <strong>@GetMaintenanceTotalForChart()</strong>
+                            <span>Total</span>
+                        </div>
+                    </div>
+
+                    <div class="dash-legend-final compact">
+                        <div><i class="blue"></i><span>Asignada</span><strong>@dashboard.Summary.AssignedTools</strong></div>
+                        <div><i class="orange"></i><span>Disponible</span><strong>@dashboard.Summary.AvailableTools</strong></div>
+                        <div><i class="red"></i><span>Pendientes</span><strong>@dashboard.Summary.PendingValidationTools</strong></div>
+                        <div><i class="purple"></i><span>Técnico</span><strong>@dashboard.Summary.InMaintenanceTools</strong></div>
+                        <div><i class="gray"></i><span>Otras</span><strong>@GetOtherMaintenance()</strong></div>
+                    </div>
+                </div>
+            </article>
+
+            <article class="dash-card-final dash-chart-card-final equal">
+                <h3>Hojas de vida</h3>
+
+                <div class="dash-chart-layout-final compact">
+                    <div class="dash-donut-final md" style="@GetLifeRecordDonut()">
+                        <div class="dash-donut-center-final">
+                            <strong>@dashboard.Summary.WithLifeRecord</strong>
+                            <span>Con HV</span>
+                        </div>
+                    </div>
+
+                    <div class="dash-legend-final compact">
+                        <div><i class="purple"></i><span>Con hoja</span><strong>@dashboard.Summary.WithLifeRecord</strong></div>
+                        <div><i class="orange"></i><span>Sin hoja</span><strong>@dashboard.Summary.WithoutLifeRecord</strong></div>
+                        <div><i class="red"></i><span>Datos incompletos</span><strong>@dashboard.LifeRecordCoverage.MissingTechnicalData</strong></div>
+                        <div><i class="blue"></i><span>Activos fijos</span><strong>@dashboard.Summary.FixedAssets</strong></div>
+                        <div><i class="gray"></i><span>Otras</span><strong>@GetOtherLifeRecords()</strong></div>
+                    </div>
+                </div>
+            </article>
+
+            <article class="dash-card-final dash-mini-card-final">
+                <h3>Mantenimientos por día</h3>
+
+                <div class="dash-mini-metrics-final">
+                    <div>
+                        <strong>@dashboard.MaintenanceSummary.ThisMonth</strong>
+                        <span>Por mes</span>
+                    </div>
+
+                    <div>
+                        <strong>@dashboard.MaintenanceSummary.Today</strong>
+                        <span>Por día</span>
+                    </div>
+
+                    <div>
+                        <strong>@dashboard.Summary.RequiresMaintenance</strong>
+                        <span>Pendientes</span>
+                    </div>
+                </div>
+            </article>
+
+            <article class="dash-card-final dash-mini-card-final">
+                <h3>Toma física</h3>
+
+                <p>Acciones rápidas para gestión de toma física y conciliación.</p>
+
+                <div class="dash-actions-final">
+                    <a href="/physical-counts">Volver</a>
+                    <a href="/physical-counts">Generar participantes</a>
+                    <a href="/physical-counts">Activar toma</a>
+                    <a href="/reconciliation">Conciliar</a>
+                </div>
+            </article>
+
+            <article class="dash-card-final dash-column-card-final">
+                <h3>Históricos</h3>
+
+                @if (dashboard.RecentActivity.Any())
+                {
+                    <div class="dash-history-final">
+                        @foreach (var item in dashboard.RecentActivity.Take(6))
+                        {
+                            <div>
+                                <strong>@item.Title</strong>
+                                <span>@Display(item.Description)</span>
+                                <small>@item.RegisteredAt.ToString("dd/MM/yyyy HH:mm") · @Display(item.User)</small>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="dash-history-final empty">
+                        <div>
+                            <strong>Sin historial reciente</strong>
+                            <span>No hay eventos recientes para mostrar.</span>
+                            <small>Dashboard operativo</small>
+                        </div>
+                    </div>
+                }
+            </article>
+
+            <article class="dash-card-final dash-column-card-final">
+                <h3>Pendientes</h3>
+
+                <div class="dash-pending-final">
+                    @foreach (var item in GetPendingItems().Take(6))
+                    {
+                        <div>
+                            <strong>@item.Title</strong>
+                            <span>@item.Description</span>
+                            <small>@item.Value</small>
+                        </div>
+                    }
+                </div>
+            </article>
+        </section>
+    </section>
+}
+
+</PermissionGuard>
+
+<style>
+    .dash-web-final {
+        display: grid;
+        gap: .65rem;
+        padding-bottom: 1rem;
+    }
+
+    .dash-hero-final {
+        background:
+            radial-gradient(circle at top right, rgba(208, 32, 224, .32), transparent 34%),
+            linear-gradient(135deg, #060009 0%, #250030 45%, #8a0b99 100%);
+        color: #fff;
+        border-radius: .85rem;
+        padding: .78rem 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .8rem;
+        box-shadow: 0 .65rem 1.3rem rgba(75, 0, 92, .20);
+    }
+
+    .dash-hero-final span {
+        display: block;
+        color: #fff;
+        font-size: .82rem;
+        font-weight: 950;
+    }
+
+    .dash-hero-final p {
+        margin: .12rem 0 0;
+        color: rgba(255,255,255,.86);
+        font-size: .86rem;
+        font-weight: 700;
+    }
+
+    .dash-hero-actions-final {
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+    }
+
+    .dash-hero-actions-final strong,
+    .dash-hero-actions-final button {
+        border-radius: .55rem;
+        color: #fff;
+        background: rgba(255,255,255,.14);
+        border: 1px solid rgba(255,255,255,.22);
+        padding: .43rem .65rem;
+        font-size: .76rem;
+        font-weight: 950;
+        white-space: nowrap;
+    }
+
+    .dash-kpis-final {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: .5rem;
+    }
+
+    .dash-kpis-final article {
+        background: #fff;
+        border-radius: .65rem;
+        border: 1px solid #eadff0;
+        border-left: 4px solid #7b0d8e;
+        padding: .55rem .65rem;
+        box-shadow: 0 .25rem .65rem rgba(75,0,92,.055);
+    }
+
+    .dash-kpis-final article.cyan { border-left-color: #2186d9; }
+    .dash-kpis-final article.green { border-left-color: #16a34a; }
+    .dash-kpis-final article.yellow { border-left-color: #f0a224; }
+    .dash-kpis-final article.red { border-left-color: #b4232e; }
+
+    .dash-kpis-final span {
+        display: block;
+        color: #1f1427;
+        font-size: .62rem;
+        font-weight: 950;
+    }
+
+    .dash-kpis-final strong {
+        display: block;
+        color: #060009;
+        font-size: 1.48rem;
+        font-weight: 950;
+        line-height: 1;
+    }
+
+    .dash-kpis-final small {
+        color: #55445f;
+        font-size: .64rem;
+        font-weight: 750;
+    }
+
+    .dash-main-grid-final {
+        display: grid;
+        grid-template-columns: 1.05fr 1fr 1fr 1.05fr 1.05fr;
+        gap: .65rem;
+        align-items: stretch;
+    }
+
+    .dash-card-final {
+        background: #fff;
+        border: 1px solid #eadff0;
+        border-radius: .82rem;
+        padding: .72rem;
+        box-shadow: 0 .28rem .75rem rgba(75,0,92,.055);
+        min-height: 132px;
+    }
+
+    .dash-card-final h3 {
+        margin: 0 0 .5rem;
+        color: #100018;
+        font-size: .92rem;
+        font-weight: 950;
+    }
+
+    .dash-local-list-final {
+        display: grid;
+        gap: .26rem;
+    }
+
+    .dash-local-list-final div {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: .55rem;
+        align-items: center;
+        font-size: .76rem;
+    }
+
+    .dash-local-label {
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        color: #24102e;
+        font-weight: 820;
+    }
+
+    .dash-local-list-final strong {
+        color: #0d0013;
+        font-weight: 950;
+    }
+
+    .dash-svg-icon {
+        width: 20px;
+        height: 20px;
+        display: inline-grid;
+        place-items: center;
+        border-radius: 50%;
+        border: 1px solid currentColor;
+        background: #fff;
+        flex: 0 0 auto;
+    }
+
+    .dash-svg-icon svg {
+        width: 13px;
+        height: 13px;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        fill: none;
+        display: block;
+    }
+
+    .dash-svg-icon.green { color: #16a34a; }
+    .dash-svg-icon.blue { color: #2186d9; }
+    .dash-svg-icon.cyan { color: #0ea5e9; }
+    .dash-svg-icon.yellow { color: #f0a224; }
+    .dash-svg-icon.red { color: #b4232e; }
+
+    .dash-card-head-final {
+        display: flex;
+        justify-content: space-between;
+        gap: .5rem;
+        align-items: center;
+        margin-bottom: .3rem;
+    }
+
+    .dash-tabs-final {
+        display: flex;
+        gap: .25rem;
+    }
+
+    .dash-tabs-final span {
+        background: #7b0d8e;
+        color: #fff;
+        border-radius: .45rem;
+        padding: .25rem .5rem;
+        font-size: .68rem;
+        font-weight: 950;
+    }
+
+    .dash-tabs-final span + span {
+        background: #f7eef9;
+        color: #32103d;
+        border: 1px solid #eadff0;
+    }
+
+    .dash-maintenance-centered-final {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: .45rem;
+        height: calc(100% - 1.8rem);
+        align-content: center;
+    }
+
+    .dash-maintenance-centered-final div {
+        text-align: center;
+        border-radius: .65rem;
+        border: 1px solid #eadff0;
+        background: #fbf6fd;
+        padding: .5rem;
+    }
+
+    .dash-maintenance-centered-final span {
+        display: block;
+        color: #5b4666;
+        font-size: .68rem;
+        font-weight: 850;
+    }
+
+    .dash-maintenance-centered-final strong {
+        display: block;
+        color: #0c0012;
+        font-size: 1.2rem;
+        font-weight: 950;
+        line-height: 1;
+        margin-top: .15rem;
+    }
+
+    .dash-vs-metrics-final {
+        height: calc(100% - 1.6rem);
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: .55rem;
+        align-items: center;
+    }
+
+    .dash-vs-metrics-final div {
+        text-align: center;
+        border-radius: .7rem;
+        background: #fbf6fd;
+        border: 1px solid #eadff0;
+        padding: .7rem .5rem;
+    }
+
+    .dash-vs-metrics-final span {
+        display: block;
+        color: #564260;
+        font-size: .72rem;
+        font-weight: 850;
+    }
+
+    .dash-vs-metrics-final strong {
+        display: block;
+        color: #060009;
+        font-size: 2rem;
+        font-weight: 950;
+        line-height: 1;
+        margin-top: .25rem;
+    }
+
+    .dash-chart-card-final {
+        min-height: 178px;
+    }
+
+    .dash-chart-card-final.equal {
+        min-height: 196px;
+    }
+
+    .dash-chart-layout-final {
+        display: grid;
+        grid-template-columns: 140px 1fr;
+        align-items: center;
+        gap: .7rem;
+    }
+
+    .dash-chart-layout-final.compact {
+        grid-template-columns: 112px 1fr;
+    }
+
+    .dash-donut-final {
+        border-radius: 50%;
+        position: relative;
+        display: grid;
+        place-items: center;
+        box-shadow:
+            inset 0 0 0 1px rgba(75,0,92,.12),
+            0 .25rem .6rem rgba(75,0,92,.08);
+    }
+
+    .dash-donut-final.xl {
+        width: 132px;
+        height: 132px;
+    }
+
+    .dash-donut-final.md {
+        width: 104px;
+        height: 104px;
+    }
+
+    .dash-donut-final::after {
+        content: "";
+        position: absolute;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: inset 0 0 0 1px #eadff0;
+    }
+
+    .dash-donut-final.xl::after {
+        inset: 27px;
+    }
+
+    .dash-donut-final.md::after {
+        inset: 22px;
+    }
+
+    .dash-donut-center-final {
+        position: relative;
+        z-index: 1;
+        text-align: center;
+    }
+
+    .dash-donut-center-final strong {
+        display: block;
+        color: #07000d;
+        font-size: 1.22rem;
+        font-weight: 950;
+        line-height: 1;
+    }
+
+    .dash-donut-center-final span {
+        display: block;
+        color: #5d4a67;
+        font-size: .58rem;
+        font-weight: 850;
+        margin-top: .2rem;
+    }
+
+    .dash-legend-final {
+        display: grid;
+        gap: .3rem;
+        font-size: .72rem;
+    }
+
+    .dash-legend-final.compact {
+        font-size: .68rem;
+        gap: .23rem;
+    }
+
+    .dash-legend-final div {
+        display: grid;
+        grid-template-columns: 9px 1fr auto auto;
+        gap: .32rem;
+        align-items: center;
+    }
+
+    .dash-legend-final.compact div {
+        grid-template-columns: 9px 1fr auto;
+    }
+
+    .dash-legend-final i {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .dash-legend-final .purple { background: #7b0d8e; }
+    .dash-legend-final .blue { background: #2186d9; }
+    .dash-legend-final .orange { background: #f0a224; }
+    .dash-legend-final .red { background: #b4232e; }
+    .dash-legend-final .gray { background: #64748b; }
+
+    .dash-legend-final span {
+        color: #2a1734;
+        font-weight: 800;
+    }
+
+    .dash-legend-final strong {
+        color: #0a0010;
+        font-weight: 950;
+    }
+
+    .dash-legend-final small {
+        color: #66536f;
+        font-weight: 850;
+    }
+
+    .dash-branch-bars-final {
+        height: 138px;
+        display: grid;
+        grid-template-columns: repeat(8, 1fr);
+        gap: .48rem;
+        align-items: end;
+        border-left: 1px solid #eadff0;
+        border-bottom: 1px solid #eadff0;
+        padding: .25rem .3rem 0;
+    }
+
+    .dash-branch-bars-final div {
+        height: 100%;
+        display: grid;
+        align-items: end;
+        text-align: center;
+    }
+
+    .dash-branch-bars-final strong {
+        display: block;
+        min-height: 8px;
+        border-radius: .36rem .36rem 0 0;
+    }
+
+    .dash-branch-bars-final span {
+        display: block;
+        margin-top: .2rem;
+        color: #3f3048;
+        font-size: .6rem;
+        font-weight: 900;
+    }
+
+    .dash-branch-bars-final small {
+        display: block;
+        color: #6b5a73;
+        font-size: .55rem;
+        font-weight: 850;
+    }
+
+    .dash-table-card-final {
+        grid-column: span 3;
+        min-height: 304px;
+    }
+
+    .dash-table-final {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: .72rem;
+    }
+
+    .dash-table-final th {
+        color: #160020;
+        border-bottom: 1px solid #d9cce3;
+        padding: .32rem;
+        font-size: .68rem;
+        text-align: left;
+    }
+
+    .dash-table-final td {
+        border-bottom: 1px solid #f0e7f5;
+        padding: .34rem .32rem;
+        vertical-align: middle;
+    }
+
+    .dash-branch-name-final {
+        display: flex;
+        align-items: center;
+        gap: .35rem;
+        white-space: nowrap;
+    }
+
+    .dash-branch-name-final strong {
+        color: #0a0010;
+        font-size: .74rem;
+        font-weight: 950;
+    }
+
+    .dash-branch-name-final span {
+        color: #5c4a66;
+        font-size: .68rem;
+        font-weight: 750;
+    }
+
+    .dash-difference-final {
+        min-width: 34px;
+        display: inline-flex;
+        justify-content: center;
+        border: 1px solid rgba(180, 35, 46, .35);
+        color: #9f1239;
+        background: #fff1f2;
+        border-radius: .35rem;
+        padding: .16rem .3rem;
+        font-weight: 950;
+    }
+
+    .dash-progress-final {
+        height: 8px;
+        border-radius: 999px;
+        background: #ffffff;
+        border: 1px solid #eadff0;
+        overflow: hidden;
+    }
+
+    .dash-progress-final span {
+        display: block;
+        height: 100%;
+        background: linear-gradient(90deg, #7b0d8e 0%, #2186d9 100%);
+    }
+
+    .dash-table-final small {
+        color: #6d5b76;
+        font-size: .62rem;
+        font-weight: 800;
+    }
+
+    .dash-mini-card-final {
+        min-height: 134px;
+    }
+
+    .dash-mini-metrics-final {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: .5rem;
+        align-items: center;
+        height: calc(100% - 1.6rem);
+    }
+
+    .dash-mini-metrics-final div {
+        text-align: center;
+        border-right: 1px solid #eadff0;
+    }
+
+    .dash-mini-metrics-final div:last-child {
+        border-right: 0;
+    }
+
+    .dash-mini-metrics-final strong {
+        display: block;
+        color: #0a0010;
+        font-size: 1.6rem;
+        font-weight: 950;
+        line-height: 1;
+    }
+
+    .dash-mini-metrics-final span {
+        color: #55445f;
+        font-size: .7rem;
+        font-weight: 850;
+    }
+
+    .dash-actions-final {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .4rem;
+    }
+
+    .dash-mini-card-final p {
+        color: #5d4a67;
+        font-size: .75rem;
+        margin: 0 0 .55rem;
+    }
+
+    .dash-actions-final a {
+        text-decoration: none;
+        border-radius: .45rem;
+        padding: .38rem .58rem;
+        color: #fff;
+        background: linear-gradient(135deg, #7b0d8e, #4b005c);
+        font-size: .7rem;
+        font-weight: 900;
+    }
+
+    .dash-column-card-final {
+        grid-column: span 2;
+        min-height: 210px;
+    }
+
+    .dash-history-final,
+    .dash-pending-final {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: .45rem;
+    }
+
+    .dash-history-final div,
+    .dash-pending-final div {
+        border: 1px solid #eadff0;
+        background: #fbf7fd;
+        border-radius: .65rem;
+        padding: .55rem;
+    }
+
+    .dash-history-final strong,
+    .dash-pending-final strong {
+        display: block;
+        color: #12001b;
+        font-size: .74rem;
+        font-weight: 950;
+    }
+
+    .dash-history-final span,
+    .dash-pending-final span {
+        display: block;
+        color: #4d3a58;
+        font-size: .66rem;
+        margin-top: .15rem;
+    }
+
+    .dash-history-final small,
+    .dash-pending-final small {
+        display: block;
+        color: #765d82;
+        font-size: .62rem;
+        margin-top: .25rem;
+        font-weight: 800;
+    }
+
+    @@media (max-width: 1500px) {
+        .dash-kpis-final {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .dash-main-grid-final {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .dash-table-card-final,
+        .dash-column-card-final {
+            grid-column: span 2;
+        }
+    }
+
+    @@media (max-width: 900px) {
+        .dash-hero-final,
+        .dash-hero-actions-final,
+        .dash-card-head-final {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .dash-kpis-final,
+        .dash-main-grid-final {
+            grid-template-columns: 1fr;
+        }
+
+        .dash-table-card-final,
+        .dash-column-card-final {
+            grid-column: span 1;
+            overflow-x: auto;
+        }
+
+        .dash-history-final,
+        .dash-pending-final {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+@code {
+    private bool isLoading;
+    private string? errorMessage;
+    private ExecutiveDashboard? dashboard;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardAsync();
+    }
+
+    private async Task LoadDashboardAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+            dashboard = await client.GetFromJsonAsync<ExecutiveDashboard>("api/dashboard/executive");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo cargar el dashboard. Valida que la API esté activa en http://localhost:5218. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private int GetInProcess()
+    {
+        if (dashboard is null)
+        {
+            return 0;
+        }
+
+        return dashboard.Summary.AssignedTools + dashboard.Summary.LoanedTools + dashboard.Summary.InMaintenanceTools;
+    }
+
+    private int GetPendingTotal()
+    {
+        if (dashboard is null)
+        {
+            return 0;
+        }
+
+        return dashboard.Summary.PendingValidationTools + dashboard.Summary.WithoutLifeRecord;
+    }
+
+    private int GetDifferences()
+    {
+        if (dashboard is null)
+        {
+            return 0;
+        }
+
+        return dashboard.Summary.DamagedTools + dashboard.Summary.NotLocatedTools + dashboard.Summary.PendingValidationTools;
+    }
+
+    private int GetAdvancePercent()
+    {
+        if (dashboard is null || dashboard.Summary.TotalTools <= 0)
+        {
+            return 0;
+        }
+
+        return Math.Min(100, Math.Max(0, (int)Math.Round((decimal)dashboard.Summary.WithLifeRecord / dashboard.Summary.TotalTools * 100)));
+    }
+
+    private int GetOtherMaintenance()
+    {
+        if (dashboard is null)
+        {
+            return 0;
+        }
+
+        return Math.Max(0, dashboard.MaintenanceSummary.Total - dashboard.MaintenanceSummary.ThisMonth - dashboard.MaintenanceSummary.Today);
+    }
+
+    private int GetMaintenanceTotalForChart()
+    {
+        if (dashboard is null)
+        {
+            return 0;
+        }
+
+        return dashboard.Summary.AssignedTools + dashboard.Summary.AvailableTools + dashboard.Summary.PendingValidationTools + dashboard.Summary.InMaintenanceTools;
+    }
+
+    private int GetOtherLifeRecords()
+    {
+        if (dashboard is null)
+        {
+            return 0;
+        }
+
+        return Math.Max(0, dashboard.Summary.TotalTools - dashboard.Summary.WithLifeRecord - dashboard.Summary.WithoutLifeRecord);
+    }
+
+    private int GetBranchAssigned(int total)
+    {
+        return Math.Max(0, total);
+    }
+
+    private int GetBranchValidated(int total)
+    {
+        var pending = GetBranchPending(total);
+        var diff = GetBranchDifferences(total);
+
+        return Math.Max(0, total - pending - diff);
+    }
+
+    private int GetBranchPending(int total)
+    {
+        return Math.Max(0, (int)Math.Round(total * 0.08m));
+    }
+
+    private int GetBranchDifferences(int total)
+    {
+        if (dashboard is null || dashboard.Summary.TotalTools <= 0)
+        {
+            return 0;
+        }
+
+        var totalDiff = GetDifferences();
+
+        return Math.Max(0, (int)Math.Round((decimal)total / dashboard.Summary.TotalTools * totalDiff));
+    }
+
+    private int GetBranchAdvance(int total)
+    {
+        if (total <= 0)
+        {
+            return 0;
+        }
+
+        var valid = GetBranchValidated(total);
+
+        return Math.Min(100, Math.Max(0, (int)Math.Round((decimal)valid / total * 100)));
+    }
+
+    private int GetMaxBranch()
+    {
+        if (dashboard is null || dashboard.ToolsByBranch.Count == 0)
+        {
+            return 1;
+        }
+
+        return Math.Max(1, dashboard.ToolsByBranch.Max(x => x.Total));
+    }
+
+    private IEnumerable<BranchChartItem> GetBranchChartItems()
+    {
+        if (dashboard is null)
+        {
+            return Enumerable.Empty<BranchChartItem>();
+        }
+
+        return dashboard.ToolsByBranch.Take(8).Select((branch, index) => new BranchChartItem(branch, index));
+    }
+
+    private string GetBranchBarStyle(int value, int index)
+    {
+        var percent = GetPercent(value, GetMaxBranch());
+
+        var colors = new[]
+        {
+            "#7b0d8e",
+            "#2186d9",
+            "#f0a224",
+            "#16a34a",
+            "#b4232e",
+            "#0ea5e9",
+            "#8b5cf6",
+            "#64748b"
+        };
+
+        var color = colors[index % colors.Length];
+
+        return $"height:{percent}%; background:{color};";
+    }
+
+    private static int GetPercent(int value, int max)
+    {
+        if (value <= 0 || max <= 0)
+        {
+            return 0;
+        }
+
+        return Math.Max(5, (int)Math.Round((decimal)value / max * 100));
+    }
+
+    private string GetToolsVsAssetsDonut()
+    {
+        if (dashboard is null)
+        {
+            return "background:#eee;";
+        }
+
+        return GetDonutStyle(
+            dashboard.Summary.ToolsOnly,
+            dashboard.Summary.FixedAssets,
+            dashboard.Summary.ToolsWithoutFixedAssetCode);
+    }
+
+    private string GetLifeRecordDonut()
+    {
+        if (dashboard is null)
+        {
+            return "background:#eee;";
+        }
+
+        return GetDonutStyle(
+            dashboard.Summary.WithLifeRecord,
+            dashboard.Summary.WithoutLifeRecord,
+            dashboard.LifeRecordCoverage.MissingTechnicalData);
+    }
+
+    private string GetMaintenanceDonut()
+    {
+        if (dashboard is null)
+        {
+            return "background:#eee;";
+        }
+
+        var assigned = dashboard.Summary.AssignedTools;
+        var available = dashboard.Summary.AvailableTools;
+        var pending = dashboard.Summary.PendingValidationTools + dashboard.Summary.InMaintenanceTools;
+
+        return GetDonutStyle(assigned, available, pending);
+    }
+
+    private static string GetDonutStyle(int first, int second, int third)
+    {
+        var total = Math.Max(1, first + second + third);
+        var p1 = Math.Round((decimal)first / total * 100, 2);
+        var p2 = Math.Round((decimal)second / total * 100, 2);
+        var p12 = p1 + p2;
+
+        return $"background: conic-gradient(#7b0d8e 0 {p1}%, #2186d9 {p1}% {p12}%, #f0a224 {p12}% 100%);";
+    }
+
+    private static string GetPercentLabel(int value, int total)
+    {
+        if (value <= 0 || total <= 0)
+        {
+            return "0%";
+        }
+
+        return $"{Math.Round((decimal)value / total * 100, 1)}%";
+    }
+
+    private IEnumerable<PendingDashboardItem> GetPendingItems()
+    {
+        if (dashboard is null)
+        {
+            return Enumerable.Empty<PendingDashboardItem>();
+        }
+
+        var items = new List<PendingDashboardItem>
+        {
+            new("Pendientes validación", "Herramientas pendientes por validar", dashboard.Summary.PendingValidationTools.ToString()),
+            new("Sin hoja de vida", "Activos sin hoja de vida técnica", dashboard.Summary.WithoutLifeRecord.ToString()),
+            new("Requieren mantenimiento", "Activos marcados para mantenimiento", dashboard.Summary.RequiresMaintenance.ToString()),
+            new("Datos incompletos", "Hojas de vida con datos técnicos faltantes", dashboard.LifeRecordCoverage.MissingTechnicalData.ToString())
+        };
+
+        foreach (var branch in dashboard.ToolsByBranch.Take(4))
+        {
+            items.Add(new(
+                $"Pendiente {branch.BranchCode}",
+                branch.BranchName,
+                GetBranchPending(branch.Total).ToString()));
+        }
+
+        return items;
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "Sin dato" : value;
+    }
+
+    private static MarkupString GetMiniIcon(string key)
+    {
+        var svg = key switch
+        {
+            "total" => "<svg viewBox='0 0 24 24'><path d='M4 7l8-4 8 4-8 4-8-4z'/><path d='M4 7v10l8 4 8-4V7'/></svg>",
+            "check" => "<svg viewBox='0 0 24 24'><path d='M5 12l4 4L19 6'/></svg>",
+            "user" => "<svg viewBox='0 0 24 24'><circle cx='12' cy='8' r='4'/><path d='M4 21c1.5-4 14.5-4 16 0'/></svg>",
+            "tool" => "<svg viewBox='0 0 24 24'><path d='M14 6l4 4'/><path d='M4 20l6-6'/><path d='M11 5a5 5 0 0 0 6 6l-7 7a3 3 0 0 1-4-4l7-7z'/></svg>",
+            "clock" => "<svg viewBox='0 0 24 24'><circle cx='12' cy='12' r='8'/><path d='M12 8v5l3 2'/></svg>",
+            "close" => "<svg viewBox='0 0 24 24'><circle cx='12' cy='12' r='8'/><path d='M9 9l6 6'/><path d='M15 9l-6 6'/></svg>",
+            _ => "<svg viewBox='0 0 24 24'><path d='M5 5h14v14H5z'/></svg>"
+        };
+
+        return new MarkupString(svg);
+    }
+
+    private sealed record BranchChartItem(BranchItem Branch, int Index);
+
+    private sealed record PendingDashboardItem(string Title, string Description, string Value);
+
+    private sealed class ExecutiveDashboard
+    {
+        public DateTime GeneratedAt { get; set; }
+        public DashboardSummary Summary { get; set; } = new();
+        public List<StatusItem> ToolsByStatus { get; set; } = new();
+        public List<BranchItem> ToolsByBranch { get; set; } = new();
+        public List<MaintenancePeriodItem> MaintenanceByMonth { get; set; } = new();
+        public List<MaintenancePeriodItem> MaintenanceByDay { get; set; } = new();
+        public LifeRecordCoverage LifeRecordCoverage { get; set; } = new();
+        public MaintenanceSummary MaintenanceSummary { get; set; } = new();
+        public DocumentSummary DocumentSummary { get; set; } = new();
+        public PurchaseSummary PurchaseSummary { get; set; } = new();
+        public List<RecentActivityItem> RecentActivity { get; set; } = new();
+    }
+
+    private sealed class DashboardSummary
+    {
+        public int TotalTools { get; set; }
+        public int AvailableTools { get; set; }
+        public int PendingValidationTools { get; set; }
+        public int AssignedTools { get; set; }
+        public int LoanedTools { get; set; }
+        public int InMaintenanceTools { get; set; }
+        public int DamagedTools { get; set; }
+        public int NotLocatedTools { get; set; }
+        public int DisposedTools { get; set; }
+        public int FixedAssets { get; set; }
+        public int ToolsWithoutFixedAssetCode { get; set; }
+        public int ToolsOnly { get; set; }
+        public int NonToolAssets { get; set; }
+        public int SpecializedTools { get; set; }
+        public int RequiresMaintenance { get; set; }
+        public int ActiveResponsibles { get; set; }
+        public int InactiveResponsibles { get; set; }
+        public int ActiveBranches { get; set; }
+        public int InactiveBranches { get; set; }
+        public int WithLifeRecord { get; set; }
+        public int WithoutLifeRecord { get; set; }
+    }
+
+    private sealed class StatusItem
+    {
+        public string Status { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
+    private sealed class BranchItem
+    {
+        public string BranchCode { get; set; } = string.Empty;
+        public string BranchName { get; set; } = string.Empty;
+        public int Total { get; set; }
+    }
+
+    private sealed class MaintenancePeriodItem
+    {
+        public string Label { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
+    private sealed class LifeRecordCoverage
+    {
+        public int MissingTechnicalData { get; set; }
+        public List<MissingTechnicalItem> MissingTechnicalDataItems { get; set; } = new();
+    }
+
+    private sealed class MissingTechnicalItem
+    {
+        public string InternalCode { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? BranchCode { get; set; }
+        public string? Missing { get; set; }
+    }
+
+    private sealed class MaintenanceSummary
+    {
+        public int Total { get; set; }
+        public int ThisMonth { get; set; }
+        public int Today { get; set; }
+    }
+
+    private sealed class DocumentSummary
+    {
+        public int Total { get; set; }
+        public List<DocumentItem> Recent { get; set; } = new();
+    }
+
+    private sealed class DocumentItem
+    {
+        public string FileName { get; set; } = string.Empty;
+        public string DocumentType { get; set; } = string.Empty;
+        public DateTime UploadedAt { get; set; }
+        public string? UploadedBy { get; set; }
+    }
+
+    private sealed class PurchaseSummary
+    {
+        public int Total { get; set; }
+        public int Completed { get; set; }
+        public int Pending { get; set; }
+        public int Rejected { get; set; }
+        public string ModuleStatus { get; set; } = string.Empty;
+        public string Note { get; set; } = string.Empty;
+    }
+
+    private sealed class RecentActivityItem
+    {
+        public string EventType { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string? ToolInternalCode { get; set; }
+        public DateTime RegisteredAt { get; set; }
+        public string? User { get; set; }
+    }
+}

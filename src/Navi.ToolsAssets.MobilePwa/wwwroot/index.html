@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -27,10 +27,110 @@
     <div id="blazor-error-ui">
         An unhandled error has occurred.
         <a href="" class="reload">Reload</a>
-        <a class="dismiss">🗙</a>
+        <a class="dismiss">ðŸ—™</a>
     </div>
     <script src="_framework/blazor.webassembly.js"></script>
-    <script>navigator.serviceWorker.register('service-worker.js');</script>
+    
+
+<script id="navi-dev-clear-sw">
+    if (location.hostname === "localhost" && "serviceWorker" in navigator) {
+        navigator.serviceWorker.getRegistrations()
+            .then(registrations => registrations.forEach(registration => registration.unregister()));
+
+        if ("caches" in window) {
+            caches.keys().then(keys => keys.forEach(key => caches.delete(key)));
+        }
+    }
+</script>
+
+<script id="navi-dev-disable-service-worker">
+    if (location.hostname === "localhost" && "serviceWorker" in navigator) {
+        navigator.serviceWorker.getRegistrations()
+            .then(registrations => registrations.forEach(registration => registration.unregister()));
+
+        if ("caches" in window) {
+            caches.keys().then(keys => keys.forEach(key => caches.delete(key)));
+        }
+    }
+</script>
+<!-- NAVI DEV CLEAR CACHE START -->
+<script id="navi-dev-clear-cache">
+(function () {
+    if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.getRegistrations()
+            .then(function (registrations) {
+                registrations.forEach(function (registration) {
+                    registration.unregister();
+                });
+            })
+            .catch(function () { });
+    }
+
+    if ("caches" in window) {
+        caches.keys()
+            .then(function (keys) {
+                keys.forEach(function (key) {
+                    caches.delete(key);
+                });
+            })
+            .catch(function () { });
+    }
+})();
+</script>
+<!-- NAVI DEV CLEAR CACHE END -->
+<!-- NAVI MOBILE BACK HELPER START -->
+<script>
+    window.naviMobileBackOrHome = function () {
+        if (window.history && window.history.length > 1) {
+            window.history.back();
+            return;
+        }
+
+        window.location.href = "/";
+    };
+</script>
+<!-- NAVI MOBILE BACK HELPER END -->
+<!-- NAVI MOBILE LIFE RETURN URL START -->
+<script>
+(function () {
+    document.addEventListener("click", function (event) {
+        var target = event.target;
+
+        if (!target || !target.closest) {
+            return;
+        }
+
+        var link = target.closest("a[href]");
+
+        if (!link) {
+            return;
+        }
+
+        var href = link.getAttribute("href");
+
+        if (!href || href.indexOf("/life-record") < 0) {
+            return;
+        }
+
+        if (href.indexOf("returnUrl=") >= 0) {
+            return;
+        }
+
+        var url = new URL(href, window.location.origin);
+        var current = window.location.pathname + window.location.search;
+
+        url.searchParams.set("returnUrl", current);
+
+        link.setAttribute("href", url.pathname + url.search + url.hash);
+    }, true);
+})();
+</script>
+<!-- NAVI MOBILE LIFE RETURN URL END -->
 </body>
 
 </html>
+
+
+
+
+

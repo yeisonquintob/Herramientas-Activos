@@ -1,0 +1,199 @@
+﻿@page "/report-damage"
+@page "/report-damage/{ToolId:guid}"
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Reportar novedad - NAVI Herramientas y AF</PageTitle>
+
+<section class="mobile-page">
+    <header class="mobile-hero compact">
+        <div class="mobile-hero-top">
+            <button class="mobile-back-button" type="button" @onclick="GoBack">Regresar</button>
+            <span class="mobile-pill">DAÑOS Y NOVEDADES</span>
+        </div>
+        <h1>Reportar novedad</h1>
+        <p>Registra una falla, daño, hallazgo o condición no segura.</p>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <div class="@messageClass">@message</div>
+    }
+
+    <section class="mobile-form-card">
+        <EditForm Model="model" OnValidSubmit="SubmitAsync">
+            @if (ToolId is null)
+            {
+                <label>
+                    Herramienta / activo
+                    <InputSelect class="mobile-input" @bind-Value="model.ToolAssetId">
+                        <option value="">Seleccione herramienta</option>
+                        @foreach (var tool in tools)
+                        {
+                            <option value="@tool.Id">@tool.InternalCode - @tool.Name</option>
+                        }
+                    </InputSelect>
+                </label>
+
+                <label>
+                    O ingresar código manual
+                    <InputText class="mobile-input" @bind-Value="model.ToolInternalCode" placeholder="Ejemplo: TAL-001" />
+                </label>
+            }
+            else
+            {
+                <div class="mobile-selected-tool">
+                    <span>Herramienta seleccionada</span>
+                    <strong>@SelectedToolLabel</strong>
+                </div>
+            }
+
+            <label>
+                Severidad
+                <InputSelect class="mobile-input" @bind-Value="model.Severity">
+                    <option value="Low">Baja</option>
+                    <option value="Medium">Media</option>
+                    <option value="High">Alta</option>
+                    <option value="Critical">Crítica</option>
+                </InputSelect>
+            </label>
+
+            <label>
+                Descripción
+                <InputTextArea class="mobile-input mobile-textarea"
+                               @bind-Value="model.Description"
+                               placeholder="Describe la falla, daño, ubicación, condición o evidencia observada..." />
+            </label>
+
+            <label class="mobile-check-row">
+                <InputCheckbox @bind-Value="model.BlocksLoanValue" />
+                <span>Bloquea préstamo o uso hasta revisión</span>
+            </label>
+
+            <button class="mobile-primary-button" type="submit" disabled="@isSaving">
+                @(isSaving ? "Enviando..." : "Enviar reporte")
+            </button>
+        </EditForm>
+    </section>
+</section>
+
+@code {
+    [Parameter]
+    public Guid? ToolId { get; set; }
+
+    private bool isSaving;
+    private string? message;
+    private string messageClass = "mobile-alert";
+    private List<MobileToolDto> tools = new();
+    private ReportForm model = new();
+
+    private string SelectedToolLabel =>
+        tools.FirstOrDefault(x => x.Id == ToolId) is { } tool
+            ? $"{tool.InternalCode} - {tool.Name}"
+            : ToolId?.ToString() ?? "Sin herramienta";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        model.Severity = "Low";
+        model.BlocksLoanValue = true;
+
+        try
+        {
+            tools = await Api.GetToolsAsync();
+
+            if (ToolId.HasValue)
+            {
+                model.ToolAssetId = ToolId;
+            }
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        message = null;
+
+        if (model.ToolAssetId is null && string.IsNullOrWhiteSpace(model.ToolInternalCode))
+        {
+            ShowError("Debe seleccionar una herramienta o ingresar el código.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(model.Description))
+        {
+            ShowError("Debe ingresar la descripción de la novedad.");
+            return;
+        }
+
+        isSaving = true;
+
+        try
+        {
+            var response = await Api.ReportDamageAsync(new MobileDamageReportRequest
+            {
+                ToolAssetId = model.ToolAssetId,
+                ToolInternalCode = model.ToolInternalCode,
+                Severity = model.Severity,
+                Description = model.Description,
+                ReportedBy = Auth.AuditUser,
+                BlocksLoan = model.BlocksLoanValue
+            });
+
+            messageClass = "mobile-success";
+            message = $"Reporte creado correctamente: {response.ReportNumber}";
+
+            model = new ReportForm
+            {
+                Severity = "Low",
+                BlocksLoanValue = true
+            };
+
+            if (ToolId.HasValue)
+            {
+                model.ToolAssetId = ToolId;
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowError(ex.Message);
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private void ShowError(string value)
+    {
+        messageClass = "mobile-alert";
+        message = value;
+    }
+
+    private sealed class ReportForm
+    {
+        public Guid? ToolAssetId { get; set; }
+        public string? ToolInternalCode { get; set; }
+        public string? Severity { get; set; }
+        public string? Description { get; set; }
+        public bool BlocksLoanValue { get; set; } = true;
+    }
+}
+

@@ -1,0 +1,83 @@
+﻿namespace Navi.ToolsAssets.MobilePwa.Models;
+
+public sealed class MobileLoanRequestForm
+{
+    public Guid? ToolId { get; set; }
+    public DateTime? ExpectedReturnAt { get; set; } = DateTime.Today.AddDays(7);
+    public string? Notes { get; set; }
+}
+
+public sealed class MobileLoanRequestCreateDto
+{
+    public string BranchCode { get; set; } = string.Empty;
+    public Guid? RequestedByPersonId { get; set; }
+    public string[] ToolInternalCodes { get; set; } = Array.Empty<string>();
+    public DateTime? ExpectedReturnAt { get; set; }
+    public string? DeliveryCondition { get; set; }
+    public string? Notes { get; set; }
+    public string? RequestedBy { get; set; }
+}
+
+public sealed class MobileLoanActionDto
+{
+    public string? ActionBy { get; set; }
+    public string? Notes { get; set; }
+    public string? Condition { get; set; }
+}
+
+public sealed class MobileLoanRequestDto
+{
+    public Guid Id { get; set; }
+    public string LoanNumber { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public Guid? RequestedByPersonId { get; set; }
+    public DateTime? RequestedAt { get; set; }
+    public DateTime? ApprovedAt { get; set; }
+    public DateTime? DeliveredAt { get; set; }
+    public DateTime? ExpectedReturnAt { get; set; }
+    public DateTime? ReturnedAt { get; set; }
+    public string? Notes { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public string? CreatedBy { get; set; }
+    public List<MobileLoanItemDto> Items { get; set; } = new();
+}
+
+public sealed class MobileLoanItemDto
+{
+    public Guid Id { get; set; }
+    public Guid ToolAssetId { get; set; }
+    public string? ToolInternalCode { get; set; }
+    public string? ToolName { get; set; }
+    public bool Returned { get; set; }
+}
+
+public sealed class MobileResponsibleDto
+{
+    public Guid Id { get; set; }
+    public string FullName { get; set; } = string.Empty;
+    public string? Position { get; set; }
+    public string? BranchCode { get; set; }
+    public string? BranchName { get; set; }
+}
+
+public sealed class MobileDirectAssignmentRequest
+{
+    public string AssignmentType { get; set; } = "Responsible";
+    public Guid? ResponsiblePersonId { get; set; }
+    public Guid? BranchId { get; set; }
+    public Guid? LocationId { get; set; }
+    public DateTime? AssignmentDate { get; set; } = DateTime.Today;
+    public string? Observation { get; set; }
+    public string? ChangedBy { get; set; }
+}
+
+public sealed class MobileDirectAssignmentForm
+{
+    public Guid? ToolId { get; set; }
+    public string AssignmentType { get; set; } = "Responsible";
+    public Guid? ResponsiblePersonId { get; set; }
+    public Guid? BranchId { get; set; }
+    public Guid? LocationId { get; set; }
+    public DateTime? AssignmentDate { get; set; } = DateTime.Today;
+    public string? Observation { get; set; }
+}

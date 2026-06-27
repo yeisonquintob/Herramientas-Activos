@@ -1,0 +1,726 @@
+﻿@page "/mobile/assignment"
+
+@using Microsoft.AspNetCore.Components
+@using Navi.ToolsAssets.MobilePwa.Models
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Asignar AF móvil - NAVI Herramientas y AF</PageTitle>
+
+<section class="mobile-page mobile-assignment-page">
+    @if (isLoading)
+    {
+        <div class="mobile-loading">Cargando asignaciones móviles...</div>
+    }
+    else if (!Auth.IsAuthenticated)
+    {
+        <div class="mobile-empty">
+            <strong>Sesión requerida</strong>
+            <span>Debes iniciar sesión para usar asignaciones móviles.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+        </div>
+    }
+    else
+    {
+        <header class="mobile-assignment-hero">
+            <div class="mobile-assignment-hero-top">
+                <span>ASIGNAR AF</span>
+                <button type="button" @onclick="GoHome">Regresar</button>
+            </div>
+
+            <h1>Asignar móvil</h1>
+            <p>Solicitudes, aprobaciones, historial por usuario y activos disponibles.</p>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(message))
+        {
+            <div class="@messageClass">@message</div>
+        }
+
+        <section class="mobile-assignment-kpis">
+            <article>
+                <strong>@PendingRequests.Count()</strong>
+                <span>Pendientes</span>
+            </article>
+
+            <article>
+                <strong>@ApprovedOrDeliveredCount</strong>
+                <span>Aprobadas</span>
+            </article>
+
+            <article>
+                <strong>@FilteredTools.Count()</strong>
+                <span>Activos</span>
+            </article>
+        </section>
+
+        <section class="mobile-assignment-card">
+            <div class="mobile-assignment-card-head">
+                <div>
+                    <strong>Aprobaciones</strong>
+                    <span>Solicitudes pendientes para aprobar o denegar</span>
+                </div>
+
+                <button type="button" @onclick="ReloadAsync">Actualizar</button>
+            </div>
+
+            @if (!PendingRequests.Any())
+            {
+                <div class="mobile-assignment-empty">No hay solicitudes pendientes.</div>
+            }
+            else
+            {
+                <div class="mobile-approval-list">
+                    @foreach (var request in PendingRequests.Take(10))
+                    {
+                        var item = request.Items.FirstOrDefault();
+
+                        <article>
+                            <div class="mobile-approval-info">
+                                <span>@request.LoanNumber</span>
+                                <strong>@Display(item?.ToolInternalCode) - @Display(item?.ToolName)</strong>
+                                <small>Solicita: @Display(request.CreatedBy) · @ShowDate(request.RequestedAt)</small>
+                            </div>
+
+                            <div class="mobile-approval-actions">
+                                <button class="approve" type="button" disabled="@isSaving" @onclick="() => ApproveAsync(request)">
+                                    Aprobar
+                                </button>
+
+                                <button class="deny" type="button" disabled="@isSaving" @onclick="() => DenyAsync(request)">
+                                    Denegar
+                                </button>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="mobile-assignment-card">
+            <div class="mobile-assignment-card-head">
+                <div>
+                    <strong>Nueva solicitud</strong>
+                    <span>Busca una herramienta y crea una solicitud para tu usuario</span>
+                </div>
+            </div>
+
+            <div class="mobile-assignment-user">
+                <span>Solicitante</span>
+                <strong>@CurrentResponsibleLabel</strong>
+            </div>
+
+            <label class="mobile-field">
+                <span>Buscar herramienta</span>
+                <input value="@requestSearch"
+                       @oninput="OnRequestSearchChanged"
+                       placeholder="Código, nombre, serial o sede..." />
+            </label>
+
+            @if (!string.IsNullOrWhiteSpace(requestSearch))
+            {
+                <div class="mobile-request-results">
+                    @if (!RequestTools.Any())
+                    {
+                        <div class="mobile-assignment-empty">No se encontraron herramientas.</div>
+                    }
+                    else
+                    {
+                        @foreach (var tool in RequestTools.Take(8))
+                        {
+                            var selected = requestForm.ToolId == tool.Id;
+
+                            <button type="button"
+                                    class="mobile-request-result @(selected ? "selected" : "")"
+                                    @onclick="() => SelectRequestTool(tool)">
+                                <span>
+                                    <strong>@tool.InternalCode</strong>
+                                    <small>@tool.Name</small>
+                                    <small>@Display(tool.BranchCode) · @Display(tool.LocationName)</small>
+                                </span>
+
+                                <em class="@GetToolStateClass(tool)">
+                                    @GetStatusLabel(tool.OperationalStatus)
+                                </em>
+                            </button>
+                        }
+                    }
+                </div>
+            }
+
+            @if (selectedRequestTool is not null)
+            {
+                <div class="mobile-assignment-selected">
+                    <span>@selectedRequestTool.InternalCode</span>
+                    <strong>@selectedRequestTool.Name</strong>
+                    <small>@Display(selectedRequestTool.BranchCode) · @Display(selectedRequestTool.LocationName)</small>
+                </div>
+            }
+
+            <label class="mobile-field">
+                <span>Fecha estimada devolución</span>
+                <input type="date"
+                       value="@FormatDateInput(requestForm.ExpectedReturnAt)"
+                       @onchange="OnRequestExpectedReturnChanged" />
+            </label>
+
+            <label class="mobile-field">
+                <span>Observación</span>
+                <textarea rows="2"
+                          value="@requestForm.Notes"
+                          @oninput="OnRequestNotesChanged"
+                          placeholder="Motivo de la solicitud..."></textarea>
+            </label>
+
+            <button class="mobile-assignment-main-button" type="button" disabled="@isSaving" @onclick="SubmitRequestAsync">
+                @(isSaving ? "Enviando..." : "Solicitud de asignación")
+            </button>
+        </section>
+
+        <section class="mobile-assignment-card">
+            <div class="mobile-assignment-card-head">
+                <div>
+                    <strong>Historial de usuario</strong>
+                    <span>Consulta solicitudes, aprobaciones y movimientos por usuario</span>
+                </div>
+            </div>
+
+            <div class="mobile-assignment-filters">
+                <select value="@historyResponsibleId" @onchange="OnHistoryResponsibleChanged">
+                    <option value="">Todos los usuarios</option>
+                    @foreach (var responsible in responsibles.OrderBy(x => x.FullName))
+                    {
+                        <option value="@responsible.Id">@responsible.FullName</option>
+                    }
+                </select>
+
+                <input value="@historySearch"
+                       @oninput="OnHistorySearchChanged"
+                       placeholder="Buscar préstamo, activo o usuario..." />
+            </div>
+
+            @if (!FilteredHistory.Any())
+            {
+                <div class="mobile-assignment-empty">No hay historial para los filtros seleccionados.</div>
+            }
+            else
+            {
+                <div class="mobile-history-list">
+                    @foreach (var request in FilteredHistory.Take(12))
+                    {
+                        var item = request.Items.FirstOrDefault();
+
+                        <article>
+                            <div>
+                                <span>@request.LoanNumber</span>
+                                <strong>@Display(item?.ToolInternalCode) - @Display(item?.ToolName)</strong>
+                                <small>@GetLoanStatusLabel(request.Status) · @ShowDate(request.CreatedAt)</small>
+                                <small>Usuario: @Display(request.CreatedBy)</small>
+                            </div>
+
+                            <em class="@GetLoanStatusClass(request.Status)">
+                                @GetLoanStatusLabel(request.Status)
+                            </em>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="mobile-assignment-card">
+            <div class="mobile-assignment-card-head">
+                <div>
+                    <strong>Herramientas / activos</strong>
+                    <span>Consulta activos, solicita préstamo o reporta daño</span>
+                </div>
+            </div>
+
+            <div class="mobile-assignment-filters">
+                <input value="@toolSearch"
+                       @oninput="OnToolSearchChanged"
+                       placeholder="Buscar código, nombre, sede o ubicación..." />
+
+                <select value="@toolStatus" @onchange="OnToolStatusChanged">
+                    <option value="">Todos los estados</option>
+                    <option value="Available">Disponible</option>
+                    <option value="Assigned">Asignada</option>
+                    <option value="Loaned">Prestada</option>
+                    <option value="InMaintenance">Mantenimiento</option>
+                    <option value="Damaged">Dañada</option>
+                </select>
+            </div>
+
+            @if (!FilteredTools.Any())
+            {
+                <div class="mobile-assignment-empty">No hay activos para mostrar.</div>
+            }
+            else
+            {
+                <div class="mobile-assignment-tools">
+                    @foreach (var tool in FilteredTools.Take(80))
+                    {
+                        <article>
+                            <div class="mobile-assignment-tool-head">
+                                <div>
+                                    <span>@tool.InternalCode</span>
+                                    <strong>@tool.Name</strong>
+                                </div>
+
+                                <em class="@GetToolStateClass(tool)">
+                                    @GetStatusLabel(tool.OperationalStatus)
+                                </em>
+                            </div>
+
+                            <div class="mobile-assignment-tool-grid">
+                                <div>
+                                    <span>Sede</span>
+                                    <strong>@Display(tool.BranchCode)</strong>
+                                </div>
+
+                                <div>
+                                    <span>Ubicación</span>
+                                    <strong>@Display(tool.LocationName)</strong>
+                                </div>
+
+                                <div>
+                                    <span>Responsable</span>
+                                    <strong>@Display(tool.ResponsiblePersonName)</strong>
+                                </div>
+
+                                <div>
+                                    <span>Físico</span>
+                                    <strong>@Display(tool.PhysicalStatus)</strong>
+                                </div>
+                            </div>
+
+                            <div class="mobile-assignment-tool-actions">
+                                <a href="@GetDetailUrl(tool.Id)">Detalle</a>
+                                <a href="@GetLifeRecordUrl(tool.Id)">Hoja vida</a>
+                                <button type="button" @onclick="() => SelectRequestTool(tool)">Solicitar</button>
+                                <a class="danger" href="@GetDamageUrl(tool.Id)">Daño</a>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    }
+</section>
+
+@code {
+    private bool isLoading = true;
+    private bool isSaving;
+    private string? message;
+    private string messageClass = "mobile-alert";
+
+    private string requestSearch = string.Empty;
+    private string historySearch = string.Empty;
+    private string historyResponsibleId = string.Empty;
+    private string toolSearch = string.Empty;
+    private string toolStatus = string.Empty;
+
+    private List<MobileToolDto> tools = new();
+    private List<MobileLoanRequestDto> loanRequests = new();
+    private List<MobileResponsibleDto> responsibles = new();
+
+    private MobileLoanRequestForm requestForm = new();
+
+    private string CurrentResponsibleLabel =>
+        !string.IsNullOrWhiteSpace(Auth.CurrentUser?.ResponsiblePersonName)
+            ? Auth.CurrentUser!.ResponsiblePersonName!
+            : Auth.CurrentUser?.DisplayName ?? Auth.CurrentUser?.UserName ?? "Usuario móvil";
+
+    private MobileToolDto? selectedRequestTool =>
+        requestForm.ToolId.HasValue
+            ? tools.FirstOrDefault(x => x.Id == requestForm.ToolId.Value)
+            : null;
+
+    private IEnumerable<MobileLoanRequestDto> PendingRequests =>
+        loanRequests
+            .Where(x => IsPendingStatus(x.Status))
+            .Where(x => x.Items.Any(i => !i.Returned))
+            .OrderByDescending(x => x.CreatedAt);
+
+    private int ApprovedOrDeliveredCount =>
+        loanRequests.Count(x =>
+            x.Status.Equals("Approved", StringComparison.OrdinalIgnoreCase) ||
+            x.Status.Equals("Delivered", StringComparison.OrdinalIgnoreCase));
+
+    private IEnumerable<MobileToolDto> RequestTools =>
+        tools
+            .Where(x => string.IsNullOrWhiteSpace(requestSearch) ||
+                        ContainsText(x.InternalCode, requestSearch) ||
+                        ContainsText(x.Name, requestSearch) ||
+                        ContainsText(x.SerialNumber, requestSearch) ||
+                        ContainsText(x.BranchCode, requestSearch) ||
+                        ContainsText(x.LocationName, requestSearch))
+            .OrderByDescending(x => ContainsStatus(x.OperationalStatus, "Available"))
+            .ThenBy(x => x.InternalCode);
+
+    private IEnumerable<MobileLoanRequestDto> FilteredHistory =>
+        loanRequests
+            .Where(x => !IsPendingStatus(x.Status))
+            .Where(x => string.IsNullOrWhiteSpace(historyResponsibleId) ||
+                        (x.RequestedByPersonId.HasValue && x.RequestedByPersonId.Value.ToString() == historyResponsibleId))
+            .Where(x => string.IsNullOrWhiteSpace(historySearch) ||
+                        ContainsText(x.LoanNumber, historySearch) ||
+                        ContainsText(x.CreatedBy, historySearch) ||
+                        x.Items.Any(i => ContainsText(i.ToolInternalCode, historySearch) || ContainsText(i.ToolName, historySearch)))
+            .OrderByDescending(x => x.CreatedAt);
+
+    private IEnumerable<MobileToolDto> FilteredTools =>
+        tools
+            .Where(x => string.IsNullOrWhiteSpace(toolSearch) ||
+                        ContainsText(x.InternalCode, toolSearch) ||
+                        ContainsText(x.Name, toolSearch) ||
+                        ContainsText(x.BranchCode, toolSearch) ||
+                        ContainsText(x.LocationName, toolSearch) ||
+                        ContainsText(x.ResponsiblePersonName, toolSearch))
+            .Where(x => string.IsNullOrWhiteSpace(toolStatus) ||
+                        x.OperationalStatus.Equals(toolStatus, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(x => ContainsStatus(x.OperationalStatus, "Available"))
+            .ThenBy(x => x.InternalCode);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            isLoading = false;
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            isLoading = true;
+            message = null;
+
+            tools = await Api.GetToolsAsync(true);
+            loanRequests = await Api.GetLoanRequestsAsync();
+            responsibles = await Api.GetResponsiblesAsync();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"No se pudo cargar asignar móvil: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        await LoadAsync();
+    }
+
+    private void SelectRequestTool(MobileToolDto tool)
+    {
+        requestForm.ToolId = tool.Id;
+        requestSearch = $"{tool.InternalCode} - {tool.Name}";
+    }
+
+    private void OnRequestSearchChanged(ChangeEventArgs args)
+    {
+        requestSearch = args.Value?.ToString() ?? string.Empty;
+    }
+
+    private void OnRequestExpectedReturnChanged(ChangeEventArgs args)
+    {
+        if (DateTime.TryParse(args.Value?.ToString(), out var value))
+        {
+            requestForm.ExpectedReturnAt = value;
+        }
+    }
+
+    private void OnRequestNotesChanged(ChangeEventArgs args)
+    {
+        requestForm.Notes = args.Value?.ToString();
+    }
+
+    private void OnHistorySearchChanged(ChangeEventArgs args)
+    {
+        historySearch = args.Value?.ToString() ?? string.Empty;
+    }
+
+    private void OnHistoryResponsibleChanged(ChangeEventArgs args)
+    {
+        historyResponsibleId = args.Value?.ToString() ?? string.Empty;
+    }
+
+    private void OnToolSearchChanged(ChangeEventArgs args)
+    {
+        toolSearch = args.Value?.ToString() ?? string.Empty;
+    }
+
+    private void OnToolStatusChanged(ChangeEventArgs args)
+    {
+        toolStatus = args.Value?.ToString() ?? string.Empty;
+    }
+
+    private async Task SubmitRequestAsync()
+    {
+        if (requestForm.ToolId is null)
+        {
+            ShowError("Debe seleccionar una herramienta para solicitar.");
+            return;
+        }
+
+        var tool = selectedRequestTool;
+
+        if (tool is null)
+        {
+            ShowError("No se encontró la herramienta seleccionada.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(tool.BranchCode))
+        {
+            ShowError("La herramienta no tiene sede asociada.");
+            return;
+        }
+
+        try
+        {
+            isSaving = true;
+
+            await Api.CreateLoanRequestAsync(new MobileLoanRequestCreateDto
+            {
+                BranchCode = tool.BranchCode!,
+                RequestedByPersonId = Auth.CurrentUser?.ResponsiblePersonId,
+                ToolInternalCodes = new[] { tool.InternalCode },
+                ExpectedReturnAt = requestForm.ExpectedReturnAt,
+                DeliveryCondition = "Solicitud creada desde Asignar AF móvil.",
+                Notes = string.IsNullOrWhiteSpace(requestForm.Notes)
+                    ? $"Solicitud de asignación del activo {tool.InternalCode}."
+                    : requestForm.Notes,
+                RequestedBy = Auth.CurrentUser?.UserName
+            });
+
+            ShowSuccess("Solicitud creada correctamente. Queda pendiente de aprobación.");
+
+            requestForm = new MobileLoanRequestForm();
+            requestSearch = string.Empty;
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"No se pudo crear la solicitud: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task ApproveAsync(MobileLoanRequestDto request)
+    {
+        try
+        {
+            isSaving = true;
+
+            await Api.ApproveAndAssignLoanAsync(request.Id, new MobileLoanActionDto
+            {
+                ActionBy = Auth.CurrentUser?.UserName,
+                Notes = $"Solicitud {request.LoanNumber} aprobada desde app móvil.",
+                Condition = "Aprobado y asignado desde app móvil."
+            });
+
+            ShowSuccess($"Solicitud {request.LoanNumber} aprobada y asignada correctamente.");
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"No se pudo aprobar: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task DenyAsync(MobileLoanRequestDto request)
+    {
+        try
+        {
+            isSaving = true;
+
+            await Api.RejectLoanRequestAsync(request.Id, new MobileLoanActionDto
+            {
+                ActionBy = Auth.CurrentUser?.UserName,
+                Notes = $"Solicitud {request.LoanNumber} denegada desde app móvil.",
+                Condition = "Solicitud denegada desde app móvil."
+            });
+
+            ShowSuccess($"Solicitud {request.LoanNumber} denegada correctamente.");
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"No se pudo denegar: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void GoHome()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private void GoLogin()
+    {
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    private static bool IsPendingStatus(string? status)
+    {
+        return status is not null &&
+               (status.Equals("Draft", StringComparison.OrdinalIgnoreCase) ||
+                status.Equals("Requested", StringComparison.OrdinalIgnoreCase) ||
+                status.Equals("PendingApproval", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool ContainsStatus(string? value, string expected)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+               value.Contains(expected, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ContainsText(string? value, string expected)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+               !string.IsNullOrWhiteSpace(expected) &&
+               Normalize(value).Contains(Normalize(expected), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Normalize(string value)
+    {
+        return value
+            .Trim()
+            .ToUpperInvariant()
+            .Replace("Á", "A")
+            .Replace("É", "E")
+            .Replace("Í", "I")
+            .Replace("Ó", "O")
+            .Replace("Ú", "U")
+            .Replace("Ü", "U")
+            .Replace("Ñ", "N");
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "Sin dato" : value;
+    }
+
+    private static string ShowDate(DateTime? value)
+    {
+        return value.HasValue ? value.Value.ToLocalTime().ToString("dd/MM/yyyy") : "Sin fecha";
+    }
+
+    private static string FormatDateInput(DateTime? value)
+    {
+        return value.HasValue ? value.Value.ToString("yyyy-MM-dd") : string.Empty;
+    }
+
+    private static string GetStatusLabel(string? status)
+    {
+        return status switch
+        {
+            "Available" => "Disponible",
+            "Assigned" => "Asignada",
+            "Loaned" => "Prestada",
+            "InMaintenance" => "En mantenimiento",
+            "Damaged" => "Dañada",
+            "NotSuitable" => "No apta",
+            "PendingValidation" => "Pendiente validación",
+            "NotLocated" => "No localizada",
+            "Disposed" => "Baja",
+            _ => Display(status)
+        };
+    }
+
+    private static string GetLoanStatusLabel(string? status)
+    {
+        return status switch
+        {
+            "Draft" => "Borrador",
+            "Requested" => "Solicitada",
+            "PendingApproval" => "Pendiente",
+            "Approved" => "Aprobada",
+            "Delivered" => "Asignada",
+            "Returned" => "Devuelta",
+            "Rejected" => "Denegada",
+            "Cancelled" => "Cancelada",
+            _ => Display(status)
+        };
+    }
+
+    private static string GetToolStateClass(MobileToolDto tool)
+    {
+        return tool.OperationalStatus switch
+        {
+            "Available" => "mobile-state ok",
+            "Assigned" => "mobile-state assigned",
+            "Loaned" => "mobile-state assigned",
+            "InMaintenance" => "mobile-state warning",
+            "Damaged" => "mobile-state danger",
+            "NotSuitable" => "mobile-state danger",
+            "NotLocated" => "mobile-state dark",
+            _ => "mobile-state neutral"
+        };
+    }
+
+    private static string GetLoanStatusClass(string? status)
+    {
+        return status switch
+        {
+            "Approved" => "mobile-state ok",
+            "Delivered" => "mobile-state ok",
+            "Returned" => "mobile-state neutral",
+            "Rejected" => "mobile-state danger",
+            "Cancelled" => "mobile-state dark",
+            _ => "mobile-state warning"
+        };
+    }
+
+    private static string GetDetailUrl(Guid id)
+    {
+        return "/tools/" + id;
+    }
+
+    private static string GetLifeRecordUrl(Guid id)
+    {
+        return "/tools/" + id + "/life-record";
+    }
+
+    private static string GetDamageUrl(Guid id)
+    {
+        return "/report-damage/" + id;
+    }
+
+    private void ShowSuccess(string value)
+    {
+        message = value;
+        messageClass = "mobile-alert success";
+    }
+
+    private void ShowError(string value)
+    {
+        message = value;
+        messageClass = "mobile-alert error";
+    }
+}

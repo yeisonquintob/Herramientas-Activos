@@ -1,0 +1,391 @@
+﻿@page "/report-damage"
+@page "/report-damage/{ToolId:guid}"
+
+@using Navi.ToolsAssets.MobilePwa.Models
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Reportar novedad - NAVI Herramientas y AF</PageTitle>
+
+<section class="mobile-page mobile-damage-page">
+    @if (isLoading)
+    {
+        <div class="mobile-loading">Cargando reporte de novedad...</div>
+    }
+    else if (!Auth.IsAuthenticated)
+    {
+        <div class="mobile-empty">
+            <strong>Sesión requerida</strong>
+            <span>Debes iniciar sesión para reportar novedades.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+        </div>
+    }
+    else
+    {
+        <header class="mobile-damage-hero">
+            <div class="mobile-damage-top">
+                <button type="button" @onclick="GoBack">Regresar</button>
+            </div>
+
+            <h1>Reportar novedad</h1>
+            <p>Registra daño, falla, condición insegura o hallazgo operativo de una herramienta o activo.</p>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(message))
+        {
+            <div class="@messageClass">@message</div>
+        }
+
+        <section class="mobile-damage-card">
+            <div class="mobile-damage-card-head">
+                <div>
+                    <strong>Seleccionar herramienta</strong>
+                    <span>Busca por código, nombre, serial, sede o ubicación</span>
+                </div>
+
+                <button type="button" @onclick="ClearSelection">Limpiar</button>
+            </div>
+
+            <label class="mobile-field">
+                <span>Buscar herramienta</span>
+                <input value="@search"
+                       @oninput="OnSearchChanged"
+                       placeholder="Escriba código, nombre o serial..." />
+            </label>
+
+            @if (!string.IsNullOrWhiteSpace(search))
+            {
+                <div class="mobile-damage-results">
+                    @if (!FilteredTools.Any())
+                    {
+                        <div class="mobile-damage-empty">No se encontraron herramientas.</div>
+                    }
+                    else
+                    {
+                        @foreach (var tool in FilteredTools.Take(10))
+                        {
+                            var selected = form.ToolAssetId == tool.Id;
+
+                            <button type="button"
+                                    class="mobile-damage-result @(selected ? "selected" : "")"
+                                    @onclick="() => SelectTool(tool)">
+                                <span>
+                                    <strong>@tool.InternalCode</strong>
+                                    <small>@tool.Name</small>
+                                    <small>@Display(tool.BranchCode) · @Display(tool.LocationName)</small>
+                                </span>
+
+                                <em class="@GetToolStateClass(tool)">
+                                    @GetStatusLabel(tool.OperationalStatus)
+                                </em>
+                            </button>
+                        }
+                    }
+                </div>
+            }
+
+            @if (selectedTool is not null)
+            {
+                <div class="mobile-damage-selected">
+                    <span>@selectedTool.InternalCode</span>
+                    <strong>@selectedTool.Name</strong>
+                    <small>@Display(selectedTool.BranchCode) · @Display(selectedTool.LocationName) · @GetStatusLabel(selectedTool.OperationalStatus)</small>
+                </div>
+            }
+        </section>
+
+        <section class="mobile-damage-card">
+            <div class="mobile-damage-card-head">
+                <div>
+                    <strong>Datos de la novedad</strong>
+                    <span>Completa la severidad y descripción del hallazgo</span>
+                </div>
+            </div>
+
+            <label class="mobile-field">
+                <span>Severidad</span>
+                <select value="@form.Severity" @onchange="OnSeverityChanged">
+                    <option value="Low">Baja</option>
+                    <option value="Medium">Media</option>
+                    <option value="High">Alta</option>
+                    <option value="Critical">Crítica</option>
+                </select>
+            </label>
+
+            <label class="mobile-field">
+                <span>Descripción</span>
+                <textarea rows="4"
+                          value="@form.Description"
+                          @oninput="OnDescriptionChanged"
+                          placeholder="Describe la novedad, daño, falla o condición insegura..."></textarea>
+            </label>
+
+            <label class="mobile-check-line">
+                <input type="checkbox"
+                       checked="@form.BlocksLoan"
+                       @onchange="OnBlocksLoanChanged" />
+                <span>Bloquea préstamo o uso de la herramienta</span>
+            </label>
+
+            <button class="mobile-damage-submit"
+                    type="button"
+                    disabled="@isSaving"
+                    @onclick="SubmitAsync">
+                @(isSaving ? "Enviando..." : "Enviar reporte")
+            </button>
+        </section>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public Guid? ToolId { get; set; }
+
+    private bool isLoading = true;
+    private bool isSaving;
+    private string? message;
+    private string messageClass = "mobile-alert";
+    private string search = string.Empty;
+
+    private List<MobileToolDto> tools = new();
+    private DamageForm form = new();
+
+    private MobileToolDto? selectedTool =>
+        form.ToolAssetId.HasValue
+            ? tools.FirstOrDefault(x => x.Id == form.ToolAssetId.Value)
+            : null;
+
+    private IEnumerable<MobileToolDto> FilteredTools =>
+        tools
+            .Where(x => string.IsNullOrWhiteSpace(search) ||
+                        ContainsText(x.InternalCode, search) ||
+                        ContainsText(x.Name, search) ||
+                        ContainsText(x.SerialNumber, search) ||
+                        ContainsText(x.BranchCode, search) ||
+                        ContainsText(x.LocationName, search) ||
+                        ContainsText(x.ResponsiblePersonName, search))
+            .OrderByDescending(x => x.Id == form.ToolAssetId)
+            .ThenByDescending(x => ContainsStatus(x.OperationalStatus, "Available"))
+            .ThenBy(x => x.InternalCode);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            isLoading = false;
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            tools = await Api.GetToolsAsync(true);
+
+            if (ToolId.HasValue)
+            {
+                var tool = tools.FirstOrDefault(x => x.Id == ToolId.Value);
+
+                if (tool is not null)
+                {
+                    SelectTool(tool);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowError($"No se pudo cargar herramientas: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void SelectTool(MobileToolDto tool)
+    {
+        form.ToolAssetId = tool.Id;
+        form.ToolInternalCode = tool.InternalCode;
+        search = $"{tool.InternalCode} - {tool.Name}";
+    }
+
+    private void ClearSelection()
+    {
+        form.ToolAssetId = null;
+        form.ToolInternalCode = null;
+        search = string.Empty;
+    }
+
+    private void OnSearchChanged(ChangeEventArgs args)
+    {
+        search = args.Value?.ToString() ?? string.Empty;
+    }
+
+    private void OnSeverityChanged(ChangeEventArgs args)
+    {
+        form.Severity = args.Value?.ToString() ?? "Medium";
+    }
+
+    private void OnDescriptionChanged(ChangeEventArgs args)
+    {
+        form.Description = args.Value?.ToString();
+    }
+
+    private void OnBlocksLoanChanged(ChangeEventArgs args)
+    {
+        form.BlocksLoan = args.Value is bool value && value;
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (form.ToolAssetId is null)
+        {
+            ShowError("Debe seleccionar una herramienta o activo.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(form.Description))
+        {
+            ShowError("Debe describir la novedad.");
+            return;
+        }
+
+        try
+        {
+            isSaving = true;
+
+            var result = await Api.ReportDamageAsync(new MobileDamageReportRequest
+            {
+                ToolAssetId = form.ToolAssetId,
+                ToolInternalCode = form.ToolInternalCode,
+                Severity = form.Severity,
+                Description = form.Description,
+                BlocksLoan = form.BlocksLoan,
+                ReportedBy = Auth.CurrentUser?.UserName ?? "mobile"
+            });
+
+            ShowSuccess($"Novedad registrada correctamente. Número: {result.ReportNumber}");
+
+            var keepToolId = form.ToolAssetId;
+            var keepCode = form.ToolInternalCode;
+
+            form = new DamageForm
+            {
+                ToolAssetId = keepToolId,
+                ToolInternalCode = keepCode,
+                Severity = "Medium",
+                BlocksLoan = true
+            };
+        }
+        catch (Exception ex)
+        {
+            ShowError($"No se pudo enviar el reporte: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private void GoLogin()
+    {
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    private static bool ContainsStatus(string? value, string expected)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+               value.Contains(expected, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ContainsText(string? value, string expected)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+               !string.IsNullOrWhiteSpace(expected) &&
+               Normalize(value).Contains(Normalize(expected), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Normalize(string value)
+    {
+        return value
+            .Trim()
+            .ToUpperInvariant()
+            .Replace("Á", "A")
+            .Replace("É", "E")
+            .Replace("Í", "I")
+            .Replace("Ó", "O")
+            .Replace("Ú", "U")
+            .Replace("Ü", "U")
+            .Replace("Ñ", "N");
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "Sin dato" : value;
+    }
+
+    private static string GetStatusLabel(string? status)
+    {
+        return status switch
+        {
+            "Available" => "Disponible",
+            "Assigned" => "Asignada",
+            "Loaned" => "Prestada",
+            "InMaintenance" => "En mantenimiento",
+            "Damaged" => "Dañada",
+            "NotSuitable" => "No apta",
+            "PendingValidation" => "Pendiente validación",
+            "NotLocated" => "No localizada",
+            "Disposed" => "Baja",
+            _ => Display(status)
+        };
+    }
+
+    private static string GetToolStateClass(MobileToolDto tool)
+    {
+        return tool.OperationalStatus switch
+        {
+            "Available" => "mobile-state ok",
+            "Assigned" => "mobile-state assigned",
+            "Loaned" => "mobile-state assigned",
+            "InMaintenance" => "mobile-state warning",
+            "Damaged" => "mobile-state danger",
+            "NotSuitable" => "mobile-state danger",
+            "NotLocated" => "mobile-state dark",
+            _ => "mobile-state neutral"
+        };
+    }
+
+    private void ShowSuccess(string value)
+    {
+        message = value;
+        messageClass = "mobile-alert success";
+    }
+
+    private void ShowError(string value)
+    {
+        message = value;
+        messageClass = "mobile-alert error";
+    }
+
+    private sealed class DamageForm
+    {
+        public Guid? ToolAssetId { get; set; }
+        public string? ToolInternalCode { get; set; }
+        public string Severity { get; set; } = "Medium";
+        public string? Description { get; set; }
+        public bool BlocksLoan { get; set; } = true;
+    }
+}

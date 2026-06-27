@@ -1,0 +1,358 @@
+﻿@page "/all-tools"
+@page "/my-tools"
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>@PageTitle - NAVI Herramientas y AF</PageTitle>
+
+<section class="mobile-page mobile-inv-page">
+    @if (isLoading)
+    {
+        <div class="mobile-loading">Cargando activos...</div>
+    }
+    else if (!Auth.IsAuthenticated)
+    {
+        <div class="mobile-empty">
+            <strong>Sesión requerida</strong>
+            <span>Debes iniciar sesión para consultar el inventario móvil.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+        </div>
+    }
+    else
+    {
+        <header class="mobile-inv-hero">
+            <div class="mobile-inv-top">
+                <span>@HeaderCode</span>
+
+                <button type="button" @onclick="GoHome">
+                    Regresar
+                </button>
+            </div>
+
+            <h1>@PageTitle</h1>
+            <p>@PageSubtitle</p>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(message))
+        {
+            <div class="mobile-alert">@message</div>
+        }
+
+        <section class="mobile-inv-search-card">
+            <input
+                value="@searchTerm"
+                @oninput="OnSearchChanged"
+                placeholder="Buscar por código, nombre, sede, ubicación, responsable o estado..." />
+
+            <div class="mobile-inv-counters">
+                <div>
+                    <strong>@filteredTools.Count</strong>
+                    <span>Mostrados</span>
+                </div>
+
+                <div>
+                    <strong>@allTools.Count</strong>
+                    <span>Total cargados</span>
+                </div>
+
+                <div>
+                    <strong>@availableCount</strong>
+                    <span>Disponibles</span>
+                </div>
+            </div>
+        </section>
+
+        @if (!filteredTools.Any())
+        {
+            <section class="mobile-empty mobile-inv-empty">
+                <strong>Sin activos</strong>
+                <span>No se encontraron herramientas con el filtro aplicado.</span>
+            </section>
+        }
+        else
+        {
+            <section class="mobile-inv-list">
+                @foreach (var tool in filteredTools)
+                {
+                    <article class="mobile-inv-card">
+                        <div class="mobile-inv-card-main">
+                            <div>
+                                <span class="mobile-inv-code">@Display(tool.InternalCode)</span>
+                                <strong>@Display(tool.Name)</strong>
+                            </div>
+
+                            <span class="@GetStatusClass(tool.OperationalStatus)">
+                                @Display(tool.OperationalStatus)
+                            </span>
+                        </div>
+
+                        <div class="mobile-inv-meta">
+                            <div>
+                                <span>Sede</span>
+                                <strong>@DisplayBranch(tool)</strong>
+                            </div>
+
+                            <div>
+                                <span>Ubicación</span>
+                                <strong>@Display(tool.LocationName)</strong>
+                            </div>
+
+                            <div>
+                                <span>Responsable</span>
+                                <strong>@Display(tool.ResponsiblePersonName)</strong>
+                            </div>
+
+                            <div>
+                                <span>Estado físico</span>
+                                <strong>@Display(tool.PhysicalStatus)</strong>
+                            </div>
+                        </div>
+
+                        <div class="mobile-inv-actions">
+                            <a href="@GetDetailUrl(tool.Id)">Ver detalle</a>
+                            <a href="@GetLifeRecordUrl(tool.Id)">Hoja de vida</a>
+                            <a class="danger" href="@GetReportUrl(tool.Id)">Reportar</a>
+                        </div>
+                    </article>
+                }
+            </section>
+        }
+    }
+</section>
+
+@code {
+    private bool isLoading = true;
+    private string? message;
+    private string searchTerm = string.Empty;
+
+    private List<MobileToolDto> allTools = new();
+    private List<MobileToolDto> filteredTools = new();
+
+    private bool IsMyToolsPage =>
+        new Uri(Navigation.Uri).AbsolutePath.Equals("/my-tools", StringComparison.OrdinalIgnoreCase);
+
+    private string PageTitle => IsMyToolsPage ? "Mis herramientas" : "Inventario AF";
+
+    private string HeaderCode => IsMyToolsPage ? "MIS AF" : "INVENTARIO AF";
+
+    private string PageSubtitle => IsMyToolsPage
+        ? "Consulta activos relacionados con tu usuario, detalle y hoja de vida móvil."
+        : "Consulta general de activos, herramientas, ubicación, responsable y estado.";
+
+    private int availableCount => filteredTools.Count(x => Contains(x.OperationalStatus, "Available") || Contains(x.OperationalStatus, "Disponible"));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            isLoading = false;
+            return;
+        }
+
+        await LoadAsync(false);
+    }
+
+    private async Task LoadAsync(bool forceRefresh)
+    {
+        try
+        {
+            message = null;
+
+            var tools = await Api.GetToolsAsync(forceRefresh);
+
+            allTools = IsMyToolsPage
+                ? FilterForCurrentUser(tools).ToList()
+                : tools.OrderBy(x => x.InternalCode).ThenBy(x => x.Name).ToList();
+
+            ApplyFilter();
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+            allTools = new();
+            filteredTools = new();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OnSearchChanged(ChangeEventArgs args)
+    {
+        searchTerm = args.Value?.ToString() ?? string.Empty;
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        var query = Normalize(searchTerm);
+
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            filteredTools = allTools.ToList();
+            return;
+        }
+
+        filteredTools = allTools
+            .Where(tool =>
+                ContainsNormalized(tool.InternalCode, query) ||
+                ContainsNormalized(tool.Name, query) ||
+                ContainsNormalized(tool.BranchCode, query) ||
+                ContainsNormalized(tool.BranchName, query) ||
+                ContainsNormalized(tool.LocationName, query) ||
+                ContainsNormalized(tool.ResponsiblePersonName, query) ||
+                ContainsNormalized(tool.OperationalStatus, query) ||
+                ContainsNormalized(tool.PhysicalStatus, query))
+            .OrderBy(x => x.InternalCode)
+            .ThenBy(x => x.Name)
+            .ToList();
+    }
+
+    private IEnumerable<MobileToolDto> FilterForCurrentUser(IEnumerable<MobileToolDto> source)
+    {
+        var user = Auth.CurrentUser;
+
+        if (user is null)
+        {
+            return Enumerable.Empty<MobileToolDto>();
+        }
+
+        if (user.ResponsiblePersonId.HasValue)
+        {
+            var own = source
+                .Where(x => x.ResponsiblePersonId == user.ResponsiblePersonId.Value)
+                .OrderBy(x => x.InternalCode)
+                .ThenBy(x => x.Name)
+                .ToList();
+
+            if (own.Any())
+            {
+                return own;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(user.ResponsiblePersonName))
+        {
+            var ownByName = source
+                .Where(x => string.Equals(x.ResponsiblePersonName, user.ResponsiblePersonName, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(x => x.InternalCode)
+                .ThenBy(x => x.Name)
+                .ToList();
+
+            if (ownByName.Any())
+            {
+                return ownByName;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(user.BranchCode) &&
+            !string.Equals(user.BranchCode, "TODAS", StringComparison.OrdinalIgnoreCase))
+        {
+            return source
+                .Where(x =>
+                    string.Equals(x.BranchCode, user.BranchCode, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(x.BranchName, user.BranchName, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(x => x.InternalCode)
+                .ThenBy(x => x.Name);
+        }
+
+        return source
+            .OrderBy(x => x.InternalCode)
+            .ThenBy(x => x.Name);
+    }
+
+    private void GoHome()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private void GoLogin()
+    {
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    private static string GetDetailUrl(Guid id)
+    {
+        return "/tools/" + id;
+    }
+
+    private static string GetLifeRecordUrl(Guid id)
+    {
+        return "/tools/" + id + "/life-record";
+    }
+
+    private static string GetReportUrl(Guid id)
+    {
+        return "/report-damage/" + id;
+    }
+
+    private static string DisplayBranch(MobileToolDto tool)
+    {
+        if (!string.IsNullOrWhiteSpace(tool.BranchCode) && !string.IsNullOrWhiteSpace(tool.BranchName))
+        {
+            return $"{tool.BranchCode} · {tool.BranchName}";
+        }
+
+        return Display(tool.BranchName ?? tool.BranchCode);
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "Sin dato" : value;
+    }
+
+    private static bool Contains(string? value, string expected)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+               value.Contains(expected, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ContainsNormalized(string? value, string normalizedQuery)
+    {
+        return Normalize(value).Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Normalize(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return value
+            .Trim()
+            .ToUpperInvariant()
+            .Replace("Á", "A")
+            .Replace("É", "E")
+            .Replace("Í", "I")
+            .Replace("Ó", "O")
+            .Replace("Ú", "U")
+            .Replace("Ü", "U")
+            .Replace("Ñ", "N");
+    }
+
+    private static string GetStatusClass(string? status)
+    {
+        if (Contains(status, "Available") || Contains(status, "Disponible"))
+        {
+            return "mobile-inv-status ok";
+        }
+
+        if (Contains(status, "Maintenance") || Contains(status, "Mantenimiento"))
+        {
+            return "mobile-inv-status warning";
+        }
+
+        if (Contains(status, "Damaged") || Contains(status, "No apt") || Contains(status, "Dañ"))
+        {
+            return "mobile-inv-status danger";
+        }
+
+        return "mobile-inv-status neutral";
+    }
+}

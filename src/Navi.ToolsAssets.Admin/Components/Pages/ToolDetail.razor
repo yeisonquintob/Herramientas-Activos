@@ -31,11 +31,6 @@ else if (tool is not null)
 {
         <section class="detail-hero-banner">
         <div class="detail-hero-main">
-            <div class="detail-hero-actions">
-                <button class="btn-detail-back" @onclick="GoBack">
-                    ← Volver al inventario
-                </button>
-            </div>
 
             <span class="detail-hero-pill">DETALLE DE ACTIVO FIJO</span>
 
@@ -79,6 +74,12 @@ else if (tool is not null)
             <button class="btn btn-sm btn-outline-light detail-hero-refresh" @onclick="LoadAsync" disabled="@isLoading">
                 @(isLoading ? "Actualizando..." : "Actualizar")
             </button>
+
+            <div class="detail-hero-right-actions">
+                <button class="btn-detail-back" type="button" @onclick="GoBack">
+                    Volver al inventario
+                </button>
+            </div>
         </div>
     </section>
 
@@ -87,7 +88,7 @@ else if (tool is not null)
         <div class="admin-control-header">
             <div>
                 <h2>Control administrativo del activo</h2>
-                <p>Permite editar datos maestros, guardar cambios, cancelar edición o anular el activo.</p>
+                <p>Permite editar datos maestros, guardar cambios, cancelar edición o marcar el activo como no apto.</p>
             </div>
 
             <div class="admin-control-actions">
@@ -97,8 +98,8 @@ else if (tool is not null)
                         Editar
                     </button>
 
-                    <button class="detail-action detail-action-danger" type="button" @onclick="VoidCurrentToolAsync">
-                        Anular activo
+                    <button class="detail-action detail-action-danger" type="button" @onclick="MarkAsNotSuitableAsync">
+                        No apto
                     </button>
                 }
                 else
@@ -111,8 +112,8 @@ else if (tool is not null)
                         Cancelar
                     </button>
 
-                    <button class="detail-action detail-action-danger" type="button" @onclick="VoidCurrentToolAsync">
-                        Anular activo
+                    <button class="detail-action detail-action-danger" type="button" @onclick="MarkAsNotSuitableAsync">
+                        No apto
                     </button>
                 }
             </div>
@@ -223,7 +224,7 @@ else if (tool is not null)
         else
         {
             <div class="admin-readonly-note">
-                <strong>Modo lectura.</strong> Presiona <b>Editar</b> para modificar datos del activo. Usa <b>Anular activo</b> solo si el activo no debe permanecer en Inventario de AF.
+                <strong>Modo lectura.</strong> Presiona <b>Editar</b> para modificar datos del activo. Usa <b>No apto</b> cuando el activo debe permanecer creado, pero fuera de operación.
             </div>
         }
     </section>
@@ -445,7 +446,7 @@ else if (tool is not null)
                         @(tool?.IsSpecialized == true ? "Marcar no especializada" : "Marcar especializada")
                     </button>
 
-                    <a class="btn btn-outline-dark btn-sm" href="@($"/tools/{ToolId}/technical-life-record")">
+                    <a class="btn btn-outline-dark btn-sm" href="@($"/tools/{ToolId}/technical-life-record-view")">
                         Ver hoja vida técnica
                     </a>
                 </div>
@@ -901,8 +902,7 @@ else if (tool is not null)
             errorMessage = $"Error guardando activo: {ex.Message}";
         }
     }
-
-    private async Task VoidCurrentToolAsync()
+    private async Task MarkAsNotSuitableAsync()
     {
         if (tool is null)
         {
@@ -911,33 +911,51 @@ else if (tool is not null)
 
         try
         {
+            isSaving = true;
             errorMessage = null;
             successMessage = null;
+            actionMessage = null;
 
             var client = HttpClientFactory.CreateClient("NaviApi");
 
-            var response = await client.PatchAsJsonAsync($"api/tools/{ToolId}/void", new
+            var payload = new
             {
-                ActionBy = "admin",
-                Reason = "Activo anulado desde pantalla de detalle de Inventario de AF."
-            });
+                operationalStatus = "NotSuitable",
+                changedBy = "admin",
+                updatedBy = "admin",
+                reason = string.IsNullOrWhiteSpace(actionObservation)
+                    ? "Activo marcado como no apto desde pantalla de detalle de Inventario de AF."
+                    : actionObservation,
+                observation = string.IsNullOrWhiteSpace(actionObservation)
+                    ? "Activo marcado como no apto desde pantalla de detalle de Inventario de AF."
+                    : actionObservation
+            };
+
+            var response = await client.PatchAsJsonAsync($"api/tools/{tool.Id}/operational-status", payload);
 
             if (!response.IsSuccessStatusCode)
             {
                 var detail = await response.Content.ReadAsStringAsync();
-                errorMessage = $"No se pudo anular el activo. {detail}";
+                errorMessage = $"No se pudo marcar el activo como no apto. Código: {(int)response.StatusCode}. Detalle: {detail}";
                 return;
             }
 
-            NavigationManager.NavigateTo("/tools");
+            selectedOperationalStatus = "NotSuitable";
+            actionObservation = string.Empty;
+            actionMessage = "Activo marcado como no apto correctamente.";
+
+            await LoadAsync();
         }
         catch (Exception ex)
         {
-            errorMessage = $"Error anulando activo: {ex.Message}";
+            errorMessage = $"No se pudo marcar el activo como no apto. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
         }
     }
-
-    private sealed class ToolMasterEditModel
+private sealed class ToolMasterEditModel
     {
         public string? InternalCode { get; set; }
         public string? Name { get; set; }
@@ -1242,8 +1260,7 @@ else if (tool is not null)
             errorMessage = $"Error guardando activo: {ex.Message}";
         }
     }
-
-    private async Task VoidCurrentToolAsync()
+    private async Task MarkAsNotSuitableAsync()
     {
         if (tool is null)
         {
@@ -1252,33 +1269,51 @@ else if (tool is not null)
 
         try
         {
+            isSaving = true;
             errorMessage = null;
             successMessage = null;
+            actionMessage = null;
 
             var client = HttpClientFactory.CreateClient("NaviApi");
 
-            var response = await client.PatchAsJsonAsync($"api/tools/{ToolId}/void", new
+            var payload = new
             {
-                ActionBy = "admin",
-                Reason = "Activo anulado desde pantalla de detalle de Inventario de AF."
-            });
+                operationalStatus = "NotSuitable",
+                changedBy = "admin",
+                updatedBy = "admin",
+                reason = string.IsNullOrWhiteSpace(actionObservation)
+                    ? "Activo marcado como no apto desde pantalla de detalle de Inventario de AF."
+                    : actionObservation,
+                observation = string.IsNullOrWhiteSpace(actionObservation)
+                    ? "Activo marcado como no apto desde pantalla de detalle de Inventario de AF."
+                    : actionObservation
+            };
+
+            var response = await client.PatchAsJsonAsync($"api/tools/{tool.Id}/operational-status", payload);
 
             if (!response.IsSuccessStatusCode)
             {
                 var detail = await response.Content.ReadAsStringAsync();
-                errorMessage = $"No se pudo anular el activo. {detail}";
+                errorMessage = $"No se pudo marcar el activo como no apto. Código: {(int)response.StatusCode}. Detalle: {detail}";
                 return;
             }
 
-            NavigationManager.NavigateTo("/tools");
+            selectedOperationalStatus = "NotSuitable";
+            actionObservation = string.Empty;
+            actionMessage = "Activo marcado como no apto correctamente.";
+
+            await LoadAsync();
         }
         catch (Exception ex)
         {
-            errorMessage = $"Error anulando activo: {ex.Message}";
+            errorMessage = $"No se pudo marcar el activo como no apto. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
         }
     }
-
-    private sealed class ToolMasterEditModel
+private sealed class ToolMasterEditModel
     {
         public string? InternalCode { get; set; }
         public string? Name { get; set; }
@@ -1421,6 +1456,70 @@ else if (tool is not null)
         }
     }
 
+
+    /* === DETAIL BANNER RIGHT ACTIONS START === */
+
+    .detail-hero-main {
+        flex: 1 1 auto;
+    }
+
+    .detail-hero-side {
+        min-width: 240px;
+        align-items: stretch;
+    }
+
+    .detail-hero-right-actions {
+        display: grid;
+        gap: .45rem;
+    }
+
+    .detail-hero-side .btn-detail-back,
+    .detail-hero-side .detail-hero-refresh {
+        width: 100%;
+        min-height: 34px;
+    }
+
+    .admin-control-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .admin-control-header > div:first-child {
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    .admin-control-actions {
+        margin-left: auto;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: .45rem;
+        flex-wrap: wrap;
+        min-width: 230px;
+    }
+
+    .admin-control-actions .detail-action,
+    .admin-control-actions .btn {
+        min-width: 92px;
+        justify-content: center;
+    }
+
+    @@media (max-width: 992px) {
+        .admin-control-header {
+            flex-direction: column;
+        }
+
+        .admin-control-actions {
+            width: 100%;
+            min-width: 0;
+            justify-content: flex-end;
+        }
+    }
+
+    /* === DETAIL BANNER RIGHT ACTIONS END === */
 </style>
 
 
@@ -1638,7 +1737,74 @@ else if (tool is not null)
         }
     }
 
+
+    /* === DETAIL BANNER RIGHT ACTIONS START === */
+
+    .detail-hero-main {
+        flex: 1 1 auto;
+    }
+
+    .detail-hero-side {
+        min-width: 240px;
+        align-items: stretch;
+    }
+
+    .detail-hero-right-actions {
+        display: grid;
+        gap: .45rem;
+    }
+
+    .detail-hero-side .btn-detail-back,
+    .detail-hero-side .detail-hero-refresh {
+        width: 100%;
+        min-height: 34px;
+    }
+
+    .admin-control-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .admin-control-header > div:first-child {
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    .admin-control-actions {
+        margin-left: auto;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: .45rem;
+        flex-wrap: wrap;
+        min-width: 230px;
+    }
+
+    .admin-control-actions .detail-action,
+    .admin-control-actions .btn {
+        min-width: 92px;
+        justify-content: center;
+    }
+
+    @@media (max-width: 992px) {
+        .admin-control-header {
+            flex-direction: column;
+        }
+
+        .admin-control-actions {
+            width: 100%;
+            min-width: 0;
+            justify-content: flex-end;
+        }
+    }
+
+    /* === DETAIL BANNER RIGHT ACTIONS END === */
 </style>
+
+
+
 
 
 

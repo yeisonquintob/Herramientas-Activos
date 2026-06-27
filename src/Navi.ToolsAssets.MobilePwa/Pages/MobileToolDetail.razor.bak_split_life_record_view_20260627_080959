@@ -1,0 +1,231 @@
+﻿@page "/tools/{ToolId:guid}"
+
+@using Navi.ToolsAssets.MobilePwa.Models
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Detalle activo - NAVI Herramientas y AF</PageTitle>
+
+<section class="mobile-page mobile-compact-page">
+    @if (isLoading)
+    {
+        <div class="mobile-loading">Cargando detalle...</div>
+    }
+    else if (!Auth.IsAuthenticated)
+    {
+        <div class="mobile-empty">
+            <strong>Sesión requerida</strong>
+            <span>Debes iniciar sesión para consultar el detalle.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(message))
+    {
+        <div class="mobile-alert">@message</div>
+        <button class="mobile-detail-back" type="button" @onclick="GoBack">Regresar</button>
+    }
+    else if (tool is not null)
+    {
+        <header class="mobile-compact-hero">
+            <div class="mobile-compact-top">
+                <span>DETALLE AF</span>
+                <button type="button" @onclick="GoBack">Regresar</button>
+            </div>
+
+            <h1>@Show(tool.Name)</h1>
+            <p>@Show(tool.InternalCode) · @StatusLabel(tool.OperationalStatus)</p>
+        </header>
+
+        <section class="mobile-compact-kpis">
+            <article>
+                <span>Operativo</span>
+                <strong>@StatusLabel(tool.OperationalStatus)</strong>
+            </article>
+
+            <article>
+                <span>Físico</span>
+                <strong>@Show(tool.PhysicalStatus)</strong>
+            </article>
+
+            <article>
+                <span>Responsable</span>
+                <strong>@Show(tool.ResponsiblePersonName)</strong>
+            </article>
+        </section>
+
+        <section class="mobile-detail-life-shortcut">
+            <a href="@GetLifeRecordUrl()">Ver hoja de vida</a>
+        </section>
+
+        <details class="mobile-fold" open>
+            <summary>Datos principales</summary>
+
+            <div class="mobile-info-grid compact">
+                <div><span>Código interno</span><strong>@Show(tool.InternalCode)</strong></div>
+                <div><span>Serial</span><strong>@Show(tool.SerialNumber)</strong></div>
+                <div><span>Activo fijo</span><strong>@Show(tool.FixedAssetCode)</strong></div>
+                <div><span>Código Fenix365</span><strong>@Show(tool.FenixCode)</strong></div>
+                <div><span>Marca</span><strong>@Show(tool.Brand)</strong></div>
+                <div><span>Modelo</span><strong>@Show(tool.Model)</strong></div>
+                <div><span>Descripción</span><strong>@Show(tool.Description)</strong></div>
+                <div><span>Unidad / Cantidad</span><strong>@Show(tool.UnitOfMeasure) / @tool.Quantity</strong></div>
+            </div>
+        </details>
+
+        <details class="mobile-fold" open>
+            <summary>Ubicación y clasificación</summary>
+
+            <div class="mobile-info-grid compact">
+                <div><span>Zona</span><strong>@JoinCodeName(tool.ZoneCode, tool.ZoneName)</strong></div>
+                <div><span>Sede</span><strong>@JoinCodeName(tool.BranchCode, tool.BranchName)</strong></div>
+                <div><span>Ubicación</span><strong>@JoinCodeName(tool.LocationCode, tool.LocationName)</strong></div>
+                <div><span>Responsable</span><strong>@Show(tool.ResponsiblePersonName)</strong></div>
+                <div><span>Tipo</span><strong>@JoinCodeName(tool.ToolTypeCode, tool.ToolTypeName)</strong></div>
+                <div><span>Categoría</span><strong>@JoinCodeName(tool.ToolCategoryCode, tool.ToolCategoryName)</strong></div>
+            </div>
+        </details>
+
+        <details class="mobile-fold" open>
+            <summary>Estados</summary>
+
+            <div class="mobile-chip-grid compact">
+                <div><span>Operativo</span><strong>@StatusLabel(tool.OperationalStatus)</strong></div>
+                <div><span>Físico</span><strong>@Show(tool.PhysicalStatus)</strong></div>
+                <div><span>Custodia</span><strong>@Show(tool.CustodyStatus)</strong></div>
+                <div><span>Conciliación</span><strong>@Show(tool.ReconciliationStatus)</strong></div>
+                <div><span>Sincronización</span><strong>@Show(tool.SyncStatus)</strong></div>
+                <div><span>Especializada</span><strong>@BoolLabel(tool.IsSpecialized)</strong></div>
+            </div>
+        </details>
+
+        <details class="mobile-fold" open>
+            <summary>Reglas operativas</summary>
+
+            <div class="mobile-chip-grid compact">
+                <div><span>Mantenimiento</span><strong>@BoolLabel(tool.RequiresMaintenance)</strong></div>
+                <div><span>Preoperacional</span><strong>@BoolLabel(tool.RequiresPreOperationalCheck)</strong></div>
+                <div><span>Certificación</span><strong>@BoolLabel(tool.RequiresCertification)</strong></div>
+                <div><span>Vence certificación</span><strong>@DateLabel(tool.CertificationExpirationDate)</strong></div>
+            </div>
+        </details>
+
+        <details class="mobile-fold" open>
+            <summary>Actividades recientes</summary>
+
+            @if (!events.Any())
+            {
+                <div class="mobile-empty compact">No hay actividades recientes.</div>
+            }
+            else
+            {
+                <div class="mobile-timeline compact">
+                    @foreach (var item in events.Take(8))
+                    {
+                        <article>
+                            <strong>@Show(item.Title)</strong>
+                            <span>@Show(item.Description)</span>
+                            <small>@DateTimeLabel(item.EventDate) · @Show(item.PerformedBy)</small>
+                        </article>
+                    }
+                </div>
+            }
+        </details>
+
+        <section class="mobile-fixed-actions">
+            <a href="@GetLifeRecordUrl()">Hoja de vida</a>
+            <a class="danger" href="@GetReportUrl()">Reportar</a>
+        </section>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public Guid ToolId { get; set; }
+
+    private bool isLoading = true;
+    private string? message;
+    private MobileToolDetailDto? tool;
+    private List<MobileLifeCycleEventDto> events = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            isLoading = false;
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            message = null;
+            tool = await Api.GetToolDetailAsync(ToolId);
+            events = await Api.GetLifeCycleEventsAsync(ToolId);
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/");
+
+    private void GoLogin() => Navigation.NavigateTo("/login", forceLoad: true);
+
+    private string GetLifeRecordUrl() => "/tools/" + ToolId + "/life-record?returnUrl=" + Uri.EscapeDataString("/tools/" + ToolId);
+
+    private string GetReportUrl() => "/report-damage/" + ToolId;
+
+    private static string Show(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value;
+
+    private static string BoolLabel(bool value) => value ? "Sí" : "No";
+
+    private static string DateLabel(DateTime? value) => value.HasValue ? value.Value.ToString("dd/MM/yyyy") : "-";
+
+    private static string DateTimeLabel(DateTime value) => value == default ? "-" : value.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+
+    private static string JoinCodeName(string? code, string? name)
+    {
+        if (!string.IsNullOrWhiteSpace(code) && !string.IsNullOrWhiteSpace(name))
+        {
+            return $"{code} · {name}";
+        }
+
+        return Show(name ?? code);
+    }
+
+    private static string StatusLabel(string? status)
+    {
+        return status switch
+        {
+            "Available" => "Disponible",
+            "Assigned" => "Asignada",
+            "Loaned" => "Prestada",
+            "InMaintenance" => "En mantenimiento",
+            "Damaged" => "Dañada",
+            "NotSuitable" => "No apta",
+            "PendingValidation" => "Pendiente validación",
+            "Inconsistent" => "Inconsistente",
+            "NotLocated" => "No localizada",
+            "PendingDisposal" => "Pendiente baja",
+            "Disposed" => "Dada de baja",
+            _ => Show(status)
+        };
+    }
+}
+
+
+
+

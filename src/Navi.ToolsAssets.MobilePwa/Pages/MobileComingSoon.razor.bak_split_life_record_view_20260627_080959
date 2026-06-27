@@ -1,0 +1,122 @@
+﻿@page "/mobile/history"
+@page "/mobile/preoperational"
+@page "/mobile/documents"
+@page "/mobile/physical-counts"
+@page "/mobile/reports"
+@page "/mobile/purchases"
+@page "/mobile/maintenance-request"
+@page "/mobile/maintenance-plans"
+@page "/mobile/reconciliation"
+@page "/mobile/internal-control"
+@page "/mobile/expirations"
+@page "/mobile/reception"
+@page "/mobile/settings"
+
+@inject NavigationManager Navigation
+
+<PageTitle>Módulo móvil - NAVI Herramientas y AF</PageTitle>
+
+<section class="mobile-page mobile-page-compact">
+    <header class="mobile-hero mobile-hero-compact-pro">
+        <div class="mobile-hero-top">
+            <button class="mobile-back-button" type="button" @onclick="GoHome">
+                Regresar
+            </button>
+
+            <span class="mobile-pill mobile-pill-dark">@ModuleCode</span>
+        </div>
+
+        <h1>@Title</h1>
+        <p>@Description</p>
+    </header>
+
+    <section class="mobile-empty">
+        <strong>Módulo mapeado</strong>
+        <span>Esta opción ya quedó disponible en el menú móvil. El desarrollo funcional se implementa en el siguiente paso.</span>
+    </section>
+</section>
+
+@code {
+    protected override void OnParametersSet()
+    {
+        var currentUrl = Navigation.Uri.ToLowerInvariant();
+
+        if (currentUrl.Contains("ic-loc") ||
+            currentUrl.Contains("available-location") ||
+            currentUrl.Contains("availability-location") ||
+            currentUrl.Contains("disponible-ubicacion") ||
+            currentUrl.Contains("disponible") ||
+            currentUrl.Contains("ubicacion"))
+        {
+            Navigation.NavigateTo("/asset-availability", replace: true);
+        }
+    }
+
+    private string Path => new Uri(Navigation.Uri).AbsolutePath.ToLowerInvariant();
+
+    private string ModuleCode => Path switch
+    {
+        "/mobile/history" => "IC-HIS",
+        "/mobile/preoperational" => "IC-PRE",
+        "/mobile/documents" => "IC-DOC",
+        "/mobile/physical-counts" => "IC-TF",
+        "/mobile/reports" => "IC-REP",
+        "/mobile/availability" => "IC-LOC",
+        "/mobile/assignment" => "IC-ASG",
+        "/mobile/purchases" => "IC-CMP",
+        "/mobile/maintenance-request" => "IC-MNT",
+        "/mobile/maintenance-plans" => "IC-PLN",
+        "/mobile/reconciliation" => "IC-CON",
+        "/mobile/internal-control" => "IC-CTRL",
+        "/mobile/expirations" => "IC-VEN",
+        "/mobile/reception" => "IC-REC",
+        "/mobile/settings" => "IC-CFG",
+        _ => "IC-MOD"
+    };
+
+    private string Title => Path switch
+    {
+        "/mobile/history" => "Historial",
+        "/mobile/preoperational" => "Preoperacional SSTA",
+        "/mobile/documents" => "Documentos y evidencias",
+        "/mobile/physical-counts" => "Tomas físicas",
+        "/mobile/reports" => "Reportes móviles",
+        "/mobile/availability" => "Disponible y ubicación",
+        "/mobile/assignment" => "Asignar AF",
+        "/mobile/purchases" => "Solicitar compra",
+        "/mobile/maintenance-request" => "Solicitar mantenimiento",
+        "/mobile/maintenance-plans" => "Planes de mantenimiento",
+        "/mobile/reconciliation" => "Conciliación",
+        "/mobile/internal-control" => "Control interno",
+        "/mobile/expirations" => "Vencimientos de planes",
+        "/mobile/reception" => "Recepción",
+        "/mobile/settings" => "Configuración",
+        _ => "Módulo móvil"
+    };
+
+    private string Description => Path switch
+    {
+        "/mobile/history" => "Consulta de movimientos y asignaciones.",
+        "/mobile/preoperational" => "Reporte operativo antes del uso del activo.",
+        "/mobile/documents" => "Carga y consulta de evidencias relacionadas.",
+        "/mobile/physical-counts" => "Validación de activos en toma física.",
+        "/mobile/reports" => "Indicadores disponibles para el rol.",
+        "/mobile/availability" => "Consulta de disponibilidad y ubicación.",
+        "/mobile/assignment" => "Entrega, devolución y asignación de activos.",
+        "/mobile/purchases" => "Solicitud de compra de activos o herramientas.",
+        "/mobile/maintenance-request" => "Solicitud de mantenimiento.",
+        "/mobile/maintenance-plans" => "Consulta de planes de mantenimiento.",
+        "/mobile/reconciliation" => "Validación y conciliación operativa.",
+        "/mobile/internal-control" => "Control y auditoría interna.",
+        "/mobile/expirations" => "Consulta de vencimientos y alertas.",
+        "/mobile/reception" => "Recepción de activos y herramientas.",
+        "/mobile/settings" => "Configuración móvil.",
+        _ => "Opción disponible para la aplicación móvil."
+    };
+
+    private void GoHome()
+    {
+        Navigation.NavigateTo("/");
+    }
+}
+

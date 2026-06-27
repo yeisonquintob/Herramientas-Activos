@@ -1,0 +1,181 @@
+﻿@page "/tools/{ToolId:guid}/life-record"
+@page "/tools/{ToolId:guid}/technical-life-record"
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Hoja de vida móvil - NAVI Herramientas y AF</PageTitle>
+
+<section class="mobile-page mobile-life-page">
+    @if (isLoading)
+    {
+        <div class="mobile-loading">Cargando hoja de vida...</div>
+    }
+    else if (!Auth.IsAuthenticated)
+    {
+        <div class="mobile-empty">
+            <strong>Sesión requerida</strong>
+            <span>Debes iniciar sesión para consultar la hoja de vida.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(message))
+    {
+        <div class="mobile-alert">@message</div>
+
+        <button class="mobile-detail-back" type="button" @onclick="GoBack">
+            Regresar
+        </button>
+    }
+    else if (tool is not null)
+    {
+        <header class="mobile-detail-hero life">
+            <div class="mobile-detail-top">
+                <span>HOJA DE VIDA AF</span>
+
+                <button type="button" @onclick="GoBack">
+                    Regresar
+                </button>
+            </div>
+
+            <h1>@Display(tool.Name)</h1>
+            <p>@Display(tool.InternalCode)</p>
+        </header>
+
+        <section class="mobile-life-summary">
+            <article>
+                <span>Operativo</span>
+                <strong>@Display(tool.OperationalStatus)</strong>
+            </article>
+
+            <article>
+                <span>Físico</span>
+                <strong>@Display(tool.PhysicalStatus)</strong>
+            </article>
+
+            <article>
+                <span>Sede</span>
+                <strong>@Display(tool.BranchCode)</strong>
+            </article>
+        </section>
+
+        <section class="mobile-detail-card">
+            <h2>Datos generales</h2>
+
+            <div class="mobile-detail-grid">
+                <div><span>Código interno</span><strong>@Display(tool.InternalCode)</strong></div>
+                <div><span>Activo / herramienta</span><strong>@Display(tool.Name)</strong></div>
+                <div><span>Sede</span><strong>@DisplayBranch(tool)</strong></div>
+                <div><span>Ubicación</span><strong>@Display(tool.LocationName)</strong></div>
+                <div><span>Responsable</span><strong>@Display(tool.ResponsiblePersonName)</strong></div>
+                <div><span>Identificador</span><strong>@tool.Id</strong></div>
+            </div>
+        </section>
+
+        <section class="mobile-detail-card">
+            <h2>Estado y trazabilidad</h2>
+
+            <div class="mobile-life-timeline">
+                <article>
+                    <strong>Estado operativo</strong>
+                    <span>@Display(tool.OperationalStatus)</span>
+                </article>
+
+                <article>
+                    <strong>Estado físico</strong>
+                    <span>@Display(tool.PhysicalStatus)</span>
+                </article>
+
+                <article>
+                    <strong>Ubicación actual</strong>
+                    <span>@Display(tool.LocationName)</span>
+                </article>
+
+                <article>
+                    <strong>Responsable actual</strong>
+                    <span>@Display(tool.ResponsiblePersonName)</span>
+                </article>
+            </div>
+        </section>
+
+        <section class="mobile-detail-actions">
+            <a href="@GetDetailUrl()">Ver detalle</a>
+            <a class="danger" href="@GetReportUrl()">Reportar novedad</a>
+        </section>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public Guid ToolId { get; set; }
+
+    private bool isLoading = true;
+    private string? message;
+    private MobileToolDto? tool;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            isLoading = false;
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            message = null;
+            tool = await Api.GetToolByIdAsync(ToolId);
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/all-tools");
+    }
+
+    private void GoLogin()
+    {
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    private string GetDetailUrl()
+    {
+        return "/tools/" + ToolId;
+    }
+
+    private string GetReportUrl()
+    {
+        return "/report-damage/" + ToolId;
+    }
+
+    private static string DisplayBranch(MobileToolDto tool)
+    {
+        if (!string.IsNullOrWhiteSpace(tool.BranchCode) && !string.IsNullOrWhiteSpace(tool.BranchName))
+        {
+            return $"{tool.BranchCode} · {tool.BranchName}";
+        }
+
+        return Display(tool.BranchName ?? tool.BranchCode);
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "Sin dato" : value;
+    }
+}

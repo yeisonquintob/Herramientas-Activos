@@ -1,0 +1,259 @@
+﻿@page "/"
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Inicio móvil - NAVI Herramientas y AF</PageTitle>
+
+@if (isInitializing)
+{
+    <section class="mobile-page mobile-page-compact">
+        <div class="mobile-loading">Cargando dashboard móvil...</div>
+    </section>
+}
+else if (!Auth.IsAuthenticated)
+{
+    <section class="mobile-page mobile-page-compact">
+        <div class="mobile-empty">
+            <strong>Sesión requerida</strong>
+            <span>Debes iniciar sesión para ingresar a la app móvil.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+        </div>
+    </section>
+}
+else
+{
+    <section class="mobile-page mobile-page-compact">
+        <header class="mobile-state-hero">
+            <div>
+                <span>Estado</span>
+                <h1>Dashboard móvil</h1>
+                <p>@Auth.CurrentUser?.RoleName · @Auth.CurrentUser?.BranchName</p>
+            </div>
+
+            <button type="button" @onclick="LogoutAsync">Salir</button>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(message))
+        {
+            <div class="mobile-alert">@message</div>
+        }
+
+        @if (dashboard is not null)
+        {
+            <section class="mobile-state-kpis">
+                <article>
+                    <span>Activos</span>
+                    <strong>@dashboard.Summary.TotalTools</strong>
+                    <small>Registrados</small>
+                </article>
+
+                <article>
+                    <span>Pendientes</span>
+                    <strong>@GetPendingTotal()</strong>
+                    <small>Validación</small>
+                </article>
+
+                <article>
+                    <span>Avance</span>
+                    <strong>@GetAdvancePercent()%</strong>
+                    <small>Hoja de vida</small>
+                </article>
+            </section>
+
+            <section class="mobile-state-card">
+                <h2>Local de herramientas</h2>
+
+                <div class="mobile-state-list">
+                    <div><span>Total herramientas</span><strong>@dashboard.Summary.TotalTools</strong></div>
+                    <div><span>Disponibles</span><strong>@dashboard.Summary.AvailableTools</strong></div>
+                    <div><span>Asignadas</span><strong>@dashboard.Summary.AssignedTools</strong></div>
+                    <div><span>En mantenimiento</span><strong>@dashboard.Summary.InMaintenanceTools</strong></div>
+                    <div><span>Pendientes validación</span><strong>@dashboard.Summary.PendingValidationTools</strong></div>
+                    <div><span>Dañadas / no aptas</span><strong>@dashboard.Summary.DamagedTools</strong></div>
+                </div>
+            </section>
+
+            <section class="mobile-state-two">
+                <article class="mobile-state-card">
+                    <h2>Herramientas vs activos</h2>
+
+                    <div class="mobile-state-big">
+                        <strong>@dashboard.Summary.ToolsOnly</strong>
+                        <span>Herramientas</span>
+                    </div>
+
+                    <div class="mobile-state-big secondary">
+                        <strong>@dashboard.Summary.FixedAssets</strong>
+                        <span>Activos fijos</span>
+                    </div>
+                </article>
+
+                <article class="mobile-state-card">
+                    <h2>Hojas de vida</h2>
+
+                    <div class="mobile-state-big">
+                        <strong>@dashboard.Summary.WithLifeRecord</strong>
+                        <span>Con hoja</span>
+                    </div>
+
+                    <div class="mobile-state-big secondary">
+                        <strong>@dashboard.Summary.WithoutLifeRecord</strong>
+                        <span>Sin hoja</span>
+                    </div>
+                </article>
+            </section>
+
+            <section class="mobile-state-card">
+                <h2>Herramientas por sede</h2>
+
+                <div class="mobile-state-bars">
+                    @foreach (var item in dashboard.ToolsByBranch.Take(6))
+                    {
+                        <div>
+                            <span>@item.BranchCode</span>
+                            <div><strong style="@($"width:{GetPercent(item.Total, GetMaxBranch())}%")"></strong></div>
+                            <small>@item.Total</small>
+                        </div>
+                    }
+                </div>
+            </section>
+
+            <section class="mobile-state-card">
+                <div class="mobile-state-head">
+                    <h2>Últimos activos</h2>
+                    <a href="/my-tools">Ver lista</a>
+                </div>
+
+                @if (!tools.Any())
+                {
+                    <div class="mobile-empty compact">No se encontraron activos visibles.</div>
+                }
+                else
+                {
+                    <div class="mobile-state-assets">
+                        @foreach (var tool in tools.Take(3))
+                        {
+                            <article>
+                                <div>
+                                    <span>@tool.InternalCode</span>
+                                    <strong>@tool.Name</strong>
+                                    <small>@Display(tool.LocationName) · @Display(tool.OperationalStatus)</small>
+                                </div>
+
+                                <a href="@GetDetailUrl(tool.Id)">Detalle</a>
+                            </article>
+                        }
+                    </div>
+                }
+            </section>
+
+            <section class="mobile-state-menu">
+                <a href="/all-tools">Inventario</a>
+                <a href="/my-tools">Mis AF</a>
+                <a href="/report-damage">Novedad</a>
+                <a href="/mobile/history">Historial</a>
+                <a href="/mobile/documents">Documentos</a>
+                <a href="/mobile/reports">Reportes</a>
+            </section>
+        }
+    </section>
+}
+
+@code {
+    private bool isInitializing = true;
+    private string? message;
+    private MobileExecutiveDashboard? dashboard;
+    private List<MobileToolDto> tools = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", forceLoad: true);
+            return;
+        }
+
+        await LoadAsync(false);
+
+        isInitializing = false;
+    }
+
+    private async Task LoadAsync(bool forceRefresh)
+    {
+        try
+        {
+            message = null;
+            dashboard = await Api.GetDashboardAsync(forceRefresh);
+            tools = await Api.GetToolsAsync(forceRefresh);
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+
+    private int GetPendingTotal()
+    {
+        if (dashboard is null)
+        {
+            return 0;
+        }
+
+        return dashboard.Summary.PendingValidationTools + dashboard.Summary.WithoutLifeRecord;
+    }
+
+    private int GetAdvancePercent()
+    {
+        if (dashboard is null || dashboard.Summary.TotalTools <= 0)
+        {
+            return 0;
+        }
+
+        return Math.Min(100, Math.Max(0, (int)Math.Round((decimal)dashboard.Summary.WithLifeRecord / dashboard.Summary.TotalTools * 100)));
+    }
+
+    private int GetMaxBranch()
+    {
+        if (dashboard is null || dashboard.ToolsByBranch.Count == 0)
+        {
+            return 1;
+        }
+
+        return Math.Max(1, dashboard.ToolsByBranch.Max(x => x.Total));
+    }
+
+    private static int GetPercent(int value, int max)
+    {
+        if (value <= 0 || max <= 0)
+        {
+            return 0;
+        }
+
+        return Math.Max(5, (int)Math.Round((decimal)value / max * 100));
+    }
+
+    private async Task LogoutAsync()
+    {
+        await Auth.LogoutAsync();
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    private void GoLogin()
+    {
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "Sin dato" : value;
+    }
+
+    private static string GetDetailUrl(Guid id)
+    {
+        return "/tools/" + id;
+    }
+}

@@ -10,6 +10,21 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddAuthorization();
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("NaviMobileCors", policy =>
+    {
+        policy
+            .WithOrigins(
+                "http://localhost:5285",
+                "https://localhost:7285",
+                "http://localhost:5264",
+                "https://localhost:7264")
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
 builder.Services.AddInfrastructure(builder.Configuration);
 
 var connectionString = builder.Configuration.GetConnectionString("NaviToolsAssetsDb")
@@ -47,6 +62,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseCors("NaviMobileCors");
+
 app.UseAuthorization();
 
 app.MapControllers();
@@ -61,3 +78,4 @@ app.MapGet("/", () => Results.Ok(new
 }));
 
 app.Run();
+

@@ -1,0 +1,400 @@
+﻿@page "/tools/{ToolId:guid}/life-record"
+@page "/tools/{ToolId:guid}/technical-life-record"
+
+@using Navi.ToolsAssets.MobilePwa.Models
+@using Microsoft.AspNetCore.Components
+@using Microsoft.JSInterop
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+@inject IJSRuntime Js
+
+<PageTitle>Hoja de vida AF - NAVI Herramientas y AF</PageTitle>
+
+<section class="mobile-page mobile-compact-page">
+    @if (isLoading)
+    {
+        <div class="mobile-loading">Cargando hoja de vida...</div>
+    }
+    else if (!Auth.IsAuthenticated)
+    {
+        <div class="mobile-empty">
+            <strong>Sesión requerida</strong>
+            <span>Debes iniciar sesión para consultar la hoja de vida.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(message))
+    {
+        <div class="mobile-alert">@message</div>
+        <button class="mobile-detail-back" type="button" @onclick="GoBack">Regresar</button>
+    }
+    else if (life is not null)
+    {
+        <header class="mobile-compact-hero life">
+            <div class="mobile-compact-top">
+                <span>HOJA DE VIDA AF</span>
+                <button type="button" @onclick="GoBack">Regresar</button>
+            </div>
+
+            <h1>@Show(life.EquipmentInformation.Name ?? life.Summary.Name)</h1>
+            <p>@Show(life.EquipmentInformation.InternalCode ?? life.Summary.InternalCode) · @StatusLabel(life.Summary.OperationalStatus)</p>
+        </header>
+
+        <section class="mobile-compact-kpis">
+            <article>
+                <span>Vida útil</span>
+                <strong>@PercentLabel(life.UsefulLife.UsedPercentage)</strong>
+            </article>
+
+            <article>
+                <span>Mantenimientos</span>
+                <strong>@life.MaintenancePlan.TotalMaintenanceRecords</strong>
+            </article>
+
+            <article>
+                <span>Documentos</span>
+                <strong>@life.Documents.AllDocuments.Count</strong>
+            </article>
+        </section>
+
+        <details class="mobile-fold" open>
+            <summary>Información del equipo</summary>
+
+            <div class="mobile-info-grid compact">
+                <div><span>Código interno</span><strong>@Show(life.EquipmentInformation.InternalCode)</strong></div>
+                <div><span>Nombre</span><strong>@Show(life.EquipmentInformation.Name)</strong></div>
+                <div><span>Activo fijo</span><strong>@Show(life.EquipmentInformation.FixedAssetCode)</strong></div>
+                <div><span>Código Fenix365</span><strong>@Show(life.EquipmentInformation.FenixCode)</strong></div>
+                <div><span>Marca</span><strong>@Show(life.EquipmentInformation.Brand)</strong></div>
+                <div><span>Modelo</span><strong>@Show(life.EquipmentInformation.Model)</strong></div>
+                <div><span>Serial</span><strong>@Show(life.EquipmentInformation.SerialNumber)</strong></div>
+                <div><span>Fecha adquisición</span><strong>@DateLabel(life.EquipmentInformation.AcquisitionDate)</strong></div>
+                <div><span>Sede</span><strong>@JoinCodeName(life.EquipmentInformation.BranchCode, life.EquipmentInformation.BranchName)</strong></div>
+                <div><span>Ubicación</span><strong>@JoinCodeName(life.EquipmentInformation.LocationCode, life.EquipmentInformation.LocationName)</strong></div>
+                <div><span>Responsable</span><strong>@Show(life.EquipmentInformation.ResponsibleName)</strong></div>
+                <div><span>Tipo / Categoría</span><strong>@Show(life.EquipmentInformation.ToolTypeName) / @Show(life.EquipmentInformation.ToolCategoryName)</strong></div>
+            </div>
+        </details>
+
+        <details class="mobile-fold" open>
+            <summary>Especificaciones técnicas</summary>
+
+            <div class="mobile-info-grid compact">
+                <div><span>Voltaje</span><strong>@Show(life.TechnicalSpecifications.Voltage)</strong></div>
+                <div><span>Capacidad de carga</span><strong>@Show(life.TechnicalSpecifications.LoadCapacity)</strong></div>
+                <div><span>Proveedor</span><strong>@Show(life.TechnicalSpecifications.Provider)</strong></div>
+                <div><span>Garantía</span><strong>@BoolLabel(life.Warranty.HasWarranty)</strong></div>
+                <div><span>Tipo garantía</span><strong>@Show(life.Warranty.WarrantyType)</strong></div>
+                <div><span>Vence certificación</span><strong>@DateLabel(life.TechnicalSpecifications.CertificationExpirationDate)</strong></div>
+            </div>
+        </details>
+
+        <details class="mobile-fold" open>
+            <summary>Vida útil</summary>
+
+            <div class="mobile-life-progress">
+                <div>
+                    <span style="@($"width:{ClampPercent(life.UsefulLife.UsedPercentage)}%")"></span>
+                </div>
+
+                <strong>@PercentLabel(life.UsefulLife.UsedPercentage) usado</strong>
+            </div>
+
+            <div class="mobile-info-grid compact">
+                <div><span>Inicio</span><strong>@DateLabel(life.UsefulLife.StartDate)</strong></div>
+                <div><span>Fin estimado</span><strong>@DateLabel(life.UsefulLife.EndDate)</strong></div>
+                <div><span>Meses</span><strong>@ValueLabel(life.UsefulLife.UsefulLifeMonths)</strong></div>
+                <div><span>Días útiles</span><strong>@ValueLabel(life.UsefulLife.UsefulLifeDays)</strong></div>
+                <div><span>Días transcurridos</span><strong>@ValueLabel(life.UsefulLife.ElapsedDays)</strong></div>
+                <div><span>Días restantes</span><strong>@ValueLabel(life.UsefulLife.RemainingDays)</strong></div>
+            </div>
+        </details>
+
+        <details class="mobile-fold" open>
+            <summary>Plan de mantenimiento</summary>
+
+            <div class="mobile-info-grid compact">
+                <div><span>Último mantenimiento</span><strong>@DateLabel(life.MaintenancePlan.LastMaintenanceDate)</strong></div>
+                <div><span>Próximo mantenimiento</span><strong>@DateLabel(life.MaintenancePlan.NextMaintenanceDate)</strong></div>
+                <div><span>Periodo meses</span><strong>@ValueLabel(life.MaintenancePlan.MaintenancePeriodMonths)</strong></div>
+                <div><span>Requiere mantenimiento</span><strong>@BoolLabel(life.MaintenancePlan.RequiresMaintenance)</strong></div>
+                <div><span>Realizados</span><strong>@life.MaintenancePlan.CompletedMaintenanceRecords</strong></div>
+                <div><span>Pendientes</span><strong>@life.MaintenancePlan.PendingMaintenanceRecords</strong></div>
+            </div>
+        </details>
+
+        <details class="mobile-fold">
+            <summary>Accesorios (@life.Accessories.Count)</summary>
+
+            @if (!life.Accessories.Any())
+            {
+                <div class="mobile-empty compact">Sin accesorios registrados.</div>
+            }
+            else
+            {
+                <div class="mobile-mini-list">
+                    @foreach (var item in life.Accessories)
+                    {
+                        <article>
+                            <strong>@Show(item.Name)</strong>
+                            <span>Cantidad: @item.Quantity · Mant.: @BoolLabel(item.RequiresMaintenance) · Medición: @BoolLabel(item.IsMeasurementEquipment)</span>
+                            <small>@Show(item.Observation)</small>
+                        </article>
+                    }
+                </div>
+            }
+        </details>
+
+        <details class="mobile-fold">
+            <summary>Cronograma de mantenimiento (@life.MaintenanceSchedule.Count)</summary>
+
+            @if (!life.MaintenanceSchedule.Any())
+            {
+                <div class="mobile-empty compact">Sin cronograma de mantenimiento.</div>
+            }
+            else
+            {
+                <div class="mobile-mini-list">
+                    @foreach (var item in life.MaintenanceSchedule.Take(12))
+                    {
+                        <article>
+                            <strong>@Show(item.MaintenanceNumber) · @Show(item.Status)</strong>
+                            <span>@DateLabel(item.ScheduledAt) · @Show(item.Provider) · @Show(item.Technician)</span>
+                            <small>@Show(item.Description ?? item.MaintenanceActivities ?? item.Result)</small>
+
+                            @if (!string.IsNullOrWhiteSpace(item.EvidenceDownloadUrl))
+                            {
+                                <a class="mobile-download-link" href="@Api.ToApiUrl(item.EvidenceDownloadUrl)" target="_blank">Descargar evidencia</a>
+                            }
+                        </article>
+                    }
+                </div>
+            }
+        </details>
+
+        <details class="mobile-fold">
+            <summary>Prácticas seguras (@life.SafePractices.Count)</summary>
+
+            @if (!life.SafePractices.Any())
+            {
+                <div class="mobile-empty compact">Sin prácticas seguras registradas.</div>
+            }
+            else
+            {
+                <div class="mobile-mini-list">
+                    @foreach (var item in life.SafePractices)
+                    {
+                        <article>
+                            <strong>@Show(item.PracticeName)</strong>
+                            <span>@Show(item.Description)</span>
+                            <small>Orden: @item.SortOrder</small>
+                        </article>
+                    }
+                </div>
+            }
+        </details>
+
+        <details class="mobile-fold" open>
+            <summary>Documentos descargables (@life.Documents.AllDocuments.Count)</summary>
+
+            @if (!life.Documents.AllDocuments.Any())
+            {
+                <div class="mobile-empty compact">Sin documentos registrados.</div>
+            }
+            else
+            {
+                <div class="mobile-doc-list">
+                    @foreach (var item in life.Documents.AllDocuments.Take(12))
+                    {
+                        <a href="@Api.ToApiUrl(item.DownloadUrl)" target="_blank">
+                            <strong>@Show(item.FileName)</strong>
+                            <span>@Show(item.DocumentType) · @SizeLabel(item.SizeBytes)</span>
+                            <small>@DateLabel(item.UploadedAt) · @Show(item.UploadedBy)</small>
+                        </a>
+                    }
+                </div>
+            }
+        </details>
+
+        <details class="mobile-fold" open>
+            <summary>Registro fotográfico (@life.Documents.PhotoRecords.Count)</summary>
+
+            @if (!life.Documents.PhotoRecords.Any())
+            {
+                <div class="mobile-empty compact">Sin fotografías registradas.</div>
+            }
+            else
+            {
+                <div class="mobile-photo-grid">
+                    @foreach (var photo in life.Documents.PhotoRecords.Take(9))
+                    {
+                        <a href="@Api.ToApiUrl(photo.DownloadUrl)" target="_blank">
+                            <img src="@Api.ToApiUrl(photo.DownloadUrl)" alt="@Show(photo.FileName)" />
+                            <span>@Show(photo.FileName)</span>
+                        </a>
+                    }
+                </div>
+            }
+        </details>
+
+        <details class="mobile-fold" open>
+            <summary>Eventos de hoja de vida (@life.LifeCycleEvents.Count)</summary>
+
+            @if (!life.LifeCycleEvents.Any())
+            {
+                <div class="mobile-empty compact">Sin eventos registrados.</div>
+            }
+            else
+            {
+                <div class="mobile-timeline compact">
+                    @foreach (var item in life.LifeCycleEvents.Take(12))
+                    {
+                        <article>
+                            <strong>@Show(item.Title)</strong>
+                            <span>@Show(item.Description)</span>
+                            <small>@DateTimeLabel(item.EventDate) · @Show(item.PerformedBy ?? item.CreatedBy)</small>
+                        </article>
+                    }
+                </div>
+            }
+        </details>
+
+        <section class="mobile-fixed-actions two">
+            <a href="@GetDetailUrl()">Detalle</a>
+            <a class="danger" href="@GetReportUrl()">Reportar</a>
+        </section>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public Guid ToolId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+    [SupplyParameterFromQuery(Name = "from")]
+    public string? From { get; set; }
+
+    private bool isLoading = true;
+    private string? message;
+    private MobileTechnicalLifeRecordDto? life;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            isLoading = false;
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            message = null;
+            life = await Api.GetTechnicalLifeRecordAsync(ToolId);
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+    private void GoBack()
+    {
+        if (!string.IsNullOrWhiteSpace(ReturnUrl))
+        {
+            Navigation.NavigateTo(Uri.UnescapeDataString(ReturnUrl));
+            return;
+        }
+
+        if (string.Equals(From, "detail", StringComparison.OrdinalIgnoreCase))
+        {
+            Navigation.NavigateTo("/tools/" + ToolId);
+            return;
+        }
+
+        Navigation.NavigateTo("/");
+    }
+private void GoLogin() => Navigation.NavigateTo("/login", forceLoad: true);
+
+    private string GetDetailUrl() => "/tools/" + ToolId;
+
+    private string GetReportUrl() => "/report-damage/" + ToolId;
+
+    private static string Show(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value;
+
+    private static string BoolLabel(bool value) => value ? "Sí" : "No";
+
+    private static string DateLabel(DateTime? value) => value.HasValue ? value.Value.ToString("dd/MM/yyyy") : "-";
+
+    private static string DateTimeLabel(DateTime value) => value == default ? "-" : value.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+
+    private static string ValueLabel(int? value) => value.HasValue ? value.Value.ToString() : "-";
+
+    private static string PercentLabel(int? value) => value.HasValue ? $"{value.Value}%" : "0%";
+
+    private static int ClampPercent(int? value) => Math.Clamp(value ?? 0, 0, 100);
+
+    private static string JoinCodeName(string? code, string? name)
+    {
+        if (!string.IsNullOrWhiteSpace(code) && !string.IsNullOrWhiteSpace(name))
+        {
+            return $"{code} · {name}";
+        }
+
+        return Show(name ?? code);
+    }
+
+    private static string SizeLabel(long sizeBytes)
+    {
+        if (sizeBytes <= 0)
+        {
+            return "-";
+        }
+
+        if (sizeBytes < 1024)
+        {
+            return $"{sizeBytes} B";
+        }
+
+        if (sizeBytes < 1024 * 1024)
+        {
+            return $"{Math.Round(sizeBytes / 1024m, 1)} KB";
+        }
+
+        return $"{Math.Round(sizeBytes / 1024m / 1024m, 1)} MB";
+    }
+
+    private static string StatusLabel(string? status)
+    {
+        return status switch
+        {
+            "Available" => "Disponible",
+            "Assigned" => "Asignada",
+            "Loaned" => "Prestada",
+            "InMaintenance" => "En mantenimiento",
+            "Damaged" => "Dañada",
+            "NotSuitable" => "No apta",
+            "PendingValidation" => "Pendiente validación",
+            "Inconsistent" => "Inconsistente",
+            "NotLocated" => "No localizada",
+            "PendingDisposal" => "Pendiente baja",
+            "Disposed" => "Dada de baja",
+            _ => Show(status)
+        };
+    }
+}
+
+
+

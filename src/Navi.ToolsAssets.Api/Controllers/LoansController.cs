@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Navi.ToolsAssets.Api.Security;
 using Microsoft.EntityFrameworkCore;
 using Navi.ToolsAssets.Domain.Entities.LifeCycles;
 using Navi.ToolsAssets.Domain.Entities.Loans;
@@ -244,6 +245,7 @@ public class LoansController : ControllerBase
         {
             LoanNumber = $"PRE-{DateTime.UtcNow:yyyyMMddHHmmss}",
             BranchId = branch.Id,
+            RequestedByPersonId = request.RequestedByPersonId,
             Status = GetPreferredLoanStatus(ToolLoanStatus.Draft, "Requested", "PendingApproval", "Draft"),
             RequestedAt = DateTime.UtcNow,
             ExpectedReturnAt = request.ExpectedReturnAt,
@@ -288,6 +290,188 @@ public class LoansController : ControllerBase
         });
     }
 
+
+
+    [RequirePermission("AssetAssignment.Assign")]
+    [HttpPatch("{id:guid}/reject")]
+    [HttpPatch("{id:guid}/deny")]
+    [HttpPatch("{id:guid}/cancel")]
+    public async Task<IActionResult> RejectOrCancelLoan(Guid id, [FromBody] LoanActionRequest request)
+    {
+        var loan = await _context.ToolLoans
+            .Include(x => x.Items)
+                .ThenInclude(x => x.ToolAsset)
+            .FirstOrDefaultAsync(x => x.Id == id);
+
+        if (loan is null)
+        {
+            return NotFound(new { Message = $"No se encontró el préstamo con Id {id}." });
+        }
+
+        if (!LoanStatusIs(loan, "Draft", "Requested", "PendingApproval", "Approved"))
+        {
+            return BadRequest(new { Message = $"La solicitud no se puede denegar o cancelar porque está en estado {loan.Status}." });
+        }
+
+        var changedBy = GetActionUser(request);
+        var previousStatus = loan.Status.ToString();
+        var isCancel = HttpContext.Request.Path.Value?.Contains("/cancel", StringComparison.OrdinalIgnoreCase) == true;
+
+        loan.Status = isCancel
+            ? GetPreferredLoanStatus(loan.Status, "Cancelled", "Canceled")
+            : GetPreferredLoanStatus(loan.Status, "Rejected", "Denied");
+
+        loan.UpdatedAt = DateTime.UtcNow;
+        loan.UpdatedBy = changedBy;
+
+        var actionText = isCancel ? "cancelada" : "denegada";
+        var note = string.IsNullOrWhiteSpace(request.Notes)
+            ? $"La solicitud {loan.LoanNumber} fue {actionText}."
+            : request.Notes.Trim();
+
+        loan.Notes = string.IsNullOrWhiteSpace(loan.Notes)
+            ? note
+            : $"{loan.Notes}{Environment.NewLine}{note}";
+
+        foreach (var item in loan.Items)
+        {
+            AddToolLifeCycleEvent(
+                item.ToolAssetId,
+                isCancel ? "LoanCancelled" : "LoanRejected",
+                isCancel ? "Solicitud de asignación cancelada" : "Solicitud de asignación denegada",
+                note,
+                previousStatus,
+                loan.Status.ToString(),
+                changedBy);
+        }
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new
+        {
+            loan.Id,
+            loan.LoanNumber,
+            PreviousStatus = previousStatus,
+            Status = loan.Status.ToString(),
+            loan.UpdatedAt,
+            loan.UpdatedBy,
+            Message = $"Solicitud {actionText} correctamente."
+        });
+    }
+    [RequirePermission("AssetAssignment.Assign")]
+    [HttpPatch("{id:guid}/approve-assign")]
+    public async Task<IActionResult> ApproveAndAssignLoan(Guid id, [FromBody] LoanActionRequest request)
+    {
+        var loan = await _context.ToolLoans
+            .Include(x => x.Items)
+                .ThenInclude(x => x.ToolAsset)
+            .FirstOrDefaultAsync(x => x.Id == id);
+
+        if (loan is null)
+        {
+            return NotFound(new { Message = $"No se encontró el préstamo con Id {id}." });
+        }
+
+        if (!LoanStatusIs(loan, "Draft", "Requested", "PendingApproval"))
+        {
+            return BadRequest(new { Message = $"La solicitud no se puede aprobar porque está en estado {loan.Status}." });
+        }
+
+        if (!loan.RequestedByPersonId.HasValue)
+        {
+            return BadRequest(new { Message = "La solicitud no tiene responsable solicitante asociado." });
+        }
+
+        var responsible = await _context.ResponsiblePeople
+            .FirstOrDefaultAsync(x => x.Id == loan.RequestedByPersonId.Value);
+
+        if (responsible is null)
+        {
+            return BadRequest(new { Message = "El responsable solicitante no existe o fue eliminado." });
+        }
+
+        var blockedTools = loan.Items
+            .Where(x => x.ToolAsset != null && IsBlockedForLoan(x.ToolAsset.OperationalStatus))
+            .Select(x => new
+            {
+                x.ToolAsset!.InternalCode,
+                x.ToolAsset.Name,
+                OperationalStatus = x.ToolAsset.OperationalStatus.ToString(),
+                OperationalStatusLabel = GetOperationalStatusLabel(x.ToolAsset.OperationalStatus)
+            })
+            .ToList();
+
+        if (blockedTools.Count > 0)
+        {
+            return BadRequest(new
+            {
+                Message = "Una o más herramientas no se pueden asignar por su estado actual.",
+                Tools = blockedTools
+            });
+        }
+
+        var changedBy = GetActionUser(request);
+        var previousLoanStatus = loan.Status.ToString();
+
+        loan.Status = GetPreferredLoanStatus(loan.Status, "Delivered", "Approved");
+        loan.ApprovedAt ??= DateTime.UtcNow;
+        loan.DeliveredAt ??= DateTime.UtcNow;
+        loan.UpdatedAt = DateTime.UtcNow;
+        loan.UpdatedBy = changedBy;
+
+        foreach (var item in loan.Items)
+        {
+            if (item.ToolAsset is null)
+            {
+                continue;
+            }
+
+            var tool = item.ToolAsset;
+
+            var previousValue =
+                $"Responsable={tool.ResponsiblePersonId}; Estado={tool.OperationalStatus}; Custodia={tool.CustodyStatus}; Prestamo={previousLoanStatus}";
+
+            tool.ResponsiblePersonId = responsible.Id;
+            tool.OperationalStatus = ToolOperationalStatus.Assigned;
+            tool.CustodyStatus = ToolCustodyStatus.AssignedToResponsible;
+            tool.UpdatedAt = DateTime.UtcNow;
+            tool.UpdatedBy = changedBy;
+
+            item.DeliveryCondition = string.IsNullOrWhiteSpace(request.Condition)
+                ? item.DeliveryCondition
+                : request.Condition.Trim();
+
+            item.Returned = false;
+            item.UpdatedAt = DateTime.UtcNow;
+            item.UpdatedBy = changedBy;
+
+            AddToolLifeCycleEvent(
+                item.ToolAssetId,
+                "LoanApprovedAndAssigned",
+                "Solicitud aprobada y activo asignado",
+                string.IsNullOrWhiteSpace(request.Notes)
+                    ? $"La solicitud {loan.LoanNumber} fue aprobada y el activo fue asignado a {responsible.FullName}."
+                    : request.Notes.Trim(),
+                previousValue,
+                $"Responsable={responsible.FullName}; Estado={tool.OperationalStatus}; Custodia={tool.CustodyStatus}; Prestamo={loan.Status}",
+                changedBy);
+        }
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new
+        {
+            loan.Id,
+            loan.LoanNumber,
+            PreviousStatus = previousLoanStatus,
+            Status = loan.Status.ToString(),
+            loan.ApprovedAt,
+            loan.DeliveredAt,
+            AssignedToResponsibleId = responsible.Id,
+            AssignedToResponsibleName = responsible.FullName,
+            loan.UpdatedBy
+        });
+    }
     [HttpPatch("{id:guid}/approve")]
     public async Task<IActionResult> ApproveLoan(Guid id, [FromBody] LoanActionRequest request)
     {
@@ -582,6 +766,8 @@ public sealed class RequestToolLoanRequest
 {
     public string BranchCode { get; set; } = string.Empty;
 
+    public Guid? RequestedByPersonId { get; set; }
+
     public List<string> ToolInternalCodes { get; set; } = new();
 
     public DateTime? ExpectedReturnAt { get; set; }
@@ -601,4 +787,6 @@ public sealed class LoanActionRequest
 
     public string? Condition { get; set; }
 }
+
+
 

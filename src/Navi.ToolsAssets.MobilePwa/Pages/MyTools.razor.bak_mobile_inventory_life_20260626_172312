@@ -1,0 +1,258 @@
+﻿@page "/my-tools"
+@page "/all-tools"
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Herramientas móviles - NAVI Herramientas y AF</PageTitle>
+
+<section class="mobile-page">
+    <header class="mobile-hero compact">
+        <div class="mobile-hero-top">
+            <button class="mobile-back-button" type="button" @onclick="GoHome">
+                Regresar
+            </button>
+
+            <span class="mobile-pill">@PagePill</span>
+        </div>
+
+        <h1>@PageTitleText</h1>
+        <p>@PageDescription</p>
+    </header>
+
+    <input class="mobile-search"
+           placeholder="Buscar por código, nombre, responsable, ubicación..."
+           @bind-value="search"
+           @bind-value:event="oninput" />
+
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <div class="mobile-alert">@message</div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="mobile-loading">Cargando herramientas...</div>
+    }
+    else if (!FilteredTools.Any())
+    {
+        <div class="mobile-empty">
+            <strong>Sin activos</strong>
+            <span>No se encontraron herramientas para mostrar.</span>
+        </div>
+    }
+    else
+    {
+        <section class="mobile-list">
+            @foreach (var tool in FilteredTools)
+            {
+                <article class="mobile-tool-card big">
+                    <div class="mobile-tool-info">
+                        <span>@tool.InternalCode</span>
+                        <strong>@tool.Name</strong>
+                        <small>@Display(tool.BranchName) · @Display(tool.LocationName)</small>
+                        <small>Responsable: @Display(tool.ResponsiblePersonName)</small>
+                        <small>Estado: @Display(tool.OperationalStatus)</small>
+                    </div>
+
+                    <div class="mobile-card-actions">
+                        <em class="@GetStatusClass(tool.OperationalStatus)">@Display(tool.OperationalStatus)</em>
+
+                        <a class="mobile-mini-link" href="@GetDetailUrl(tool.Id)">Ver detalle</a>
+
+                        <a class="mobile-mini-link secondary" href="@GetLifeRecordUrl(tool.Id)">Hoja de vida</a>
+
+                        <a class="mobile-mini-link danger" href="@GetReportUrl(tool.Id)">Reportar</a>
+                    </div>
+                </article>
+            }
+        </section>
+    }
+</section>
+
+@code {
+    private bool isLoading = true;
+    private string? message;
+    private string search = string.Empty;
+    private List<MobileToolDto> tools = new();
+
+    private bool IsAllToolsPage =>
+        Navigation.Uri.Contains("/all-tools", StringComparison.OrdinalIgnoreCase);
+
+    private string PagePill => IsAllToolsPage ? "TODAS" : "MIS ACTIVOS";
+
+    private string PageTitleText => IsAllToolsPage
+        ? "Todas las herramientas"
+        : "Herramientas asignadas";
+
+    private string PageDescription => IsAllToolsPage
+        ? "Consulta inventario visible."
+        : "Consulta activos, detalle y hoja de vida móvil.";
+
+    private IEnumerable<MobileToolDto> FilteredTools =>
+        FilterForCurrentUser(tools)
+            .Where(MatchesSearch)
+            .OrderBy(x => x.InternalCode);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", forceLoad: true);
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        message = null;
+
+        try
+        {
+            tools = await Api.GetToolsAsync();
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private IEnumerable<MobileToolDto> FilterForCurrentUser(IEnumerable<MobileToolDto> source)
+    {
+        if (IsAllToolsPage)
+        {
+            return source;
+        }
+
+        var user = Auth.CurrentUser;
+
+        if (user is null)
+        {
+            return Enumerable.Empty<MobileToolDto>();
+        }
+
+        if (!IsTecnico())
+        {
+            return source;
+        }
+
+        if (user.ResponsiblePersonId.HasValue)
+        {
+            var own = source.Where(x => x.ResponsiblePersonId == user.ResponsiblePersonId.Value).ToList();
+
+            if (own.Any())
+            {
+                return own;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(user.ResponsiblePersonName))
+        {
+            var ownByName = source.Where(x =>
+                string.Equals(x.ResponsiblePersonName, user.ResponsiblePersonName, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            if (ownByName.Any())
+            {
+                return ownByName;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(user.BranchCode) &&
+            !string.Equals(user.BranchCode, "TODAS", StringComparison.OrdinalIgnoreCase))
+        {
+            return source.Where(x =>
+                string.Equals(x.BranchCode, user.BranchCode, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(x.BranchName, user.BranchName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return Enumerable.Empty<MobileToolDto>();
+    }
+
+    private bool MatchesSearch(MobileToolDto tool)
+    {
+        if (string.IsNullOrWhiteSpace(search))
+        {
+            return true;
+        }
+
+        var term = search.Trim();
+
+        return Contains(tool.InternalCode, term) ||
+               Contains(tool.Name, term) ||
+               Contains(tool.Brand, term) ||
+               Contains(tool.Model, term) ||
+               Contains(tool.LocationName, term) ||
+               Contains(tool.BranchName, term) ||
+               Contains(tool.ResponsiblePersonName, term) ||
+               Contains(tool.OperationalStatus, term);
+    }
+
+    private bool IsTecnico()
+    {
+        var role = Auth.CurrentUser?.RoleCode?.Trim().ToUpperInvariant();
+
+        return role is "TECNICO" or "TÉCNICO";
+    }
+
+    private void GoHome()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private static bool Contains(string? value, string term)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+               value.Contains(term, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "Sin dato" : value;
+    }
+
+    private static string GetDetailUrl(Guid id)
+    {
+        return "/tools/" + id;
+    }
+
+    private static string GetLifeRecordUrl(Guid id)
+    {
+        return "/tools/" + id + "/life-record";
+    }
+
+    private static string GetReportUrl(Guid id)
+    {
+        return "/report-damage/" + id;
+    }
+
+    private static string GetStatusClass(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return "mobile-status";
+        }
+
+        if (status.Contains("Available", StringComparison.OrdinalIgnoreCase))
+        {
+            return "mobile-status ok";
+        }
+
+        if (status.Contains("Damaged", StringComparison.OrdinalIgnoreCase) ||
+            status.Contains("NotSuitable", StringComparison.OrdinalIgnoreCase))
+        {
+            return "mobile-status danger";
+        }
+
+        return "mobile-status warning";
+    }
+}

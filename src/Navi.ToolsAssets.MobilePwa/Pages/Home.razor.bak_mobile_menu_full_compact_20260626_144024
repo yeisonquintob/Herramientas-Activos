@@ -1,0 +1,280 @@
+﻿@page "/"
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Inicio móvil - NAVI Herramientas y AF</PageTitle>
+
+@if (isInitializing)
+{
+    <section class="mobile-page mobile-page-compact">
+        <div class="mobile-loading">Cargando aplicación móvil...</div>
+    </section>
+}
+else if (!Auth.IsAuthenticated)
+{
+    <section class="mobile-page mobile-page-compact">
+        <div class="mobile-empty">
+            <strong>Sesión requerida</strong>
+            <span>Debes iniciar sesión para ingresar a la app móvil.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+        </div>
+    </section>
+}
+else
+{
+    <section class="mobile-page mobile-page-compact">
+        <header class="mobile-hero mobile-hero-compact-pro">
+            <div class="mobile-hero-top">
+                <span class="mobile-pill mobile-pill-dark">APP MÓVIL</span>
+
+                <button class="mobile-logout-button mobile-logout-compact" type="button" @onclick="LogoutAsync">
+                    Cerrar sesión
+                </button>
+            </div>
+
+            <div class="mobile-hero-title-row">
+                <div>
+                    <h1>Hola, @Auth.CurrentUser?.DisplayName</h1>
+                    <p>@Auth.CurrentUser?.RoleName · @Auth.CurrentUser?.BranchName</p>
+                </div>
+            </div>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(message))
+        {
+            <div class="mobile-alert">@message</div>
+        }
+
+        <section class="mobile-kpi-grid mobile-kpi-grid-compact">
+            <div class="mobile-kpi-card mobile-kpi-compact">
+                <span>Activos</span>
+                <strong>@visibleTools.Count</strong>
+                <small>Visibles</small>
+            </div>
+
+            <div class="mobile-kpi-card mobile-kpi-compact warning">
+                <span>Novedad</span>
+                <strong>@damagedCount</strong>
+                <small>Reportados</small>
+            </div>
+
+            <div class="mobile-kpi-card mobile-kpi-compact ok">
+                <span>Disponibles</span>
+                <strong>@availableCount</strong>
+                <small>Operación</small>
+            </div>
+        </section>
+
+        <section class="mobile-menu-panel mobile-menu-panel-compact">
+            <div class="mobile-panel-head mobile-panel-head-compact">
+                <h2>Menú operativo</h2>
+                <button type="button" @onclick="RefreshAsync">Actualizar</button>
+            </div>
+
+            <div class="mobile-menu-grid mobile-menu-grid-compact">
+                @foreach (var item in MenuItems)
+                {
+                    <a class="mobile-menu-card mobile-menu-card-compact" href="@item.Url">
+                        <span>@item.Code</span>
+                        <strong>@item.Title</strong>
+                        <small>@item.Description</small>
+                    </a>
+                }
+            </div>
+        </section>
+
+        <section class="mobile-panel mobile-panel-compact">
+            <div class="mobile-panel-head mobile-panel-head-compact">
+                <h2>Últimos activos</h2>
+                <a class="mobile-panel-link" href="/my-tools">Ver lista</a>
+            </div>
+
+            @if (!visibleTools.Any())
+            {
+                <div class="mobile-empty compact">
+                    No se encontraron activos relacionados con tu usuario.
+                </div>
+            }
+            else
+            {
+                <div class="mobile-last-assets-list">
+                    @foreach (var tool in visibleTools.Take(3))
+                    {
+                        <article class="mobile-tool-card mobile-tool-card-compact">
+                            <div>
+                                <span>@tool.InternalCode</span>
+                                <strong>@tool.Name</strong>
+                                <small>@Display(tool.LocationName) · @Display(tool.OperationalStatus)</small>
+                            </div>
+
+                            <a class="mobile-mini-link mobile-mini-link-compact" href="@GetDetailUrl(tool.Id)">Detalle</a>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    </section>
+}
+
+@code {
+    private bool isInitializing = true;
+    private string? message;
+    private List<MobileToolDto> tools = new();
+
+    private List<MobileToolDto> visibleTools => FilterForCurrentUser(tools).ToList();
+
+    private int damagedCount => visibleTools.Count(x =>
+        ContainsStatus(x.OperationalStatus, "Damaged") ||
+        ContainsStatus(x.OperationalStatus, "NotSuitable") ||
+        ContainsStatus(x.PhysicalStatus, "Damaged"));
+
+    private int availableCount => visibleTools.Count(x => ContainsStatus(x.OperationalStatus, "Available"));
+
+    private IEnumerable<MobileMenuItem> MenuItems
+    {
+        get
+        {
+            if (IsTecnico())
+            {
+                return new[]
+                {
+                    new MobileMenuItem("AF", "Mis herramientas", "/my-tools", "Activos asignados"),
+                    new MobileMenuItem("DAN", "Reportar novedad", "/report-damage", "Daño o falla"),
+                    new MobileMenuItem("HV", "Hoja de vida AF", "/my-tools", "Consulta técnica"),
+                    new MobileMenuItem("HIS", "Historial propio", "/mobile/history", "Movimientos"),
+                    new MobileMenuItem("PRE", "Preoperacional", "/mobile/preoperational", "SSTA"),
+                    new MobileMenuItem("DOC", "Documentos", "/mobile/documents", "Evidencias")
+                };
+            }
+
+            return new[]
+            {
+                new MobileMenuItem("ALL", "Todas herramientas", "/all-tools", "Inventario"),
+                new MobileMenuItem("AF", "Mis herramientas", "/my-tools", "Relacionadas"),
+                new MobileMenuItem("DAN", "Reportar novedad", "/report-damage", "Daño o falla"),
+                new MobileMenuItem("HV", "Hoja de vida AF", "/all-tools", "Consulta técnica"),
+                new MobileMenuItem("HIS", "Historial", "/mobile/history", "Movimientos"),
+                new MobileMenuItem("DOC", "Documentos", "/mobile/documents", "Evidencias"),
+                new MobileMenuItem("TF", "Tomas físicas", "/mobile/physical-counts", "Validaciones"),
+                new MobileMenuItem("REP", "Reportes", "/mobile/reports", "Indicadores")
+            };
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", forceLoad: true);
+            return;
+        }
+
+        await LoadAsync(false);
+
+        isInitializing = false;
+    }
+
+    private async Task LoadAsync(bool forceRefresh)
+    {
+        try
+        {
+            message = null;
+            tools = await Api.GetToolsAsync(forceRefresh);
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        await LoadAsync(true);
+    }
+
+    private async Task LogoutAsync()
+    {
+        await Auth.LogoutAsync();
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    private void GoLogin()
+    {
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    private IEnumerable<MobileToolDto> FilterForCurrentUser(IEnumerable<MobileToolDto> source)
+    {
+        var user = Auth.CurrentUser;
+
+        if (user is null)
+        {
+            return Enumerable.Empty<MobileToolDto>();
+        }
+
+        if (!IsTecnico())
+        {
+            return source;
+        }
+
+        if (user.ResponsiblePersonId.HasValue)
+        {
+            var own = source.Where(x => x.ResponsiblePersonId == user.ResponsiblePersonId.Value).ToList();
+
+            if (own.Any())
+            {
+                return own;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(user.ResponsiblePersonName))
+        {
+            var ownByName = source.Where(x =>
+                string.Equals(x.ResponsiblePersonName, user.ResponsiblePersonName, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            if (ownByName.Any())
+            {
+                return ownByName;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(user.BranchCode) &&
+            !string.Equals(user.BranchCode, "TODAS", StringComparison.OrdinalIgnoreCase))
+        {
+            return source.Where(x =>
+                string.Equals(x.BranchCode, user.BranchCode, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(x.BranchName, user.BranchName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return Enumerable.Empty<MobileToolDto>();
+    }
+
+    private bool IsTecnico()
+    {
+        var role = Auth.CurrentUser?.RoleCode?.Trim().ToUpperInvariant();
+
+        return role is "TECNICO" or "TÉCNICO";
+    }
+
+    private static bool ContainsStatus(string? value, string expected)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+               value.Contains(expected, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "Sin dato" : value;
+    }
+
+    private static string GetDetailUrl(Guid id)
+    {
+        return "/tools/" + id;
+    }
+
+    private sealed record MobileMenuItem(string Code, string Title, string Url, string Description);
+}

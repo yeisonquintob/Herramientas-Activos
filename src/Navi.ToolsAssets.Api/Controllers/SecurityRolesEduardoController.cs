@@ -352,7 +352,7 @@ END";
             new EduardoRole(
                 "TECNICO",
                 "Técnico",
-                "App Móvil + consulta web limitada - Revisa herramientas asignadas, consulta historial, reporta preoperacional SSTA, daños/novedades y solicita préstamo.",
+                "App Móvil - Revisa herramientas asignadas, consulta historial propio, reporta preoperacional SSTA, daños/novedades, evidencias y préstamos. Sin compras, sin planes de mantenimiento y sin conciliación.",
                 Join(
                     "Tools.View",
                     "AssetAssignment.History",
@@ -360,9 +360,6 @@ END";
 
                     "Documents.View",
                     "Documents.Upload",
-
-                    "Maintenance.View",
-                    "Maintenance.Request",
 
                     "Mobile.Access",
                     "Mobile.Tools.View",
@@ -386,5 +383,7 @@ END";
         string Description,
         string Permissions);
 }
+
+
 
 

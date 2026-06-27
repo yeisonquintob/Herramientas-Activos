@@ -1,0 +1,246 @@
+﻿@page "/mobile/life-records"
+
+@using Navi.ToolsAssets.MobilePwa.Models
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Hojas de vida AF - NAVI Herramientas y AF</PageTitle>
+
+<section class="mobile-page mobile-life-list-page">
+    @if (isLoading)
+    {
+        <div class="mobile-loading">Cargando hojas de vida...</div>
+    }
+    else if (!Auth.IsAuthenticated)
+    {
+        <div class="mobile-empty">
+            <strong>Sesión requerida</strong>
+            <span>Debes iniciar sesión para consultar hojas de vida.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+        </div>
+    }
+    else
+    {
+        <header class="mobile-life-list-hero">
+            <div class="mobile-life-list-top">
+                <span>HOJA DE VIDA AF</span>
+                <button type="button" @onclick="GoHome">Regresar</button>
+            </div>
+
+            <h1>Hojas de vida</h1>
+            <p>Consulta las hojas de vida de activos fijos y herramientas.</p>
+        </header>
+
+        <section class="mobile-life-list-kpis">
+            <article>
+                <strong>@tools.Count</strong>
+                <span>Total AF</span>
+            </article>
+
+            <article>
+                <strong>@tools.Count(x => x.RequiresMaintenance)</strong>
+                <span>Mantenimiento</span>
+            </article>
+
+            <article>
+                <strong>@FilteredTools.Count()</strong>
+                <span>Visibles</span>
+            </article>
+        </section>
+
+        <section class="mobile-life-list-card">
+            <div class="mobile-life-list-card-head">
+                <div>
+                    <strong>Buscar hoja de vida</strong>
+                    <span>Código, nombre, serial, sede o responsable</span>
+                </div>
+            </div>
+
+            <input class="mobile-tool-search-input"
+                   value="@search"
+                   @oninput="OnSearchChanged"
+                   placeholder="Buscar hoja de vida..." />
+
+            @if (!FilteredTools.Any())
+            {
+                <div class="mobile-empty compact">No hay hojas de vida para mostrar.</div>
+            }
+            else
+            {
+                <div class="mobile-life-list-items">
+                    @foreach (var tool in FilteredTools.Take(120))
+                    {
+                        <article>
+                            <div class="mobile-life-list-item-head">
+                                <div>
+                                    <span>@tool.InternalCode</span>
+                                    <strong>@tool.Name</strong>
+                                    <small>@Display(tool.BranchCode) · @Display(tool.LocationName)</small>
+                                </div>
+
+                                <em class="@GetStatusClass(tool.OperationalStatus)">
+                                    @GetStatusLabel(tool.OperationalStatus)
+                                </em>
+                            </div>
+
+                            <div class="mobile-life-list-grid">
+                                <div>
+                                    <span>Serial</span>
+                                    <strong>@Display(tool.SerialNumber)</strong>
+                                </div>
+
+                                <div>
+                                    <span>Responsable</span>
+                                    <strong>@Display(tool.ResponsiblePersonName)</strong>
+                                </div>
+
+                                <div>
+                                    <span>Tipo</span>
+                                    <strong>@Display(tool.ToolTypeName)</strong>
+                                </div>
+
+                                <div>
+                                    <span>Físico</span>
+                                    <strong>@Display(tool.PhysicalStatus)</strong>
+                                </div>
+                            </div>
+
+                            <div class="mobile-life-list-actions">
+                                <a href="@GetLifeRecordUrl(tool.Id)">Abrir hoja de vida</a>
+                                <a class="secondary" href="@GetDetailUrl(tool.Id)">Detalle</a>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    }
+</section>
+
+@code {
+    private bool isLoading = true;
+    private string search = string.Empty;
+    private List<MobileToolDto> tools = new();
+
+    private IEnumerable<MobileToolDto> FilteredTools =>
+        tools
+            .Where(x => string.IsNullOrWhiteSpace(search) ||
+                        ContainsText(x.InternalCode, search) ||
+                        ContainsText(x.Name, search) ||
+                        ContainsText(x.SerialNumber, search) ||
+                        ContainsText(x.BranchCode, search) ||
+                        ContainsText(x.LocationName, search) ||
+                        ContainsText(x.ResponsiblePersonName, search))
+            .OrderBy(x => x.BranchCode)
+            .ThenBy(x => x.InternalCode);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            isLoading = false;
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            tools = await Api.GetToolsAsync(true);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OnSearchChanged(ChangeEventArgs args)
+    {
+        search = args.Value?.ToString() ?? string.Empty;
+    }
+
+    private void GoHome()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private void GoLogin()
+    {
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    private static string GetLifeRecordUrl(Guid id)
+    {
+        return "/tools/" + id + "/life-record?from=life-records";
+    }
+
+    private static string GetDetailUrl(Guid id)
+    {
+        return "/tools/" + id;
+    }
+
+    private static bool ContainsText(string? value, string expected)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+               !string.IsNullOrWhiteSpace(expected) &&
+               Normalize(value).Contains(Normalize(expected), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Normalize(string value)
+    {
+        return value
+            .Trim()
+            .ToUpperInvariant()
+            .Replace("Á", "A")
+            .Replace("É", "E")
+            .Replace("Í", "I")
+            .Replace("Ó", "O")
+            .Replace("Ú", "U")
+            .Replace("Ü", "U")
+            .Replace("Ñ", "N");
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "Sin dato" : value;
+    }
+
+    private static string GetStatusLabel(string? status)
+    {
+        return status switch
+        {
+            "Available" => "Disponible",
+            "Assigned" => "Asignada",
+            "Loaned" => "Prestada",
+            "InMaintenance" => "En mantenimiento",
+            "Damaged" => "Dañada",
+            "NotSuitable" => "No apta",
+            "PendingValidation" => "Pendiente validación",
+            "NotLocated" => "No localizada",
+            "Disposed" => "Baja",
+            _ => Display(status)
+        };
+    }
+
+    private static string GetStatusClass(string? status)
+    {
+        return status switch
+        {
+            "Available" => "mobile-state ok",
+            "Assigned" => "mobile-state assigned",
+            "Loaned" => "mobile-state assigned",
+            "InMaintenance" => "mobile-state warning",
+            "Damaged" => "mobile-state danger",
+            "NotSuitable" => "mobile-state danger",
+            "NotLocated" => "mobile-state dark",
+            _ => "mobile-state neutral"
+        };
+    }
+}

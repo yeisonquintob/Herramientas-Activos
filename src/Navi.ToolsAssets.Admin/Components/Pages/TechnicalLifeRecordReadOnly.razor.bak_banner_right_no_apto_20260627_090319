@@ -1,0 +1,785 @@
+﻿@page "/tools/{ToolId:guid}/technical-life-record-view"
+@page "/tools/{ToolId:guid}/life-record-view"
+
+@rendermode InteractiveServer
+
+@using System.Net.Http.Json
+@using System.Text.Json.Nodes
+
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager NavigationManager
+@inject IConfiguration Configuration
+
+<PageTitle>Consulta hoja de vida técnica - NAVI Herramientas</PageTitle>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">
+        <strong>Error:</strong> @errorMessage
+    </div>
+}
+else if (isLoading && record is null)
+{
+    <div class="alert alert-info">
+        Cargando consulta de hoja de vida técnica...
+    </div>
+}
+else if (record is not null)
+{
+    <section class="life-hero-banner">
+        <div class="life-hero-main">
+            <div class="life-hero-top-actions">
+                <button class="btn-life-back" @onclick="GoBack">
+                    Volver al detalle
+                </button>
+            </div>
+
+            <span class="life-hero-pill">CONSULTA HOJA DE VIDA</span>
+
+            <h2>@Show(Text("Summary", "Name"))</h2>
+
+            <div class="life-hero-code">
+                @Show(Text("Summary", "InternalCode"))
+            </div>
+
+            <p>Vista solo lectura abierta desde el detalle del activo fijo. Para editar o gestionar, ingresa desde el módulo Hoja de Vida del AF.</p>
+        </div>
+
+        <div class="life-hero-side">
+            <div class="life-hero-status-card">
+                <span>Estado operativo</span>
+                <strong>@GetStatusLabel(Text("Summary", "OperationalStatus"))</strong>
+            </div>
+
+            <div class="life-hero-badges">
+                <span class="@GetStatusBadgeClass(Text("Summary", "OperationalStatus"))">
+                    @GetStatusLabel(Text("Summary", "OperationalStatus"))
+                </span>
+
+                <span class="badge bg-light text-dark">
+                    @(BoolValue("Summary", "IsSpecialized") ? "Especializada" : "No especializada")
+                </span>
+            </div>
+
+            <button class="btn btn-sm btn-outline-light life-hero-refresh"
+                    @onclick="LoadAsync"
+                    disabled="@isLoading">
+                @(isLoading ? "Actualizando..." : "Actualizar")
+            </button>
+        </div>
+    </section>
+
+    <section class="life-readonly-note">
+        <strong>Modo solo lectura.</strong>
+        Esta consulta no permite editar datos técnicos, accesorios, documentos, mantenimientos ni prácticas seguras.
+    </section>
+
+    <section class="@GetMaintenanceAlertClass()">
+        <div>
+            <span>Estado de mantenimiento</span>
+            <strong>@GetMaintenanceAlertTitle()</strong>
+            <p>@GetMaintenanceAlertDescription()</p>
+        </div>
+
+        <div class="maintenance-alert-grid">
+            <div>
+                <span>Último mantenimiento</span>
+                <strong>@ShowDate(Text("MaintenancePlan", "LastMaintenanceDate"))</strong>
+            </div>
+
+            <div>
+                <span>Próximo mantenimiento</span>
+                <strong>@ShowDate(Text("MaintenancePlan", "NextMaintenanceDate"))</strong>
+            </div>
+
+            <div>
+                <span>Días restantes</span>
+                <strong>@GetMaintenanceDaysText()</strong>
+            </div>
+        </div>
+    </section>
+
+    <div class="life-record-grid">
+        <section class="life-record-section">
+            <div class="section-title">
+                <span>1</span>
+                <h2>Información del equipo</h2>
+            </div>
+
+            <div class="excel-grid two-columns">
+                <div><label>Código interno</label><strong>@Show(Text("EquipmentInformation", "InternalCode"))</strong></div>
+                <div><label>Nombre</label><strong>@Show(Text("EquipmentInformation", "Name"))</strong></div>
+                <div><label>Marca</label><strong>@Show(Text("EquipmentInformation", "Brand"))</strong></div>
+                <div><label>Modelo</label><strong>@Show(Text("EquipmentInformation", "Model"))</strong></div>
+                <div><label>Serial</label><strong>@Show(Text("EquipmentInformation", "SerialNumber"))</strong></div>
+                <div><label>Activo fijo</label><strong>@Show(Text("EquipmentInformation", "FixedAssetCode"))</strong></div>
+                <div><label>Código Fenix365</label><strong>@Show(Text("EquipmentInformation", "FenixCode"))</strong></div>
+                <div><label>Fecha adquisición</label><strong>@ShowDate(Text("EquipmentInformation", "AcquisitionDate"))</strong></div>
+                <div><label>Zona</label><strong>@Join(Text("EquipmentInformation", "ZoneCode"), Text("EquipmentInformation", "ZoneName"))</strong></div>
+                <div><label>Sede</label><strong>@Join(Text("EquipmentInformation", "BranchCode"), Text("EquipmentInformation", "BranchName"))</strong></div>
+                <div><label>Ubicación</label><strong>@Join(Text("EquipmentInformation", "LocationCode"), Text("EquipmentInformation", "LocationName"))</strong></div>
+                <div><label>Responsable</label><strong>@Show(Text("EquipmentInformation", "ResponsibleName"))</strong></div>
+                <div><label>Tipo</label><strong>@Show(Text("EquipmentInformation", "ToolTypeName"))</strong></div>
+                <div><label>Categoría</label><strong>@Show(Text("EquipmentInformation", "ToolCategoryName"))</strong></div>
+                <div><label>Unidad</label><strong>@Show(Text("EquipmentInformation", "UnitOfMeasure"))</strong></div>
+                <div><label>Cantidad</label><strong>@Show(Text("EquipmentInformation", "Quantity"))</strong></div>
+            </div>
+        </section>
+
+        <section class="life-record-section">
+            <div class="section-title">
+                <span>2</span>
+                <h2>Especificaciones técnicas</h2>
+            </div>
+
+            <div class="excel-grid two-columns">
+                <div><label>Voltaje</label><strong>@Show(Text("TechnicalSpecifications", "Voltage"))</strong></div>
+                <div><label>Capacidad de carga</label><strong>@Show(Text("TechnicalSpecifications", "LoadCapacity"))</strong></div>
+                <div><label>Proveedor</label><strong>@Show(Text("TechnicalSpecifications", "Provider"))</strong></div>
+                <div><label>Requiere mantenimiento</label><strong>@BoolText(Text("TechnicalSpecifications", "RequiresMaintenance"))</strong></div>
+                <div><label>Requiere preoperacional</label><strong>@BoolText(Text("TechnicalSpecifications", "RequiresPreOperationalCheck"))</strong></div>
+                <div><label>Requiere certificación</label><strong>@BoolText(Text("TechnicalSpecifications", "RequiresCertification"))</strong></div>
+                <div><label>Vence certificación</label><strong>@ShowDate(Text("TechnicalSpecifications", "CertificationExpirationDate"))</strong></div>
+                <div><label>Garantía</label><strong>@BoolText(Text("Warranty", "HasWarranty"))</strong></div>
+                <div><label>Tipo garantía</label><strong>@Show(Text("Warranty", "WarrantyType"))</strong></div>
+            </div>
+        </section>
+    </div>
+
+    <div class="life-record-grid">
+        <section class="life-record-section">
+            <div class="section-title">
+                <span>3</span>
+                <h2>Vida útil</h2>
+            </div>
+
+            <div class="excel-grid two-columns">
+                <div><label>Fecha inicial vida útil</label><strong>@ShowDate(Text("UsefulLife", "StartDate"))</strong></div>
+                <div><label>Fecha final vida útil</label><strong>@ShowDate(Text("UsefulLife", "EndDate"))</strong></div>
+                <div><label>Vida útil meses</label><strong>@Show(Text("UsefulLife", "UsefulLifeMonths"))</strong></div>
+                <div><label>Vida útil días</label><strong>@Show(Text("UsefulLife", "UsefulLifeDays"))</strong></div>
+                <div><label>Días transcurridos</label><strong>@Show(Text("UsefulLife", "ElapsedDays"))</strong></div>
+                <div><label>Días restantes</label><strong>@Show(Text("UsefulLife", "RemainingDays"))</strong></div>
+            </div>
+
+            <div class="life-progress mt-3">
+                <div class="life-progress-header">
+                    <span>Uso de vida útil</span>
+                    <strong>@Show(Text("UsefulLife", "UsedPercentage"))%</strong>
+                </div>
+                <div class="bar-track">
+                    <div class="bar-fill" style="width:@GetPercent(Text("UsefulLife", "UsedPercentage"))%"></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="life-record-section">
+            <div class="section-title">
+                <span>4</span>
+                <h2>Plan de mantenimiento</h2>
+            </div>
+
+            <div class="excel-grid two-columns">
+                <div><label>Último mantenimiento</label><strong>@ShowDate(Text("MaintenancePlan", "LastMaintenanceDate"))</strong></div>
+                <div><label>Próximo mantenimiento</label><strong>@ShowDate(Text("MaintenancePlan", "NextMaintenanceDate"))</strong></div>
+                <div><label>Periodicidad meses</label><strong>@Show(Text("MaintenancePlan", "MaintenancePeriodMonths"))</strong></div>
+                <div><label>Total mantenimientos</label><strong>@Show(Text("MaintenancePlan", "TotalMaintenanceRecords"))</strong></div>
+                <div><label>Completados</label><strong>@Show(Text("MaintenancePlan", "CompletedMaintenanceRecords"))</strong></div>
+                <div><label>Pendientes</label><strong>@Show(Text("MaintenancePlan", "PendingMaintenanceRecords"))</strong></div>
+            </div>
+        </section>
+    </div>
+
+    <section class="life-record-section">
+        <div class="section-title">
+            <span>5</span>
+            <h2>Accesorios del equipo</h2>
+        </div>
+
+        @if (GetArray("Accessories").Count == 0)
+        {
+            <p class="text-muted mb-0">No hay accesorios registrados para esta herramienta.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered excel-table">
+                    <thead>
+                        <tr>
+                            <th>Accesorio</th>
+                            <th>Cantidad</th>
+                            <th>Requiere mantenimiento</th>
+                            <th>Equipo de medición</th>
+                            <th>Observación</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in GetArray("Accessories"))
+                        {
+                            <tr>
+                                <td>@Show(ItemText(item, "Name"))</td>
+                                <td>@Show(ItemText(item, "Quantity"))</td>
+                                <td>@BoolText(ItemText(item, "RequiresMaintenance"))</td>
+                                <td>@BoolText(ItemText(item, "IsMeasurementEquipment"))</td>
+                                <td>@Show(ItemText(item, "Observation"))</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    <div class="life-record-grid">
+        <section class="life-record-section">
+            <div class="section-title">
+                <span>6</span>
+                <h2>Registro fotográfico</h2>
+            </div>
+
+            @if (GetArray("Documents", "PhotoRecords").Count == 0)
+            {
+                <p class="text-muted mb-0">No hay fotografías registradas.</p>
+            }
+            else
+            {
+                <div class="document-list">
+                    @foreach (var doc in GetArray("Documents", "PhotoRecords"))
+                    {
+                        <a href="@BuildApiUrl(ItemText(doc, "DownloadUrl"))" target="_blank" class="document-card">
+                            <strong>@Show(ItemText(doc, "FileName"))</strong>
+                            <span>@Show(ItemText(doc, "DocumentType"))</span>
+                        </a>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="life-record-section">
+            <div class="section-title">
+                <span>7</span>
+                <h2>Ficha técnica y documentos</h2>
+            </div>
+
+            @if (GetAllDocuments().Count == 0)
+            {
+                <p class="text-muted mb-0">No hay documentos técnicos registrados.</p>
+            }
+            else
+            {
+                <div class="document-list">
+                    @foreach (var doc in GetAllDocuments())
+                    {
+                        <a href="@BuildApiUrl(ItemText(doc, "DownloadUrl"))" target="_blank" class="document-card">
+                            <strong>@Show(ItemText(doc, "FileName"))</strong>
+                            <span>@Show(ItemText(doc, "DocumentType"))</span>
+                        </a>
+                    }
+                </div>
+            }
+        </section>
+    </div>
+
+    <section class="life-record-section">
+        <div class="section-title">
+            <span>8</span>
+            <h2>Cronograma de mantenimiento</h2>
+        </div>
+
+        @if (GetArray("MaintenanceSchedule").Count == 0)
+        {
+            <p class="text-muted mb-0">No hay registros de mantenimiento.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered excel-table">
+                    <thead>
+                        <tr>
+                            <th>Número</th>
+                            <th>Tipo</th>
+                            <th>Estado</th>
+                            <th>Programado</th>
+                            <th>Proveedor</th>
+                            <th>Técnico</th>
+                            <th>Actividades</th>
+                            <th>Responsable</th>
+                            <th>Operativa</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in GetArray("MaintenanceSchedule"))
+                        {
+                            <tr>
+                                <td>@Show(ItemText(item, "MaintenanceNumber"))</td>
+                                <td>@Show(ItemText(item, "Type"))</td>
+                                <td>@Show(ItemText(item, "Status"))</td>
+                                <td>@ShowDate(ItemText(item, "ScheduledAt"))</td>
+                                <td>@Show(ItemText(item, "Provider"))</td>
+                                <td>@Show(ItemText(item, "Technician"))</td>
+                                <td>@Show(FirstText(item, "MaintenanceActivities", "Description", "Result"))</td>
+                                <td>@Show(ItemText(item, "ResponsibleName"))</td>
+                                <td>@BoolText(ItemText(item, "IsToolOperational"))</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    <section class="life-record-section">
+        <div class="section-title">
+            <span>9</span>
+            <h2>Prácticas seguras</h2>
+        </div>
+
+        @if (GetArray("SafePractices").Count == 0)
+        {
+            <p class="text-muted mb-0">No hay prácticas seguras registradas.</p>
+        }
+        else
+        {
+            <div class="safe-practices-grid">
+                @foreach (var item in GetArray("SafePractices"))
+                {
+                    <div class="safe-practice-card">
+                        <span>@Show(ItemText(item, "SortOrder"))</span>
+                        <div>
+                            <strong>@Show(ItemText(item, "PracticeName"))</strong>
+                            <p>@Show(ItemText(item, "Description"))</p>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+
+    <section class="life-record-section">
+        <div class="section-title">
+            <span>10</span>
+            <h2>Eventos de hoja de vida</h2>
+        </div>
+
+        @if (GetArray("LifeCycleEvents").Count == 0)
+        {
+            <p class="text-muted mb-0">No hay eventos registrados.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered excel-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Evento</th>
+                            <th>Título</th>
+                            <th>Anterior</th>
+                            <th>Nuevo</th>
+                            <th>Usuario</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in GetArray("LifeCycleEvents"))
+                        {
+                            <tr>
+                                <td>@ShowDateTime(ItemText(item, "EventDate"))</td>
+                                <td>@Show(ItemText(item, "EventType"))</td>
+                                <td>@Show(ItemText(item, "Title"))</td>
+                                <td>@Show(ItemText(item, "PreviousValue"))</td>
+                                <td>@Show(ItemText(item, "NewValue"))</td>
+                                <td>@Show(FirstText(item, "PerformedBy", "CreatedBy"))</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+}
+
+<style>
+    .life-readonly-note {
+        background: #f8f3fb;
+        border: 1px solid #e7d6ef;
+        color: #4b005c;
+        border-radius: .75rem;
+        padding: .75rem 1rem;
+        margin: .85rem 0;
+        font-size: .85rem;
+        font-weight: 800;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public Guid ToolId { get; set; }
+
+    private bool isLoading;
+    private string? errorMessage;
+    private JsonObject? record;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+            record = await client.GetFromJsonAsync<JsonObject>($"api/tools/{ToolId}/technical-life-record");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo cargar la consulta de hoja de vida técnica. Valida que la API esté activa en http://localhost:5218. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/tools/" + ToolId);
+    }
+
+    private string BuildApiUrl(string? relativeUrl)
+    {
+        if (string.IsNullOrWhiteSpace(relativeUrl) || relativeUrl == "-")
+        {
+            return "#";
+        }
+
+        if (relativeUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        {
+            return relativeUrl;
+        }
+
+        var baseUrl = Configuration["NaviApi:BaseUrl"] ?? "http://localhost:5218";
+
+        return $"{baseUrl.TrimEnd('/')}/{relativeUrl.TrimStart('/')}";
+    }
+
+    private JsonNode? Node(params string[] path)
+    {
+        JsonNode? current = record;
+
+        foreach (var part in path)
+        {
+            if (current is JsonObject obj && obj.TryGetPropertyValue(part, out var next))
+            {
+                current = next;
+            }
+            else
+            {
+                return null;
+            }
+        }
+
+        return current;
+    }
+
+    private JsonArray GetArray(params string[] path)
+    {
+        return Node(path) as JsonArray ?? new JsonArray();
+    }
+
+    private List<JsonNode?> GetAllDocuments()
+    {
+        var result = new List<JsonNode?>();
+
+        result.AddRange(GetArray("Documents", "TechnicalDocuments"));
+        result.AddRange(GetArray("Documents", "AllDocuments"));
+
+        return result;
+    }
+
+    private string Text(params string[] path)
+    {
+        return ValueText(Node(path));
+    }
+
+    private static string ItemText(JsonNode? item, string property)
+    {
+        if (item is JsonObject obj && obj.TryGetPropertyValue(property, out var value))
+        {
+            return ValueText(value);
+        }
+
+        return "-";
+    }
+
+    private static string FirstText(JsonNode? item, params string[] properties)
+    {
+        foreach (var property in properties)
+        {
+            var value = ItemText(item, property);
+
+            if (!string.IsNullOrWhiteSpace(value) && value != "-")
+            {
+                return value;
+            }
+        }
+
+        return "-";
+    }
+
+    private static string ValueText(JsonNode? node)
+    {
+        if (node is null)
+        {
+            return "-";
+        }
+
+        try
+        {
+            if (node is JsonValue value)
+            {
+                if (value.TryGetValue<string>(out var text))
+                {
+                    return string.IsNullOrWhiteSpace(text) ? "-" : text;
+                }
+
+                if (value.TryGetValue<bool>(out var boolValue))
+                {
+                    return boolValue ? "true" : "false";
+                }
+
+                if (value.TryGetValue<int>(out var intValue))
+                {
+                    return intValue.ToString();
+                }
+
+                if (value.TryGetValue<long>(out var longValue))
+                {
+                    return longValue.ToString();
+                }
+
+                if (value.TryGetValue<decimal>(out var decimalValue))
+                {
+                    return decimalValue.ToString("0.##");
+                }
+            }
+
+            return node.ToJsonString();
+        }
+        catch
+        {
+            return "-";
+        }
+    }
+
+    private static string Show(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) || value == "null" ? "-" : value;
+    }
+
+    private static string Join(string? code, string? name)
+    {
+        code = Show(code);
+        name = Show(name);
+
+        if (code == "-" && name == "-")
+        {
+            return "-";
+        }
+
+        if (code == "-")
+        {
+            return name;
+        }
+
+        if (name == "-")
+        {
+            return code;
+        }
+
+        return $"{code} - {name}";
+    }
+
+    private static string BoolText(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value == "-")
+        {
+            return "-";
+        }
+
+        if (bool.TryParse(value, out var boolValue))
+        {
+            return boolValue ? "Sí" : "No";
+        }
+
+        return value;
+    }
+
+    private bool BoolValue(params string[] path)
+    {
+        return bool.TryParse(Text(path), out var value) && value;
+    }
+
+    private static string ShowDate(string? value)
+    {
+        if (DateTime.TryParse(value, out var date))
+        {
+            return date.ToString("dd/MM/yyyy");
+        }
+
+        return Show(value);
+    }
+
+    private static string ShowDateTime(string? value)
+    {
+        if (DateTime.TryParse(value, out var date))
+        {
+            return date.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+        }
+
+        return Show(value);
+    }
+
+    private static int GetPercent(string? value)
+    {
+        return int.TryParse(value, out var percent)
+            ? Math.Clamp(percent, 0, 100)
+            : 0;
+    }
+
+    private int? GetDaysUntilNextMaintenance()
+    {
+        var value = Text("MaintenancePlan", "NextMaintenanceDate");
+
+        if (!DateTime.TryParse(value, out var next))
+        {
+            return null;
+        }
+
+        return (next.Date - DateTime.Today).Days;
+    }
+
+    private string GetMaintenanceAlertClass()
+    {
+        var days = GetDaysUntilNextMaintenance();
+
+        if (!days.HasValue)
+        {
+            return "maintenance-alert maintenance-alert-neutral";
+        }
+
+        if (days.Value < 0)
+        {
+            return "maintenance-alert maintenance-alert-danger";
+        }
+
+        if (days.Value <= 30)
+        {
+            return "maintenance-alert maintenance-alert-warning";
+        }
+
+        return "maintenance-alert maintenance-alert-success";
+    }
+
+    private string GetMaintenanceAlertTitle()
+    {
+        var days = GetDaysUntilNextMaintenance();
+
+        if (!days.HasValue)
+        {
+            return "Sin fecha programada";
+        }
+
+        if (days.Value < 0)
+        {
+            return "Mantenimiento vencido";
+        }
+
+        if (days.Value <= 30)
+        {
+            return "Mantenimiento próximo";
+        }
+
+        return "Mantenimiento al día";
+    }
+
+    private string GetMaintenanceAlertDescription()
+    {
+        var days = GetDaysUntilNextMaintenance();
+
+        if (!days.HasValue)
+        {
+            return "La herramienta no tiene una fecha de próximo mantenimiento registrada.";
+        }
+
+        if (days.Value < 0)
+        {
+            return $"El mantenimiento está vencido hace {Math.Abs(days.Value)} día(s).";
+        }
+
+        if (days.Value == 0)
+        {
+            return "El mantenimiento está programado para hoy.";
+        }
+
+        if (days.Value <= 30)
+        {
+            return $"El mantenimiento está próximo. Faltan {days.Value} día(s).";
+        }
+
+        return $"La herramienta se encuentra al día. Faltan {days.Value} día(s) para el próximo mantenimiento.";
+    }
+
+    private string GetMaintenanceDaysText()
+    {
+        var days = GetDaysUntilNextMaintenance();
+
+        if (!days.HasValue)
+        {
+            return "-";
+        }
+
+        return days.Value < 0
+            ? $"Vencido {Math.Abs(days.Value)} día(s)"
+            : $"{days.Value} día(s)";
+    }
+
+    private static string GetStatusLabel(string? status)
+    {
+        return status switch
+        {
+            "Available" => "Disponible",
+            "Assigned" => "Asignada",
+            "Loaned" => "Prestada",
+            "InMaintenance" => "En mantenimiento",
+            "Damaged" => "Dañada",
+            "NotSuitable" => "No apta",
+            "PendingValidation" => "Pendiente validación",
+            "Inconsistent" => "Inconsistente",
+            "NotLocated" => "No localizada",
+            "PendingDisposal" => "Pendiente de baja",
+            "Disposed" => "Dada de baja",
+            _ => string.IsNullOrWhiteSpace(status) || status == "-" ? "Sin estado" : status
+        };
+    }
+
+    private static string GetStatusBadgeClass(string? status)
+    {
+        return status switch
+        {
+            "Available" => "badge bg-success",
+            "PendingValidation" => "badge bg-warning text-dark",
+            "Loaned" => "badge bg-info text-dark",
+            "InMaintenance" => "badge bg-primary",
+            "Damaged" => "badge bg-danger",
+            "NotSuitable" => "badge bg-danger",
+            "NotLocated" => "badge bg-dark",
+            "Inconsistent" => "badge bg-danger",
+            "Disposed" => "badge bg-secondary",
+            _ => "badge bg-secondary"
+        };
+    }
+}

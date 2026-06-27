@@ -1,0 +1,197 @@
+﻿@page "/tools/{ToolId:guid}"
+@page "/tools/{ToolId:guid}/life-record"
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Detalle activo - NAVI Herramientas y AF</PageTitle>
+
+<section class="mobile-page">
+    @if (isLoading)
+    {
+        <div class="mobile-loading">Cargando detalle del activo...</div>
+    }
+    else if (!Auth.IsAuthenticated)
+    {
+        <div class="mobile-empty">
+            <strong>Sesión requerida</strong>
+            <span>Debes iniciar sesión para consultar el activo.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(message))
+    {
+        <header class="mobile-hero compact">
+            <div class="mobile-hero-top">
+                <button class="mobile-back-button" type="button" @onclick="GoBack">
+                    Regresar
+                </button>
+
+                <span class="mobile-pill">DETALLE AF</span>
+            </div>
+
+            <h1>No se pudo cargar</h1>
+            <p>Valida que la API esté encendida y que el activo exista.</p>
+        </header>
+
+        <div class="mobile-alert">@message</div>
+    }
+    else if (tool is not null)
+    {
+        <header class="mobile-hero compact">
+            <div class="mobile-hero-top">
+                <button class="mobile-back-button" type="button" @onclick="GoBack">
+                    Regresar
+                </button>
+
+                <span class="mobile-pill">HOJA DE VIDA AF</span>
+            </div>
+
+            <h1>@tool.Name</h1>
+            <p>@tool.InternalCode · @Display(tool.BranchName)</p>
+        </header>
+
+        <section class="mobile-toolbar">
+            <a class="mobile-secondary-link" href="/my-tools">Mis herramientas</a>
+            <a class="mobile-primary-link" href="@GetReportUrl(tool.Id)">Reportar novedad</a>
+        </section>
+
+        <section class="mobile-detail-card">
+            <div class="mobile-detail-card-head">
+                <span>Estado actual</span>
+                <strong>@Display(tool.OperationalStatus)</strong>
+            </div>
+
+            <div class="mobile-status-grid">
+                <div><span>Operativo</span><strong>@Display(tool.OperationalStatus)</strong></div>
+                <div><span>Físico</span><strong>@Display(tool.PhysicalStatus)</strong></div>
+                <div><span>Custodia</span><strong>@Display(tool.CustodyStatus)</strong></div>
+            </div>
+        </section>
+
+        <section class="mobile-detail-card">
+            <h2>Identificación del activo</h2>
+
+            <div class="mobile-detail-list">
+                <div><span>Código interno</span><strong>@tool.InternalCode</strong></div>
+                <div><span>Activo fijo</span><strong>@Display(tool.FixedAssetCode)</strong></div>
+                <div><span>Código Fénix</span><strong>@Display(tool.FenixCode)</strong></div>
+                <div><span>Serial</span><strong>@Display(tool.SerialNumber)</strong></div>
+                <div><span>Marca</span><strong>@Display(tool.Brand)</strong></div>
+                <div><span>Modelo</span><strong>@Display(tool.Model)</strong></div>
+            </div>
+        </section>
+
+        <section class="mobile-detail-card">
+            <h2>Ubicación y responsable</h2>
+
+            <div class="mobile-detail-list">
+                <div><span>Sede</span><strong>@Display(tool.BranchName)</strong></div>
+                <div><span>Código sede</span><strong>@Display(tool.BranchCode)</strong></div>
+                <div><span>Ubicación</span><strong>@Display(tool.LocationName)</strong></div>
+                <div><span>Responsable</span><strong>@Display(tool.ResponsiblePersonName)</strong></div>
+            </div>
+        </section>
+
+        <section class="mobile-detail-card">
+            <h2>Datos técnicos</h2>
+
+            <div class="mobile-detail-list">
+                <div><span>Tipo</span><strong>@Display(tool.ToolTypeName)</strong></div>
+                <div><span>Categoría</span><strong>@Display(tool.ToolCategoryName)</strong></div>
+                <div><span>Cantidad</span><strong>@tool.Quantity</strong></div>
+                <div><span>Especializada</span><strong>@YesNo(tool.IsSpecialized)</strong></div>
+            </div>
+        </section>
+
+        <section class="mobile-detail-card">
+            <h2>Controles y requisitos</h2>
+
+            <div class="mobile-tag-list">
+                <span class="@(tool.RequiresMaintenance ? "mobile-tag active" : "mobile-tag")">
+                    Mantenimiento: @YesNo(tool.RequiresMaintenance)
+                </span>
+
+                <span class="@(tool.RequiresPreOperationalCheck ? "mobile-tag active" : "mobile-tag")">
+                    Preoperacional: @YesNo(tool.RequiresPreOperationalCheck)
+                </span>
+
+                <span class="@(tool.RequiresCertification ? "mobile-tag active" : "mobile-tag")">
+                    Certificación: @YesNo(tool.RequiresCertification)
+                </span>
+            </div>
+        </section>
+
+        <section class="mobile-detail-card">
+            <h2>Descripción</h2>
+            <p class="mobile-description">@Display(tool.Description)</p>
+        </section>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public Guid ToolId { get; set; }
+
+    private bool isLoading = true;
+    private string? message;
+    private MobileToolDto? tool;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            isLoading = false;
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        message = null;
+
+        try
+        {
+            tool = await Api.GetToolByIdAsync(ToolId);
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/my-tools");
+    }
+
+    private void GoLogin()
+    {
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    private static string GetReportUrl(Guid id)
+    {
+        return "/report-damage/" + id;
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "Sin dato" : value;
+    }
+
+    private static string YesNo(bool value)
+    {
+        return value ? "Sí" : "No";
+    }
+}

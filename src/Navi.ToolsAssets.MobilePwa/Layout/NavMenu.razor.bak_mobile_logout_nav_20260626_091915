@@ -1,0 +1,40 @@
+﻿@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+
+@if (Auth.IsAuthenticated)
+{
+    <nav class="mobile-bottom-nav">
+        <NavLink href="/" Match="NavLinkMatch.All">
+            <span>INICIO</span>
+            <strong>Inicio</strong>
+        </NavLink>
+
+        <NavLink href="/my-tools">
+            <span>AF</span>
+            <strong>Mis AF</strong>
+        </NavLink>
+
+        <NavLink href="/report-damage">
+            <span>DAN</span>
+            <strong>Novedad</strong>
+        </NavLink>
+
+        <button type="button" @onclick="LogoutAsync">
+            <span>SALIR</span>
+            <strong>Salir</strong>
+        </button>
+    </nav>
+}
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+    }
+
+    private async Task LogoutAsync()
+    {
+        await Auth.LogoutAsync();
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+}

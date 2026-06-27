@@ -1,0 +1,185 @@
+﻿@page "/my-tools"
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Mis herramientas - NAVI Herramientas y AF</PageTitle>
+
+<section class="mobile-page">
+    <header class="mobile-hero compact">
+        <span class="mobile-pill">MIS ACTIVOS</span>
+        <h1>Herramientas asignadas</h1>
+        <p>Consulta rápida de activos relacionados con tu operación.</p>
+    </header>
+
+    <input class="mobile-search"
+           placeholder="Buscar por código, nombre, ubicación..."
+           @bind="search"
+           @bind:event="oninput" />
+
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <div class="mobile-alert">@message</div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="mobile-loading">Cargando herramientas...</div>
+    }
+    else if (!FilteredTools.Any())
+    {
+        <div class="mobile-empty">
+            <strong>Sin activos</strong>
+            <span>No se encontraron herramientas para mostrar.</span>
+        </div>
+    }
+    else
+    {
+        <section class="mobile-list">
+            @foreach (var tool in FilteredTools)
+            {
+                <article class="mobile-tool-card big">
+                    <div>
+                        <span>@tool.InternalCode</span>
+                        <strong>@tool.Name</strong>
+                        <small>@Display(tool.BranchName) · @Display(tool.LocationName)</small>
+                        <small>Responsable: @Display(tool.ResponsiblePersonName)</small>
+                    </div>
+
+                    <div class="mobile-card-actions">
+                        <em class="@GetStatusClass(tool.OperationalStatus)">@Display(tool.OperationalStatus)</em>
+                        <button type="button" @onclick="() => Report(tool.Id)">Reportar novedad</button>
+                    </div>
+                </article>
+            }
+        </section>
+    }
+</section>
+
+@code {
+    private bool isLoading = true;
+    private string? message;
+    private string? search;
+    private List<MobileToolDto> tools = new();
+
+    private IEnumerable<MobileToolDto> FilteredTools =>
+        FilterForCurrentUser(tools)
+            .Where(MatchesSearch)
+            .OrderBy(x => x.InternalCode);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+
+        try
+        {
+            tools = await Api.GetToolsAsync();
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private IEnumerable<MobileToolDto> FilterForCurrentUser(IEnumerable<MobileToolDto> source)
+    {
+        var user = Auth.CurrentUser;
+
+        if (user is null)
+        {
+            return Enumerable.Empty<MobileToolDto>();
+        }
+
+        if (Auth.IsTecnico())
+        {
+            if (user.ResponsiblePersonId.HasValue)
+            {
+                return source.Where(x => x.ResponsiblePersonId == user.ResponsiblePersonId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(user.ResponsiblePersonName))
+            {
+                return source.Where(x => string.Equals(x.ResponsiblePersonName, user.ResponsiblePersonName, StringComparison.OrdinalIgnoreCase));
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(user.BranchCode))
+        {
+            return source.Where(x => string.Equals(x.BranchCode, user.BranchCode, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return source;
+    }
+
+    private bool MatchesSearch(MobileToolDto tool)
+    {
+        if (string.IsNullOrWhiteSpace(search))
+        {
+            return true;
+        }
+
+        var term = search.Trim();
+
+        return Contains(tool.InternalCode, term) ||
+               Contains(tool.Name, term) ||
+               Contains(tool.Brand, term) ||
+               Contains(tool.Model, term) ||
+               Contains(tool.LocationName, term) ||
+               Contains(tool.OperationalStatus, term);
+    }
+
+    private void Report(Guid id)
+    {
+        Navigation.NavigateTo($"/report-damage/{id}");
+    }
+
+    private static bool Contains(string? value, string term)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+               value.Contains(term, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "Sin dato" : value;
+    }
+
+    private static string GetStatusClass(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return "mobile-status";
+        }
+
+        if (status.Contains("Available", StringComparison.OrdinalIgnoreCase))
+        {
+            return "mobile-status ok";
+        }
+
+        if (status.Contains("Damaged", StringComparison.OrdinalIgnoreCase) ||
+            status.Contains("NotSuitable", StringComparison.OrdinalIgnoreCase))
+        {
+            return "mobile-status danger";
+        }
+
+        return "mobile-status warning";
+    }
+}

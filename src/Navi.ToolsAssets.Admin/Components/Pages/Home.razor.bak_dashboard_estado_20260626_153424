@@ -1,0 +1,873 @@
+﻿@page "/"
+@page "/dashboard"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@using Navi.ToolsAssets.Admin.Components.Shared
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Dashboard - NAVI</PageTitle>
+
+<PermissionGuard Permission="Dashboard.View" ModuleName="Dashboard">
+
+<section class="dash-hero">
+    <div>
+        <span class="dash-pill">NAVI HERRAMIENTAS Y ACTIVOS</span>
+        <h2>Dashboard general</h2>
+        <p>Vista ejecutiva del local de herramientas, activos fijos, disponibilidad, mantenimiento, hojas de vida, documentos, solicitudes e historial.</p>
+    </div>
+
+    <div class="dash-hero-side">
+        <div class="dash-hero-box">
+            <span>Última actualización</span>
+            <strong>@ShowDateTime(dashboard?.GeneratedAt)</strong>
+        </div>
+
+        <button class="btn btn-sm btn-outline-light" @onclick="LoadDashboardAsync" disabled="@isLoading">
+            @(isLoading ? "Actualizando..." : "Actualizar")
+        </button>
+    </div>
+</section>
+
+<MaintenanceDashboardPanel />
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+else if (isLoading && dashboard is null)
+{
+    <div class="alert alert-info">Cargando dashboard...</div>
+}
+else if (dashboard is not null)
+{
+    <section class="kpi-grid">
+        <article class="kpi-card blue">
+            <span>Total herramientas</span>
+            <strong>@dashboard.Summary.TotalTools</strong>
+            <small>Inventario registrado</small>
+        </article>
+
+        <article class="kpi-card green">
+            <span>Disponibles</span>
+            <strong>@dashboard.Summary.AvailableTools</strong>
+            <small>Listas para uso</small>
+        </article>
+
+        <article class="kpi-card yellow">
+            <span>Pendientes validación</span>
+            <strong>@dashboard.Summary.PendingValidationTools</strong>
+            <small>Por revisar</small>
+        </article>
+
+        <article class="kpi-card purple">
+            <span>Activos fijos</span>
+            <strong>@dashboard.Summary.FixedAssets</strong>
+            <small>Con código AF</small>
+        </article>
+
+        <article class="kpi-card purple">
+            <span>Especializados</span>
+            <strong>@dashboard.Summary.SpecializedTools</strong>
+            <small>Control especial</small>
+        </article>
+
+        <article class="kpi-card cyan">
+            <span>Con mantenimiento</span>
+            <strong>@dashboard.Summary.RequiresMaintenance</strong>
+            <small>Requieren plan</small>
+        </article>
+
+        <article class="kpi-card blue">
+            <span>Responsables</span>
+            <strong>@dashboard.Summary.ActiveResponsibles</strong>
+            <small>@dashboard.Summary.InactiveResponsibles inactivos</small>
+        </article>
+
+        <article class="kpi-card orange">
+            <span>Sedes activas</span>
+            <strong>@dashboard.Summary.ActiveBranches</strong>
+            <small>@dashboard.Summary.InactiveBranches desactivadas</small>
+        </article>
+    </section>
+
+    <section class="dashboard-layout">
+        <article class="dash-card span-2">
+            <div class="card-head">
+                <div>
+                    <h3>Local de herramientas</h3>
+                    <p>Resumen operativo de disponibilidad.</p>
+                </div>
+            </div>
+
+            <div class="status-grid">
+                <div><span>Disponibles</span><strong>@dashboard.Summary.AvailableTools</strong></div>
+                <div><span>Asignadas</span><strong>@dashboard.Summary.AssignedTools</strong></div>
+                <div><span>Prestadas</span><strong>@dashboard.Summary.LoanedTools</strong></div>
+                <div><span>En mantenimiento</span><strong>@dashboard.Summary.InMaintenanceTools</strong></div>
+                <div><span>Dañadas / no aptas</span><strong>@dashboard.Summary.DamagedTools</strong></div>
+                <div><span>No localizadas</span><strong>@dashboard.Summary.NotLocatedTools</strong></div>
+            </div>
+        </article>
+
+        <article class="dash-card">
+            <div class="card-head">
+                <div>
+                    <h3>Herramientas vs activos</h3>
+                    <p>Clasificación general.</p>
+                </div>
+            </div>
+
+            <div class="split-metric">
+                <div><span>Herramientas</span><strong>@dashboard.Summary.ToolsOnly</strong></div>
+                <div><span>Otros activos</span><strong>@dashboard.Summary.NonToolAssets</strong></div>
+                <div><span>Sin código AF</span><strong>@dashboard.Summary.ToolsWithoutFixedAssetCode</strong></div>
+            </div>
+        </article>
+
+        <article class="dash-card">
+            <div class="card-head">
+                <div>
+                    <h3>Hojas de vida</h3>
+                    <p>Cobertura y calidad.</p>
+                </div>
+            </div>
+
+            <div class="life-summary">
+                <div><span>Con hoja de vida</span><strong>@dashboard.Summary.WithLifeRecord</strong></div>
+                <div><span>Sin hoja de vida</span><strong>@dashboard.Summary.WithoutLifeRecord</strong></div>
+                <div><span>Datos incompletos</span><strong>@dashboard.LifeRecordCoverage.MissingTechnicalData</strong></div>
+            </div>
+        </article>
+
+        <article class="dash-card span-2">
+            <div class="card-head">
+                <div>
+                    <h3>Mantenimientos por mes</h3>
+                    <p>Actividad de los últimos meses.</p>
+                </div>
+                <strong class="mini-total">@dashboard.MaintenanceSummary.Total total</strong>
+            </div>
+
+            <div class="bars-list">
+                @foreach (var item in dashboard.MaintenanceByMonth)
+                {
+                    <div class="bar-row">
+                        <span>@item.Label</span>
+                        <div class="bar-track">
+                            <div class="bar-fill purple" style="@($"width: {GetPercent(item.Count, GetMaxMonthMaintenance())}%")"></div>
+                        </div>
+                        <strong>@item.Count</strong>
+                    </div>
+                }
+            </div>
+        </article>
+
+        <article class="dash-card span-2">
+            <div class="card-head">
+                <div>
+                    <h3>Mantenimientos por día</h3>
+                    <p>Últimos 14 días.</p>
+                </div>
+                <strong class="mini-total">@dashboard.MaintenanceSummary.Today hoy</strong>
+            </div>
+
+            <div class="day-grid">
+                @foreach (var item in dashboard.MaintenanceByDay)
+                {
+                    <div>
+                        <span>@item.Label</span>
+                        <strong>@item.Count</strong>
+                    </div>
+                }
+            </div>
+        </article>
+
+        <article class="dash-card span-2">
+            <div class="card-head">
+                <div>
+                    <h3>Herramientas por sede</h3>
+                    <p>Distribución por sede.</p>
+                </div>
+            </div>
+
+            <div class="bars-list">
+                @foreach (var item in dashboard.ToolsByBranch)
+                {
+                    <div class="bar-row">
+                        <span>@item.BranchCode</span>
+                        <div class="bar-track">
+                            <div class="bar-fill blue" style="@($"width: {GetPercent(item.Total, GetMaxBranch())}%")"></div>
+                        </div>
+                        <strong>@item.Total</strong>
+                    </div>
+                }
+            </div>
+        </article>
+
+        <article class="dash-card span-2">
+            <div class="card-head">
+                <div>
+                    <h3>Herramientas por estado</h3>
+                    <p>Conteo por estado operativo.</p>
+                </div>
+            </div>
+
+            <div class="bars-list">
+                @foreach (var item in dashboard.ToolsByStatus)
+                {
+                    <div class="bar-row">
+                        <span>@GetStatusLabel(item.Status)</span>
+                        <div class="bar-track">
+                            <div class="bar-fill green" style="@($"width: {GetPercent(item.Count, GetMaxStatus())}%")"></div>
+                        </div>
+                        <strong>@item.Count</strong>
+                    </div>
+                }
+            </div>
+        </article>
+
+        <article class="dash-card span-2">
+            <div class="card-head">
+                <div>
+                    <h3>Solicitudes de compra AF</h3>
+                    <p>Indicador preparado para el módulo de compras.</p>
+                </div>
+                <span class="module-pill">@dashboard.PurchaseSummary.ModuleStatus</span>
+            </div>
+
+            <div class="purchase-grid">
+                <div><span>Solicitudes creadas</span><strong>@dashboard.PurchaseSummary.Total</strong></div>
+                <div><span>Realizadas</span><strong>@dashboard.PurchaseSummary.Completed</strong></div>
+                <div><span>Pendientes</span><strong>@dashboard.PurchaseSummary.Pending</strong></div>
+                <div><span>Rechazadas</span><strong>@dashboard.PurchaseSummary.Rejected</strong></div>
+            </div>
+
+            <p class="note">@dashboard.PurchaseSummary.Note</p>
+        </article>
+
+        <article class="dash-card span-2">
+            <div class="card-head">
+                <div>
+                    <h3>Documentos y evidencias</h3>
+                    <p>Soportes recientes cargados al sistema.</p>
+                </div>
+                <strong class="mini-total">@dashboard.DocumentSummary.Total docs</strong>
+            </div>
+
+            <table class="table table-sm compact-table">
+                <thead>
+                    <tr>
+                        <th>Documento</th>
+                        <th>Tipo</th>
+                        <th>Fecha</th>
+                        <th>Usuario</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var doc in dashboard.DocumentSummary.Recent)
+                    {
+                        <tr>
+                            <td>@doc.FileName</td>
+                            <td>@doc.DocumentType</td>
+                            <td>@ShowDate(doc.UploadedAt)</td>
+                            <td>@Show(doc.UploadedBy)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </article>
+
+        <article class="dash-card span-2">
+            <div class="card-head">
+                <div>
+                    <h3>Hojas de vida incompletas</h3>
+                    <p>Activos que requieren completar información base.</p>
+                </div>
+            </div>
+
+            <table class="table table-sm compact-table">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Activo</th>
+                        <th>Sede</th>
+                        <th>Falta</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in dashboard.LifeRecordCoverage.MissingTechnicalDataItems)
+                    {
+                        <tr>
+                            <td><strong>@item.InternalCode</strong></td>
+                            <td>@item.Name</td>
+                            <td>@Show(item.BranchCode)</td>
+                            <td>@Show(item.Missing)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </article>
+
+        <article class="dash-card span-4">
+            <div class="card-head">
+                <div>
+                    <h3>Actividad reciente del historial</h3>
+                    <p>Últimos eventos registrados en trazabilidad.</p>
+                </div>
+            </div>
+
+            <table class="table table-sm compact-table">
+                <thead>
+                    <tr>
+                        <th>Evento</th>
+                        <th>Herramienta / Activo</th>
+                        <th>Detalle</th>
+                        <th>Usuario</th>
+                        <th>Fecha</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var activity in dashboard.RecentActivity)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@activity.Title</strong>
+                                <br />
+                                <small class="text-muted">@activity.EventType</small>
+                            </td>
+                            <td>@Show(activity.ToolInternalCode)</td>
+                            <td>@Show(activity.Description)</td>
+                            <td>@Show(activity.User)</td>
+                            <td>@ShowDateTime(activity.RegisteredAt)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </article>
+    </section>
+}
+
+</PermissionGuard>
+
+<style>
+    .dash-hero {
+        background: linear-gradient(135deg, #050008 0%, #280032 45%, #5c006b 100%);
+        color: #fff;
+        border-radius: .85rem;
+        padding: 1.25rem 1.4rem;
+        margin-bottom: 1rem;
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        box-shadow: 0 .65rem 1.35rem rgba(75,0,92,.22);
+    }
+
+    .dash-pill {
+        display: inline-flex;
+        background: rgba(255,255,255,.12);
+        border: 1px solid rgba(255,255,255,.35);
+        border-radius: 999px;
+        padding: .22rem .65rem;
+        font-size: .7rem;
+        font-weight: 900;
+        margin-bottom: .6rem;
+    }
+
+    .dash-hero h2 {
+        color: #fff;
+        font-weight: 950;
+        margin: 0;
+        font-size: 1.8rem;
+    }
+
+    .dash-hero p {
+        color: rgba(255,255,255,.78);
+        margin: .35rem 0 0;
+        font-size: .9rem;
+    }
+
+    .dash-hero-side {
+        min-width: 210px;
+        display: grid;
+        gap: .65rem;
+    }
+
+    .dash-hero-box {
+        background: rgba(255,255,255,.12);
+        border-radius: .65rem;
+        padding: .55rem .75rem;
+        text-align: right;
+    }
+
+    .dash-hero-box span {
+        display: block;
+        color: #ffdd57;
+        font-size: .73rem;
+        font-weight: 900;
+    }
+
+    .dash-hero-box strong {
+        color: #fff;
+        font-size: .82rem;
+    }
+
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(8, minmax(125px, 1fr));
+        gap: .65rem;
+        margin-bottom: 1rem;
+    }
+
+    .kpi-card {
+        background: #fff;
+        border: 1px solid #dfe3e8;
+        border-left: 4px solid #4b005c;
+        border-radius: .75rem;
+        padding: .7rem .75rem;
+        box-shadow: 0 .25rem .65rem rgba(0,0,0,.04);
+    }
+
+    .kpi-card.green { border-left-color: #198754; }
+    .kpi-card.yellow { border-left-color: #ffc107; }
+    .kpi-card.blue { border-left-color: #0d6efd; }
+    .kpi-card.purple { border-left-color: #7b0d8e; }
+    .kpi-card.cyan { border-left-color: #0dcaf0; }
+    .kpi-card.orange { border-left-color: #fd7e14; }
+
+    .kpi-card span {
+        display: block;
+        color: #657083;
+        font-size: .68rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .kpi-card strong {
+        display: block;
+        color: #17111c;
+        font-size: 1.45rem;
+        font-weight: 950;
+        line-height: 1.1;
+    }
+
+    .kpi-card small {
+        color: #657083;
+        font-size: .68rem;
+    }
+
+    .dashboard-layout {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: .85rem;
+    }
+
+    .dash-card {
+        background: #fff;
+        border: 1px solid #dfe3e8;
+        border-radius: .85rem;
+        padding: .95rem;
+        box-shadow: 0 .28rem .7rem rgba(0,0,0,.04);
+    }
+
+    .span-2 { grid-column: span 2; }
+    .span-4 { grid-column: span 4; }
+
+    .card-head {
+        display: flex;
+        justify-content: space-between;
+        gap: .75rem;
+        margin-bottom: .75rem;
+    }
+
+    .card-head h3 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 950;
+        color: #17111c;
+    }
+
+    .card-head p {
+        margin: .18rem 0 0;
+        color: #657083;
+        font-size: .76rem;
+    }
+
+    .mini-total,
+    .module-pill {
+        height: 27px;
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        background: #f3ecf7;
+        color: #4b005c;
+        padding: 0 .6rem;
+        font-size: .72rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .status-grid,
+    .purchase-grid,
+    .split-metric,
+    .life-summary {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: .55rem;
+    }
+
+    .status-grid div,
+    .purchase-grid div,
+    .split-metric div,
+    .life-summary div {
+        background: #f8fafc;
+        border: 1px solid #edf1f5;
+        border-radius: .65rem;
+        padding: .65rem;
+    }
+
+    .status-grid span,
+    .purchase-grid span,
+    .split-metric span,
+    .life-summary span {
+        display: block;
+        color: #657083;
+        font-size: .68rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .status-grid strong,
+    .purchase-grid strong,
+    .split-metric strong,
+    .life-summary strong {
+        display: block;
+        color: #17111c;
+        font-size: 1.25rem;
+        font-weight: 950;
+    }
+
+    .bars-list {
+        display: grid;
+        gap: .5rem;
+    }
+
+    .bar-row {
+        display: grid;
+        grid-template-columns: 120px 1fr 35px;
+        gap: .55rem;
+        align-items: center;
+        font-size: .76rem;
+    }
+
+    .bar-track {
+        height: 8px;
+        background: #e9edf3;
+        border-radius: 999px;
+        overflow: hidden;
+    }
+
+    .bar-fill {
+        height: 100%;
+        border-radius: 999px;
+    }
+
+    .bar-fill.green { background: #198754; }
+    .bar-fill.blue { background: #0d6efd; }
+    .bar-fill.purple { background: #7b0d8e; }
+
+    .day-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: .45rem;
+    }
+
+    .day-grid div {
+        background: #f8fafc;
+        border: 1px solid #edf1f5;
+        border-radius: .55rem;
+        padding: .45rem;
+        text-align: center;
+    }
+
+    .day-grid span {
+        display: block;
+        font-size: .68rem;
+        color: #657083;
+        font-weight: 900;
+    }
+
+    .day-grid strong {
+        font-size: 1rem;
+        color: #17111c;
+        font-weight: 950;
+    }
+
+    .compact-table {
+        font-size: .78rem;
+    }
+
+    .compact-table th,
+    .compact-table td {
+        padding: .42rem .5rem;
+        vertical-align: middle;
+    }
+
+    .note {
+        margin: .65rem 0 0;
+        color: #657083;
+        font-size: .76rem;
+    }
+
+    @@media (max-width: 1400px) {
+        .kpi-grid {
+            grid-template-columns: repeat(4, 1fr);
+        }
+
+        .dashboard-layout {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .span-2,
+        .span-4 {
+            grid-column: span 2;
+        }
+    }
+
+    @@media (max-width: 850px) {
+        .dash-hero,
+        .card-head {
+            flex-direction: column;
+        }
+
+        .kpi-grid,
+        .dashboard-layout,
+        .status-grid,
+        .purchase-grid,
+        .split-metric,
+        .life-summary {
+            grid-template-columns: 1fr;
+        }
+
+        .span-2,
+        .span-4 {
+            grid-column: span 1;
+        }
+    }
+</style>
+
+@code {
+    private bool isLoading;
+    private string? errorMessage;
+    private ExecutiveDashboard? dashboard;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardAsync();
+    }
+
+    private async Task LoadDashboardAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+            dashboard = await client.GetFromJsonAsync<ExecutiveDashboard>("api/dashboard/executive");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo cargar el dashboard. Valida que la API esté activa en http://localhost:5218. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private int GetMaxStatus()
+    {
+        if (dashboard is null || dashboard.ToolsByStatus.Count == 0)
+        {
+            return 1;
+        }
+
+        return Math.Max(1, dashboard.ToolsByStatus.Max(x => x.Count));
+    }
+
+    private int GetMaxBranch()
+    {
+        if (dashboard is null || dashboard.ToolsByBranch.Count == 0)
+        {
+            return 1;
+        }
+
+        return Math.Max(1, dashboard.ToolsByBranch.Max(x => x.Total));
+    }
+
+    private int GetMaxMonthMaintenance()
+    {
+        if (dashboard is null || dashboard.MaintenanceByMonth.Count == 0)
+        {
+            return 1;
+        }
+
+        return Math.Max(1, dashboard.MaintenanceByMonth.Max(x => x.Count));
+    }
+
+    private static int GetPercent(int value, int max)
+    {
+        if (value <= 0 || max <= 0)
+        {
+            return 0;
+        }
+
+        return Math.Max(5, (int)Math.Round((decimal)value / max * 100));
+    }
+
+    private static string Show(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "—" : value;
+    }
+
+    private static string ShowDate(DateTime? value)
+    {
+        return value.HasValue ? value.Value.ToLocalTime().ToString("dd/MM/yyyy") : "—";
+    }
+
+    private static string ShowDateTime(DateTime? value)
+    {
+        return value.HasValue ? value.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm") : "—";
+    }
+
+    private static string GetStatusLabel(string status) => status switch
+    {
+        "Available" => "Disponible",
+        "Assigned" => "Asignada",
+        "Loaned" => "Prestada",
+        "InMaintenance" => "En mantenimiento",
+        "Damaged" => "Dañada",
+        "NotSuitable" => "No apta",
+        "PendingValidation" => "Pendiente validación",
+        "NotLocated" => "No localizada",
+        "PendingDisposal" => "Pendiente baja",
+        "Disposed" => "Dada de baja",
+        _ => status
+    };
+
+    private sealed class ExecutiveDashboard
+    {
+        public DateTime GeneratedAt { get; set; }
+        public DashboardSummary Summary { get; set; } = new();
+        public List<StatusItem> ToolsByStatus { get; set; } = new();
+        public List<BranchItem> ToolsByBranch { get; set; } = new();
+        public List<MaintenancePeriodItem> MaintenanceByMonth { get; set; } = new();
+        public List<MaintenancePeriodItem> MaintenanceByDay { get; set; } = new();
+        public LifeRecordCoverage LifeRecordCoverage { get; set; } = new();
+        public MaintenanceSummary MaintenanceSummary { get; set; } = new();
+        public DocumentSummary DocumentSummary { get; set; } = new();
+        public PurchaseSummary PurchaseSummary { get; set; } = new();
+        public List<RecentActivityItem> RecentActivity { get; set; } = new();
+    }
+
+    private sealed class DashboardSummary
+    {
+        public int TotalTools { get; set; }
+        public int AvailableTools { get; set; }
+        public int PendingValidationTools { get; set; }
+        public int AssignedTools { get; set; }
+        public int LoanedTools { get; set; }
+        public int InMaintenanceTools { get; set; }
+        public int DamagedTools { get; set; }
+        public int NotLocatedTools { get; set; }
+        public int DisposedTools { get; set; }
+        public int FixedAssets { get; set; }
+        public int ToolsWithoutFixedAssetCode { get; set; }
+        public int ToolsOnly { get; set; }
+        public int NonToolAssets { get; set; }
+        public int SpecializedTools { get; set; }
+        public int RequiresMaintenance { get; set; }
+        public int ActiveResponsibles { get; set; }
+        public int InactiveResponsibles { get; set; }
+        public int ActiveBranches { get; set; }
+        public int InactiveBranches { get; set; }
+        public int WithLifeRecord { get; set; }
+        public int WithoutLifeRecord { get; set; }
+    }
+
+    private sealed class StatusItem
+    {
+        public string Status { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
+    private sealed class BranchItem
+    {
+        public string BranchCode { get; set; } = string.Empty;
+        public string BranchName { get; set; } = string.Empty;
+        public int Total { get; set; }
+    }
+
+    private sealed class MaintenancePeriodItem
+    {
+        public string Label { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
+    private sealed class LifeRecordCoverage
+    {
+        public int MissingTechnicalData { get; set; }
+        public List<MissingTechnicalItem> MissingTechnicalDataItems { get; set; } = new();
+    }
+
+    private sealed class MissingTechnicalItem
+    {
+        public string InternalCode { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? BranchCode { get; set; }
+        public string? Missing { get; set; }
+    }
+
+    private sealed class MaintenanceSummary
+    {
+        public int Total { get; set; }
+        public int ThisMonth { get; set; }
+        public int Today { get; set; }
+    }
+
+    private sealed class DocumentSummary
+    {
+        public int Total { get; set; }
+        public List<DocumentItem> Recent { get; set; } = new();
+    }
+
+    private sealed class DocumentItem
+    {
+        public string FileName { get; set; } = string.Empty;
+        public string DocumentType { get; set; } = string.Empty;
+        public DateTime UploadedAt { get; set; }
+        public string? UploadedBy { get; set; }
+    }
+
+    private sealed class PurchaseSummary
+    {
+        public int Total { get; set; }
+        public int Completed { get; set; }
+        public int Pending { get; set; }
+        public int Rejected { get; set; }
+        public string ModuleStatus { get; set; } = string.Empty;
+        public string Note { get; set; } = string.Empty;
+    }
+
+    private sealed class RecentActivityItem
+    {
+        public string EventType { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string? ToolInternalCode { get; set; }
+        public DateTime RegisteredAt { get; set; }
+        public string? User { get; set; }
+    }
+}
+
+

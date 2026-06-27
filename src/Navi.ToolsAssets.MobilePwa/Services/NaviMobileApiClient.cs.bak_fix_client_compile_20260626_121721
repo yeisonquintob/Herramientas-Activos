@@ -1,0 +1,184 @@
+﻿using System.Net.Http.Json;
+using System.Text.Json;
+using Navi.ToolsAssets.MobilePwa.Models;
+
+namespace Navi.ToolsAssets.MobilePwa.Services;
+
+public sealed class NaviMobileApiClient
+{
+    private readonly HttpClient _http;
+    private readonly MobileAuthSessionService _auth;
+
+    public NaviMobileApiClient(HttpClient http, MobileAuthSessionService auth)
+    {
+        _http = http;
+        _auth = auth;
+    }
+
+    public async Task<MobileUser> LoginAsync(string userName, string password)
+    {
+        var response = await _http.PostAsJsonAsync("api/auth/login", new MobileLoginRequest
+        {
+            UserName = userName,
+            Password = password
+        });
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(response));
+        }
+
+        var user = await response.Content.ReadFromJsonAsync<MobileUser>(
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        if (user is null)
+        {
+            throw new InvalidOperationException("No se recibió información de sesión.");
+        }
+
+        await _auth.LoginAsync(user);
+
+        return user;
+    }
+
+    public async Task<List<MobileToolDto>> GetToolsAsync()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, "api/tools");
+        ApplySecurityHeaders(request);
+
+        using var response = await _http.SendAsync(request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(response));
+        }
+
+        return await response.Content.ReadFromJsonAsync<List<MobileToolDto>>(
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
+    }
+
+    public async Task<MobileToolDto> GetToolByIdAsync(Guid id)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"api/tools/{id}");
+        ApplySecurityHeaders(request);
+
+        using var response = await _http.SendAsync(request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(response));
+        }
+
+        var tool = await response.Content.ReadFromJsonAsync<MobileToolDto>(
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        if (tool is null)
+        {
+            throw new InvalidOperationException("No se recibió información del activo.");
+        }
+
+        return tool;
+    }
+
+    public async Task await response.Content.ReadFromJsonAsync<MobileToolDto>(
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        if (tool is null)
+        {
+            throw new InvalidOperationException("No se recibió información del activo.");
+        }
+
+        return tool;
+    }
+
+    public async Task<MobileDamageReportResponse> ReportDamageAsync(MobileDamageReportRequest body)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "api/damages/report");
+        ApplySecurityHeaders(request);
+        request.Content = JsonContent.Create(body);
+
+        using var response = await _http.SendAsync(request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(response));
+        }
+
+        var result = await response.Content.ReadFromJsonAsync<MobileDamageReportResponse>(
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        if (result is null)
+        {
+            throw new InvalidOperationException("No se recibió respuesta del reporte.");
+        }
+
+        return result;
+    }
+
+    private void ApplySecurityHeaders(HttpRequestMessage request)
+    {
+        var user = _auth.CurrentUser;
+
+        if (user is null)
+        {
+            return;
+        }
+
+        request.Headers.Remove("X-Navi-UserName");
+        request.Headers.Remove("X-Navi-RoleCode");
+        request.Headers.Remove("X-Navi-Permissions");
+        request.Headers.Remove("X-Navi-BranchId");
+        request.Headers.Remove("X-Navi-ResponsiblePersonId");
+        request.Headers.Remove("X-Navi-ResponsiblePersonName");
+
+        request.Headers.Add("X-Navi-UserName", user.UserName);
+        request.Headers.Add("X-Navi-RoleCode", user.RoleCode);
+        request.Headers.Add("X-Navi-Permissions", string.Join(";", user.Permissions ?? new()));
+
+        if (user.BranchId.HasValue)
+        {
+            request.Headers.Add("X-Navi-BranchId", user.BranchId.Value.ToString());
+        }
+
+        if (user.ResponsiblePersonId.HasValue)
+        {
+            request.Headers.Add("X-Navi-ResponsiblePersonId", user.ResponsiblePersonId.Value.ToString());
+        }
+
+        if (!string.IsNullOrWhiteSpace(user.ResponsiblePersonName))
+        {
+            request.Headers.Add("X-Navi-ResponsiblePersonName", user.ResponsiblePersonName);
+        }
+    }
+
+    private static async Task<string> ReadApiErrorAsync(HttpResponseMessage response)
+    {
+        var content = await response.Content.ReadAsStringAsync();
+
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return $"Error HTTP {(int)response.StatusCode}: {response.ReasonPhrase}";
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(content);
+
+            if (doc.RootElement.TryGetProperty("message", out var message))
+            {
+                return message.GetString() ?? content;
+            }
+
+            if (doc.RootElement.TryGetProperty("Message", out var messageUpper))
+            {
+                return messageUpper.GetString() ?? content;
+            }
+        }
+        catch
+        {
+            return content;
+        }
+
+        return content;
+    }
+}

@@ -1,0 +1,77 @@
+﻿using System.Text.Json;
+using Microsoft.JSInterop;
+using Navi.ToolsAssets.MobilePwa.Models;
+
+namespace Navi.ToolsAssets.MobilePwa.Services;
+
+public sealed class MobileAuthSessionService
+{
+    private const string StorageKey = "navi-mobile-auth-session";
+    private readonly IJSRuntime _js;
+    private bool _initialized;
+
+    public MobileAuthSessionService(IJSRuntime js)
+    {
+        _js = js;
+    }
+
+    public MobileUser? CurrentUser { get; private set; }
+
+    public bool IsAuthenticated => CurrentUser is not null;
+
+    public string AuditUser => CurrentUser?.UserName ?? "mobile";
+
+    public async Task InitializeAsync()
+    {
+        if (_initialized)
+        {
+            return;
+        }
+
+        _initialized = true;
+
+        try
+        {
+            var json = await _js.InvokeAsync<string?>("localStorage.getItem", StorageKey);
+
+            if (!string.IsNullOrWhiteSpace(json))
+            {
+                CurrentUser = JsonSerializer.Deserialize<MobileUser>(
+                    json,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            }
+        }
+        catch
+        {
+            CurrentUser = null;
+            await _js.InvokeVoidAsync("localStorage.removeItem", StorageKey);
+        }
+    }
+
+    public async Task LoginAsync(MobileUser user)
+    {
+        CurrentUser = user;
+
+        var json = JsonSerializer.Serialize(user);
+
+        await _js.InvokeVoidAsync("localStorage.setItem", StorageKey, json);
+    }
+
+    public async Task LogoutAsync()
+    {
+        CurrentUser = null;
+        await _js.InvokeVoidAsync("localStorage.removeItem", StorageKey);
+    }
+
+    public bool HasPermission(string permission)
+    {
+        return CurrentUser?.Permissions?.Any(x =>
+            string.Equals(x, permission, StringComparison.OrdinalIgnoreCase)) == true;
+    }
+
+    public bool IsTecnico()
+    {
+        return string.Equals(CurrentUser?.RoleCode, "TECNICO", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(CurrentUser?.RoleCode, "TÉCNICO", StringComparison.OrdinalIgnoreCase);
+    }
+}

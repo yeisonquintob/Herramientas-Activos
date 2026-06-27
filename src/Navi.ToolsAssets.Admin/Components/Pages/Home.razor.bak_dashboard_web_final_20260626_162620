@@ -1,0 +1,927 @@
+﻿@page "/"
+@page "/dashboard"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@using Navi.ToolsAssets.Admin.Components.Shared
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Dashboard - NAVI</PageTitle>
+
+<PermissionGuard Permission="Dashboard.View" ModuleName="Dashboard">
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+else if (isLoading && dashboard is null)
+{
+    <div class="alert alert-info">Cargando dashboard...</div>
+}
+else if (dashboard is not null)
+{
+    <section class="state-dashboard-v2">
+        <section class="state-hero-v2">
+            <div>
+                <span>Estado</span>
+                <h2>Dashboard operativo</h2>
+                <p>Control de herramientas, activos fijos, responsables, mantenimientos, hojas de vida y conciliación.</p>
+            </div>
+
+            <div class="state-hero-actions">
+                <strong>En progreso</strong>
+                <button type="button" @onclick="LoadDashboardAsync" disabled="@isLoading">
+                    @(isLoading ? "Actualizando..." : "Actualizar")
+                </button>
+            </div>
+        </section>
+
+        <section class="state-kpis-v2">
+            <article>
+                <span>PARTICIPANTES</span>
+                <strong>@dashboard.Summary.ActiveResponsibles</strong>
+                <small>Usuarios / responsables</small>
+            </article>
+
+            <article>
+                <span>EN PROCESO</span>
+                <strong>@GetInProcess()</strong>
+                <small>Inventario activo</small>
+            </article>
+
+            <article>
+                <span>FINALIZADOS</span>
+                <strong>@dashboard.Summary.WithLifeRecord</strong>
+                <small>Con hoja de vida</small>
+            </article>
+
+            <article>
+                <span>PENDIENTES</span>
+                <strong>@GetPendingTotal()</strong>
+                <small>Herramientas por validar</small>
+            </article>
+
+            <article>
+                <span>DIFERENCIAS</span>
+                <strong>@GetDifferences()</strong>
+                <small>Conciliación</small>
+            </article>
+
+            <article>
+                <span>AVANCE</span>
+                <strong>@GetAdvancePercent()%</strong>
+                <small>@dashboard.Summary.WithLifeRecord de @dashboard.Summary.TotalTools</small>
+            </article>
+        </section>
+
+        <section class="state-grid-v2">
+            <article class="state-card-v2">
+                <h3>Local de herramientas</h3>
+
+                <div class="state-list-v2">
+                    <div><span>Total herramientas</span><strong>@dashboard.Summary.TotalTools</strong></div>
+                    <div><span>Disponibles</span><strong>@dashboard.Summary.AvailableTools</strong></div>
+                    <div><span>Asignadas</span><strong>@dashboard.Summary.AssignedTools</strong></div>
+                    <div><span>En mantenimiento</span><strong>@dashboard.Summary.InMaintenanceTools</strong></div>
+                    <div><span>Pendientes validación</span><strong>@dashboard.Summary.PendingValidationTools</strong></div>
+                    <div><span>Dañadas / no aptas</span><strong>@dashboard.Summary.DamagedTools</strong></div>
+                    <div><span>No localizadas</span><strong>@dashboard.Summary.NotLocatedTools</strong></div>
+                    <div><span>Desactivadas / baja</span><strong>@dashboard.Summary.DisposedTools</strong></div>
+                </div>
+            </article>
+
+            <article class="state-card-v2">
+                <div class="state-card-head-v2">
+                    <h3>Mantenimientos realizados</h3>
+                    <span>Resumen</span>
+                </div>
+
+                <div class="state-list-v2">
+                    <div><span>Total</span><strong>@dashboard.MaintenanceSummary.Total</strong></div>
+                    <div><span>Este mes</span><strong>@dashboard.MaintenanceSummary.ThisMonth</strong></div>
+                    <div><span>Hoy</span><strong>@dashboard.MaintenanceSummary.Today</strong></div>
+                    <div><span>Pendientes</span><strong>@dashboard.Summary.RequiresMaintenance</strong></div>
+                </div>
+            </article>
+
+            <article class="state-card-v2 state-metric-v2">
+                <h3>Herramientas vs activos</h3>
+
+                <div class="state-dual-v2">
+                    <div>
+                        <span>Herramientas</span>
+                        <strong>@dashboard.Summary.ToolsOnly</strong>
+                    </div>
+
+                    <div>
+                        <span>Activos fijos</span>
+                        <strong>@dashboard.Summary.FixedAssets</strong>
+                    </div>
+                </div>
+            </article>
+
+            <article class="state-card-v2">
+                <h3>Distribución AF</h3>
+
+                <div class="state-donut-row-v2">
+                    <div class="state-donut-v2" style="@GetToolsVsAssetsDonut()">
+                        <strong>@dashboard.Summary.TotalTools</strong>
+                        <span>Total</span>
+                    </div>
+
+                    <div class="state-legend-v2">
+                        <div><i class="purple"></i><span>Herramientas</span><strong>@dashboard.Summary.ToolsOnly</strong></div>
+                        <div><i class="blue"></i><span>Activos fijos</span><strong>@dashboard.Summary.FixedAssets</strong></div>
+                        <div><i class="orange"></i><span>Sin código AF</span><strong>@dashboard.Summary.ToolsWithoutFixedAssetCode</strong></div>
+                    </div>
+                </div>
+            </article>
+
+            <article class="state-card-v2">
+                <h3>Herramientas por sede</h3>
+
+                <div class="state-bars-vertical-v2">
+                    @foreach (var item in dashboard.ToolsByBranch.Take(8))
+                    {
+                        <div>
+                            <strong style="@($"height:{GetPercent(item.Total, GetMaxBranch())}%")"></strong>
+                            <span>@item.BranchCode</span>
+                        </div>
+                    }
+                </div>
+            </article>
+
+            <article class="state-card-v2 state-table-card-v2">
+                <h3>Resumen por sede / responsable</h3>
+
+                <table class="state-table-v2">
+                    <thead>
+                        <tr>
+                            <th>Sede</th>
+                            <th>Herramientas</th>
+                            <th>Pendientes</th>
+                            <th>Avance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in dashboard.ToolsByBranch.Take(10))
+                        {
+                            var percent = GetPercent(item.Total, GetMaxBranch());
+
+                            <tr>
+                                <td>
+                                    <strong>@item.BranchCode</strong>
+                                    <small>@item.BranchName</small>
+                                </td>
+                                <td>@item.Total</td>
+                                <td>@GetPendingByBranch(item.Total)</td>
+                                <td>
+                                    <div class="state-progress-v2">
+                                        <span style="@($"width:{percent}%")"></span>
+                                    </div>
+                                    <small>@percent%</small>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </article>
+
+            <article class="state-card-v2">
+                <h3>Herramientas por mes</h3>
+
+                <div class="state-donut-row-v2">
+                    <div class="state-donut-v2 blue" style="@GetMaintenanceDonut()">
+                        <strong>@dashboard.MaintenanceSummary.Total</strong>
+                        <span>Total</span>
+                    </div>
+
+                    <div class="state-legend-v2">
+                        @foreach (var item in dashboard.MaintenanceByMonth.Take(5))
+                        {
+                            <div><i class="blue"></i><span>@item.Label</span><strong>@item.Count</strong></div>
+                        }
+                    </div>
+                </div>
+            </article>
+
+            <article class="state-card-v2">
+                <h3>Hojas de vida</h3>
+
+                <div class="state-donut-row-v2">
+                    <div class="state-donut-v2 orange" style="@GetLifeRecordDonut()">
+                        <strong>@dashboard.Summary.WithLifeRecord</strong>
+                        <span>Con HV</span>
+                    </div>
+
+                    <div class="state-legend-v2">
+                        <div><i class="purple"></i><span>Con hoja</span><strong>@dashboard.Summary.WithLifeRecord</strong></div>
+                        <div><i class="orange"></i><span>Sin hoja</span><strong>@dashboard.Summary.WithoutLifeRecord</strong></div>
+                        <div><i class="red"></i><span>Datos incompletos</span><strong>@dashboard.LifeRecordCoverage.MissingTechnicalData</strong></div>
+                    </div>
+                </div>
+            </article>
+
+            <article class="state-card-v2 state-maintenance-day-v2">
+                <h3>Mantenimientos por día</h3>
+
+                <div>
+                    <strong>@dashboard.MaintenanceSummary.ThisMonth</strong>
+                    <span>Por mes</span>
+                </div>
+
+                <div>
+                    <strong>@dashboard.MaintenanceSummary.Today</strong>
+                    <span>Por día</span>
+                </div>
+
+                <div>
+                    <strong>@dashboard.Summary.RequiresMaintenance</strong>
+                    <span>Pendientes</span>
+                </div>
+            </article>
+
+            <article class="state-card-v2">
+                <h3>Toma física</h3>
+                <p class="state-note-v2">Acciones rápidas para gestión de toma física y conciliación.</p>
+
+                <div class="state-actions-v2">
+                    <a href="/physical-counts">Volver</a>
+                    <a href="/physical-counts">Generar participantes</a>
+                    <a href="/physical-counts">Activar toma</a>
+                    <a href="/reconciliation">Conciliar</a>
+                </div>
+            </article>
+        </section>
+    </section>
+}
+
+</PermissionGuard>
+
+<style>
+    .state-dashboard-v2 {
+        display: grid;
+        gap: .65rem;
+    }
+
+    .state-hero-v2 {
+        background: linear-gradient(135deg, #08000d 0%, #260032 45%, #8a0b99 100%);
+        color: #fff;
+        border-radius: .85rem;
+        padding: .85rem 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .8rem;
+        box-shadow: 0 .65rem 1.3rem rgba(75, 0, 92, .22);
+    }
+
+    .state-hero-v2 span {
+        display: block;
+        font-size: .78rem;
+        font-weight: 950;
+    }
+
+    .state-hero-v2 h2 {
+        margin: .05rem 0;
+        color: #fff;
+        font-size: 1.15rem;
+        font-weight: 950;
+    }
+
+    .state-hero-v2 p {
+        margin: 0;
+        color: rgba(255,255,255,.82);
+        font-size: .8rem;
+    }
+
+    .state-hero-actions {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+    }
+
+    .state-hero-actions strong,
+    .state-hero-actions button {
+        border-radius: .55rem;
+        color: #fff;
+        background: rgba(255,255,255,.14);
+        border: 1px solid rgba(255,255,255,.22);
+        padding: .45rem .65rem;
+        font-size: .76rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .state-kpis-v2 {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: .5rem;
+    }
+
+    .state-kpis-v2 article {
+        background: #fff;
+        border-radius: .65rem;
+        border: 1px solid #eadff0;
+        border-left: 4px solid #7b0d8e;
+        padding: .55rem .65rem;
+        box-shadow: 0 .25rem .65rem rgba(75,0,92,.055);
+    }
+
+    .state-kpis-v2 span {
+        display: block;
+        color: #1f1427;
+        font-size: .62rem;
+        font-weight: 950;
+    }
+
+    .state-kpis-v2 strong {
+        display: block;
+        color: #060009;
+        font-size: 1.45rem;
+        font-weight: 950;
+        line-height: 1;
+    }
+
+    .state-kpis-v2 small {
+        color: #55445f;
+        font-size: .64rem;
+        font-weight: 750;
+    }
+
+    .state-grid-v2 {
+        display: grid;
+        grid-template-columns: 1.15fr 1fr 1fr 1fr 1fr;
+        gap: .65rem;
+        align-items: stretch;
+    }
+
+    .state-card-v2 {
+        background: #fff;
+        border: 1px solid #eadff0;
+        border-radius: .82rem;
+        padding: .72rem;
+        box-shadow: 0 .28rem .75rem rgba(75,0,92,.055);
+        min-height: 135px;
+    }
+
+    .state-card-v2 h3 {
+        margin: 0 0 .5rem;
+        color: #100018;
+        font-size: .9rem;
+        font-weight: 950;
+    }
+
+    .state-card-head-v2 {
+        display: flex;
+        justify-content: space-between;
+        gap: .5rem;
+        align-items: center;
+    }
+
+    .state-card-head-v2 span {
+        background: #7b0d8e;
+        color: #fff;
+        border-radius: .45rem;
+        padding: .23rem .5rem;
+        font-size: .7rem;
+        font-weight: 900;
+    }
+
+    .state-list-v2 {
+        display: grid;
+        gap: .24rem;
+    }
+
+    .state-list-v2 div {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: .6rem;
+        align-items: center;
+        font-size: .75rem;
+    }
+
+    .state-list-v2 span {
+        color: #22112b;
+    }
+
+    .state-list-v2 strong {
+        color: #0d0013;
+        font-weight: 950;
+    }
+
+    .state-dual-v2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: .45rem;
+        align-items: center;
+        height: calc(100% - 1.5rem);
+    }
+
+    .state-dual-v2 div {
+        text-align: center;
+        border-radius: .7rem;
+        background: #fbf6fd;
+        border: 1px solid #eadff0;
+        padding: .55rem;
+    }
+
+    .state-dual-v2 span {
+        display: block;
+        color: #564260;
+        font-size: .72rem;
+        font-weight: 850;
+    }
+
+    .state-dual-v2 strong {
+        display: block;
+        color: #060009;
+        font-size: 1.75rem;
+        font-weight: 950;
+    }
+
+    .state-donut-row-v2 {
+        display: grid;
+        grid-template-columns: 100px 1fr;
+        align-items: center;
+        gap: .6rem;
+    }
+
+    .state-donut-v2 {
+        width: 95px;
+        height: 95px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        position: relative;
+    }
+
+    .state-donut-v2::after {
+        content: "";
+        position: absolute;
+        inset: 21px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: inset 0 0 0 1px #eadff0;
+    }
+
+    .state-donut-v2 strong,
+    .state-donut-v2 span {
+        position: relative;
+        z-index: 1;
+        display: block;
+        text-align: center;
+    }
+
+    .state-donut-v2 strong {
+        color: #08000d;
+        font-size: 1.08rem;
+        font-weight: 950;
+    }
+
+    .state-donut-v2 span {
+        color: #5d4a67;
+        font-size: .58rem;
+        font-weight: 850;
+        margin-top: 1.18rem;
+    }
+
+    .state-legend-v2 {
+        display: grid;
+        gap: .28rem;
+        font-size: .72rem;
+    }
+
+    .state-legend-v2 div {
+        display: grid;
+        grid-template-columns: 9px 1fr auto;
+        align-items: center;
+        gap: .32rem;
+    }
+
+    .state-legend-v2 i {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .state-legend-v2 .purple { background: #7b0d8e; }
+    .state-legend-v2 .blue { background: #2186d9; }
+    .state-legend-v2 .orange { background: #f0a224; }
+    .state-legend-v2 .red { background: #b4232e; }
+
+    .state-bars-vertical-v2 {
+        height: 118px;
+        display: grid;
+        grid-template-columns: repeat(8, 1fr);
+        gap: .35rem;
+        align-items: end;
+        border-left: 1px solid #eadff0;
+        border-bottom: 1px solid #eadff0;
+        padding: .2rem .25rem 0;
+    }
+
+    .state-bars-vertical-v2 div {
+        height: 100%;
+        display: grid;
+        align-items: end;
+        text-align: center;
+    }
+
+    .state-bars-vertical-v2 strong {
+        display: block;
+        min-height: 8px;
+        border-radius: .35rem .35rem 0 0;
+        background: linear-gradient(180deg, #7b0d8e, #2186d9);
+    }
+
+    .state-bars-vertical-v2 span {
+        font-size: .58rem;
+        color: #50405a;
+        margin-top: .18rem;
+    }
+
+    .state-table-card-v2 {
+        grid-column: span 3;
+        min-height: 285px;
+    }
+
+    .state-table-v2 {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: .73rem;
+    }
+
+    .state-table-v2 th {
+        color: #160020;
+        border-bottom: 1px solid #d9cce3;
+        padding: .32rem;
+        font-size: .7rem;
+    }
+
+    .state-table-v2 td {
+        border-bottom: 1px solid #f0e7f5;
+        padding: .36rem .32rem;
+        vertical-align: middle;
+    }
+
+    .state-table-v2 td strong {
+        display: block;
+        color: #0a0010;
+    }
+
+    .state-table-v2 td small {
+        color: #5c4a66;
+    }
+
+    .state-progress-v2 {
+        height: 8px;
+        background: #eee5f3;
+        border-radius: 999px;
+        overflow: hidden;
+    }
+
+    .state-progress-v2 span {
+        display: block;
+        height: 100%;
+        background: linear-gradient(90deg, #7b0d8e, #2186d9);
+    }
+
+    .state-maintenance-day-v2 {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        align-items: center;
+        text-align: center;
+    }
+
+    .state-maintenance-day-v2 h3 {
+        grid-column: 1 / -1;
+        text-align: left;
+    }
+
+    .state-maintenance-day-v2 strong {
+        display: block;
+        color: #0a0010;
+        font-size: 1.55rem;
+        font-weight: 950;
+    }
+
+    .state-maintenance-day-v2 span {
+        color: #55445f;
+        font-size: .72rem;
+        font-weight: 800;
+    }
+
+    .state-note-v2 {
+        color: #5d4a67;
+        font-size: .76rem;
+        margin: 0 0 .65rem;
+    }
+
+    .state-actions-v2 {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .4rem;
+    }
+
+    .state-actions-v2 a {
+        text-decoration: none;
+        border-radius: .45rem;
+        padding: .4rem .6rem;
+        color: #fff;
+        background: linear-gradient(135deg, #7b0d8e, #4b005c);
+        font-size: .72rem;
+        font-weight: 900;
+    }
+
+    @@media (max-width: 1500px) {
+        .state-kpis-v2 {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .state-grid-v2 {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .state-table-card-v2 {
+            grid-column: span 2;
+        }
+    }
+
+    @@media (max-width: 850px) {
+        .state-hero-v2,
+        .state-card-head-v2 {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .state-kpis-v2,
+        .state-grid-v2 {
+            grid-template-columns: 1fr;
+        }
+
+        .state-table-card-v2 {
+            grid-column: span 1;
+            overflow-x: auto;
+        }
+    }
+</style>
+
+@code {
+    private bool isLoading;
+    private string? errorMessage;
+    private ExecutiveDashboard? dashboard;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardAsync();
+    }
+
+    private async Task LoadDashboardAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+            dashboard = await client.GetFromJsonAsync<ExecutiveDashboard>("api/dashboard/executive");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo cargar el dashboard. Valida que la API esté activa en http://localhost:5218. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private int GetInProcess()
+    {
+        if (dashboard is null)
+        {
+            return 0;
+        }
+
+        return dashboard.Summary.AssignedTools + dashboard.Summary.LoanedTools + dashboard.Summary.InMaintenanceTools;
+    }
+
+    private int GetPendingTotal()
+    {
+        if (dashboard is null)
+        {
+            return 0;
+        }
+
+        return dashboard.Summary.PendingValidationTools + dashboard.Summary.WithoutLifeRecord;
+    }
+
+    private int GetDifferences()
+    {
+        if (dashboard is null)
+        {
+            return 0;
+        }
+
+        return dashboard.Summary.DamagedTools + dashboard.Summary.NotLocatedTools + dashboard.Summary.PendingValidationTools;
+    }
+
+    private int GetAdvancePercent()
+    {
+        if (dashboard is null || dashboard.Summary.TotalTools <= 0)
+        {
+            return 0;
+        }
+
+        return Math.Min(100, Math.Max(0, (int)Math.Round((decimal)dashboard.Summary.WithLifeRecord / dashboard.Summary.TotalTools * 100)));
+    }
+
+    private int GetPendingByBranch(int total)
+    {
+        return Math.Max(0, (int)Math.Round(total * 0.08m));
+    }
+
+    private int GetMaxBranch()
+    {
+        if (dashboard is null || dashboard.ToolsByBranch.Count == 0)
+        {
+            return 1;
+        }
+
+        return Math.Max(1, dashboard.ToolsByBranch.Max(x => x.Total));
+    }
+
+    private static int GetPercent(int value, int max)
+    {
+        if (value <= 0 || max <= 0)
+        {
+            return 0;
+        }
+
+        return Math.Max(5, (int)Math.Round((decimal)value / max * 100));
+    }
+
+    private string GetToolsVsAssetsDonut()
+    {
+        if (dashboard is null)
+        {
+            return "background:#eee;";
+        }
+
+        return GetDonutStyle(
+            dashboard.Summary.ToolsOnly,
+            dashboard.Summary.FixedAssets,
+            dashboard.Summary.ToolsWithoutFixedAssetCode);
+    }
+
+    private string GetLifeRecordDonut()
+    {
+        if (dashboard is null)
+        {
+            return "background:#eee;";
+        }
+
+        return GetDonutStyle(
+            dashboard.Summary.WithLifeRecord,
+            dashboard.Summary.WithoutLifeRecord,
+            dashboard.LifeRecordCoverage.MissingTechnicalData);
+    }
+
+    private string GetMaintenanceDonut()
+    {
+        if (dashboard is null || dashboard.MaintenanceByMonth.Count == 0)
+        {
+            return "background:#eee;";
+        }
+
+        var a = dashboard.MaintenanceByMonth.ElementAtOrDefault(0)?.Count ?? 0;
+        var b = dashboard.MaintenanceByMonth.ElementAtOrDefault(1)?.Count ?? 0;
+        var c = Math.Max(0, dashboard.MaintenanceSummary.Total - a - b);
+
+        return GetDonutStyle(a, b, c);
+    }
+
+    private static string GetDonutStyle(int first, int second, int third)
+    {
+        var total = Math.Max(1, first + second + third);
+        var p1 = Math.Round((decimal)first / total * 100, 2);
+        var p2 = Math.Round((decimal)second / total * 100, 2);
+        var p12 = p1 + p2;
+
+        return $"background: conic-gradient(#7b0d8e 0 {p1}%, #2186d9 {p1}% {p12}%, #f0a224 {p12}% 100%);";
+    }
+
+    private sealed class ExecutiveDashboard
+    {
+        public DateTime GeneratedAt { get; set; }
+        public DashboardSummary Summary { get; set; } = new();
+        public List<StatusItem> ToolsByStatus { get; set; } = new();
+        public List<BranchItem> ToolsByBranch { get; set; } = new();
+        public List<MaintenancePeriodItem> MaintenanceByMonth { get; set; } = new();
+        public List<MaintenancePeriodItem> MaintenanceByDay { get; set; } = new();
+        public LifeRecordCoverage LifeRecordCoverage { get; set; } = new();
+        public MaintenanceSummary MaintenanceSummary { get; set; } = new();
+        public DocumentSummary DocumentSummary { get; set; } = new();
+        public PurchaseSummary PurchaseSummary { get; set; } = new();
+        public List<RecentActivityItem> RecentActivity { get; set; } = new();
+    }
+
+    private sealed class DashboardSummary
+    {
+        public int TotalTools { get; set; }
+        public int AvailableTools { get; set; }
+        public int PendingValidationTools { get; set; }
+        public int AssignedTools { get; set; }
+        public int LoanedTools { get; set; }
+        public int InMaintenanceTools { get; set; }
+        public int DamagedTools { get; set; }
+        public int NotLocatedTools { get; set; }
+        public int DisposedTools { get; set; }
+        public int FixedAssets { get; set; }
+        public int ToolsWithoutFixedAssetCode { get; set; }
+        public int ToolsOnly { get; set; }
+        public int NonToolAssets { get; set; }
+        public int SpecializedTools { get; set; }
+        public int RequiresMaintenance { get; set; }
+        public int ActiveResponsibles { get; set; }
+        public int InactiveResponsibles { get; set; }
+        public int ActiveBranches { get; set; }
+        public int InactiveBranches { get; set; }
+        public int WithLifeRecord { get; set; }
+        public int WithoutLifeRecord { get; set; }
+    }
+
+    private sealed class StatusItem
+    {
+        public string Status { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
+    private sealed class BranchItem
+    {
+        public string BranchCode { get; set; } = string.Empty;
+        public string BranchName { get; set; } = string.Empty;
+        public int Total { get; set; }
+    }
+
+    private sealed class MaintenancePeriodItem
+    {
+        public string Label { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
+    private sealed class LifeRecordCoverage
+    {
+        public int MissingTechnicalData { get; set; }
+        public List<MissingTechnicalItem> MissingTechnicalDataItems { get; set; } = new();
+    }
+
+    private sealed class MissingTechnicalItem
+    {
+        public string InternalCode { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? BranchCode { get; set; }
+        public string? Missing { get; set; }
+    }
+
+    private sealed class MaintenanceSummary
+    {
+        public int Total { get; set; }
+        public int ThisMonth { get; set; }
+        public int Today { get; set; }
+    }
+
+    private sealed class DocumentSummary
+    {
+        public int Total { get; set; }
+        public List<DocumentItem> Recent { get; set; } = new();
+    }
+
+    private sealed class DocumentItem
+    {
+        public string FileName { get; set; } = string.Empty;
+        public string DocumentType { get; set; } = string.Empty;
+        public DateTime UploadedAt { get; set; }
+        public string? UploadedBy { get; set; }
+    }
+
+    private sealed class PurchaseSummary
+    {
+        public int Total { get; set; }
+        public int Completed { get; set; }
+        public int Pending { get; set; }
+        public int Rejected { get; set; }
+        public string ModuleStatus { get; set; } = string.Empty;
+        public string Note { get; set; } = string.Empty;
+    }
+
+    private sealed class RecentActivityItem
+    {
+        public string EventType { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string? ToolInternalCode { get; set; }
+        public DateTime RegisteredAt { get; set; }
+        public string? User { get; set; }
+    }
+}

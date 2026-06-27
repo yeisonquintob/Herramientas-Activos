@@ -1,0 +1,214 @@
+﻿@page "/"
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Inicio móvil - NAVI Herramientas y AF</PageTitle>
+
+@if (isInitializing)
+{
+    <section class="mobile-page">
+        <div class="mobile-loading">Cargando aplicación móvil...</div>
+    </section>
+}
+else if (!Auth.IsAuthenticated)
+{
+    <section class="mobile-page">
+        <div class="mobile-empty">
+            <strong>Sesión requerida</strong>
+            <span>Debes iniciar sesión para ingresar a la app móvil.</span>
+            <button class="mobile-primary-button" @onclick="GoLogin">Ir al login</button>
+        </div>
+    </section>
+}
+else
+{
+    <section class="mobile-page">
+        <header class="mobile-hero">
+            <div class="mobile-hero-top">
+                <span class="mobile-pill">APP MÓVIL</span>
+
+                <button class="mobile-logout-button" type="button" @onclick="LogoutAsync">
+                    Cerrar sesión
+                </button>
+            </div>
+
+            <h1>Hola, @Auth.CurrentUser?.DisplayName</h1>
+            <p>@Auth.CurrentUser?.RoleName · @Auth.CurrentUser?.BranchName</p>
+        </header>
+
+       span class="mobile-pill">APP MÓVIL</span>
+
+                <button class="mobile-logout-button" type="button" @onclick="LogoutAsync">
+                    Cerrar sesión
+                </button>
+            </div>
+
+            < @if (!string.IsNullOrWhiteSpace(message))
+        {
+            <div class="mobile-alert">@message</div>
+        }
+
+        <section class="mobile-kpi-grid">
+            <div class="mobile-kpi-card">
+                <span>Mis activos</span>
+                <strong>@myTools.Count</strong>
+                <small>Asignados o relacionados</small>
+            </div>
+
+            <div class="mobile-kpi-card warning">
+                <span>Con novedad</span>
+                <strong>@damagedCount</strong>
+                <small>Dañados / no aptos</small>
+            </div>
+
+            <div class="mobile-kpi-card ok">
+                <span>Disponibles</span>
+                <strong>@availableCount</strong>
+                <small>Para operación</small>
+            </div>
+        </section>
+
+        <section class="mobile-action-grid">
+            <a class="mobile-action-card" href="/my-tools">
+                <span>AF</span>
+                <strong>Mis herramientas</strong>
+                <small>Consultar activos asignados</small>
+            </a>
+
+            <a class="mobile-action-card" href="/report-damage">
+                <span>DAN</span>
+                <strong>Reportar novedad</strong>
+                <small>Daño, falla o preoperacional</small>
+            </a>
+        </section>
+
+        <section class="mobile-panel">
+            <div class="mobile-panel-head">
+                <h2>Últimos activos</h2>
+                <button type="button" @onclick="LoadAsync">Actualizar</button>
+            </div>
+
+            @if (!myTools.Any())
+            {
+                <div class="mobile-empty compact">
+                    No se encontraron activos relacionados con tu usuario.
+                </div>
+            }
+            else
+            {
+                @foreach (var tool in myTools.Take(4))
+                {
+                    <article class="mobile-tool-card">
+                        <div>
+                            <span>@tool.InternalCode</span>
+                            <strong>@tool.Name</strong>
+                            <small>@Display(tool.LocationName) · @Display(tool.OperationalStatus)</small>
+                        </div>
+
+                        <a class="mobile-mini-link" href="@($"/report-damage/{tool.Id}")">Reportar</a>
+                    </article>
+                }
+            }
+        </section>
+    </section>
+}
+
+@code {
+    private bool isInitializing = true;
+    private string? message;
+    private List<MobileToolDto> tools = new();
+
+    private List<MobileToolDto> myTools => FilterForCurrentUser(tools).ToList();
+
+    private int damagedCount => myTools.Count(x =>
+        ContainsStatus(x.OperationalStatus, "Damaged") ||
+        ContainsStatus(x.OperationalStatus, "NotSuitable") ||
+        ContainsStatus(x.PhysicalStatus, "Damaged"));
+
+    private int availableCount => myTools.Count(x => ContainsStatus(x.OperationalStatus, "Available"));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", forceLoad: true);
+            return;
+        }
+
+        await LoadAsync();
+
+        isInitializing = false;
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            message = null;
+            tools = await Api.GetToolsAsync();
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+
+    private async Task LogoutAsync()
+    {
+        await Auth.LogoutAsync();
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    private void GoLogin()
+    {
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    private IEnumerable<MobileToolDto> FilterForCurrentUser(IEnumerable<MobileToolDto> source)
+    {
+        var user = Auth.CurrentUser;
+
+        if (user is null)
+        {
+            return Enumerable.Empty<MobileToolDto>();
+        }
+
+        if (Auth.IsTecnico())
+        {
+            if (user.ResponsiblePersonId.HasValue)
+            {
+                return source.Where(x => x.ResponsiblePersonId == user.ResponsiblePersonId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(user.ResponsiblePersonName))
+            {
+                return source.Where(x => string.Equals(x.ResponsiblePersonName, user.ResponsiblePersonName, StringComparison.OrdinalIgnoreCase));
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(user.BranchCode) &&
+            !string.Equals(user.BranchCode, "TODAS", StringComparison.OrdinalIgnoreCase))
+        {
+            return source.Where(x =>
+                string.Equals(x.BranchCode, user.BranchCode, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(x.BranchName, user.BranchName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return source;
+    }
+
+    private static bool ContainsStatus(string? value, string expected)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+               value.Contains(expected, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "Sin dato" : value;
+    }
+}

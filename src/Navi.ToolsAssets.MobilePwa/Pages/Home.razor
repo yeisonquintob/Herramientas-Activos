@@ -1,7 +1,713 @@
 ﻿@page "/"
 
-<PageTitle>Home</PageTitle>
+@using Microsoft.AspNetCore.Components
+@using Navi.ToolsAssets.MobilePwa.Models
 
-<h1>Hello, world!</h1>
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
 
-Welcome to your new app.
+<PageTitle>Inicio móvil - NAVI Herramientas y AF</PageTitle>
+
+@if (isInitializing)
+{
+    <section class="mobile-page mobile-page-compact">
+        <div class="mobile-loading">Cargando aplicación móvil...</div>
+    </section>
+}
+else if (!Auth.IsAuthenticated)
+{
+    <section class="mobile-page mobile-page-compact">
+        <div class="mobile-empty">
+            <strong>Sesión requerida</strong>
+            <span>Debes iniciar sesión para ingresar a la app móvil.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+        </div>
+    </section>
+}
+else
+{
+    <section class="mobile-page mobile-page-compact">
+        <header class="mobile-hero mobile-hero-compact-pro">
+            <div class="mobile-hero-top">
+                <span class="mobile-pill mobile-pill-dark">APP MÓVIL</span>
+
+                <button class="mobile-logout-button mobile-logout-compact" type="button" @onclick="LogoutAsync">
+                    Cerrar sesión
+                </button>
+            </div>
+
+            <div class="mobile-hero-title-row">
+                <div>
+                    <h1>Hola, @Auth.CurrentUser?.DisplayName</h1>
+                    <p>@Auth.CurrentUser?.RoleName · @Auth.CurrentUser?.BranchName</p>
+                </div>
+            </div>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(message))
+        {
+            <div class="@messageClass">@message</div>
+        }
+
+        <section class="mobile-kpi-grid mobile-kpi-grid-compact mobile-kpi-grid-ultra">
+            <div class="mobile-kpi-card mobile-kpi-compact mobile-kpi-ultra">
+                <span>Mis activos</span>
+                <strong>@assignedTools.Count</strong>
+                <small>Asignados</small>
+            </div>
+
+            <div class="mobile-kpi-card mobile-kpi-compact mobile-kpi-ultra warning">
+                <span>Novedad</span>
+                <strong>@damagedCount</strong>
+                <small>Reportados</small>
+            </div>
+
+            <div class="mobile-kpi-card mobile-kpi-compact mobile-kpi-ultra ok">
+                <span>Disponibles</span>
+                <strong>@availableCount</strong>
+                <small>Operación</small>
+            </div>
+        </section>
+
+        <section class="mobile-quick-actions">
+            <button type="button" class="loan" @onclick="OpenLoanRequest">
+                <strong>Solicitud de préstamo</strong>
+                <span>Buscar herramienta y solicitar</span>
+            </button>
+
+            <button type="button" class="damage" @onclick="OpenDamageReport">
+                <strong>Reporte de daño</strong>
+                <span>Reportar falla o novedad</span>
+            </button>
+        </section>
+
+        @if (showLoanWindow)
+        {
+            <section class="mobile-loan-window">
+                <div class="mobile-loan-head">
+                    <div>
+                        <strong>Solicitud de préstamo</strong>
+                        <span>La solicitud queda pendiente de aprobación del herramentero</span>
+                    </div>
+
+                    <button type="button" @onclick="CloseLoanRequest">Cerrar</button>
+                </div>
+
+                <div class="mobile-loan-user">
+                    <span>Solicitante</span>
+                    <strong>@CurrentResponsibleLabel</strong>
+                </div>
+
+                <label class="mobile-field">
+                    <span>Buscar herramienta</span>
+                    <input value="@loanSearch"
+                           @oninput="OnLoanSearchChanged"
+                           placeholder="Código, nombre, serial o sede..." />
+                </label>
+
+                @if (ShowLoanSearchResults)
+                {
+                    <div class="mobile-loan-results">
+                        @if (!LoanRequestTools.Any())
+                        {
+                            <div class="mobile-loan-empty">No se encontraron herramientas.</div>
+                        }
+                        else
+                        {
+                            @foreach (var tool in LoanRequestTools.Take(8))
+                            {
+                                var selected = loanForm.ToolId == tool.Id;
+
+                                <button type="button"
+                                        class="mobile-loan-result @(selected ? "selected" : "")"
+                                        @onclick="() => SelectLoanTool(tool)">
+                                    <span>
+                                        <strong>@tool.InternalCode</strong>
+                                        <small>@tool.Name</small>
+                                        <small>@Display(tool.BranchCode) · @Display(tool.LocationName)</small>
+                                    </span>
+
+                                    <em class="@GetLoanToolStateClass(tool)">
+                                        @GetStatusLabel(tool.OperationalStatus)
+                                    </em>
+                                </button>
+                            }
+                        }
+                    </div>
+                }
+
+                @if (selectedLoanTool is not null)
+                {
+                    <div class="mobile-loan-selected">
+                        <span>@selectedLoanTool.InternalCode</span>
+                        <strong>@selectedLoanTool.Name</strong>
+                        <small>@Display(selectedLoanTool.BranchCode) · @Display(selectedLoanTool.LocationName)</small>
+                    </div>
+                }
+
+                <label class="mobile-field">
+                    <span>Fecha estimada devolución</span>
+                    <input type="date"
+                           value="@FormatDateInput(loanForm.ExpectedReturnAt)"
+                           @onchange="OnLoanExpectedReturnChanged" />
+                </label>
+
+                <label class="mobile-field">
+                    <span>Observación</span>
+                    <textarea rows="2"
+                              value="@loanForm.Notes"
+                              @oninput="OnLoanNotesChanged"
+                              placeholder="Indique para qué requiere la herramienta..."></textarea>
+                </label>
+
+                <button class="mobile-loan-submit"
+                        type="button"
+                        disabled="@isSaving"
+                        @onclick="SubmitLoanRequestAsync">
+                    @(isSaving ? "Enviando..." : "Enviar solicitud")
+                </button>
+            </section>
+        }
+
+        <section class="mobile-menu-panel mobile-menu-panel-compact mobile-menu-panel-full mobile-menu-white-panel">
+            <div class="mobile-panel-head mobile-panel-head-compact mobile-panel-head-no-action">
+                <h2>Menú operativo</h2>
+            </div>
+
+            <div class="mobile-menu-grid mobile-menu-grid-compact mobile-menu-grid-full">
+                @foreach (var item in MenuItems)
+                {
+                    <a class="mobile-menu-card mobile-menu-card-compact mobile-menu-card-full mobile-menu-card-white" href="@item.Url">
+                        <span class="mobile-icon-code mobile-icon-real">@GetMenuIcon(item.IconKey)</span>
+                        <strong>@item.Title</strong>
+                        <small>@item.Description</small>
+                    </a>
+                }
+            </div>
+        </section>
+
+        <section class="mobile-panel mobile-panel-compact mobile-last-assets-panel">
+            <div class="mobile-panel-head mobile-panel-head-compact">
+                <h2>Mis activos asignados</h2>
+                <a class="mobile-panel-link" href="/my-tools">Ver lista</a>
+            </div>
+
+            @if (!assignedTools.Any())
+            {
+                <div class="mobile-empty compact">
+                    No se encontraron activos asignados a tu usuario.
+                </div>
+            }
+            else
+            {
+                <div class="mobile-assigned-assets-list">
+                    @foreach (var tool in assignedTools)
+                    {
+                        <article class="mobile-assigned-card">
+                            <div class="mobile-assigned-card-head">
+                                <div>
+                                    <span>@tool.InternalCode</span>
+                                    <strong>@tool.Name</strong>
+                                </div>
+
+                                <em class="@GetLoanToolStateClass(tool)">
+                                    @GetStatusLabel(tool.OperationalStatus)
+                                </em>
+                            </div>
+
+                            <div class="mobile-assigned-grid">
+                                <div>
+                                    <span>Sede</span>
+                                    <strong>@Display(tool.BranchCode)</strong>
+                                </div>
+
+                                <div>
+                                    <span>Ubicación</span>
+                                    <strong>@Display(tool.LocationName)</strong>
+                                </div>
+
+                                <div>
+                                    <span>Responsable</span>
+                                    <strong>@Display(tool.ResponsiblePersonName)</strong>
+                                </div>
+
+                                <div>
+                                    <span>Físico</span>
+                                    <strong>@Display(tool.PhysicalStatus)</strong>
+                                </div>
+                            </div>
+
+                            <div class="mobile-assigned-actions">
+                                <a href="@GetDetailUrl(tool.Id)">Detalle</a>
+                                <a href="@GetLifeRecordUrl(tool.Id)">Hoja de vida</a>
+                                <a class="danger" href="@GetDamageUrl(tool.Id)">Reportar</a>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    </section>
+}
+
+@code {
+    private bool isInitializing = true;
+    private bool isSaving;
+    private bool showLoanWindow;
+    private string? message;
+    private string messageClass = "mobile-alert";
+    private string loanSearch = string.Empty;
+
+    private List<MobileToolDto> tools = new();
+    private MobileLoanRequestForm loanForm = new();
+
+    private List<MobileToolDto> visibleTools => FilterForCurrentUser(tools).ToList();
+
+    private List<MobileToolDto> assignedTools
+    {
+        get
+        {
+            var own = tools
+                .Where(IsAssignedToCurrentUser)
+                .OrderBy(x => x.InternalCode)
+                .ToList();
+
+            if (own.Any())
+            {
+                return own;
+            }
+
+            return FilterForCurrentUser(tools)
+                .Where(x => ContainsStatus(x.OperationalStatus, "Assigned") ||
+                            ContainsStatus(x.CustodyStatus, "Assigned"))
+                .OrderBy(x => x.InternalCode)
+                .ToList();
+        }
+    }
+
+    private int damagedCount => assignedTools.Count(x =>
+        ContainsStatus(x.OperationalStatus, "Damaged") ||
+        ContainsStatus(x.OperationalStatus, "NotSuitable") ||
+        ContainsStatus(x.PhysicalStatus, "Damaged"));
+
+    private int availableCount => visibleTools.Count(x => ContainsStatus(x.OperationalStatus, "Available"));
+
+    private MobileToolDto? selectedLoanTool =>
+        loanForm.ToolId.HasValue
+            ? tools.FirstOrDefault(x => x.Id == loanForm.ToolId.Value)
+            : null;
+
+    private bool ShowLoanSearchResults =>
+        !string.IsNullOrWhiteSpace(loanSearch) &&
+        selectedLoanTool is null;
+
+    private IEnumerable<MobileToolDto> LoanRequestTools =>
+        tools
+            .Where(x => string.IsNullOrWhiteSpace(loanSearch) ||
+                        ContainsText(x.InternalCode, loanSearch) ||
+                        ContainsText(x.Name, loanSearch) ||
+                        ContainsText(x.SerialNumber, loanSearch) ||
+                        ContainsText(x.BranchCode, loanSearch) ||
+                        ContainsText(x.LocationName, loanSearch))
+            .OrderByDescending(x => ContainsStatus(x.OperationalStatus, "Available"))
+            .ThenBy(x => x.InternalCode);
+
+    private string CurrentResponsibleLabel =>
+        !string.IsNullOrWhiteSpace(Auth.CurrentUser?.ResponsiblePersonName)
+            ? Auth.CurrentUser!.ResponsiblePersonName!
+            : Auth.CurrentUser?.DisplayName ?? Auth.CurrentUser?.UserName ?? "Usuario móvil";
+
+    private IEnumerable<MobileMenuItem> MenuItems
+    {
+        get
+        {
+            if (IsTecnico())
+            {
+                return new[]
+                {
+                    new MobileMenuItem("dashboard", "Dashboard", "/mobile/dashboard", "Indicadores"),
+                    new MobileMenuItem("inventory", "Mis herramientas", "/my-tools", "Asignadas"),
+                    new MobileMenuItem("assign", "Solicitudes", "/mobile/assignment", "Préstamos"),
+                    new MobileMenuItem("life", "Hoja de vida AF", "/mobile/life-records", "Consulta técnica"),
+                    new MobileMenuItem("damage", "Reportar novedad", "/report-damage", "Daño o falla"),
+                    new MobileMenuItem("history", "Historial propio", "/mobile/history", "Movimientos"),
+                    new MobileMenuItem("document", "Documentos", "/mobile/documents", "Evidencias")
+                };
+            }
+
+            return new[]
+            {
+                new MobileMenuItem("dashboard", "Dashboard", "/mobile/dashboard", "Indicadores"),
+                new MobileMenuItem("inventory", "Inventario AF", "/all-tools", "Activos"),
+                new MobileMenuItem("location", "Disponible y ubicación", "/mobile/availability", "Ubicación"),
+
+                new MobileMenuItem("assign", "Asignar AF", "/mobile/assignment", "Préstamos"),
+                new MobileMenuItem("history", "Historial", "/mobile/history", "Movimientos"),
+                new MobileMenuItem("life", "Hoja de vida AF", "/mobile/life-records", "Técnica"),
+
+                new MobileMenuItem("purchase", "Solicitar compra", "/mobile/purchases", "Solicitud"),
+                new MobileMenuItem("maintenance", "Solicitar mantenimiento", "/mobile/maintenance-request", "Servicio"),
+                new MobileMenuItem("calendar", "Planes mantenimiento", "/mobile/maintenance-plans", "Planes"),
+
+                new MobileMenuItem("physical", "Tomas físicas", "/mobile/physical-counts", "Conteos"),
+                new MobileMenuItem("reconcile", "Conciliación", "/mobile/reconciliation", "Validación"),
+                new MobileMenuItem("document", "Documentos", "/mobile/documents", "Evidencias"),
+
+                new MobileMenuItem("control", "Control interno", "/mobile/internal-control", "Auditoría"),
+                new MobileMenuItem("expiration", "Vencimientos", "/mobile/expirations", "Planes"),
+                new MobileMenuItem("reception", "Recepción", "/mobile/reception", "Entradas"),
+
+                new MobileMenuItem("damage", "Novedades", "/report-damage", "Daños"),
+                new MobileMenuItem("reports", "Reportes", "/mobile/reports", "Indicadores"),
+                new MobileMenuItem("settings", "Configuración", "/mobile/settings", "Parámetros")
+            };
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", forceLoad: true);
+            return;
+        }
+
+        await LoadAsync(false);
+
+        isInitializing = false;
+    }
+
+    private async Task LoadAsync(bool forceRefresh)
+    {
+        try
+        {
+            message = null;
+            tools = await Api.GetToolsAsync(forceRefresh);
+        }
+        catch (Exception ex)
+        {
+            ShowError(ex.Message);
+        }
+    }
+
+    private void OpenLoanRequest()
+    {
+        showLoanWindow = true;
+        message = null;
+    }
+
+    private void CloseLoanRequest()
+    {
+        showLoanWindow = false;
+        loanSearch = string.Empty;
+        loanForm = new MobileLoanRequestForm();
+    }
+
+    private void OpenDamageReport()
+    {
+        Navigation.NavigateTo("/report-damage");
+    }
+
+    private void OnLoanSearchChanged(ChangeEventArgs args)
+    {
+        loanSearch = args.Value?.ToString() ?? string.Empty;
+
+        if (selectedLoanTool is not null &&
+            !loanSearch.Equals($"{selectedLoanTool.InternalCode} - {selectedLoanTool.Name}", StringComparison.OrdinalIgnoreCase))
+        {
+            loanForm.ToolId = null;
+        }
+    }
+
+    private void SelectLoanTool(MobileToolDto tool)
+    {
+        loanForm.ToolId = tool.Id;
+        loanSearch = $"{tool.InternalCode} - {tool.Name}";
+    }
+
+    private void OnLoanExpectedReturnChanged(ChangeEventArgs args)
+    {
+        if (DateTime.TryParse(args.Value?.ToString(), out var value))
+        {
+            loanForm.ExpectedReturnAt = value;
+        }
+    }
+
+    private void OnLoanNotesChanged(ChangeEventArgs args)
+    {
+        loanForm.Notes = args.Value?.ToString();
+    }
+
+    private async Task SubmitLoanRequestAsync()
+    {
+        if (loanForm.ToolId is null)
+        {
+            ShowError("Debe seleccionar una herramienta para solicitar préstamo.");
+            return;
+        }
+
+        var tool = selectedLoanTool;
+
+        if (tool is null)
+        {
+            ShowError("No se encontró la herramienta seleccionada.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(tool.BranchCode))
+        {
+            ShowError("La herramienta no tiene sede asociada para generar la solicitud.");
+            return;
+        }
+
+        try
+        {
+            isSaving = true;
+
+            await Api.CreateLoanRequestAsync(new MobileLoanRequestCreateDto
+            {
+                BranchCode = tool.BranchCode!,
+                RequestedByPersonId = Auth.CurrentUser?.ResponsiblePersonId,
+                ToolInternalCodes = new[] { tool.InternalCode },
+                ExpectedReturnAt = loanForm.ExpectedReturnAt,
+                DeliveryCondition = "Solicitud creada desde app móvil.",
+                Notes = string.IsNullOrWhiteSpace(loanForm.Notes)
+                    ? $"Solicitud de préstamo para {tool.InternalCode} - {tool.Name}."
+                    : loanForm.Notes,
+                RequestedBy = Auth.CurrentUser?.UserName
+            });
+
+            ShowSuccess("Solicitud de préstamo creada correctamente. Queda pendiente de aprobación.");
+
+            CloseLoanRequest();
+
+            await LoadAsync(true);
+        }
+        catch (Exception ex)
+        {
+            ShowError($"No se pudo crear la solicitud: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task LogoutAsync()
+    {
+        await Auth.LogoutAsync();
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    private void GoLogin()
+    {
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    private IEnumerable<MobileToolDto> FilterForCurrentUser(IEnumerable<MobileToolDto> source)
+    {
+        var user = Auth.CurrentUser;
+
+        if (user is null)
+        {
+            return Enumerable.Empty<MobileToolDto>();
+        }
+
+        if (!IsTecnico())
+        {
+            return source;
+        }
+
+        if (user.ResponsiblePersonId.HasValue)
+        {
+            var own = source.Where(x => x.ResponsiblePersonId == user.ResponsiblePersonId.Value).ToList();
+
+            if (own.Any())
+            {
+                return own;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(user.ResponsiblePersonName))
+        {
+            var ownByName = source.Where(x =>
+                string.Equals(x.ResponsiblePersonName, user.ResponsiblePersonName, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            if (ownByName.Any())
+            {
+                return ownByName;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(user.BranchCode) &&
+            !string.Equals(user.BranchCode, "TODAS", StringComparison.OrdinalIgnoreCase))
+        {
+            return source.Where(x =>
+                string.Equals(x.BranchCode, user.BranchCode, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(x.BranchName, user.BranchName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return Enumerable.Empty<MobileToolDto>();
+    }
+
+    private bool IsAssignedToCurrentUser(MobileToolDto tool)
+    {
+        var user = Auth.CurrentUser;
+
+        if (user is null)
+        {
+            return false;
+        }
+
+        if (user.ResponsiblePersonId.HasValue && tool.ResponsiblePersonId == user.ResponsiblePersonId.Value)
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(user.ResponsiblePersonName) &&
+            string.Equals(tool.ResponsiblePersonName, user.ResponsiblePersonName, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool IsTecnico()
+    {
+        var role = Auth.CurrentUser?.RoleCode?.Trim().ToUpperInvariant();
+
+        return role is "TECNICO" or "TÉCNICO";
+    }
+
+    private static bool ContainsStatus(string? value, string expected)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+               value.Contains(expected, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ContainsText(string? value, string expected)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+               !string.IsNullOrWhiteSpace(expected) &&
+               Normalize(value).Contains(Normalize(expected), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Normalize(string value)
+    {
+        return value
+            .Trim()
+            .ToUpperInvariant()
+            .Replace("Á", "A")
+            .Replace("É", "E")
+            .Replace("Í", "I")
+            .Replace("Ó", "O")
+            .Replace("Ú", "U")
+            .Replace("Ü", "U")
+            .Replace("Ñ", "N");
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "Sin dato" : value;
+    }
+
+    private static string GetStatusLabel(string? status)
+    {
+        return status switch
+        {
+            "Available" => "Disponible",
+            "Assigned" => "Asignada",
+            "Loaned" => "Prestada",
+            "InMaintenance" => "En mantenimiento",
+            "Damaged" => "Dañada",
+            "NotSuitable" => "No apta",
+            "PendingValidation" => "Pendiente validación",
+            "NotLocated" => "No localizada",
+            "Disposed" => "Baja",
+            _ => Display(status)
+        };
+    }
+
+    private static string GetLoanToolStateClass(MobileToolDto tool)
+    {
+        return tool.OperationalStatus switch
+        {
+            "Available" => "mobile-state ok",
+            "Assigned" => "mobile-state assigned",
+            "Loaned" => "mobile-state assigned",
+            "InMaintenance" => "mobile-state warning",
+            "Damaged" => "mobile-state danger",
+            "NotSuitable" => "mobile-state danger",
+            "NotLocated" => "mobile-state dark",
+            _ => "mobile-state neutral"
+        };
+    }
+
+    private static string FormatDateInput(DateTime? value)
+    {
+        return value.HasValue ? value.Value.ToString("yyyy-MM-dd") : string.Empty;
+    }
+
+    private static string GetDetailUrl(Guid id)
+    {
+        return "/tools/" + id;
+    }
+
+    private static string GetLifeRecordUrl(Guid id)
+    {
+        return "/tools/" + id + "/life-record";
+    }
+
+    private static string GetDamageUrl(Guid id)
+    {
+        return "/report-damage/" + id;
+    }
+
+    private void ShowSuccess(string value)
+    {
+        message = value;
+        messageClass = "mobile-alert success";
+    }
+
+    private void ShowError(string value)
+    {
+        message = value;
+        messageClass = "mobile-alert error";
+    }
+
+    private static MarkupString GetMenuIcon(string key)
+    {
+        var svg = key switch
+        {
+            "dashboard" => "<svg viewBox='0 0 24 24'><path d='M4 19V5'/><path d='M4 19h16'/><path d='M7 15l3-4 3 2 5-7'/></svg>",
+            "inventory" => "<svg viewBox='0 0 24 24'><path d='M4 7l8-4 8 4-8 4-8-4z'/><path d='M4 7v10l8 4 8-4V7'/><path d='M12 11v10'/></svg>",
+            "location" => "<svg viewBox='0 0 24 24'><path d='M12 21s7-5.2 7-12a7 7 0 0 0-14 0c0 6.8 7 12 7 12z'/><circle cx='12' cy='9' r='2.5'/></svg>",
+            "assign" => "<svg viewBox='0 0 24 24'><path d='M7 7h10v10H7z'/><path d='M3 12h4'/><path d='M17 12h4'/><path d='M12 3v4'/><path d='M12 17v4'/></svg>",
+            "history" => "<svg viewBox='0 0 24 24'><path d='M4 12a8 8 0 1 0 3-6.2'/><path d='M4 4v5h5'/><path d='M12 7v5l3 2'/></svg>",
+            "life" => "<svg viewBox='0 0 24 24'><path d='M6 3h9l3 3v15H6z'/><path d='M15 3v4h4'/><path d='M8 12h8'/><path d='M8 16h6'/><path d='M8 8h4'/></svg>",
+            "purchase" => "<svg viewBox='0 0 24 24'><path d='M5 6h16l-2 8H7L5 6z'/><path d='M5 6 4 3H2'/><circle cx='8' cy='19' r='1.5'/><circle cx='18' cy='19' r='1.5'/></svg>",
+            "maintenance" => "<svg viewBox='0 0 24 24'><path d='M14 6l4 4'/><path d='M4 20l6-6'/><path d='M11 5a5 5 0 0 0 6 6l-7 7a3 3 0 0 1-4-4l7-7z'/></svg>",
+            "calendar" => "<svg viewBox='0 0 24 24'><path d='M5 5h14v16H5z'/><path d='M5 9h14'/><path d='M8 3v4'/><path d='M16 3v4'/><path d='M8 13h3'/><path d='M13 13h3'/><path d='M8 17h3'/></svg>",
+            "physical" => "<svg viewBox='0 0 24 24'><path d='M8 4h8l1 3H7z'/><path d='M6 7h12v14H6z'/><path d='M9 12h6'/><path d='M9 16h4'/></svg>",
+            "reconcile" => "<svg viewBox='0 0 24 24'><path d='M4 7h11'/><path d='M4 12h11'/><path d='M4 17h7'/><path d='M16 16l2 2 4-5'/></svg>",
+            "document" => "<svg viewBox='0 0 24 24'><path d='M6 3h9l3 3v15H6z'/><path d='M15 3v4h4'/><path d='M8 12h8'/><path d='M8 16h8'/></svg>",
+            "control" => "<svg viewBox='0 0 24 24'><path d='M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z'/><path d='M9 12l2 2 4-5'/></svg>",
+            "expiration" => "<svg viewBox='0 0 24 24'><path d='M5 5h14v16H5z'/><path d='M5 9h14'/><path d='M12 13v4'/><path d='M12 19h.01'/></svg>",
+            "reception" => "<svg viewBox='0 0 24 24'><path d='M3 7h11v10H3z'/><path d='M14 10h4l3 3v4h-7z'/><circle cx='7' cy='19' r='2'/><circle cx='18' cy='19' r='2'/></svg>",
+            "damage" => "<svg viewBox='0 0 24 24'><path d='M12 3l10 18H2z'/><path d='M12 9v5'/><path d='M12 17h.01'/></svg>",
+            "reports" => "<svg viewBox='0 0 24 24'><path d='M5 19V5'/><path d='M5 19h14'/><path d='M8 16v-4'/><path d='M12 16V8'/><path d='M16 16v-6'/></svg>",
+            "settings" => "<svg viewBox='0 0 24 24'><circle cx='12' cy='12' r='3'/><path d='M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a7 7 0 0 0-1.7-1L14.5 3h-5l-.3 3.1a7 7 0 0 0-1.7 1l-2.4-1-2 3.4L5.1 11a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.4-1a7 7 0 0 0 1.7 1l.3 3.1h5l.3-3.1a7 7 0 0 0 1.7-1l2.4 1 2-3.4-2-1.5c.1-.3.1-.7.1-1z'/></svg>",
+            _ => "<svg viewBox='0 0 24 24'><path d='M5 5h14v14H5z'/><path d='M8 12h8'/></svg>"
+        };
+
+        return new MarkupString(svg);
+    }
+
+    private sealed record MobileMenuItem(string IconKey, string Title, string Url, string Description);
+}
+
+

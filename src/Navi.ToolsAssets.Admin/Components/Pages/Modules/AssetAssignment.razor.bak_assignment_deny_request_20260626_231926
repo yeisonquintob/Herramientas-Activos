@@ -1,0 +1,1401 @@
+﻿@page "/asset-assignment"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpClientFactory
+@using Navi.ToolsAssets.Admin.Services.Auth
+@inject NavigationManager NavigationManager
+@inject WebAuthSessionService AuthSession
+
+<PageTitle>Asignar AF - NAVI</PageTitle>
+
+<PermissionGuard Permission="AssetAssignment.View" ModuleName="Asignar AF">
+
+<section class="af-banner">
+    <div>
+        <span class="af-pill">ACTIVOS FIJOS</span>
+        <h2>Asignar AF</h2>
+        <p>Solicita, aprueba, asigna o regresa activos fijos con trazabilidad de préstamo y responsable.</p>
+    </div>
+
+    <div class="af-banner-side">
+        <div class="af-status-box">
+            <span>Activos</span>
+            <strong>@FilteredTools.Count() visibles</strong>
+        </div>
+
+        <button class="btn btn-sm btn-outline-light" @onclick="LoadAsync">
+            Actualizar
+        </button>
+    </div>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="@messageClass">@message</div>
+}
+
+<section class="af-grid">
+    <aside class="af-left-stack">
+        <div class="af-card">
+            <h3>@GetMovementTitle()</h3>
+
+            <div class="mb-2">
+                <label class="form-label">Activo fijo</label>
+                <InputSelect class="form-select" @bind-Value="form.ToolId" @bind-Value:after="LoadSelectedTool">
+                    <option value="">Seleccione activo</option>
+                    @foreach (var tool in tools.OrderBy(x => x.InternalCode))
+                    {
+                        <option value="@tool.Id">@tool.InternalCode - @tool.Name</option>
+                    }
+                </InputSelect>
+            </div>
+
+            <div class="mb-2">
+                <label class="form-label">Tipo de movimiento</label>
+                <InputSelect class="form-select" @bind-Value="form.AssignmentType">
+                    <option value="Responsible">Asignar a usuario/responsable</option>
+                    <option value="Warehouse">Regresar a almacén/taller</option>
+                </InputSelect>
+            </div>
+
+            @if (form.AssignmentType == "Responsible")
+            {
+                <div class="mb-2">
+                    <label class="form-label">Usuario / Responsable</label>
+                    <InputSelect class="form-select" @bind-Value="form.ResponsiblePersonId">
+                        <option value="">Seleccione responsable</option>
+                        @foreach (var responsible in responsibles.OrderBy(x => x.FullName))
+                        {
+                            <option value="@responsible.Id">@responsible.FullName - @responsible.Position</option>
+                        }
+                    </InputSelect>
+                </div>
+            }
+
+            @if (form.AssignmentType == "Warehouse")
+            {
+                <div class="mb-2">
+                    <label class="form-label">Sede destino</label>
+                    <InputSelect class="form-select" @bind-Value="form.BranchId" @bind-Value:after="OnBranchChanged">
+                        <option value="">Seleccione sede</option>
+                        @foreach (var branch in branches.OrderBy(x => x.Code))
+                        {
+                            <option value="@branch.Id">@branch.Code - @branch.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+
+                <div class="mb-2">
+                    <label class="form-label">Almacén / Taller destino</label>
+                    <InputSelect class="form-select" @bind-Value="form.LocationId">
+                        <option value="">Seleccione almacén/taller</option>
+                        @foreach (var location in AvailableLocations.OrderBy(x => x.Code))
+                        {
+                            <option value="@location.Id">@location.Code - @location.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+            }
+
+            <div class="mb-2">
+                <label class="form-label">
+                    @(form.AssignmentType == "Warehouse" ? "Fecha de regreso" : "Fecha de asignación")
+                </label>
+                <InputDate class="form-control" @bind-Value="form.AssignmentDate" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Observación</label>
+                <InputTextArea class="form-control" @bind-Value="form.Observation" rows="3" />
+            </div>
+
+            <div class="d-grid gap-2">
+                @if (form.AssignmentType == "Warehouse")
+                {
+                    <button class="assign-main assign-main-warning" @onclick="SaveAsync" disabled="@(isSaving || !CanReturnAsset)">
+                        @(isSaving ? "Guardando..." : "Confirmar regreso")
+                    </button>
+                }
+                else
+                {
+                    <button class="assign-main assign-main-primary" @onclick="SaveAsync" disabled="@(isSaving || !CanAssignAsset)">
+                        @(isSaving ? "Guardando..." : "Confirmar asignación")
+                    </button>
+                }
+
+                <button class="assign-main assign-main-neutral" @onclick="ClearForm">
+                    Limpiar
+                </button>
+            </div>
+        </div>
+
+        <div class="af-card history-launch-card">
+            <span class="history-pill">HISTORIAL</span>
+            <h3>Historial por usuario</h3>
+            <p>Consulta en una vista completa los activos asignados, entregados, regresados y sus detalles.</p>
+
+            <div class="mb-2">
+                <label class="form-label">Usuario / Responsable</label>
+                <select class="form-select form-select-sm" @bind="historyResponsibleId">
+                    <option value="">Todos los usuarios</option>
+                    @foreach (var responsible in responsibles.OrderBy(x => x.FullName))
+                    {
+                        <option value="@responsible.Id">@responsible.FullName</option>
+                    }
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Buscar</label>
+                <input class="form-control form-control-sm"
+                       placeholder="Código, activo fijo, serial o detalle..."
+                       @bind="historySearch"
+                       @bind:event="oninput" />
+            </div>
+
+            <button class="btn-open-history" @onclick="OpenHistory">
+                Abrir historial de asignaciones
+            </button>
+        </div>
+
+        <div class="af-card request-card">
+            <span class="history-pill request">SOLICITUD</span>
+            <h3>Solicitud de asignación</h3>
+            <p>Busca una herramienta y solicita que sea asignada a tu usuario. El herramentero la aprueba desde esta misma vista.</p>
+
+            <div class="request-user">
+                <span>Solicitante</span>
+                <strong>@GetCurrentResponsibleLabel()</strong>
+            </div>
+
+            <div class="mb-2">
+                <label class="form-label">Buscar herramienta</label>
+                <input class="form-control form-control-sm"
+                       placeholder="Escriba código, nombre o serial..."
+                       @bind="requestSearch"
+                       @bind:event="oninput" />
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(requestSearch))
+            {
+                <div class="request-results">
+                    <div class="request-results-title">
+                        <span>Resultados filtrados</span>
+                        <strong>@RequestTools.Count()</strong>
+                    </div>
+
+                    @if (!RequestTools.Any())
+                    {
+                        <div class="request-result-empty">
+                            No se encontraron herramientas con ese criterio.
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var tool in RequestTools.Take(7))
+                        {
+                            var pending = FindPendingRequestForTool(tool.Id);
+                            var isSelected = requestForm.ToolId == tool.Id;
+
+                            <button type="button"
+                                    class="request-result-card @(isSelected ? "selected" : "")"
+                                    @onclick="() => SelectRequestTool(tool)">
+                                <span>
+                                    <strong>@tool.InternalCode</strong>
+                                    <small>@tool.Name</small>
+                                    <small>@Show(tool.BranchCode) · @Show(tool.LocationName)</small>
+                                </span>
+
+                                <em class="@GetRequestAvailabilityClass(tool, pending)">
+                                    @(pending is not null ? "Con solicitud" : GetStatusLabel(tool.OperationalStatus))
+                                </em>
+                            </button>
+                        }
+                    }
+                </div>
+            }
+
+            <div class="mb-2">
+                <label class="form-label">Herramienta / activo</label>
+                <InputSelect class="form-select form-select-sm" @bind-Value="requestForm.ToolId">
+                    <option value="">Seleccione activo</option>
+                    @foreach (var tool in RequestTools)
+                    {
+                        <option value="@tool.Id">@tool.InternalCode - @tool.Name</option>
+                    }
+                </InputSelect>
+            </div>
+
+            <div class="mb-2">
+                <label class="form-label">Fecha estimada de devolución</label>
+                <InputDate class="form-control form-control-sm" @bind-Value="requestForm.ExpectedReturnAt" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Observación</label>
+                <InputTextArea class="form-control form-control-sm" rows="2" @bind-Value="requestForm.Notes" />
+            </div>
+
+            <button class="btn-request-assignment"
+                    @onclick="SubmitSelfAssignmentRequestAsync"
+                    disabled="@(isSaving || AuthSession.ResponsiblePersonId is null)">
+                Solicitud de asignación
+            </button>
+        </div>
+
+        <div class="af-card pending-card">
+            <span class="history-pill approve">APROBACIÓN</span>
+            <h3>Solicitudes pendientes</h3>
+
+            @if (!PendingLoanRequests.Any())
+            {
+                <div class="pending-empty">No hay solicitudes pendientes.</div>
+            }
+            else
+            {
+                <div class="pending-list">
+                    @foreach (var request in PendingLoanRequests.Take(6))
+                    {
+                        var item = request.Items.FirstOrDefault();
+
+                        <article>
+                            <div>
+                                <strong>@request.LoanNumber</strong>
+                                <span>@Show(item?.ToolInternalCode) - @Show(item?.ToolName)</span>
+                                <small>Solicita: @Show(request.CreatedBy) · @ShowDate(request.RequestedAt)</small>
+                            </div>
+
+                            <button @onclick="() => ApproveRequestAsync(request)"
+                                    disabled="@(isSaving || !CanApproveAssignmentRequest)">
+                                Aprobar
+                            </button>
+                        </article>
+                    }
+                </div>
+            }
+        </div>
+    </aside>
+
+    <section class="af-card">
+        <div class="af-table-header">
+            <div>
+                <h3>Activos asignables</h3>
+                <p>Consulta el estado actual, filtra por usuario y registra asignaciones, regresos o aprobaciones.</p>
+            </div>
+
+            <div class="af-filters">
+                <input class="form-control form-control-sm" placeholder="Buscar código, nombre..." @bind="search" @bind:event="oninput" />
+
+                <select class="form-select form-select-sm" @bind="selectedResponsibleId">
+                    <option value="">Todos los usuarios</option>
+                    <option value="SIN_RESPONSABLE">Sin responsable</option>
+                    @foreach (var responsible in responsibles.OrderBy(x => x.FullName))
+                    {
+                        <option value="@responsible.Id">@responsible.FullName</option>
+                    }
+                </select>
+            </div>
+        </div>
+
+        @if (isLoading)
+        {
+            <p>Cargando activos...</p>
+        }
+        else if (!FilteredTools.Any())
+        {
+            <div class="alert alert-info">No hay activos para los filtros seleccionados.</div>
+        }
+        else
+        {
+            <table class="table table-hover align-middle af-table">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Activo</th>
+                        <th>Sede</th>
+                        <th>Ubicación</th>
+                        <th>Usuario / Responsable</th>
+                        <th>Estado</th>
+                        <th>Solicitud</th>
+                        <th>Fecha asignación</th>
+                        <th>Fecha entrega</th>
+                        <th class="text-end">Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var tool in FilteredTools)
+                    {
+                        var pending = FindPendingRequestForTool(tool.Id);
+
+                        <tr>
+                            <td><strong>@tool.InternalCode</strong></td>
+                            <td>
+                                <div>@tool.Name</div>
+                                <small class="text-muted">@Show(tool.SerialNumber)</small>
+                            </td>
+                            <td>@Show(tool.BranchCode)</td>
+                            <td>@Show(tool.LocationName)</td>
+                            <td>
+                                <div>@Show(tool.ResponsiblePersonName)</div>
+                                <small class="text-muted">@Show(tool.ResponsiblePosition)</small>
+                            </td>
+                            <td><span class="@GetStatusBadge(tool.OperationalStatus)">@GetStatusLabel(tool.OperationalStatus)</span></td>
+                            <td>
+                                @if (pending is null)
+                                {
+                                    <span class="request-state empty">Sin solicitud</span>
+                                }
+                                else
+                                {
+                                    <span class="request-state pending">@pending.LoanNumber</span>
+                                }
+                            </td>
+                            <td>@ShowDate(tool.LastAssignmentDate)</td>
+                            <td>@ShowDate(tool.LastReturnDate)</td>
+                            <td class="text-end">
+                                <div class="assignment-actions">
+                                    <button class="assign-action assign-action-primary" @onclick="() => SelectForAssignment(tool)">
+                                        Asignar
+                                    </button>
+
+                                    <button class="assign-action assign-action-success"
+                                            @onclick="() => ApproveRequestAsync(pending)"
+                                            disabled="@(pending is null || !CanApproveAssignmentRequest || isSaving)">
+                                        Aprobar
+                                    </button>
+
+                                    <button class="assign-action assign-action-warning" @onclick="() => SelectForReturn(tool)">
+                                        Regresar
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+</section>
+
+</PermissionGuard>
+
+<style>
+    .af-banner {
+        background: linear-gradient(135deg, #050008 0%, #280032 45%, #5c006b 100%);
+        color: #fff;
+        border-radius: .85rem;
+        padding: 1.25rem 1.4rem;
+        margin-bottom: 1rem;
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        box-shadow: 0 .65rem 1.35rem rgba(75,0,92,.22);
+    }
+
+    .af-pill {
+        display: inline-flex;
+        background: rgba(255,255,255,.12);
+        border: 1px solid rgba(255,255,255,.35);
+        border-radius: 999px;
+        padding: .22rem .65rem;
+        font-size: .7rem;
+        font-weight: 900;
+        margin-bottom: .6rem;
+    }
+
+    .af-banner h2 {
+        color: #fff;
+        font-weight: 950;
+        margin: 0;
+    }
+
+    .af-banner p {
+        color: rgba(255,255,255,.78);
+        margin: .35rem 0 0;
+        font-size: .9rem;
+    }
+
+    .af-banner-side {
+        min-width: 185px;
+        display: grid;
+        gap: .65rem;
+    }
+
+    .af-status-box {
+        background: rgba(255,255,255,.12);
+        border-radius: .65rem;
+        padding: .55rem .75rem;
+        text-align: right;
+    }
+
+    .af-status-box span {
+        color: #ffdd57;
+        display: block;
+        font-size: .75rem;
+        font-weight: 900;
+    }
+
+    .af-grid {
+        display: grid;
+        grid-template-columns: 360px minmax(0, 1fr);
+        gap: 1rem;
+    }
+
+    .af-left-stack {
+        display: grid;
+        gap: .75rem;
+        align-content: start;
+    }
+
+    .af-card {
+        background: #fff;
+        border: 1px solid #dfe3e8;
+        border-radius: .85rem;
+        padding: 1rem;
+        box-shadow: 0 .3rem .75rem rgba(0,0,0,.045);
+    }
+
+    .af-card h3 {
+        font-size: 1.05rem;
+        font-weight: 900;
+        margin-bottom: .75rem;
+    }
+
+    .af-table-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: .75rem;
+    }
+
+    .af-table-header p {
+        margin: 0;
+        color: #6c757d;
+        font-size: .8rem;
+    }
+
+    .af-filters {
+        display: flex;
+        gap: .45rem;
+        min-width: 520px;
+    }
+
+    .af-table {
+        font-size: .82rem;
+    }
+
+    .af-table th,
+    .af-table td {
+        padding: .45rem .5rem;
+    }
+
+    .history-launch-card,
+    .request-card,
+    .pending-card {
+        background: linear-gradient(180deg, #ffffff 0%, #fbf8fc 100%);
+    }
+
+    .history-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #f3ecf7;
+        color: #4b005c;
+        border-radius: 999px;
+        padding: .15rem .55rem;
+        font-size: .66rem;
+        font-weight: 950;
+        margin-bottom: .45rem;
+    }
+
+    .history-pill.request {
+        background: #eef6ff;
+        color: #1d4ed8;
+    }
+
+    .history-pill.approve {
+        background: #ecfdf5;
+        color: #047857;
+    }
+
+    .history-launch-card p,
+    .request-card p {
+        color: #657083;
+        font-size: .76rem;
+        line-height: 1.28;
+        margin-bottom: .75rem;
+    }
+
+    .btn-open-history,
+    .btn-request-assignment {
+        width: 100%;
+        height: 34px;
+        border: 0;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #4b005c 0%, #8c119f 100%);
+        color: #ffffff;
+        font-size: .78rem;
+        font-weight: 950;
+        box-shadow: 0 .25rem .7rem rgba(75, 0, 92, .25);
+    }
+
+    .btn-request-assignment {
+        background: linear-gradient(135deg, #1d4ed8 0%, #7c3aed 100%);
+    }
+
+    .request-results {
+        border: 1px solid #eadff0;
+        border-radius: .72rem;
+        background: #fbf7fd;
+        padding: .45rem;
+        margin: -.15rem 0 .65rem;
+        display: grid;
+        gap: .38rem;
+        max-height: 305px;
+        overflow-y: auto;
+    }
+
+    .request-results-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: #4b005c;
+        font-size: .68rem;
+        font-weight: 950;
+        padding: .1rem .15rem .25rem;
+    }
+
+    .request-results-title strong {
+        min-width: 24px;
+        height: 20px;
+        border-radius: 999px;
+        background: #4b005c;
+        color: #fff;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .62rem;
+        font-weight: 950;
+    }
+
+    .request-result-empty {
+        border: 1px dashed #dccbe5;
+        border-radius: .6rem;
+        padding: .65rem;
+        color: #6c5775;
+        font-size: .74rem;
+        text-align: center;
+        font-weight: 850;
+        background: #fff;
+    }
+
+    .request-result-card {
+        width: 100%;
+        border: 1px solid #eadff0;
+        background: #fff;
+        border-radius: .62rem;
+        padding: .48rem .55rem;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: .45rem;
+        align-items: center;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .request-result-card:hover,
+    .request-result-card.selected {
+        border-color: #8c119f;
+        box-shadow: 0 .25rem .65rem rgba(75,0,92,.12);
+    }
+
+    .request-result-card span,
+    .request-result-card strong,
+    .request-result-card small {
+        display: block;
+    }
+
+    .request-result-card strong {
+        color: #4b005c;
+        font-size: .72rem;
+        font-weight: 950;
+    }
+
+    .request-result-card small {
+        color: #4d3b56;
+        font-size: .66rem;
+        font-weight: 750;
+        line-height: 1.25;
+    }
+
+    .request-status {
+        border-radius: 999px;
+        padding: .16rem .48rem;
+        font-style: normal;
+        font-size: .58rem;
+        font-weight: 950;
+        border: 1px solid transparent;
+        white-space: nowrap;
+    }
+
+    .request-status-available {
+        color: #047857;
+        background: #ecfdf5;
+        border-color: #bbf7d0;
+    }
+
+    .request-status-assigned {
+        color: #7c2d12;
+        background: #fff7ed;
+        border-color: #fed7aa;
+    }
+
+    .request-status-loaned {
+        color: #075985;
+        background: #e0f2fe;
+        border-color: #bae6fd;
+    }
+
+    .request-status-maintenance {
+        color: #1d4ed8;
+        background: #eff6ff;
+        border-color: #bfdbfe;
+    }
+
+    .request-status-danger {
+        color: #dc2626;
+        background: #fff1f2;
+        border-color: #fecdd3;
+    }
+
+    .request-status-warning {
+        color: #a16207;
+        background: #fff8e1;
+        border-color: #fde68a;
+    }
+
+    .request-status-pending {
+        color: #6d28d9;
+        background: #f5f3ff;
+        border-color: #ddd6fe;
+    }
+
+    .request-status-neutral {
+        color: #475569;
+        background: #f8fafc;
+        border-color: #e2e8f0;
+    }
+    .request-user {
+        border: 1px solid #eadff0;
+        border-radius: .65rem;
+        padding: .5rem .65rem;
+        margin-bottom: .65rem;
+        background: #fbf7fd;
+    }
+
+    .request-user span {
+        display: block;
+        color: #6c5775;
+        font-size: .66rem;
+        font-weight: 850;
+    }
+
+    .request-user strong {
+        display: block;
+        color: #180020;
+        font-size: .78rem;
+        font-weight: 950;
+    }
+
+    .pending-empty {
+        border: 1px dashed #dccbe5;
+        border-radius: .65rem;
+        padding: .75rem;
+        color: #6c5775;
+        font-size: .78rem;
+        text-align: center;
+        font-weight: 800;
+    }
+
+    .pending-list {
+        display: grid;
+        gap: .45rem;
+    }
+
+    .pending-list article {
+        border: 1px solid #eadff0;
+        border-radius: .65rem;
+        background: #fbf7fd;
+        padding: .5rem;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: .55rem;
+        align-items: center;
+    }
+
+    .pending-list strong,
+    .pending-list span,
+    .pending-list small {
+        display: block;
+    }
+
+    .pending-list strong {
+        color: #180020;
+        font-size: .75rem;
+        font-weight: 950;
+    }
+
+    .pending-list span {
+        color: #32103d;
+        font-size: .7rem;
+        font-weight: 850;
+    }
+
+    .pending-list small {
+        color: #6c5775;
+        font-size: .63rem;
+    }
+
+    .pending-list button {
+        border: 1px solid #059669;
+        color: #047857;
+        background: #ecfdf5;
+        border-radius: .48rem;
+        font-size: .66rem;
+        font-weight: 950;
+        min-height: 30px;
+        padding: .2rem .55rem;
+    }
+
+    .assignment-actions,
+    td.text-end {
+        display: grid !important;
+        grid-template-columns: 1fr;
+        gap: .34rem;
+        width: 100%;
+        min-width: 118px;
+        align-items: stretch;
+    }
+
+    .assign-action,
+    .assign-main {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 29px;
+        width: 100%;
+        border-radius: .48rem;
+        padding: .30rem .40rem;
+        font-size: .66rem;
+        font-weight: 950;
+        line-height: 1.1;
+        text-decoration: none;
+        border: 1px solid transparent;
+        background: #fff;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .assign-action:disabled,
+    .assign-main:disabled {
+        opacity: .48;
+        cursor: not-allowed;
+    }
+
+    .assign-main {
+        min-height: 36px;
+        font-size: .78rem;
+    }
+
+    .assign-action-primary,
+    .assign-main-primary {
+        border-color: #2563eb;
+        color: #1d4ed8;
+        background: #eff6ff;
+    }
+
+    .assign-action-success {
+        border-color: #059669;
+        color: #047857;
+        background: #ecfdf5;
+    }
+
+    .assign-action-warning,
+    .assign-main-warning {
+        border-color: #f59e0b;
+        color: #9a3412;
+        background: #fff7ed;
+    }
+
+    .assign-main-neutral {
+        border-color: #64748b;
+        color: #334155;
+        background: #f8fafc;
+    }
+
+    .request-state {
+        display: inline-flex;
+        border-radius: 999px;
+        padding: .14rem .45rem;
+        font-size: .62rem;
+        font-weight: 950;
+        border: 1px solid #e2e8f0;
+    }
+
+    .request-state.empty {
+        color: #64748b;
+        background: #f8fafc;
+    }
+
+    .request-state.pending {
+        color: #047857;
+        background: #ecfdf5;
+        border-color: #bbf7d0;
+    }
+
+    .af-table th:last-child,
+    .af-table td:last-child {
+        width: 126px;
+        min-width: 126px;
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    @@media (max-width: 1200px) {
+        .af-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .af-table-header,
+        .af-banner {
+            flex-direction: column;
+        }
+
+        .af-filters {
+            min-width: 0;
+            flex-direction: column;
+        }
+    }
+</style>
+
+@code {
+    private bool CanAssignAsset => AuthSession.HasPermission("AssetAssignment.Assign");
+    private bool CanReturnAsset => AuthSession.HasPermission("AssetAssignment.Return");
+    private bool CanApproveAssignmentRequest => AuthSession.HasPermission("AssetAssignment.Assign");
+
+    private HttpClient Api => HttpClientFactory.CreateClient("NaviApi");
+
+    private List<ToolItem> tools = new();
+    private List<ResponsibleItem> responsibles = new();
+    private List<BranchItem> branches = new();
+    private List<LocationItem> locations = new();
+    private List<LoanRequestItem> loanRequests = new();
+
+    private AssignmentForm form = new();
+    private AssignmentRequestForm requestForm = new();
+
+    private bool isLoading;
+    private bool isSaving;
+    private string search = string.Empty;
+    private string selectedResponsibleId = string.Empty;
+    private string historyResponsibleId = string.Empty;
+    private string historySearch = string.Empty;
+    private string requestSearch = string.Empty;
+    private string message = string.Empty;
+    private string messageClass = "alert alert-info";
+
+    private IEnumerable<LocationItem> AvailableLocations =>
+        form.BranchId is null
+            ? locations
+            : locations.Where(x => x.BranchId == form.BranchId);
+
+    private IEnumerable<ToolItem> FilteredTools =>
+        tools
+            .Where(x => string.IsNullOrWhiteSpace(search) ||
+                        x.InternalCode.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                        x.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                        (x.SerialNumber ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase))
+            .Where(x =>
+                string.IsNullOrWhiteSpace(selectedResponsibleId) ||
+                (selectedResponsibleId == "SIN_RESPONSABLE" && x.ResponsiblePersonId is null) ||
+                (x.ResponsiblePersonId.HasValue && x.ResponsiblePersonId.Value.ToString() == selectedResponsibleId))
+            .OrderByDescending(x => FindPendingRequestForTool(x.Id) is not null)
+            .ThenBy(x => x.InternalCode);
+
+    private IEnumerable<ToolItem> RequestTools =>
+        tools
+            .Where(x => string.IsNullOrWhiteSpace(requestSearch) ||
+                        x.InternalCode.Contains(requestSearch, StringComparison.OrdinalIgnoreCase) ||
+                        x.Name.Contains(requestSearch, StringComparison.OrdinalIgnoreCase) ||
+                        (x.SerialNumber ?? string.Empty).Contains(requestSearch, StringComparison.OrdinalIgnoreCase) ||
+                        (x.BranchCode ?? string.Empty).Contains(requestSearch, StringComparison.OrdinalIgnoreCase) ||
+                        (x.LocationName ?? string.Empty).Contains(requestSearch, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(x => x.OperationalStatus.Equals("Available", StringComparison.OrdinalIgnoreCase))
+            .ThenBy(x => FindPendingRequestForTool(x.Id) is not null)
+            .ThenBy(x => x.InternalCode)
+            .Take(80);
+
+    private IEnumerable<LoanRequestItem> PendingLoanRequests =>
+        loanRequests
+            .Where(x => IsPendingStatus(x.Status))
+            .Where(x => x.Items.Any(i => !i.Returned))
+            .OrderByDescending(x => x.RequestedAt);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+
+        try
+        {
+            tools = await Api.GetFromJsonAsync<List<ToolItem>>("api/tools/assignment-board") ?? new();
+            responsibles = await Api.GetFromJsonAsync<List<ResponsibleItem>>("api/settings/responsibles") ?? new();
+            branches = await Api.GetFromJsonAsync<List<BranchItem>>("api/settings/branches") ?? new();
+            locations = await Api.GetFromJsonAsync<List<LocationItem>>("api/settings/warehouses") ?? new();
+            loanRequests = await Api.GetFromJsonAsync<List<LoanRequestItem>>("api/loans") ?? new();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"No se pudo cargar la información: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private string GetMovementTitle()
+    {
+        return form.AssignmentType == "Warehouse" ? "Regresar activo fijo" : "Nueva asignación";
+    }
+
+    private void OpenHistory()
+    {
+        var query = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(historyResponsibleId))
+        {
+            query.Add($"responsiblePersonId={Uri.EscapeDataString(historyResponsibleId)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(historySearch))
+        {
+            query.Add($"q={Uri.EscapeDataString(historySearch)}");
+        }
+
+        var url = query.Any()
+            ? $"/asset-assignment-history?{string.Join("&", query)}"
+            : "/asset-assignment-history";
+
+        NavigationManager.NavigateTo(url);
+    }
+
+    private void LoadSelectedTool()
+    {
+        var tool = tools.FirstOrDefault(x => x.Id == form.ToolId);
+
+        if (tool is not null)
+        {
+            form.BranchId = tool.BranchId;
+            form.LocationId = tool.LocationId;
+            form.ResponsiblePersonId = tool.ResponsiblePersonId;
+        }
+    }
+
+    private void SelectForAssignment(ToolItem tool)
+    {
+        form.ToolId = tool.Id;
+        form.AssignmentType = "Responsible";
+        form.BranchId = tool.BranchId;
+        form.LocationId = tool.LocationId;
+        form.ResponsiblePersonId = tool.ResponsiblePersonId;
+        form.AssignmentDate = DateTime.Today;
+        form.Observation = $"Asignación del activo {tool.InternalCode}.";
+    }
+
+    private void SelectForReturn(ToolItem tool)
+    {
+        form.ToolId = tool.Id;
+        form.AssignmentType = "Warehouse";
+        form.BranchId = tool.BranchId;
+        form.LocationId = tool.LocationId;
+        form.ResponsiblePersonId = null;
+        form.AssignmentDate = DateTime.Today;
+        form.Observation = $"Regreso de activo fijo {tool.InternalCode} a almacén/taller.";
+    }
+
+    private void OnBranchChanged()
+    {
+        if (form.LocationId.HasValue &&
+            !locations.Any(x => x.Id == form.LocationId && x.BranchId == form.BranchId))
+        {
+            form.LocationId = null;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (form.ToolId is null)
+        {
+            ShowError("Debe seleccionar un activo fijo.");
+            return;
+        }
+
+        if (form.AssignmentType == "Responsible" && form.ResponsiblePersonId is null)
+        {
+            ShowError("Debe seleccionar un responsable.");
+            return;
+        }
+
+        if (form.AssignmentType == "Warehouse" && (form.BranchId is null || form.LocationId is null))
+        {
+            ShowError("Debe seleccionar sede y almacén/taller destino.");
+            return;
+        }
+
+        isSaving = true;
+
+        var request = new
+        {
+            assignmentType = form.AssignmentType,
+            responsiblePersonId = form.ResponsiblePersonId,
+            branchId = form.BranchId,
+            locationId = form.LocationId,
+            assignmentDate = form.AssignmentDate,
+            observation = form.Observation,
+            changedBy = AuthSession.AuditUser
+        };
+
+        try
+        {
+            var response = await Api.PatchAsJsonAsync($"api/tools/{form.ToolId}/assign-fixed-asset", request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ShowError(await response.Content.ReadAsStringAsync());
+                return;
+            }
+
+            ShowSuccess(form.AssignmentType == "Warehouse"
+                ? "Activo fijo regresado correctamente."
+                : "Asignación confirmada correctamente.");
+
+            ClearForm();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Error guardando movimiento: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void SelectRequestTool(ToolItem tool)
+    {
+        requestForm.ToolId = tool.Id;
+        requestSearch = $"{tool.InternalCode} - {tool.Name}";
+    }
+
+    private static string GetRequestAvailabilityClass(ToolItem tool, LoanRequestItem? pending)
+    {
+        if (pending is not null)
+        {
+            return "request-status request-status-pending";
+        }
+
+        return tool.OperationalStatus switch
+        {
+            "Available" => "request-status request-status-available",
+            "Assigned" => "request-status request-status-assigned",
+            "Loaned" => "request-status request-status-loaned",
+            "InMaintenance" => "request-status request-status-maintenance",
+            "Damaged" => "request-status request-status-danger",
+            "NotLocated" => "request-status request-status-danger",
+            "PendingValidation" => "request-status request-status-warning",
+            _ => "request-status request-status-neutral"
+        };
+    }
+    private async Task SubmitSelfAssignmentRequestAsync()
+    {
+        if (requestForm.ToolId is null)
+        {
+            ShowError("Debe seleccionar una herramienta para solicitar asignación.");
+            return;
+        }
+
+        if (AuthSession.ResponsiblePersonId is null)
+        {
+            ShowError("Tu usuario no tiene responsable asociado. No se puede crear una solicitud automática para ti.");
+            return;
+        }
+
+        var tool = tools.FirstOrDefault(x => x.Id == requestForm.ToolId);
+
+        if (tool is null)
+        {
+            ShowError("No se encontró la herramienta seleccionada.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(tool.BranchCode))
+        {
+            ShowError("La herramienta no tiene sede asociada para generar la solicitud.");
+            return;
+        }
+
+        isSaving = true;
+
+        var request = new
+        {
+            branchCode = tool.BranchCode,
+            requestedByPersonId = AuthSession.ResponsiblePersonId,
+            toolInternalCodes = new[] { tool.InternalCode },
+            expectedReturnAt = requestForm.ExpectedReturnAt,
+            deliveryCondition = "Solicitud de asignación desde Asignar AF web.",
+            notes = string.IsNullOrWhiteSpace(requestForm.Notes)
+                ? $"Solicitud de asignación del activo {tool.InternalCode} para {AuthSession.ResponsiblePersonName ?? AuthSession.DisplayName}."
+                : requestForm.Notes,
+            requestedBy = AuthSession.AuditUser
+        };
+
+        try
+        {
+            var response = await Api.PostAsJsonAsync("api/loans/request", request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ShowError(await response.Content.ReadAsStringAsync());
+                return;
+            }
+
+            ShowSuccess("Solicitud de asignación creada correctamente. Queda pendiente de aprobación del herramentero.");
+
+            requestForm = new AssignmentRequestForm();
+            requestSearch = string.Empty;
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Error creando solicitud: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task ApproveRequestAsync(LoanRequestItem? request)
+    {
+        if (request is null)
+        {
+            ShowError("La herramienta no tiene solicitud pendiente para aprobar.");
+            return;
+        }
+
+        isSaving = true;
+
+        var body = new
+        {
+            actionBy = AuthSession.AuditUser,
+            notes = $"Solicitud {request.LoanNumber} aprobada desde Asignar AF web.",
+            condition = "Aprobado y asignado por herramentero."
+        };
+
+        try
+        {
+            var response = await Api.PatchAsJsonAsync($"api/loans/{request.Id}/approve-assign", body);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ShowError(await response.Content.ReadAsStringAsync());
+                return;
+            }
+
+            ShowSuccess($"Solicitud {request.LoanNumber} aprobada y activo asignado correctamente.");
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Error aprobando solicitud: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private LoanRequestItem? FindPendingRequestForTool(Guid toolId)
+    {
+        return PendingLoanRequests.FirstOrDefault(x =>
+            x.Items.Any(i => i.ToolAssetId == toolId && !i.Returned));
+    }
+
+    private void ClearForm()
+    {
+        form = new AssignmentForm();
+    }
+
+    private string GetCurrentResponsibleLabel()
+    {
+        if (!string.IsNullOrWhiteSpace(AuthSession.ResponsiblePersonName))
+        {
+            return AuthSession.ResponsiblePersonName!;
+        }
+
+        if (!string.IsNullOrWhiteSpace(AuthSession.DisplayName))
+        {
+            return AuthSession.DisplayName;
+        }
+
+        return AuthSession.UserName;
+    }
+
+    private static bool IsPendingStatus(string? status)
+    {
+        return status is not null &&
+               (status.Equals("Draft", StringComparison.OrdinalIgnoreCase) ||
+                status.Equals("Requested", StringComparison.OrdinalIgnoreCase) ||
+                status.Equals("PendingApproval", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string Show(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+
+    private static string ShowDate(DateTime? value)
+    {
+        return value.HasValue ? value.Value.ToLocalTime().ToString("dd/MM/yyyy") : "—";
+    }
+
+    private static string GetStatusLabel(string status) => status switch
+    {
+        "Available" => "Disponible",
+        "Assigned" => "Asignada",
+        "Loaned" => "Prestada",
+        "InMaintenance" => "En mantenimiento",
+        "Damaged" => "Dañada",
+        "NotLocated" => "No localizada",
+        "PendingValidation" => "Pendiente validación",
+        _ => status
+    };
+
+    private static string GetStatusBadge(string status) => status switch
+    {
+        "Available" => "badge bg-success",
+        "Assigned" => "badge bg-warning text-dark",
+        "Loaned" => "badge bg-info text-dark",
+        "InMaintenance" => "badge bg-primary",
+        "Damaged" => "badge bg-danger",
+        "NotLocated" => "badge bg-dark",
+        "PendingValidation" => "badge bg-secondary",
+        _ => "badge bg-secondary"
+    };
+
+    private void ShowSuccess(string value)
+    {
+        message = value;
+        messageClass = "alert alert-success";
+    }
+
+    private void ShowError(string value)
+    {
+        message = value;
+        messageClass = "alert alert-danger";
+    }
+
+    private sealed class AssignmentForm
+    {
+        public Guid? ToolId { get; set; }
+        public string AssignmentType { get; set; } = "Responsible";
+        public Guid? ResponsiblePersonId { get; set; }
+        public Guid? BranchId { get; set; }
+        public Guid? LocationId { get; set; }
+        public DateTime? AssignmentDate { get; set; } = DateTime.Today;
+        public string? Observation { get; set; }
+    }
+
+    private sealed class AssignmentRequestForm
+    {
+        public Guid? ToolId { get; set; }
+        public DateTime? ExpectedReturnAt { get; set; } = DateTime.Today.AddDays(7);
+        public string? Notes { get; set; }
+    }
+
+    private sealed class ToolItem
+    {
+        public string? ToolTypeName { get; set; }
+        public string? ToolTypeCode { get; set; }
+        public Guid Id { get; set; }
+        public string InternalCode { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? SerialNumber { get; set; }
+        public Guid BranchId { get; set; }
+        public string? BranchCode { get; set; }
+        public Guid? LocationId { get; set; }
+        public string? LocationName { get; set; }
+        public Guid? ResponsiblePersonId { get; set; }
+        public string? ResponsiblePersonName { get; set; }
+        public string? ResponsiblePosition { get; set; }
+        public string OperationalStatus { get; set; } = string.Empty;
+        public string CustodyStatus { get; set; } = string.Empty;
+        public DateTime? LastAssignmentDate { get; set; }
+        public DateTime? LastReturnDate { get; set; }
+        public DateTime? UpdatedAt { get; set; }
+    }
+
+    private sealed class ResponsibleItem
+    {
+        public Guid Id { get; set; }
+        public string FullName { get; set; } = string.Empty;
+        public string? Position { get; set; }
+    }
+
+    private sealed class BranchItem
+    {
+        public Guid Id { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class LocationItem
+    {
+        public Guid Id { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public Guid BranchId { get; set; }
+    }
+
+    private sealed class LoanRequestItem
+    {
+        public Guid Id { get; set; }
+        public string LoanNumber { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public Guid? RequestedByPersonId { get; set; }
+        public DateTime? RequestedAt { get; set; }
+        public DateTime? ApprovedAt { get; set; }
+        public DateTime? DeliveredAt { get; set; }
+        public DateTime? ExpectedReturnAt { get; set; }
+        public DateTime? ReturnedAt { get; set; }
+        public string? Notes { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public string? CreatedBy { get; set; }
+        public List<LoanItemDto> Items { get; set; } = new();
+    }
+
+    private sealed class LoanItemDto
+    {
+        public Guid Id { get; set; }
+        public Guid ToolAssetId { get; set; }
+        public string? ToolInternalCode { get; set; }
+        public string? ToolName { get; set; }
+        public bool Returned { get; set; }
+    }
+}
+

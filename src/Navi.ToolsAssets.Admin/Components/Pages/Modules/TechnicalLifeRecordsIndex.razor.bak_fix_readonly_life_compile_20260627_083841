@@ -1,0 +1,484 @@
+﻿@page "/technical-life-records"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Hoja de Vida del AF - NAVI</PageTitle>
+
+<PermissionGuard Permission="TechnicalLifeRecord.View" ModuleName="Hoja de Vida del AF">
+
+<section class="af-banner">
+    <div>
+        <span class="af-pill">ACTIVOS FIJOS</span>
+        <h2>Hoja de Vida del AF</h2>
+        <p>Consulta consolidada de hojas de vida con datos generales, técnicos, ubicación, responsable, documentos, mantenimientos y trazabilidad.</p>
+    </div>
+
+    <div class="af-banner-side">
+        <div class="af-status-box">
+            <span>Hojas de vida</span>
+            <strong>@FilteredTools.Count() visibles</strong>
+        </div>
+
+        <button class="btn btn-sm btn-outline-light" @onclick="LoadAsync">
+            Actualizar
+        </button>
+    </div>
+</section>
+
+<section class="life-kpi-grid">
+    <article>
+        <span>Total AF</span>
+        <strong>@tools.Count</strong>
+    </article>
+
+    <article>
+        <span>Con mantenimiento</span>
+        <strong>@tools.Count(x => x.RequiresMaintenance)</strong>
+    </article>
+
+    <article>
+        <span>Especializados</span>
+        <strong>@tools.Count(x => x.IsSpecialized)</strong>
+    </article>
+
+    <article>
+        <span>Certificación</span>
+        <strong>@tools.Count(x => x.RequiresCertification)</strong>
+    </article>
+</section>
+
+<section class="af-card">
+    <div class="af-table-header">
+        <div>
+            <h3>Hojas de vida registradas</h3>
+            <p>Abre la hoja de vida para gestionar datos técnicos, accesorios, documentos, mantenimiento, prácticas seguras y trazabilidad.</p>
+        </div>
+
+        <div class="af-filters">
+            <input class="form-control form-control-sm"
+                   placeholder="Buscar código, nombre, serial..."
+                   @bind="search"
+                   @bind:event="oninput" />
+
+            <select class="form-select form-select-sm" @bind="selectedBranchCode">
+                <option value="">Todas las sedes</option>
+                @foreach (var branch in branches)
+                {
+                    <option value="@branch.Code">@branch.Code</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <p>Cargando hojas de vida...</p>
+    }
+    else if (!FilteredTools.Any())
+    {
+        <div class="alert alert-info">No hay hojas de vida para mostrar.</div>
+    }
+    else
+    {
+        <table class="table table-hover align-middle af-table">
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Activo fijo</th>
+                    <th>Clasificación</th>
+                    <th>Sede / ubicación</th>
+                    <th>Responsable</th>
+                    <th>Estado</th>
+                    <th>Controles</th>
+                    <th class="text-end">Hoja de vida</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                @foreach (var tool in FilteredTools)
+                {
+                    <tr>
+                        <td>
+                            <strong>@tool.InternalCode</strong>
+                            <div>
+                                <small class="text-muted">@Show(tool.FixedAssetCode)</small>
+                            </div>
+                        </td>
+
+                        <td>
+                            <div>@tool.Name</div>
+                            <small class="text-muted">@Show(tool.SerialNumber)</small>
+                        </td>
+
+                        <td>
+                            <div>@Show(tool.ToolTypeName)</div>
+                            <small class="text-muted">@Show(tool.ToolCategoryName)</small>
+                        </td>
+
+                        <td>
+                            <div>@Show(tool.BranchCode)</div>
+                            <small class="text-muted">@Show(tool.LocationName)</small>
+                        </td>
+
+                        <td>@Show(tool.ResponsiblePersonName)</td>
+
+                        <td>
+                            <span class="@GetStatusBadge(tool.OperationalStatus)">
+                                @GetStatusLabel(tool.OperationalStatus)
+                            </span>
+                        </td>
+
+                        <td>
+                            <div class="life-flags">
+                                @if (tool.RequiresMaintenance)
+                                {
+                                    <span>Mantenimiento</span>
+                                }
+
+                                @if (tool.RequiresPreOperationalCheck)
+                                {
+                                    <span>Preoperacional</span>
+                                }
+
+                                @if (tool.RequiresCertification)
+                                {
+                                    <span>Certificación</span>
+                                }
+
+                                @if (tool.IsSpecialized)
+                                {
+                                    <span>Especializado</span>
+                                }
+                            </div>
+                        </td>
+
+                        <td class="text-end">
+                            <a class="btn-life-main" href="@($"/tools/{tool.Id}/technical-life-record?from=life-records")">
+                                <span>Ver hoja de vida</span>
+                                <strong>↗</strong>
+                            </a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+</PermissionGuard>
+
+<style>
+    .af-banner {
+        background: linear-gradient(135deg, #050008 0%, #280032 45%, #5c006b 100%);
+        color: #fff;
+        border-radius: .85rem;
+        padding: 1.25rem 1.4rem;
+        margin-bottom: 1rem;
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        box-shadow: 0 .65rem 1.35rem rgba(75,0,92,.22);
+    }
+
+    .af-pill {
+        display: inline-flex;
+        background: rgba(255,255,255,.12);
+        border: 1px solid rgba(255,255,255,.35);
+        border-radius: 999px;
+        padding: .22rem .65rem;
+        font-size: .7rem;
+        font-weight: 900;
+        margin-bottom: .6rem;
+    }
+
+    .af-banner h2 {
+        color: #fff;
+        font-weight: 950;
+        margin: 0;
+    }
+
+    .af-banner p {
+        color: rgba(255,255,255,.78);
+        margin: .35rem 0 0;
+        font-size: .9rem;
+    }
+
+    .af-banner-side {
+        min-width: 185px;
+        display: grid;
+        gap: .65rem;
+    }
+
+    .af-status-box {
+        background: rgba(255,255,255,.12);
+        border-radius: .65rem;
+        padding: .55rem .75rem;
+        text-align: right;
+    }
+
+    .af-status-box span {
+        color: #ffdd57;
+        display: block;
+        font-size: .75rem;
+        font-weight: 900;
+    }
+
+    .life-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(140px, 1fr));
+        gap: .6rem;
+        margin-bottom: 1rem;
+    }
+
+    .life-kpi-grid article {
+        background: #fff;
+        border: 1px solid #dfe3e8;
+        border-radius: .75rem;
+        padding: .65rem .8rem;
+        box-shadow: 0 .25rem .65rem rgba(0,0,0,.04);
+    }
+
+    .life-kpi-grid span {
+        display: block;
+        color: #657083;
+        font-size: .72rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .life-kpi-grid strong {
+        display: block;
+        color: #22102b;
+        font-size: 1.35rem;
+        font-weight: 950;
+    }
+
+    .af-card {
+        background: #fff;
+        border: 1px solid #dfe3e8;
+        border-radius: .85rem;
+        padding: 1rem;
+        box-shadow: 0 .3rem .75rem rgba(0,0,0,.045);
+    }
+
+    .af-table-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: .75rem;
+    }
+
+    .af-table-header h3 {
+        font-size: 1.05rem;
+        font-weight: 900;
+        margin: 0;
+    }
+
+    .af-table-header p {
+        margin: .2rem 0 0;
+        color: #6c757d;
+        font-size: .8rem;
+    }
+
+    .af-filters {
+        display: flex;
+        gap: .4rem;
+        min-width: 460px;
+    }
+
+    .af-table {
+        font-size: .84rem;
+    }
+
+    .af-table th,
+    .af-table td {
+        padding: .45rem .5rem;
+        vertical-align: middle;
+    }
+
+    .life-flags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .25rem;
+    }
+
+    .life-flags span {
+        background: #f3ecf7;
+        color: #4b005c;
+        border-radius: 999px;
+        padding: .12rem .45rem;
+        font-size: .65rem;
+        font-weight: 800;
+    }
+
+    .btn-life-main {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .45rem;
+        min-width: 160px;
+        height: 36px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #4b005c 0%, #7b0d8e 55%, #a319b8 100%);
+        color: #ffffff !important;
+        font-size: .78rem;
+        font-weight: 950;
+        text-decoration: none;
+        border: 1px solid rgba(255,255,255,.45);
+        box-shadow: 0 .35rem .85rem rgba(75, 0, 92, .32);
+        transition: all .12s ease-in-out;
+        white-space: nowrap;
+    }
+
+    .btn-life-main strong {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        background: rgba(255,255,255,.18);
+        border-radius: 50%;
+        font-size: .8rem;
+        line-height: 1;
+    }
+
+    .btn-life-main:hover {
+        color: #ffffff !important;
+        transform: translateY(-1px);
+        box-shadow: 0 .45rem 1rem rgba(75, 0, 92, .42);
+        filter: brightness(1.08);
+    }
+
+    @@media (max-width: 1100px) {
+        .af-banner,
+        .af-table-header {
+            flex-direction: column;
+        }
+
+        .af-filters {
+            min-width: 0;
+            flex-direction: column;
+        }
+
+        .life-kpi-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+
+@code {
+    private HttpClient Api => HttpClientFactory.CreateClient("NaviApi");
+
+    private List<ToolItem> tools = new();
+    private List<BranchItem> branches = new();
+
+    private bool isLoading;
+    private string search = string.Empty;
+    private string selectedBranchCode = string.Empty;
+
+    private IEnumerable<ToolItem> FilteredTools =>
+        tools
+            .Where(x => string.IsNullOrWhiteSpace(search) ||
+                        x.InternalCode.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                        x.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                        (x.SerialNumber ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                        (x.FixedAssetCode ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase))
+            .Where(x => string.IsNullOrWhiteSpace(selectedBranchCode) || x.BranchCode == selectedBranchCode)
+            .OrderBy(x => x.BranchCode)
+            .ThenBy(x => x.InternalCode);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+
+        try
+        {
+            tools = await Api.GetFromJsonAsync<List<ToolItem>>("api/tools") ?? new();
+            branches = await Api.GetFromJsonAsync<List<BranchItem>>("api/settings/branches") ?? new();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private static string Show(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "—" : value;
+    }
+
+    private static string GetStatusLabel(string status) => status switch
+    {
+        "Available" => "Disponible",
+        "Assigned" => "Asignada",
+        "Loaned" => "Prestada",
+        "InMaintenance" => "En mantenimiento",
+        "Damaged" => "Dañada",
+        "NotSuitable" => "No apta",
+        "PendingValidation" => "Pendiente validación",
+        "NotLocated" => "No localizada",
+        "PendingDisposal" => "Pendiente baja",
+        "Disposed" => "Dada de baja",
+        _ => status
+    };
+
+    private static string GetStatusBadge(string status) => status switch
+    {
+        "Available" => "badge bg-success",
+        "Assigned" => "badge bg-warning text-dark",
+        "Loaned" => "badge bg-info text-dark",
+        "InMaintenance" => "badge bg-primary",
+        "Damaged" => "badge bg-danger",
+        "NotSuitable" => "badge bg-danger",
+        "NotLocated" => "badge bg-dark",
+        "Disposed" => "badge bg-secondary",
+        "PendingValidation" => "badge bg-secondary",
+        _ => "badge bg-secondary"
+    };
+
+    private sealed class ToolItem
+    {
+        public Guid Id { get; set; }
+
+        public string InternalCode { get; set; } = string.Empty;
+
+        public string Name { get; set; } = string.Empty;
+
+        public string? SerialNumber { get; set; }
+
+        public string? FixedAssetCode { get; set; }
+
+        public string? BranchCode { get; set; }
+
+        public string? LocationName { get; set; }
+
+        public string? ResponsiblePersonName { get; set; }
+
+        public string? ToolTypeName { get; set; }
+
+        public string? ToolCategoryName { get; set; }
+
+        public string OperationalStatus { get; set; } = string.Empty;
+
+        public bool IsSpecialized { get; set; }
+
+        public bool RequiresMaintenance { get; set; }
+
+        public bool RequiresPreOperationalCheck { get; set; }
+
+        public bool RequiresCertification { get; set; }
+    }
+
+    private sealed class BranchItem
+    {
+        public string Code { get; set; } = string.Empty;
+    }
+}
+
+

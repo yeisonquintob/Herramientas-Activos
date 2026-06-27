@@ -206,7 +206,11 @@ END
 
         if (code is "ADMIN" or "ADMINISTRADOR")
         {
-            return SecurityPermissions.All.Select(x => x.Code).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            return SecurityPermissions.All
+                .Select(x => x.Code)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x)
+                .ToList();
         }
 
         var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -230,10 +234,97 @@ END
         }
 
         RemoveAdministrativePermissionsForNonAdmin(code, result);
+        ApplyRoleMatrixRestrictions(code, result);
 
-        return result.OrderBy(x => x).ToList();
+        return result
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x)
+            .ToList();
     }
 
+    private static void ApplyRoleMatrixRestrictions(string roleCode, HashSet<string> permissions)
+    {
+        var code = roleCode.Trim().ToUpperInvariant();
+
+        if (code is "TECNICO" or "TÉCNICO")
+        {
+            // Matriz aplicada:
+            // Técnico = principalmente App Móvil.
+            // No compra, no conciliación, no planes/mantenimiento formal,
+            // no historial global, no configuración, no edición de activos.
+
+            var blocked = new[]
+            {
+                "Dashboard.View",
+
+                "Tools.Create",
+                "Tools.Edit",
+                "Tools.Delete",
+
+                "AssetAvailability.View",
+                "AssetAvailability.Edit",
+
+                "AssetAssignment.View",
+                "AssetAssignment.Assign",
+                "AssetAssignment.Return",
+
+                "TechnicalLifeRecord.Edit",
+                "TechnicalLifeRecord.Export",
+
+                "Documents.Download",
+                "Documents.Delete",
+
+                "Maintenance.View",
+                "Maintenance.Request",
+                "Maintenance.Execute",
+                "Maintenance.Close",
+                "Maintenance.Plans.View",
+                "Maintenance.Plans.Manage",
+
+                "Purchases.View",
+                "Purchases.Request",
+                "Purchases.Approve",
+                "Purchases.Reject",
+
+                "PhysicalCounts.View",
+                "PhysicalCounts.Create",
+                "PhysicalCounts.Close",
+
+                "Reconciliation.View",
+                "Reconciliation.Manage",
+
+                "Reports.View",
+
+                "Settings.View",
+                "Settings.Manage",
+                "Security.Users",
+                "Security.Roles",
+
+                "DeliveryAct.Generate",
+                "FixedAssets.Disposal.Request",
+                "FixedAssets.Disposal.Approve"
+            };
+
+            foreach (var permission in blocked)
+            {
+                permissions.Remove(permission);
+            }
+
+            permissions.Add("Tools.View");
+            permissions.Add("AssetAssignment.History");
+            permissions.Add("TechnicalLifeRecord.View");
+
+            permissions.Add("Documents.View");
+            permissions.Add("Documents.Upload");
+
+            permissions.Add("Mobile.Access");
+            permissions.Add("Mobile.Tools.View");
+            permissions.Add("Mobile.Tools.Review");
+            permissions.Add("Mobile.PreOperational.Report");
+            permissions.Add("Mobile.Damage.Report");
+            permissions.Add("Mobile.Loans.Request");
+        }
+    }
 
     private static void RemoveAdministrativePermissionsForNonAdmin(string roleCode, HashSet<string> permissions)
     {
@@ -242,13 +333,11 @@ END
             return;
         }
 
-        // Ningún rol no administrador puede gestionar configuración, usuarios o roles.
         permissions.Remove("Settings.View");
         permissions.Remove("Settings.Manage");
         permissions.Remove("Security.Users");
         permissions.Remove("Security.Roles");
 
-        // Seguridad extra por si llegan códigos antiguos desde base de datos.
         permissions.Remove("USERS.MANAGE");
         permissions.Remove("ROLES.MANAGE");
         permissions.Remove("SETTINGS.VIEW");
@@ -257,6 +346,7 @@ END
         permissions.Remove("WAREHOUSES.MANAGE");
         permissions.Remove("CATALOGS.MANAGE");
     }
+
     private static IEnumerable<string> NormalizePermission(string permission)
     {
         var value = permission.Trim();
@@ -303,19 +393,19 @@ END
             "MAINTENANCE.APPROVE" => new[] { "Maintenance.View", "Maintenance.Close" },
 
             "LOAN.VIEW" => new[] { "AssetAssignment.View", "AssetAssignment.History" },
-            "LOAN.CREATE" => new[] { "AssetAssignment.View", "AssetAssignment.Assign" },
+            "LOAN.CREATE" => new[] { "Mobile.Loans.Request" },
             "LOAN.DELIVER" => new[] { "AssetAssignment.View", "AssetAssignment.Assign" },
             "LOAN.RETURN" => new[] { "AssetAssignment.View", "AssetAssignment.Return" },
             "LOAN.APPROVE" => new[] { "AssetAssignment.View", "AssetAssignment.Assign" },
 
-            "DAMAGE.VIEW" => new[] { "Maintenance.View" },
-            "DAMAGE.REPORT" => new[] { "Maintenance.View", "Maintenance.Request" },
+            "DAMAGE.VIEW" => new[] { "Mobile.Damage.Report" },
+            "DAMAGE.REPORT" => new[] { "Mobile.Damage.Report" },
             "DAMAGE.EDIT" => new[] { "Maintenance.View", "Maintenance.Execute" },
             "DAMAGE.CLOSE" => new[] { "Maintenance.View", "Maintenance.Close" },
 
             "PHYSICALCOUNT.VIEW" => new[] { "PhysicalCounts.View" },
             "PHYSICALCOUNT.CREATE" => new[] { "PhysicalCounts.View", "PhysicalCounts.Create" },
-            "PHYSICALCOUNT.EXECUTE" => new[] { "PhysicalCounts.View", "PhysicalCounts.Create" },
+            "PHYSICALCOUNT.EXECUTE" => new[] { "Mobile.Tools.Review" },
             "PHYSICALCOUNT.CLOSE" => new[] { "PhysicalCounts.View", "PhysicalCounts.Close" },
 
             "DOCUMENT.VIEW" => new[] { "Documents.View" },
@@ -331,8 +421,9 @@ END
             "REPORT.VIEW" => new[] { "Reports.View" },
             "REPORT.EXPORT" => new[] { "Reports.View" },
             "AUDIT.VIEW" => new[] { "Reports.View" },
-            "RECONCILIATION.VIEW" => new[] { "Reports.View" },
-            "RECONCILIATION.MANAGE" => new[] { "Reports.View" },
+
+            "RECONCILIATION.VIEW" => new[] { "Reconciliation.View" },
+            "RECONCILIATION.MANAGE" => new[] { "Reconciliation.View", "Reconciliation.Manage" },
 
             "SETTINGS.VIEW" => new[] { "Settings.View" },
             "SETTINGS.MANAGE" => new[] { "Settings.View", "Settings.Manage" },
@@ -360,172 +451,139 @@ END
             return SecurityPermissions.All.Select(x => x.Code).ToList();
         }
 
-        // Gerencial: App Escritorio - visualizar y aprobar, limitado luego por zona.
         if (code is "GERENCIAL" or "GERENCIA" or "AUDITOR" or "AUDITORIA")
         {
             return new()
             {
                 "Dashboard.View",
-
                 "Tools.View",
                 "AssetAvailability.View",
                 "AssetAssignment.View",
                 "AssetAssignment.History",
                 "TechnicalLifeRecord.View",
                 "TechnicalLifeRecord.Export",
-
                 "Documents.View",
                 "Documents.Download",
-
                 "Maintenance.View",
                 "Maintenance.Close",
-
                 "Purchases.View",
                 "Purchases.Approve",
                 "Purchases.Reject",
-
                 "PhysicalCounts.View",
                 "Reports.View"
             };
         }
 
-        // Herramientero: App Escritorio + App Móvil.
-        // Genera solicitudes de compra y mantenimiento, acta de entrega,
-        // y solicita baja de herramientas con aprobación de ingeniería de servicios.
         if (code is "HERRAMIENTAS" or "HERRAMENTERO" or "HERRAMIENTA" or "HERRAMIENTERO")
         {
             return new()
             {
                 "Dashboard.View",
-
                 "Tools.View",
                 "Tools.Create",
                 "Tools.Edit",
-
                 "AssetAvailability.View",
                 "AssetAvailability.Edit",
-
                 "AssetAssignment.View",
                 "AssetAssignment.Assign",
                 "AssetAssignment.Return",
                 "AssetAssignment.History",
-
                 "TechnicalLifeRecord.View",
                 "TechnicalLifeRecord.Edit",
                 "TechnicalLifeRecord.Export",
-
                 "Documents.View",
                 "Documents.Upload",
                 "Documents.Download",
-
                 "Maintenance.View",
                 "Maintenance.Request",
-
                 "Purchases.View",
                 "Purchases.Request",
-
                 "PhysicalCounts.View",
                 "PhysicalCounts.Create",
-
                 "Reports.View",
-
                 "Mobile.Access",
+                "Mobile.Tools.View",
+                "Mobile.Tools.Review",
+                "Mobile.PreOperational.Report",
+                "Mobile.Damage.Report",
                 "DeliveryAct.Generate",
                 "FixedAssets.Disposal.Request"
             };
         }
 
-        // Ingeniero de servicios: App Escritorio + App Móvil.
-        // Aprueba solicitudes de compra y mantenimiento por sede.
         if (code is "ING_SERVICIOS" or "INGENIERO_SERVICIOS" or "ING_SERVICIO" or "INGENIERIA_SERVICIOS")
         {
             return new()
             {
                 "Dashboard.View",
-
                 "Tools.View",
                 "AssetAvailability.View",
                 "AssetAssignment.View",
                 "AssetAssignment.History",
-
                 "TechnicalLifeRecord.View",
                 "TechnicalLifeRecord.Export",
-
                 "Documents.View",
                 "Documents.Download",
-
                 "Maintenance.View",
                 "Maintenance.Close",
-
                 "Purchases.View",
                 "Purchases.Approve",
                 "Purchases.Reject",
-
                 "PhysicalCounts.View",
                 "Reports.View",
-
                 "Mobile.Access",
+                "Mobile.Tools.View",
+                "Mobile.Tools.Review",
+                "Mobile.PreOperational.Report",
+                "Mobile.Damage.Report",
                 "FixedAssets.Disposal.Approve"
             };
         }
 
-        // Coordinador de taller: App Escritorio + App Móvil.
-        // Solicita y aprueba compra/mantenimiento, genera acta de entrega.
         if (code is "COORDINADOR_TALLER" or "COORDINADOR_DE_TALLER" or "COORD_TALLER" or "SEDE" or "RESPONSABLE_SEDE")
         {
             return new()
             {
                 "Dashboard.View",
-
                 "Tools.View",
                 "Tools.Create",
                 "Tools.Edit",
-
                 "AssetAvailability.View",
                 "AssetAvailability.Edit",
-
                 "AssetAssignment.View",
                 "AssetAssignment.Assign",
                 "AssetAssignment.Return",
                 "AssetAssignment.History",
-
                 "TechnicalLifeRecord.View",
                 "TechnicalLifeRecord.Edit",
                 "TechnicalLifeRecord.Export",
-
                 "Documents.View",
                 "Documents.Upload",
                 "Documents.Download",
                 "Documents.Delete",
-
                 "Maintenance.View",
                 "Maintenance.Request",
                 "Maintenance.Execute",
                 "Maintenance.Close",
-
                 "Purchases.View",
                 "Purchases.Request",
                 "Purchases.Approve",
                 "Purchases.Reject",
-
                 "PhysicalCounts.View",
                 "PhysicalCounts.Create",
                 "PhysicalCounts.Close",
-
                 "Reports.View",
-
                 "Mobile.Access",
+                "Mobile.Tools.View",
+                "Mobile.Tools.Review",
+                "Mobile.PreOperational.Report",
+                "Mobile.Damage.Report",
                 "DeliveryAct.Generate",
                 "FixedAssets.Disposal.Request",
                 "FixedAssets.Disposal.Approve"
             };
         }
 
-        // Técnico: App Móvil + consulta web limitada.
-// NO tiene Dashboard.View.
-// NO tiene AssetAvailability.View.
-// Puede ver solo inventario asignado, historial, hoja de vida en consulta,
-// documentos y solicitudes de mantenimiento.
         if (code is "TECNICO" or "TÉCNICO")
         {
             return new()
@@ -533,13 +591,8 @@ END
                 "Tools.View",
                 "AssetAssignment.History",
                 "TechnicalLifeRecord.View",
-
                 "Documents.View",
                 "Documents.Upload",
-
-                "Maintenance.View",
-                "Maintenance.Request",
-
                 "Mobile.Access",
                 "Mobile.Tools.View",
                 "Mobile.Tools.Review",
@@ -647,6 +700,9 @@ public static class SecurityPermissions
 
         new("Reports.View", "Reportes", "Ver", "Ver reportes."),
 
+        new("Reconciliation.View", "Conciliación", "Ver", "Ver conciliación administrativa."),
+        new("Reconciliation.Manage", "Conciliación", "Gestionar", "Aclarar, aprobar creación, conciliar o rechazar."),
+
         new("Settings.View", "Configuración", "Ver", "Ver configuración."),
         new("Settings.Manage", "Configuración", "Administrar", "Administrar configuración base."),
 
@@ -654,6 +710,9 @@ public static class SecurityPermissions
         new("Security.Roles", "Seguridad", "Roles", "Administrar roles y permisos.")
     };
 }
+
+
+
 
 
 

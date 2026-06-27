@@ -1,0 +1,91 @@
+﻿@page "/login"
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Login móvil - NAVI Herramientas y AF</PageTitle>
+
+<section class="mobile-login-page">
+    <div class="mobile-login-brand">
+        <div class="mobile-brand-mark">N</div>
+        <h1>NAVI Herramientas y AF</h1>
+        <p>Aplicación móvil operativa</p>
+    </div>
+
+    <div class="mobile-login-card">
+        <span class="mobile-pill">ACCESO MÓVIL</span>
+        <h2>Ingreso técnico</h2>
+        <p>Ingresa con tu documento y contraseña para consultar tus activos y reportar novedades.</p>
+
+        @if (!string.IsNullOrWhiteSpace(message))
+        {
+            <div class="mobile-alert">@message</div>
+        }
+
+        <EditForm Model="model" OnValidSubmit="LoginAsync">
+            <label>
+                Documento / usuario
+                <InputText class="mobile-input" @bind-Value="model.UserName" placeholder="Documento o usuario" />
+            </label>
+
+            <label>
+                Contraseña
+                <InputText class="mobile-input" type="password" @bind-Value="model.Password" placeholder="Contraseña" />
+            </label>
+
+            <button class="mobile-primary-button" type="submit" disabled="@isLoading">
+                @(isLoading ? "Ingresando..." : "Ingresar")
+            </button>
+        </EditForm>
+    </div>
+</section>
+
+@code {
+    private LoginForm model = new();
+    private bool isLoading;
+    private string? message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (Auth.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/");
+        }
+    }
+
+    private async Task LoginAsync()
+    {
+        message = null;
+
+        if (string.IsNullOrWhiteSpace(model.UserName) || string.IsNullOrWhiteSpace(model.Password))
+        {
+            message = "Ingrese documento/usuario y contraseña.";
+            return;
+        }
+
+        isLoading = true;
+
+        try
+        {
+            await Api.LoginAsync(model.UserName.Trim(), model.Password.Trim());
+            Navigation.NavigateTo("/", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private sealed class LoginForm
+    {
+        public string? UserName { get; set; }
+        public string? Password { get; set; }
+    }
+}

@@ -1,0 +1,1645 @@
+﻿@page "/tools/{ToolId:guid}"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Detalle herramienta - NAVI Herramientas</PageTitle>
+
+
+
+@if (!string.IsNullOrWhiteSpace(successMessage))
+{
+    <div class="alert alert-success">
+        @successMessage
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">
+        <strong>Error:</strong> @errorMessage
+    </div>
+}
+else if (isLoading && tool is null)
+{
+    <div class="alert alert-info">
+        Cargando detalle de la herramienta...
+    </div>
+}
+else if (tool is not null)
+{
+        <section class="detail-hero-banner">
+        <div class="detail-hero-main">
+            <div class="detail-hero-actions">
+                <button class="btn-detail-back" @onclick="GoBack">
+                    ← Volver al inventario
+                </button>
+            </div>
+
+            <span class="detail-hero-pill">DETALLE DE ACTIVO FIJO</span>
+
+            <h2>@tool!.Name</h2>
+
+            <div class="detail-hero-code">
+                @tool!.InternalCode
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(tool.Description))
+            {
+                <p>@tool!.Description</p>
+            }
+            else
+            {
+                <p>Consulta visual de datos maestros, ubicación, clasificación, estados y hoja de vida operativa.</p>
+            }
+        </div>
+
+        <div class="detail-hero-side">
+            <div class="detail-hero-status-card">
+                <span>Estado operativo</span>
+                <strong>@GetStatusLabel(tool.OperationalStatus)</strong>
+            </div>
+
+            <div class="detail-hero-badges">
+                <span class="@GetStatusBadgeClass(tool.OperationalStatus)">
+                    @GetStatusLabel(tool.OperationalStatus)
+                </span>
+
+                @if (tool.IsSpecialized)
+                {
+                    <span class="badge bg-primary">Especializada</span>
+                }
+                else
+                {
+                    <span class="badge bg-secondary">No especializada</span>
+                }
+            </div>
+
+            <button class="btn btn-sm btn-outline-light detail-hero-refresh" @onclick="LoadAsync" disabled="@isLoading">
+                @(isLoading ? "Actualizando..." : "Actualizar")
+            </button>
+        </div>
+    </section>
+
+    
+    <section class="tool-detail-panel tool-admin-control">
+        <div class="admin-control-header">
+            <div>
+                <h2>Control administrativo del activo</h2>
+                <p>Permite editar datos maestros, guardar cambios, cancelar edición o anular el activo.</p>
+            </div>
+
+            <div class="admin-control-actions">
+                @if (!isEditingMasterData)
+                {
+                    <button class="detail-action detail-action-primary" type="button" @onclick="StartMasterDataEdit">
+                        Editar
+                    </button>
+
+                    <button class="detail-action detail-action-danger" type="button" @onclick="VoidCurrentToolAsync">
+                        Anular activo
+                    </button>
+                }
+                else
+                {
+                    <button class="detail-action detail-action-success" type="button" @onclick="SaveMasterDataAsync">
+                        Guardar
+                    </button>
+
+                    <button class="detail-action detail-action-neutral" type="button" @onclick="CancelMasterDataEdit">
+                        Cancelar
+                    </button>
+
+                    <button class="detail-action detail-action-danger" type="button" @onclick="VoidCurrentToolAsync">
+                        Anular activo
+                    </button>
+                }
+            </div>
+        </div>
+
+        @if (isEditingMasterData)
+        {
+            <div class="admin-edit-grid">
+                <div>
+                    <label>Código interno</label>
+                    <input class="form-control" @bind="editModel.InternalCode" />
+                </div>
+
+                <div>
+                    <label>Nombre</label>
+                    <input class="form-control" @bind="editModel.Name" />
+                </div>
+
+                <div>
+                    <label>Serial</label>
+                    <input class="form-control" @bind="editModel.SerialNumber" />
+                </div>
+
+                <div>
+                    <label>Activo fijo</label>
+                    <input class="form-control" @bind="editModel.FixedAssetCode" />
+                </div>
+
+                <div>
+                    <label>Código Fenix365</label>
+                    <input class="form-control" @bind="editModel.FenixCode" />
+                </div>
+
+                <div>
+                    <label>Marca</label>
+                    <input class="form-control" @bind="editModel.Brand" />
+                </div>
+
+                <div>
+                    <label>Modelo</label>
+                    <input class="form-control" @bind="editModel.Model" />
+                </div>
+
+                <div>
+                    <label>Estado operativo</label>
+                    <select class="form-select" @bind="editModel.OperationalStatus">
+                        <option value="Available">Disponible</option>
+                        <option value="Assigned">Asignado</option>
+                        <option value="Loaned">Prestado</option>
+                        <option value="InMaintenance">En mantenimiento</option>
+                        <option value="Damaged">Dañado</option>
+                        <option value="NotSuitable">No apto</option>
+                        <option value="PendingValidation">Pendiente validación</option>
+                        <option value="Inconsistent">Inconsistente</option>
+                        <option value="NotLocated">No localizado</option>
+                        <option value="PendingDisposal">Pendiente baja</option>
+                        <option value="Disposed">Dado de baja</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label>Estado físico</label>
+                    <select class="form-select" @bind="editModel.PhysicalStatus">
+                        <option value="Good">Bueno</option>
+                        <option value="Regular">Regular</option>
+                        <option value="Damaged">Dañado</option>
+                        <option value="Lost">Perdido</option>
+                        <option value="Incomplete">Incompleto</option>
+                    </select>
+                </div>
+
+                <div class="admin-check">
+                    <input type="checkbox" class="form-check-input" @bind="editModel.IsSpecialized" />
+                    <label>Activo especializado</label>
+                </div>
+
+                <div class="admin-check">
+                    <input type="checkbox" class="form-check-input" @bind="editModel.RequiresMaintenance" />
+                    <label>Requiere mantenimiento</label>
+                </div>
+
+                <div class="admin-check">
+                    <input type="checkbox" class="form-check-input" @bind="editModel.RequiresPreOperationalCheck" />
+                    <label>Requiere preoperacional</label>
+                </div>
+
+                <div class="admin-check">
+                    <input type="checkbox" class="form-check-input" @bind="editModel.RequiresCertification" />
+                    <label>Requiere certificación</label>
+                </div>
+
+                <div>
+                    <label>Vence certificación</label>
+                    <InputDate class="form-control" @bind-Value="editModel.CertificationExpirationDate" />
+                </div>
+
+                <div>
+                    <label>Periodo mantenimiento meses</label>
+                    <input type="number" class="form-control" @bind="editModel.MaintenancePeriodMonths" min="0" />
+                </div>
+
+                <div class="admin-edit-full">
+                    <label>Descripción / observación</label>
+                    <textarea class="form-control" rows="3" @bind="editModel.Description"></textarea>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="admin-readonly-note">
+                <strong>Modo lectura.</strong> Presiona <b>Editar</b> para modificar datos del activo. Usa <b>Anular activo</b> solo si el activo no debe permanecer en Inventario de AF.
+            </div>
+        }
+    </section>
+
+
+    @if (reportedSource?.HasSource == true)
+    {
+        <section class="tool-detail-panel tool-source-panel">
+            <div class="source-header">
+                <div>
+                    <span class="source-pill">ORIGEN DEL ACTIVO</span>
+                    <h2>Origen desde toma física</h2>
+                    <p>Este activo fue creado desde un registro reportado durante una toma física.</p>
+                </div>
+            </div>
+
+            <div class="source-grid">
+                <div>
+                    <span>Toma física</span>
+                    <strong>@DisplaySourceValue(reportedSource.PhysicalCountNumber)</strong>
+                </div>
+
+                <div>
+                    <span>Participante / reportante</span>
+                    <strong>@DisplaySourceValue(reportedSource.ParticipantName)</strong>
+                    <small>@DisplaySourceValue(reportedSource.ParticipantUserName)</small>
+                </div>
+
+                <div>
+                    <span>Código reportado</span>
+                    <strong>@DisplaySourceValue(reportedSource.ReportedCode)</strong>
+                </div>
+
+                <div>
+                    <span>Nombre reportado</span>
+                    <strong>@DisplaySourceValue(reportedSource.ReportedName)</strong>
+                </div>
+
+                <div>
+                    <span>Ubicación encontrada</span>
+                    <strong>@DisplaySourceValue(reportedSource.FoundLocation)</strong>
+                </div>
+
+                <div>
+                    <span>Estado conciliación</span>
+                    <strong>@DisplaySourceValue(reportedSource.ReconciliationStatus)</strong>
+                    <small>@DisplaySourceValue(reportedSource.ReconciliationObservation)</small>
+                </div>
+
+                <div class="source-full">
+                    <span>Observación del reporte</span>
+                    <strong>@DisplaySourceValue(reportedSource.Observation)</strong>
+                </div>
+            </div>
+        </section>
+    }
+
+<div class="tool-detail-grid"><section class="tool-detail-panel">
+            <h2>Datos principales</h2>
+
+            <div class="detail-list">
+                <div>
+                    <span>Código interno</span>
+                    <strong>@tool!.InternalCode</strong>
+                </div>
+
+                <div>
+                    <span>Serial</span>
+                    <strong>@ShowValue(tool.SerialNumber)</strong>
+                </div>
+
+                <div>
+                    <span>Activo fijo</span>
+                    <strong>@ShowValue(tool.FixedAssetCode)</strong>
+                </div>
+
+                <div>
+                    <span>Código Fenix365</span>
+                    <strong>@ShowValue(tool.FenixCode)</strong>
+                </div>
+
+                <div>
+                    <span>Marca</span>
+                    <strong>@ShowValue(tool.Brand)</strong>
+                </div>
+
+                <div>
+                    <span>Modelo</span>
+                    <strong>@ShowValue(tool.Model)</strong>
+                </div>
+            </div>
+        </section>
+
+        <section class="tool-detail-panel">
+            <h2>Ubicación y clasificación</h2>
+
+            <div class="detail-list">
+                <div>
+                    <span>Sede</span>
+                    <strong>@ShowValue(tool.BranchCode) - @ShowValue(tool.BranchName)</strong>
+                </div>
+
+                <div>
+                    <span>Ubicación</span>
+                    <strong>@ShowValue(tool.LocationCode) - @ShowValue(tool.LocationName)</strong>
+                </div>
+
+                <div>
+                    <span>Responsable</span>
+                    <strong>@ShowValue(tool.ResponsiblePersonName)</strong>
+                </div>
+
+                <div>
+                    <span>Tipo</span>
+                    <strong>@ShowValue(tool.ToolTypeName)</strong>
+                </div>
+
+                <div>
+                    <span>Categoría</span>
+                    <strong>@ShowValue(tool.ToolCategoryName)</strong>
+                </div>
+
+                <div>
+                    <span>Unidad / Cantidad</span>
+                    <strong>@ShowValue(tool.UnitOfMeasure) / @tool!.Quantity</strong>
+                </div>
+            </div>
+        </section>
+    </div>
+
+
+    @if (reportedSource?.HasSource == true)
+    {
+        <section class="tool-detail-panel tool-source-panel">
+            <div class="source-header">
+                <div>
+                    <span class="source-pill">ORIGEN DEL ACTIVO</span>
+                    <h2>Origen desde toma física</h2>
+                    <p>Este activo fue creado desde un registro reportado durante una toma física.</p>
+                </div>
+            </div>
+
+            <div class="source-grid">
+                <div>
+                    <span>Toma física</span>
+                    <strong>@DisplaySourceValue(reportedSource.PhysicalCountNumber)</strong>
+                </div>
+
+                <div>
+                    <span>Participante / reportante</span>
+                    <strong>@DisplaySourceValue(reportedSource.ParticipantName)</strong>
+                    <small>@DisplaySourceValue(reportedSource.ParticipantUserName)</small>
+                </div>
+
+                <div>
+                    <span>Código reportado</span>
+                    <strong>@DisplaySourceValue(reportedSource.ReportedCode)</strong>
+                </div>
+
+                <div>
+                    <span>Nombre reportado</span>
+                    <strong>@DisplaySourceValue(reportedSource.ReportedName)</strong>
+                </div>
+
+                <div>
+                    <span>Ubicación encontrada</span>
+                    <strong>@DisplaySourceValue(reportedSource.FoundLocation)</strong>
+                </div>
+
+                <div>
+                    <span>Estado conciliación</span>
+                    <strong>@DisplaySourceValue(reportedSource.ReconciliationStatus)</strong>
+                    <small>@DisplaySourceValue(reportedSource.ReconciliationObservation)</small>
+                </div>
+
+                <div class="source-full">
+                    <span>Observación del reporte</span>
+                    <strong>@DisplaySourceValue(reportedSource.Observation)</strong>
+                </div>
+            </div>
+        </section>
+    }
+
+<div class="tool-detail-grid">
+        <section class="tool-detail-panel">
+            <h2>Acciones rápidas</h2>
+
+            <div class="quick-actions">
+                <div>
+                    <label class="form-label">Cambiar estado operativo</label>
+                    <select class="form-select" @bind="selectedOperationalStatus">
+                        <option value="Available">Disponible</option>
+                        <option value="PendingValidation">Pendiente validación</option>
+                        <option value="Assigned">Asignada</option>
+                        <option value="Loaned">Prestada</option>
+                        <option value="InMaintenance">En mantenimiento</option>
+                        <option value="Damaged">Dañada</option>
+                        <option value="NotSuitable">No apta</option>
+                        <option value="Inconsistent">Inconsistente</option>
+                        <option value="NotLocated">No localizada</option>
+                        <option value="PendingDisposal">Pendiente de baja</option>
+                        <option value="Disposed">Dada de baja</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="form-label">Observación</label>
+                    <input class="form-control"
+                           placeholder="Motivo del cambio..."
+                           @bind="actionObservation" />
+                </div>
+
+                <div class="detail-actions-group">
+                    <button class="btn btn-primary btn-sm" @onclick="ChangeOperationalStatusAsync" disabled="@isSaving">
+                        @(isSaving ? "Guardando..." : "Guardar estado")
+                    </button>
+
+                    <button class="btn btn-outline-primary btn-sm" @onclick="ToggleSpecializedAsync" disabled="@isSaving">
+                        @(tool?.IsSpecialized == true ? "Marcar no especializada" : "Marcar especializada")
+                    </button>
+
+                    <a class="btn btn-outline-dark btn-sm" href="@($"/tools/{ToolId}/technical-life-record-view")">
+                        Ver hoja vida técnica
+                    </a>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(actionMessage))
+                {
+                    <div class="alert alert-success mb-0">
+                        @actionMessage
+                    </div>
+                }
+            </div>
+        </section>
+
+
+        <section class="tool-detail-panel">
+            <h2>Estados</h2>
+
+            <div class="status-chip-grid">
+                <div>
+                    <span>Operativo</span>
+                    <strong>@GetStatusLabel(tool.OperationalStatus)</strong>
+                </div>
+
+                <div>
+                    <span>Físico</span>
+                    <strong>@ShowValue(tool.PhysicalStatus)</strong>
+                </div>
+
+                <div>
+                    <span>Custodia</span>
+                    <strong>@ShowValue(tool.CustodyStatus)</strong>
+                </div>
+
+                <div>
+                    <span>Conciliación</span>
+                    <strong>@ShowValue(tool.ReconciliationStatus)</strong>
+                </div>
+
+                <div>
+                    <span>Sincronización</span>
+                    <strong>@ShowValue(tool.SyncStatus)</strong>
+                </div>
+            </div>
+        </section>
+
+        <section class="tool-detail-panel">
+            <h2>Reglas operativas</h2>
+
+            <div class="status-chip-grid">
+                <div>
+                    <span>Mantenimiento</span>
+                    <strong>@BoolLabel(tool.RequiresMaintenance)</strong>
+                </div>
+
+                <div>
+                    <span>Preoperacional</span>
+                    <strong>@BoolLabel(tool.RequiresPreOperationalCheck)</strong>
+                </div>
+
+                <div>
+                    <span>Certificación</span>
+                    <strong>@BoolLabel(tool.RequiresCertification)</strong>
+                </div>
+
+                <div>
+                    <span>Vence certificación</span>
+                    <strong>@FormatDate(tool.CertificationExpirationDate)</strong>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <section class="tool-detail-panel">
+        <h2>Hoja de vida / Actividad reciente</h2>
+
+        @if (lifeCycleEvents.Count == 0)
+        {
+            <p class="text-muted">Esta herramienta aún no tiene eventos registrados.</p>
+        }
+        else
+        {
+            <div class="timeline">
+                @foreach (var item in lifeCycleEvents.OrderByDescending(x => x.EventDate))
+                {
+                    <div class="timeline-item">
+                        <div class="timeline-dot"></div>
+
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <strong>@item.Title</strong>
+                                <span>@item.EventDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
+                            </div>
+
+                            <small class="text-muted">@item.EventType</small>
+
+                            @if (!string.IsNullOrWhiteSpace(item.Description))
+                            {
+                                <p>@item.Description</p>
+                            }
+
+                            <div class="timeline-values">
+                                <span>Anterior: @ShowValue(item.PreviousValue)</span>
+                                <span>Nuevo: @ShowValue(item.NewValue)</span>
+                                <span>Usuario: @ShowValue(item.PerformedBy)</span>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+}
+
+@code {
+    [Parameter]
+    public Guid ToolId { get; set; }
+
+    private bool isLoading;
+    private bool isSaving;
+    private string? actionMessage;
+    private string selectedOperationalStatus = "PendingValidation";
+    private string actionObservation = string.Empty;
+    private string? errorMessage;
+    private ToolDetailItem? tool;
+    private List<LifeCycleEventItem> lifeCycleEvents = new();
+    private ToolReportedSourceModel? reportedSource;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            tool = await client.GetFromJsonAsync<ToolDetailItem>($"api/tools/{ToolId}");
+
+            if (tool is not null)
+            {
+                selectedOperationalStatus = tool!.OperationalStatus;
+            }
+            lifeCycleEvents = await client.GetFromJsonAsync<List<LifeCycleEventItem>>($"api/tools/{ToolId}/life-cycle-events") ?? new();
+                reportedSource = await client.GetFromJsonAsync<ToolReportedSourceModel>($"api/tools/{ToolId}/reported-source");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo cargar el detalle. Valida que la API esté activa en http://localhost:5218. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ChangeOperationalStatusAsync()
+    {
+        if (tool is null)
+        {
+            return;
+        }
+
+        try
+        {
+            isSaving = true;
+            actionMessage = null;
+            errorMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var payload = new
+            {
+                operationalStatus = selectedOperationalStatus,
+                changedBy = "yquinto",
+                updatedBy = "yquinto",
+                reason = actionObservation,
+                observation = actionObservation
+            };
+
+            var response = await client.PatchAsJsonAsync($"api/tools/{tool.Id}/operational-status", payload);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo cambiar el estado. Código: {(int)response.StatusCode}. Detalle: {detail}";
+                return;
+            }
+
+            actionMessage = "Estado operativo actualizado correctamente.";
+            actionObservation = string.Empty;
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo cambiar el estado. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task ToggleSpecializedAsync()
+    {
+        if (tool is null)
+        {
+            return;
+        }
+
+        try
+        {
+            isSaving = true;
+            actionMessage = null;
+            errorMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var payload = new
+            {
+                isSpecialized = !tool.IsSpecialized,
+                changedBy = "yquinto",
+                updatedBy = "yquinto",
+                reason = "Cambio de clasificación desde Admin."
+            };
+
+            var response = await client.PatchAsJsonAsync($"api/tools/{tool.Id}/classification", payload);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo cambiar la clasificación. Código: {(int)response.StatusCode}. Detalle: {detail}";
+                return;
+            }
+
+            actionMessage = "Clasificación actualizada correctamente.";
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo cambiar la clasificación. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/tools");
+    }
+
+    private static string ShowValue(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "-" : value;
+    }
+
+    private static string BoolLabel(bool value)
+    {
+        return value ? "Sí" : "No";
+    }
+
+    private static string FormatDate(DateTime? value)
+    {
+        return value.HasValue ? value.Value.ToString("dd/MM/yyyy") : "-";
+    }
+
+    private static string GetStatusLabel(string? status)
+    {
+        return status switch
+        {
+            "Available" => "Disponible",
+            "Assigned" => "Asignada",
+            "Loaned" => "Prestada",
+            "InMaintenance" => "En mantenimiento",
+            "Damaged" => "Dañada",
+            "NotSuitable" => "No apta",
+            "PendingValidation" => "Pendiente validación",
+            "Inconsistent" => "Inconsistente",
+            "NotLocated" => "No localizada",
+            "PendingDisposal" => "Pendiente de baja",
+            "Disposed" => "Dada de baja",
+            _ => string.IsNullOrWhiteSpace(status) ? "Sin estado" : status
+        };
+    }
+
+    private static string GetStatusBadgeClass(string? status)
+    {
+        return status switch
+        {
+            "Available" => "badge bg-success",
+            "PendingValidation" => "badge bg-warning text-dark",
+            "Loaned" => "badge bg-info text-dark",
+            "InMaintenance" => "badge bg-primary",
+            "Damaged" => "badge bg-danger",
+            "NotSuitable" => "badge bg-danger",
+            "NotLocated" => "badge bg-dark",
+            "Inconsistent" => "badge bg-danger",
+            "Disposed" => "badge bg-secondary",
+            _ => "badge bg-secondary"
+        };
+    }
+
+    private sealed class ToolDetailItem
+    {
+        public Guid Id { get; set; }
+        public string InternalCode { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string? Brand { get; set; }
+        public string? Model { get; set; }
+        public string? SerialNumber { get; set; }
+        public string? FixedAssetCode { get; set; }
+        public string? FenixCode { get; set; }
+        public string? UnitOfMeasure { get; set; }
+        public decimal Quantity { get; set; }
+        public bool IsSpecialized { get; set; }
+        public bool RequiresMaintenance { get; set; }
+        public bool RequiresPreOperationalCheck { get; set; }
+        public bool RequiresCertification { get; set; }
+        public DateTime? CertificationExpirationDate { get; set; }
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string? LocationCode { get; set; }
+        public string? LocationName { get; set; }
+        public string? ResponsiblePersonName { get; set; }
+        public string? ToolTypeCode { get; set; }
+        public string? ToolTypeName { get; set; }
+        public string? ToolCategoryCode { get; set; }
+        public string? ToolCategoryName { get; set; }
+        public string OperationalStatus { get; set; } = string.Empty;
+        public string PhysicalStatus { get; set; } = string.Empty;
+        public string CustodyStatus { get; set; } = string.Empty;
+        public string ReconciliationStatus { get; set; } = string.Empty;
+        public string SyncStatus { get; set; } = string.Empty;
+    }
+
+    private sealed class LifeCycleEventItem
+    {
+        public Guid Id { get; set; }
+        public Guid ToolAssetId { get; set; }
+        public string EventType { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string? PreviousValue { get; set; }
+        public string? NewValue { get; set; }
+        public DateTime EventDate { get; set; }
+        public string? PerformedBy { get; set; }
+    }
+
+    private string? successMessage;
+    private bool isEditingMasterData;
+    private ToolMasterEditModel editModel = new();
+
+    private void StartMasterDataEdit()
+    {
+        if (tool is null)
+        {
+            return;
+        }
+
+        errorMessage = null;
+        successMessage = null;
+
+        editModel = new ToolMasterEditModel
+        {
+            InternalCode = tool.InternalCode,
+            Name = tool.Name,
+            Description = tool.Description,
+            SerialNumber = tool.SerialNumber,
+            FixedAssetCode = tool.FixedAssetCode,
+            FenixCode = tool.FenixCode,
+            Brand = tool.Brand,
+            Model = tool.Model,
+            OperationalStatus = tool.OperationalStatus,
+            PhysicalStatus = tool.PhysicalStatus,
+            IsSpecialized = tool.IsSpecialized,
+            RequiresMaintenance = tool.RequiresMaintenance,
+            RequiresPreOperationalCheck = tool.RequiresPreOperationalCheck,
+            RequiresCertification = tool.RequiresCertification,
+            CertificationExpirationDate = tool.CertificationExpirationDate,
+            MaintenancePeriodMonths = null
+        };
+
+        isEditingMasterData = true;
+    }
+
+    private void CancelMasterDataEdit()
+    {
+        isEditingMasterData = false;
+        editModel = new ToolMasterEditModel();
+        errorMessage = null;
+        successMessage = null;
+    }
+
+    private async Task SaveMasterDataAsync()
+    {
+        if (tool is null)
+        {
+            return;
+        }
+
+        try
+        {
+            errorMessage = null;
+            successMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var response = await client.PatchAsJsonAsync($"api/tools/{ToolId}/master-data", new
+            {
+                editModel.InternalCode,
+                editModel.Name,
+                editModel.Description,
+                editModel.SerialNumber,
+                editModel.FixedAssetCode,
+                editModel.FenixCode,
+                editModel.Brand,
+                editModel.Model,
+                editModel.OperationalStatus,
+                editModel.PhysicalStatus,
+                editModel.IsSpecialized,
+                editModel.RequiresMaintenance,
+                editModel.RequiresPreOperationalCheck,
+                editModel.RequiresCertification,
+                editModel.CertificationExpirationDate,
+                ClearCertificationExpirationDate = !editModel.CertificationExpirationDate.HasValue,
+                editModel.MaintenancePeriodMonths,
+                ValidateAndAssignReporter = true,
+                UpdatedBy = "admin"
+            });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo guardar el activo. {detail}";
+                return;
+            }
+
+            successMessage = "Activo actualizado correctamente.";
+            isEditingMasterData = false;
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error guardando activo: {ex.Message}";
+        }
+    }
+
+    private async Task VoidCurrentToolAsync()
+    {
+        if (tool is null)
+        {
+            return;
+        }
+
+        try
+        {
+            errorMessage = null;
+            successMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var response = await client.PatchAsJsonAsync($"api/tools/{ToolId}/void", new
+            {
+                ActionBy = "admin",
+                Reason = "Activo anulado desde pantalla de detalle de Inventario de AF."
+            });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo anular el activo. {detail}";
+                return;
+            }
+
+            NavigationManager.NavigateTo("/tools");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error anulando activo: {ex.Message}";
+        }
+    }
+
+    private sealed class ToolMasterEditModel
+    {
+        public string? InternalCode { get; set; }
+        public string? Name { get; set; }
+        public string? Description { get; set; }
+        public string? SerialNumber { get; set; }
+        public string? FixedAssetCode { get; set; }
+        public string? FenixCode { get; set; }
+        public string? Brand { get; set; }
+        public string? Model { get; set; }
+        public string? OperationalStatus { get; set; }
+        public string? PhysicalStatus { get; set; }
+        public bool IsSpecialized { get; set; }
+    
+        public bool RequiresMaintenance { get; set; }
+        public bool RequiresPreOperationalCheck { get; set; }
+        public bool RequiresCertification { get; set; }
+        public DateTime? CertificationExpirationDate { get; set; }
+        public int? MaintenancePeriodMonths { get; set; }
+}
+    private static string DisplaySourceValue(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "—" : value;
+
+    private sealed class ToolReportedSourceModel
+    {
+        public bool HasSource { get; set; }
+        public Guid? ReportedItemId { get; set; }
+        public Guid? PhysicalCountId { get; set; }
+        public string? PhysicalCountNumber { get; set; }
+        public string? PhysicalCountStatus { get; set; }
+        public Guid? ParticipantId { get; set; }
+        public string? ParticipantName { get; set; }
+        public string? ParticipantUserName { get; set; }
+        public string? ReportType { get; set; }
+        public string? ReportedCode { get; set; }
+        public string? ReportedName { get; set; }
+        public string? FoundLocation { get; set; }
+        public string? PhysicalStatus { get; set; }
+        public string? Observation { get; set; }
+        public string? ReportedBy { get; set; }
+        public DateTime? ReportedAt { get; set; }
+        public string? ReconciliationStatus { get; set; }
+        public string? ReconciliationObservation { get; set; }
+        public DateTime? ReconciledAt { get; set; }
+        public string? ReconciledBy { get; set; }
+        public bool ApprovedForCreation { get; set; }
+        public DateTime? ApprovedForCreationAt { get; set; }
+        public string? ApprovedForCreationBy { get; set; }
+    }
+}
+
+
+
+
+
+
+
+<style>
+    .detail-hero-banner {
+        background: linear-gradient(135deg, #050008 0%, #280032 45%, #5c006b 100%);
+        color: #ffffff;
+        border-radius: 0.85rem;
+        padding: 1.25rem 1.4rem;
+        margin-bottom: 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: stretch;
+        gap: 1rem;
+        box-shadow: 0 0.65rem 1.35rem rgba(75, 0, 92, 0.22);
+    }
+
+    .detail-hero-main {
+        min-width: 0;
+    }
+
+    .detail-hero-actions {
+        margin-bottom: 0.6rem;
+    }
+
+    .btn-detail-back {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 30px;
+        border-radius: 999px;
+        padding: 0 0.75rem;
+        border: 1px solid rgba(255, 255, 255, 0.42);
+        background: rgba(255, 255, 255, 0.10);
+        color: #ffffff;
+        font-size: 0.76rem;
+        font-weight: 850;
+    }
+
+    .btn-detail-back:hover {
+        background: #ffffff;
+        color: #4b005c;
+    }
+
+    .detail-hero-pill {
+        display: inline-flex;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        color: #ffffff;
+        border-radius: 999px;
+        padding: 0.22rem 0.65rem;
+        font-size: 0.7rem;
+        font-weight: 900;
+        letter-spacing: 0.04rem;
+        margin-bottom: 0.6rem;
+    }
+
+    .detail-hero-banner h2 {
+        color: #ffffff;
+        margin: 0;
+        font-size: 1.75rem;
+        font-weight: 950;
+        line-height: 1.1;
+        text-transform: uppercase;
+    }
+
+    .detail-hero-code {
+        display: inline-flex;
+        margin-top: 0.45rem;
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 999px;
+        padding: 0.22rem 0.7rem;
+        color: #ffffff;
+        font-size: 0.78rem;
+        font-weight: 900;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+    }
+
+    .detail-hero-banner p {
+        margin: 0.55rem 0 0 0;
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 0.9rem;
+    }
+
+    .detail-hero-side {
+        min-width: 215px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: stretch;
+        gap: 0.65rem;
+    }
+
+    .detail-hero-status-card {
+        display: grid;
+        gap: 0.15rem;
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 0.65rem;
+        padding: 0.6rem 0.75rem;
+        text-align: right;
+    }
+
+    .detail-hero-status-card span {
+        color: #ffdd57;
+        font-size: 0.75rem;
+        font-weight: 900;
+    }
+
+    .detail-hero-status-card strong {
+        color: #ffffff;
+        font-size: 0.86rem;
+        font-weight: 950;
+    }
+
+    .detail-hero-badges {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 0.35rem;
+    }
+
+    .detail-hero-refresh {
+        height: 32px;
+        font-size: 0.78rem;
+        font-weight: 800;
+        border-color: rgba(255, 255, 255, 0.65);
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .detail-hero-refresh:hover {
+        color: #4b005c;
+        background: #ffffff;
+        border-color: #ffffff;
+    }
+
+    @@media (max-width: 992px) {
+        .detail-hero-banner {
+            flex-direction: column;
+        }
+
+        .detail-hero-side {
+            min-width: 0;
+        }
+
+        .detail-hero-status-card {
+            text-align: left;
+        }
+
+        .detail-hero-badges {
+            justify-content: flex-start;
+        }
+    
+    private bool isEditingMasterData;
+    private ToolMasterEditModel editModel = new();
+
+    private void StartMasterDataEdit()
+    {
+        if (tool is null)
+        {
+            return;
+        }
+
+        errorMessage = null;
+        successMessage = null;
+
+        editModel = new ToolMasterEditModel
+        {
+            InternalCode = tool.InternalCode,
+            Name = tool.Name,
+            Description = tool.Description,
+            SerialNumber = tool.SerialNumber,
+            FixedAssetCode = tool.FixedAssetCode,
+            FenixCode = tool.FenixCode,
+            Brand = tool.Brand,
+            Model = tool.Model,
+            OperationalStatus = tool.OperationalStatus,
+            PhysicalStatus = tool.PhysicalStatus,
+            IsSpecialized = tool.IsSpecialized,
+            RequiresMaintenance = tool.RequiresMaintenance,
+            RequiresPreOperationalCheck = tool.RequiresPreOperationalCheck,
+            RequiresCertification = tool.RequiresCertification,
+            CertificationExpirationDate = tool.CertificationExpirationDate,
+            MaintenancePeriodMonths = null
+        };
+
+        isEditingMasterData = true;
+    }
+
+    private void CancelMasterDataEdit()
+    {
+        isEditingMasterData = false;
+        editModel = new ToolMasterEditModel();
+        errorMessage = null;
+        successMessage = null;
+    }
+
+    private async Task SaveMasterDataAsync()
+    {
+        if (tool is null)
+        {
+            return;
+        }
+
+        try
+        {
+            errorMessage = null;
+            successMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var response = await client.PatchAsJsonAsync($"api/tools/{ToolId}/master-data", new
+            {
+                editModel.InternalCode,
+                editModel.Name,
+                editModel.Description,
+                editModel.SerialNumber,
+                editModel.FixedAssetCode,
+                editModel.FenixCode,
+                editModel.Brand,
+                editModel.Model,
+                editModel.OperationalStatus,
+                editModel.PhysicalStatus,
+                editModel.IsSpecialized,
+                editModel.RequiresMaintenance,
+                editModel.RequiresPreOperationalCheck,
+                editModel.RequiresCertification,
+                editModel.CertificationExpirationDate,
+                ClearCertificationExpirationDate = !editModel.CertificationExpirationDate.HasValue,
+                editModel.MaintenancePeriodMonths,
+                ValidateAndAssignReporter = true,
+                UpdatedBy = "admin"
+            });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo guardar el activo. {detail}";
+                return;
+            }
+
+            successMessage = "Activo actualizado correctamente.";
+            isEditingMasterData = false;
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error guardando activo: {ex.Message}";
+        }
+    }
+
+    private async Task VoidCurrentToolAsync()
+    {
+        if (tool is null)
+        {
+            return;
+        }
+
+        try
+        {
+            errorMessage = null;
+            successMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var response = await client.PatchAsJsonAsync($"api/tools/{ToolId}/void", new
+            {
+                ActionBy = "admin",
+                Reason = "Activo anulado desde pantalla de detalle de Inventario de AF."
+            });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo anular el activo. {detail}";
+                return;
+            }
+
+            NavigationManager.NavigateTo("/tools");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error anulando activo: {ex.Message}";
+        }
+    }
+
+    private sealed class ToolMasterEditModel
+    {
+        public string? InternalCode { get; set; }
+        public string? Name { get; set; }
+        public string? Description { get; set; }
+        public string? SerialNumber { get; set; }
+        public string? FixedAssetCode { get; set; }
+        public string? FenixCode { get; set; }
+        public string? Brand { get; set; }
+        public string? Model { get; set; }
+        public string? OperationalStatus { get; set; }
+        public string? PhysicalStatus { get; set; }
+        public bool IsSpecialized { get; set; }
+    }
+
+    }
+
+    /* ============================================================
+       Mejora visual botones - Detalle herramienta / Inventario AF
+       ============================================================ */
+
+    .detail-actions-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem;
+        align-items: center;
+        margin-top: .45rem;
+    }
+
+    .detail-actions-group.compact {
+        gap: .35rem;
+    }
+
+    .detail-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 32px;
+        border-radius: .5rem;
+        padding: .38rem .68rem;
+        font-size: .72rem;
+        font-weight: 950;
+        line-height: 1.1;
+        text-decoration: none;
+        border: 1px solid transparent;
+        background: #fff;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .detail-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .25rem .55rem rgba(15, 23, 42, .12);
+        text-decoration: none;
+    }
+
+    .detail-action-primary {
+        border-color: #2563eb;
+        color: #1d4ed8;
+        background: #eff6ff;
+    }
+
+    .detail-action-primary:hover {
+        color: #1e40af;
+        background: #dbeafe;
+    }
+
+    .detail-action-success {
+        border-color: #059669;
+        color: #047857;
+        background: #ecfdf5;
+    }
+
+    .detail-action-success:hover {
+        color: #065f46;
+        background: #d1fae5;
+    }
+
+    .detail-action-neutral {
+        border-color: #64748b;
+        color: #334155;
+        background: #f8fafc;
+    }
+
+    .detail-action-neutral:hover {
+        color: #1e293b;
+        background: #e2e8f0;
+    }
+
+    .detail-action-warning {
+        border-color: #f59e0b;
+        color: #9a3412;
+        background: #fff7ed;
+    }
+
+    .detail-action-warning:hover {
+        color: #7c2d12;
+        background: #ffedd5;
+    }
+
+    .detail-action-danger {
+        border-color: #ef4444;
+        color: #dc2626;
+        background: #fff1f2;
+    }
+
+    .detail-action-danger:hover {
+        color: #b91c1c;
+        background: #ffe4e6;
+    }
+
+    .detail-action:disabled,
+    .detail-action[disabled] {
+        opacity: .55;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+
+    .detail-action + .detail-action {
+        margin-left: 0 !important;
+    }
+
+    .tool-admin-card .detail-action,
+    .quick-actions-card .detail-action,
+    .asset-actions-card .detail-action {
+        min-width: 110px;
+    }
+
+    @@media (max-width: 1300px) {
+        .detail-action {
+            font-size: .66rem;
+            min-height: 29px;
+            padding: .32rem .48rem;
+            white-space: normal;
+        }
+
+        .detail-actions-group {
+            gap: .35rem;
+        }
+    }
+
+</style>
+
+
+
+
+
+
+
+
+
+
+<style>
+    .tool-source-panel {
+        margin-bottom: .75rem;
+        border-left: 4px solid #198754;
+        background: #f7fff9;
+    }
+
+    .source-header {
+        display: flex;
+        justify-content: space-between;
+        gap: .75rem;
+    }
+
+    .source-pill {
+        display: inline-flex;
+        padding: .18rem .55rem;
+        border-radius: 999px;
+        background: #d1e7dd;
+        color: #0f5132;
+        font-size: .68rem;
+        font-weight: 950;
+    }
+
+    .source-header h2 {
+        margin: .35rem 0 .15rem;
+        font-size: 1rem;
+        font-weight: 950;
+    }
+
+    .source-header p {
+        margin: 0;
+        color: #526071;
+        font-size: .78rem;
+    }
+
+    .source-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(180px, 1fr));
+        gap: .65rem;
+        margin-top: .8rem;
+    }
+
+    .source-grid div {
+        padding: .55rem .65rem;
+        border-radius: .75rem;
+        border: 1px solid #d1e7dd;
+        background: white;
+    }
+
+    .source-grid span {
+        display: block;
+        font-size: .66rem;
+        font-weight: 950;
+        color: #526071;
+        text-transform: uppercase;
+    }
+
+    .source-grid strong {
+        display: block;
+        font-size: .82rem;
+        color: #1f2937;
+        margin-top: .15rem;
+    }
+
+    .source-grid small {
+        display: block;
+        color: #657083;
+        font-size: .68rem;
+    }
+
+    .source-full {
+        grid-column: 1 / -1;
+    }
+
+    @@media (max-width: 1000px) {
+        .source-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* ============================================================
+       Mejora visual botones - Detalle herramienta / Inventario AF
+       ============================================================ */
+
+    .detail-actions-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem;
+        align-items: center;
+        margin-top: .45rem;
+    }
+
+    .detail-actions-group.compact {
+        gap: .35rem;
+    }
+
+    .detail-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 32px;
+        border-radius: .5rem;
+        padding: .38rem .68rem;
+        font-size: .72rem;
+        font-weight: 950;
+        line-height: 1.1;
+        text-decoration: none;
+        border: 1px solid transparent;
+        background: #fff;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .detail-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 .25rem .55rem rgba(15, 23, 42, .12);
+        text-decoration: none;
+    }
+
+    .detail-action-primary {
+        border-color: #2563eb;
+        color: #1d4ed8;
+        background: #eff6ff;
+    }
+
+    .detail-action-primary:hover {
+        color: #1e40af;
+        background: #dbeafe;
+    }
+
+    .detail-action-success {
+        border-color: #059669;
+        color: #047857;
+        background: #ecfdf5;
+    }
+
+    .detail-action-success:hover {
+        color: #065f46;
+        background: #d1fae5;
+    }
+
+    .detail-action-neutral {
+        border-color: #64748b;
+        color: #334155;
+        background: #f8fafc;
+    }
+
+    .detail-action-neutral:hover {
+        color: #1e293b;
+        background: #e2e8f0;
+    }
+
+    .detail-action-warning {
+        border-color: #f59e0b;
+        color: #9a3412;
+        background: #fff7ed;
+    }
+
+    .detail-action-warning:hover {
+        color: #7c2d12;
+        background: #ffedd5;
+    }
+
+    .detail-action-danger {
+        border-color: #ef4444;
+        color: #dc2626;
+        background: #fff1f2;
+    }
+
+    .detail-action-danger:hover {
+        color: #b91c1c;
+        background: #ffe4e6;
+    }
+
+    .detail-action:disabled,
+    .detail-action[disabled] {
+        opacity: .55;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+
+    .detail-action + .detail-action {
+        margin-left: 0 !important;
+    }
+
+    .tool-admin-card .detail-action,
+    .quick-actions-card .detail-action,
+    .asset-actions-card .detail-action {
+        min-width: 110px;
+    }
+
+    @@media (max-width: 1300px) {
+        .detail-action {
+            font-size: .66rem;
+            min-height: 29px;
+            padding: .32rem .48rem;
+            white-space: normal;
+        }
+
+        .detail-actions-group {
+            gap: .35rem;
+        }
+    }
+
+</style>
+
+
+
+
