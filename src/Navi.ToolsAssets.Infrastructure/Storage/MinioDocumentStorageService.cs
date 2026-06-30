@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration;
 using Minio;
 using Minio.DataModel.Args;
 using Navi.ToolsAssets.Application.Documents;
@@ -12,18 +12,27 @@ public sealed class MinioDocumentStorageService : IDocumentStorageService
 
     public MinioDocumentStorageService(IConfiguration configuration)
     {
-        var endpoint = configuration["Minio:Endpoint"] ?? "localhost:9100";
-        var accessKey = configuration["Minio:AccessKey"] ?? "naviadmin";
-        var secretKey = configuration["Minio:SecretKey"] ?? "Navitrans_2026*Minio!";
+        var endpoint = ReadConfigurationValue(configuration, "Minio:Endpoint", "localhost:9100");
+        var accessKey = ReadConfigurationValue(configuration, "Minio:AccessKey", "naviadmin");
+        var secretKey = ReadConfigurationValue(configuration, "Minio:SecretKey", "Navitrans_2026*Minio!");
         var useSsl = bool.TryParse(configuration["Minio:UseSsl"], out var ssl) && ssl;
 
-        _bucketName = configuration["Minio:BucketName"] ?? "navi-tools-documents";
+        _bucketName = ReadConfigurationValue(configuration, "Minio:BucketName", "navi-tools-documents").Trim().ToLowerInvariant();
 
         _minioClient = new MinioClient()
             .WithEndpoint(endpoint)
             .WithCredentials(accessKey, secretKey)
             .WithSSL(useSsl)
             .Build();
+    }
+
+    private static string ReadConfigurationValue(IConfiguration configuration, string key, string fallback)
+    {
+        var value = configuration[key];
+
+        return string.IsNullOrWhiteSpace(value)
+            ? fallback
+            : value.Trim();
     }
 
     public async Task<string> UploadAsync(
@@ -90,6 +99,11 @@ public sealed class MinioDocumentStorageService : IDocumentStorageService
 
     private async Task EnsureBucketExistsAsync(CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(_bucketName))
+        {
+            throw new InvalidOperationException("La configuración Minio:BucketName está vacía. Configure el bucket navi-tools-documents.");
+        }
+
         var bucketExistsArgs = new BucketExistsArgs()
             .WithBucket(_bucketName);
 

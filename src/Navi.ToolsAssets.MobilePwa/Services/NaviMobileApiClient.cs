@@ -1,4 +1,4 @@
-﻿using System.Net.Http.Json;
+using System.Net.Http.Json;
 using System.Text.Json;
 using Navi.ToolsAssets.MobilePwa.Models;
 
@@ -55,6 +55,46 @@ public sealed class NaviMobileApiClient
 
             return user;
         }
+    }
+
+
+    public async Task<MobileUser?> RefreshCurrentSessionAsync()
+    {
+        var userName = _auth.CurrentUser?.UserName;
+
+        if (string.IsNullOrWhiteSpace(userName))
+        {
+            return null;
+        }
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"api/auth/mobile-session/{Uri.EscapeDataString(userName)}");
+
+        ApplySecurityHeaders(request);
+
+        using var response = await _http.SendAsync(request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            await _auth.LogoutAsync();
+            ClearCache();
+            return null;
+        }
+
+        var user = await response.Content.ReadFromJsonAsync<MobileUser>(JsonOptions);
+
+        if (user is null)
+        {
+            await _auth.LogoutAsync();
+            ClearCache();
+            return null;
+        }
+
+        ClearCache();
+        await _auth.LoginAsync(user);
+
+        return user;
     }
 
     public async Task<MobileExecutiveDashboard> GetDashboardAsync(bool forceRefresh = false)

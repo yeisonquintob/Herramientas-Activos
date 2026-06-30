@@ -82,5 +82,95 @@ public class PurchaseRequest : BaseEntity
 
     public string? DynamicsStatus { get; set; }
 
+    public string? PurchaseType { get; set; }
+
+    public string? RequestChannel { get; set; }
+
+    public string? InventoryClassification { get; set; }
+
+    public string? GenericCode { get; set; }
+
+    public string? ItemVariant { get; set; }
+
+    public string? VariantDetail { get; set; }
+
+    public bool CodeExists { get; set; }
+
+    public bool RequiresCodeCreation { get; set; }
+
+    public bool RequiresVariantCreation { get; set; }
+
+    public string? PlanningRequestReference { get; set; }
+
+    public string? TechnicalSpecifications { get; set; }
+
+    public string? Capacity { get; set; }
+
+    public string? Dimensions { get; set; }
+
+    public string? RequiredUse { get; set; }
+
+    public string? SerialReference { get; set; }
+
+    public string? FailureDetail { get; set; }
+
+    public string? MaintenanceTypeIfApplies { get; set; }
+
+    public bool HasPhotoSupport { get; set; }
+
+    public string? PhotoSupportDescription { get; set; }
+
+    public string? DocumentSupportReference { get; set; }
+
+    public string? CostCenter { get; set; }
+
+    public string? AccountingConcept { get; set; }
+
+    public string? AccountingAccount { get; set; }
+
+    public bool RequiresAccountingValidation { get; set; }
+
+    public string? AccountingValidationStatus { get; set; }
+
+    public string? AccountingValidationComment { get; set; }
+
+    public string? FixedAssetReason { get; set; }
+
+    public string? WarehouseCode { get; set; }
+
+    public string? LocationCode { get; set; }
+
+    public string? DeliveryWarehouse { get; set; }
+
+    public string? AmountRange { get; set; }
+
+    public bool IsLocalLowAmountPurchase { get; set; }
+
+    public bool RequiresMroManagement { get; set; }
+
+    public string? SelectedVendor { get; set; }
+
+    public int? QuotationCount { get; set; }
+
+    public string? QuotationReferences { get; set; }
+
+    public string? VendorSelectionCriteria { get; set; }
+
+    public string? MroBuyer { get; set; }
+
+    public string? MroValidationStatus { get; set; }
+
+    public string? PurchaseOrderNumber { get; set; }
+
+    public string? PurchaseOrderStatus { get; set; }
+
+    public DateTime? PurchaseOrderDate { get; set; }
+
+    public string? InvoiceReference { get; set; }
+
+    public DateTime? ReceivedAt { get; set; }
+
+    public string? ReceivedBy { get; set; }
+
     public string? Notes { get; set; }
 }

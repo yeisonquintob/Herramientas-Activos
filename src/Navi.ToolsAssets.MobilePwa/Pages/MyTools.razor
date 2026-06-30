@@ -1,4 +1,4 @@
-﻿@page "/all-tools"
+@page "/all-tools"
 @page "/my-tools"
 
 @inject NaviMobileApiClient Api
@@ -111,9 +111,20 @@
                         </div>
 
                         <div class="mobile-inv-actions">
-                            <a href="@GetDetailUrl(tool.Id)">Ver detalle</a>
-                            <a href="@GetLifeRecordUrl(tool.Id)">Hoja de vida</a>
-                            <a class="danger" href="@GetReportUrl(tool.Id)">Reportar</a>
+                            @if (CanViewToolDetail)
+                            {
+                                <a href="@GetDetailUrl(tool.Id)">Ver detalle</a>
+                            }
+
+                            @if (CanViewLifeRecord)
+                            {
+                                <a href="@GetLifeRecordUrl(tool.Id)">Hoja de vida</a>
+                            }
+
+                            @if (CanReportDamage)
+                            {
+                                <a class="danger" href="@GetReportUrl(tool.Id)">Reportar</a>
+                            }
                         </div>
                     </article>
                 }
@@ -121,6 +132,7 @@
         }
     }
 </section>
+
 
 @code {
     private bool isLoading = true;
@@ -133,15 +145,19 @@
     private bool IsMyToolsPage =>
         new Uri(Navigation.Uri).AbsolutePath.Equals("/my-tools", StringComparison.OrdinalIgnoreCase);
 
-    private string PageTitle => IsMyToolsPage ? "Mis herramientas" : "Inventario AF";
+    private string PageTitle => IsMyToolsPage ? "Mis activos asignados" : "Inventario móvil";
 
     private string HeaderCode => IsMyToolsPage ? "MIS AF" : "INVENTARIO AF";
 
     private string PageSubtitle => IsMyToolsPage
-        ? "Consulta activos relacionados con tu usuario, detalle y hoja de vida móvil."
-        : "Consulta general de activos, herramientas, ubicación, responsable y estado.";
+        ? "Consulta únicamente activos relacionados con tu usuario."
+        : "Consulta activos según tu alcance: propios, sede o todas las sedes si eres administrador.";
 
     private int availableCount => filteredTools.Count(x => Contains(x.OperationalStatus, "Available") || Contains(x.OperationalStatus, "Disponible"));
+
+    private bool CanViewToolDetail => HasAny("ToolDetail.View", "Tools.View", "Mobile.Tools.View");
+    private bool CanViewLifeRecord => HasAny("TechnicalLifeRecord.View", "ToolDetail.LifeRecord.Open");
+    private bool CanReportDamage => HasPermission("Mobile.Damage.Report");
 
     protected override async Task OnInitializedAsync()
     {
@@ -165,8 +181,8 @@
             var tools = await Api.GetToolsAsync(forceRefresh);
 
             allTools = IsMyToolsPage
-                ? FilterForCurrentUser(tools).ToList()
-                : tools.OrderBy(x => x.InternalCode).ThenBy(x => x.Name).ToList();
+                ? tools.Where(IsAssignedToCurrentUser).OrderBy(x => x.InternalCode).ThenBy(x => x.Name).ToList()
+                : FilterInventoryScope(tools).ToList();
 
             ApplyFilter();
         }
@@ -213,57 +229,106 @@
             .ToList();
     }
 
-    private IEnumerable<MobileToolDto> FilterForCurrentUser(IEnumerable<MobileToolDto> source)
+    private IEnumerable<MobileToolDto> FilterInventoryScope(IEnumerable<MobileToolDto> source)
+    {
+        var user = Auth.CurrentUser;
+
+        if (user is null || !HasAny("Tools.View", "Mobile.Tools.View"))
+        {
+            return Enumerable.Empty<MobileToolDto>();
+        }
+
+        if (UserCanSeeAllBranches())
+        {
+            return source
+                .OrderBy(x => x.BranchCode)
+                .ThenBy(x => x.InternalCode)
+                .ThenBy(x => x.Name);
+        }
+
+        return source
+            .Where(IsSameBranch)
+            .OrderBy(x => x.InternalCode)
+            .ThenBy(x => x.Name);
+    }
+
+
+
+    private bool IsAssignedToCurrentUser(MobileToolDto tool)
     {
         var user = Auth.CurrentUser;
 
         if (user is null)
         {
-            return Enumerable.Empty<MobileToolDto>();
+            return false;
         }
 
-        if (user.ResponsiblePersonId.HasValue)
+        if (user.ResponsiblePersonId.HasValue && tool.ResponsiblePersonId == user.ResponsiblePersonId.Value)
         {
-            var own = source
-                .Where(x => x.ResponsiblePersonId == user.ResponsiblePersonId.Value)
-                .OrderBy(x => x.InternalCode)
-                .ThenBy(x => x.Name)
-                .ToList();
-
-            if (own.Any())
-            {
-                return own;
-            }
+            return true;
         }
 
-        if (!string.IsNullOrWhiteSpace(user.ResponsiblePersonName))
+        if (string.IsNullOrWhiteSpace(tool.ResponsiblePersonName))
         {
-            var ownByName = source
-                .Where(x => string.Equals(x.ResponsiblePersonName, user.ResponsiblePersonName, StringComparison.OrdinalIgnoreCase))
-                .OrderBy(x => x.InternalCode)
-                .ThenBy(x => x.Name)
-                .ToList();
-
-            if (ownByName.Any())
-            {
-                return ownByName;
-            }
+            return false;
         }
 
-        if (!string.IsNullOrWhiteSpace(user.BranchCode) &&
-            !string.Equals(user.BranchCode, "TODAS", StringComparison.OrdinalIgnoreCase))
+        return SameNormalized(tool.ResponsiblePersonName, user.ResponsiblePersonName)
+            || SameNormalized(tool.ResponsiblePersonName, user.DisplayName)
+            || SameNormalized(tool.ResponsiblePersonName, user.UserName);
+    }
+
+    private bool IsSameBranch(MobileToolDto tool)
+    {
+        var user = Auth.CurrentUser;
+
+        if (user is null)
         {
-            return source
-                .Where(x =>
-                    string.Equals(x.BranchCode, user.BranchCode, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(x.BranchName, user.BranchName, StringComparison.OrdinalIgnoreCase))
-                .OrderBy(x => x.InternalCode)
-                .ThenBy(x => x.Name);
+            return false;
         }
 
-        return source
-            .OrderBy(x => x.InternalCode)
-            .ThenBy(x => x.Name);
+        if (UserCanSeeAllBranches())
+        {
+            return true;
+        }
+
+        return SameNormalized(tool.BranchCode, user.BranchCode)
+            || SameNormalized(tool.BranchName, user.BranchName)
+            || SameNormalized(tool.BranchCode, user.BranchName)
+            || SameNormalized(tool.BranchName, user.BranchCode);
+    }
+
+    private bool UserCanSeeAllBranches()
+    {
+        var user = Auth.CurrentUser;
+
+        if (user is null || !Auth.IsAdmin())
+        {
+            return false;
+        }
+
+        return string.IsNullOrWhiteSpace(user.BranchCode)
+            || SameNormalized(user.BranchCode, "TODAS")
+            || SameNormalized(user.BranchCode, "ALL")
+            || SameNormalized(user.BranchName, "Todas las sedes")
+            || SameNormalized(user.BranchName, "TODAS")
+            || SameNormalized(user.BranchName, "ALL");
+    }
+
+
+
+    private bool HasAny(params string[] permissions)
+    {
+        return permissions.Any(HasPermission);
+    }
+
+    private bool HasPermission(string permission)
+    {
+        var permissions = Auth.CurrentUser?.Permissions ?? new();
+
+        return permissions.Any(x => string.Equals(x, "ALL", StringComparison.OrdinalIgnoreCase))
+            || permissions.Any(x => string.Equals(x, permission, StringComparison.OrdinalIgnoreCase))
+            || Auth.HasPermission(permission);
     }
 
     private void GoHome()
@@ -315,6 +380,16 @@
     private static bool ContainsNormalized(string? value, string normalizedQuery)
     {
         return Normalize(value).Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool SameNormalized(string? left, string? right)
+    {
+        var a = Normalize(left);
+        var b = Normalize(right);
+
+        return !string.IsNullOrWhiteSpace(a)
+            && !string.IsNullOrWhiteSpace(b)
+            && string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string Normalize(string? value)

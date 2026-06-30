@@ -1,4 +1,4 @@
-﻿@page "/maintenance-plans"
+@page "/maintenance-plans"
 @rendermode InteractiveServer
 @using System.Net.Http.Json
 @using Navi.ToolsAssets.Admin.Components.Security
@@ -8,22 +8,24 @@
 
 <PageTitle>Planes de Mantenimiento</PageTitle>
 
-<PermissionGuard Permission="Maintenance.View" ModuleName="Planes de Mantenimiento">
+<PermissionGuard Permission="MaintenancePlans.View" ModuleName="Planes de Mantenimiento">
 
 <section class="plans-hero">
     <div>
-        <span class="plans-pill">OPERACIONES · PLANES</span>
+        <span class="plans-pill">OPERACIONES · PLANES · COSTOS</span>
         <h2>Planes de mantenimiento</h2>
-        <p>Controla periodicidad, vencimientos, mantenimientos pendientes y cobertura por activo fijo o herramienta.</p>
+        <p>Controla vencimientos, cobertura, solicitudes pendientes, cronograma y relación con solicitudes de mantenimiento.</p>
     </div>
 
-    <div class="plans-side">
-        <div class="plans-status-box">
-            <span>Activos</span>
-            <strong>@plans.Count visibles</strong>
-        </div>
-
-        <button class="plans-outline-btn" type="button" @onclick="LoadAsync">
+    <div class="plans-hero-actions">
+        @if (CanRequestMaintenance)
+        {
+        @if (CanRequestMaintenance)
+        {
+            <a class="plans-hero-btn" href="/maintenance-request">Solicitar</a>
+        }
+        }
+        <button class="plans-hero-btn" type="button" @onclick="LoadAsync">
             Actualizar
         </button>
     </div>
@@ -33,44 +35,86 @@
 {
     <div class="alert alert-danger">@errorMessage</div>
 }
+<section class="plans-board">
+    <article class="plans-card plan-distribution">
+        <div class="plans-card-title">
+            <div>
+                <h3>Distribución del plan</h3>
+                <p>Lectura rápida del estado de mantenimiento por activo.</p>
+            </div>
+        </div>
 
-<section class="plans-kpi-grid">
-    <article class="plans-kpi-card">
+        <div class="plans-donut-row">
+            <div class="plans-donut" style="@GetPlanDonutStyle()">
+                <div>
+                    <strong>@plans.Count</strong>
+                    <span>Total</span>
+                </div>
+            </div>
+
+            <div class="plans-legend">
+                <div><i class="green"></i><span>Al día</span><strong>@plans.Count(x => x.PlanStatus == "OnTime")</strong><small>@GetPercentLabel(plans.Count(x => x.PlanStatus == "OnTime"), plans.Count)</small></div>
+                <div><i class="orange"></i><span>Por vencer</span><strong>@plans.Count(x => x.PlanStatus == "DueSoon")</strong><small>@GetPercentLabel(plans.Count(x => x.PlanStatus == "DueSoon"), plans.Count)</small></div>
+                <div><i class="red"></i><span>Vencido</span><strong>@plans.Count(x => x.PlanStatus == "Overdue")</strong><small>@GetPercentLabel(plans.Count(x => x.PlanStatus == "Overdue"), plans.Count)</small></div>
+            </div>
+        </div>
+    </article>
+
+    <article class="plans-card plans-kpis-panel">
+        <div class="plans-card-title">
+            <div>
+                <h3>Indicadores del plan</h3>
+                <p>Resumen operativo del cronograma y solicitudes pendientes.</p>
+            </div>
+        </div>
+
+        <section class="plans-kpis plans-kpis-inline">
+    <article>
         <span>Total activos</span>
         <strong>@plans.Count</strong>
         <small>Con seguimiento</small>
     </article>
 
-    <article class="plans-kpi-card success">
+    <article class="success">
         <span>Al día</span>
         <strong>@plans.Count(x => x.PlanStatus == "OnTime")</strong>
-        <small>Sin vencimiento cercano</small>
+        <small>Sin vencimiento</small>
     </article>
 
-    <article class="plans-kpi-card warning">
+    <article class="warning">
         <span>Por vencer</span>
         <strong>@plans.Count(x => x.PlanStatus == "DueSoon")</strong>
         <small>Próximos 30 días</small>
     </article>
 
-    <article class="plans-kpi-card danger">
+    <article class="danger">
         <span>Vencidos</span>
         <strong>@plans.Count(x => x.PlanStatus == "Overdue")</strong>
         <small>Requieren atención</small>
     </article>
 
-    <article class="plans-kpi-card purple">
-        <span>Pendientes</span>
+    <article class="purple">
+        <span>Solicitudes</span>
         <strong>@plans.Sum(x => x.PendingRequests)</strong>
-        <small>Solicitudes abiertas</small>
+        <small>Pendientes abiertas</small>
     </article>
+
+    <article class="info">
+        <span>Completados</span>
+        <strong>@plans.Sum(x => x.CompletedMaintenances)</strong>
+        <small>Registros cerrados</small>
+    </article>
+
+        </section>
+    </article>
+
 </section>
 
 <section class="plans-card">
     <div class="plans-card-title">
         <div>
             <h3>Tablero de planes</h3>
-            <p>Consulta el estado de mantenimiento por activo y entra al cronograma técnico.</p>
+            <p>Consulta el cronograma por activo. Las acciones visibles dependen de la matriz de permisos.</p>
         </div>
 
         <div class="plans-filters">
@@ -137,6 +181,7 @@
                             <td>
                                 <strong>@FormatDate(item.LastMaintenanceAt)</strong>
                                 <small>@(item.LastMaintenanceNumber ?? "Sin registro previo")</small>
+                                <small>@(item.LastProvider ?? "Sin proveedor")</small>
                             </td>
 
                             <td>
@@ -158,19 +203,28 @@
                             </td>
 
                             <td>
-                                <div class="row-actions">
-                                    <a class="plans-action plans-action-neutral" href="@($"/tools/{item.ToolAssetId}/technical-life-record")">
-                                        Hoja de vida
-                                    </a>
+                                <div class="plans-actions">
+    @if (CanOpenLifeRecord)
+    {
+        <a class="plans-action neutral" href="@($"/tools/{item.ToolAssetId}/technical-life-record")">
+            Hoja de vida
+        </a>
+    }
 
-                                    <a class="plans-action plans-action-primary" href="@($"/tools/{item.ToolAssetId}/maintenance-schedule")">
-                                        Cronograma
-                                    </a>
+    @if (CanOpenMaintenanceSchedule)
+    {
+        <a class="plans-action primary" href="@($"/tools/{item.ToolAssetId}/maintenance-schedule")">
+            Cronograma
+        </a>
+    }
 
-                                    <a class="plans-action plans-action-success" href="/maintenance-request">
-                                        Solicitar
-                                    </a>
-                                </div>
+    @if (CanRequestMaintenance)
+    {
+        <a class="plans-action success" href="/maintenance-request">
+            Solicitar
+        </a>
+    }
+</div>
                             </td>
                         </tr>
                     }
@@ -184,140 +238,279 @@
 
 <style>
     .plans-hero {
-        margin-bottom: .8rem;
-        padding: 1rem 1.15rem;
+        margin-bottom: .7rem;
+        padding: .92rem 1.05rem;
         border-radius: 1rem;
-        background: radial-gradient(circle at top right, rgba(255,255,255,.16), transparent 34%),
-            linear-gradient(135deg, #100015 0%, #4b005c 58%, #7b0d8e 100%);
+        background: linear-gradient(105deg, #050507 0%, #07070b 34%, #120017 58%, #350040 78%, #710083 100%);
         color: white;
         display: flex;
         justify-content: space-between;
+        align-items: center;
         gap: 1rem;
-        box-shadow: 0 .65rem 1.5rem rgba(75,0,92,.22);
+        box-shadow: 0 .55rem 1.2rem rgba(75,0,92,.18);
     }
 
     .plans-pill {
         display: inline-flex;
-        padding: .18rem .6rem;
+        padding: .18rem .62rem;
         border-radius: 999px;
         border: 1px solid rgba(255,255,255,.35);
         background: rgba(255,255,255,.10);
-        font-size: .68rem;
+        font-size: .66rem;
         font-weight: 950;
     }
 
     .plans-hero h2 {
-        margin: .45rem 0 .2rem;
-        font-size: 1.5rem;
+        margin: .32rem 0 .12rem;
+        font-size: 1.35rem;
         font-weight: 950;
     }
 
     .plans-hero p {
         margin: 0;
         color: rgba(255,255,255,.88);
+        font-size: .84rem;
     }
 
-    .plans-side {
-        display: flex;
-        flex-direction: column;
-        gap: .5rem;
-        min-width: 190px;
-        align-items: flex-end;
-    }
-
-    .plans-status-box {
+    .plans-hero-actions {
         width: 190px;
-        padding: .65rem .85rem;
-        border-radius: .85rem;
-        background: rgba(255,255,255,.12);
-        text-align: right;
+        display: grid;
+        gap: .42rem;
     }
 
-    .plans-status-box span {
-        display: block;
-        color: #ffdd57;
-        font-size: .72rem;
-        font-weight: 950;
-    }
-
-    .plans-outline-btn {
+    .plans-hero-btn {
         width: 190px;
-        min-height: 34px;
-        border-radius: .55rem;
-        border: 1px solid rgba(255,255,255,.7);
-        background: rgba(255,255,255,.06);
+        min-height: 36px;
+        border-radius: .6rem;
+        border: 1px solid rgba(255,255,255,.70);
+        background: rgba(255,255,255,.08);
         color: white;
         font-weight: 950;
+        font-size: .76rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
     }
 
-    .plans-kpi-grid {
+    .plans-kpis {
         display: grid;
-        grid-template-columns: repeat(5, minmax(130px, 1fr));
-        gap: .55rem;
-        margin-bottom: .75rem;
+        grid-template-columns: repeat(6, minmax(120px, 1fr));
+        gap: .45rem;
+        margin-bottom: .65rem;
     }
 
-    .plans-kpi-card {
-        border: 1px solid #dfe3e8;
+    .plans-kpis article {
+        border: 1px solid #eadff0;
         border-left: 4px solid #0d6efd;
-        border-radius: .75rem;
-        padding: .62rem;
+        border-radius: .72rem;
+        padding: .52rem;
         background: white;
+        box-shadow: 0 .2rem .55rem rgba(75,0,92,.04);
     }
 
-    .plans-kpi-card.success { border-left-color: #198754; }
-    .plans-kpi-card.warning { border-left-color: #ffc107; }
-    .plans-kpi-card.danger { border-left-color: #dc3545; }
-    .plans-kpi-card.purple { border-left-color: #7b0d8e; }
+    .plans-kpis article.success { border-left-color: #198754; }
+    .plans-kpis article.warning { border-left-color: #ffc107; }
+    .plans-kpis article.danger { border-left-color: #dc3545; }
+    .plans-kpis article.purple { border-left-color: #7b0d8e; }
+    .plans-kpis article.info { border-left-color: #0dcaf0; }
 
-    .plans-kpi-card span {
+    .plans-kpis span {
         display: block;
         color: #526071;
-        font-size: .65rem;
+        font-size: .62rem;
         font-weight: 950;
         text-transform: uppercase;
     }
 
-    .plans-kpi-card strong {
+    .plans-kpis strong {
         display: block;
-        font-size: 1.25rem;
-        font-weight: 950;
         color: #06111f;
+        font-size: 1.28rem;
+        font-weight: 950;
+        line-height: 1.05;
+    }
+
+    .plans-kpis small {
+        color: #657083;
+        font-size: .62rem;
+        font-weight: 750;
+    }
+
+    .plans-board {
+        display: grid;
+        grid-template-columns: .8fr 1.2fr;
+        gap: .65rem;
+        margin-bottom: .65rem;
     }
 
     .plans-card {
         background: white;
-        border: 1px solid #dfe3e8;
+        border: 1px solid #eadff0;
         border-radius: .95rem;
-        padding: .9rem;
-        box-shadow: 0 .35rem .9rem rgba(0,0,0,.04);
+        padding: .82rem;
+        box-shadow: 0 .28rem .8rem rgba(75,0,92,.04);
     }
 
     .plans-card-title {
         display: flex;
         justify-content: space-between;
-        gap: .75rem;
+        gap: .8rem;
         align-items: flex-start;
-        margin-bottom: .7rem;
+        margin-bottom: .62rem;
     }
 
     .plans-card-title h3 {
         margin: 0;
         font-size: 1rem;
         font-weight: 950;
+        color: #100018;
     }
 
     .plans-card-title p {
         margin: .1rem 0 0;
         color: #657083;
-        font-size: .78rem;
+        font-size: .76rem;
+    }
+
+    .plans-donut-row {
+        display: grid;
+        grid-template-columns: 130px minmax(0, 1fr);
+        gap: .75rem;
+        align-items: center;
+    }
+
+    .plans-donut {
+        width: 122px;
+        height: 122px;
+        border-radius: 50%;
+        position: relative;
+        display: grid;
+        place-items: center;
+        box-shadow: inset 0 0 0 1px rgba(75,0,92,.12), 0 .25rem .65rem rgba(75,0,92,.08);
+    }
+
+    .plans-donut::after {
+        content: "";
+        position: absolute;
+        inset: 30px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: inset 0 0 0 1px #eadff0;
+    }
+
+    .plans-donut div {
+        position: relative;
+        z-index: 1;
+        text-align: center;
+    }
+
+    .plans-donut strong {
+        display: block;
+        color: #100018;
+        font-size: 1.35rem;
+        font-weight: 950;
+        line-height: 1;
+    }
+
+    .plans-donut span {
+        display: block;
+        color: #657083;
+        font-size: .58rem;
+        font-weight: 850;
+    }
+
+    .plans-legend {
+        display: grid;
+        gap: .3rem;
+        font-size: .68rem;
+    }
+
+    .plans-legend div {
+        display: grid;
+        grid-template-columns: 9px minmax(0, 1fr) auto auto;
+        gap: .32rem;
+        align-items: center;
+    }
+
+    .plans-legend i {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    .plans-legend .green,
+    .green { background: #198754; }
+
+    .plans-legend .orange,
+    .orange { background: #ffc107; }
+
+    .plans-legend .red,
+    .red { background: #dc3545; }
+
+    .plans-legend span {
+        color: #2a1734;
+        font-weight: 850;
+    }
+
+    .plans-legend strong {
+        color: #100018;
+        font-weight: 950;
+    }
+
+    .plans-legend small {
+        min-width: 36px;
+        text-align: right;
+        color: #657083;
+        font-weight: 850;
+        font-size: .58rem;
+    }
+
+    .plans-focus-list {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: .45rem;
+    }
+
+    .plans-focus-list div {
+        border: 1px solid #eadff0;
+        border-radius: .75rem;
+        background: #fbf8ff;
+        padding: .55rem;
+        min-width: 0;
+    }
+
+    .plans-focus-list strong,
+    .plans-focus-list small {
+        display: block;
+        line-height: 1.15;
+    }
+
+    .plans-focus-list strong {
+        margin-top: .3rem;
+        font-size: .76rem;
+        font-weight: 950;
+        color: #100018;
+    }
+
+    .plans-focus-list small {
+        color: #657083;
+        font-size: .62rem;
+        margin-top: .12rem;
+        overflow-wrap: anywhere;
     }
 
     .plans-filters {
         display: grid;
-        grid-template-columns: 190px minmax(300px, 1fr);
-        gap: .5rem;
+        grid-template-columns: 190px minmax(320px, 1fr);
+        gap: .45rem;
         min-width: 560px;
+    }
+
+    .plans-table-wrapper {
+        width: 100%;
+        overflow-x: auto;
     }
 
     .plans-table {
@@ -338,18 +531,20 @@
     .plans-table td {
         border-bottom: 1px solid #e5e8ef;
         padding: .45rem .35rem;
-        vertical-align: middle;
+        vertical-align: top;
     }
 
     .plans-table td strong,
     .plans-table td small {
         display: block;
-        line-height: 1.2;
+        line-height: 1.18;
+        overflow-wrap: anywhere;
     }
 
     .plans-table td small {
         color: #657083;
         font-size: .64rem;
+        margin-top: .12rem;
     }
 
     .plan-pill {
@@ -365,17 +560,32 @@
     .plan-pill.duesoon { background: #fff3cd; color: #7a5200; }
     .plan-pill.overdue { background: #f8d7da; color: #842029; }
 
-    .row-actions {
-        display: flex;
-        flex-wrap: wrap;
+    .plans-actions {
+        display: grid;
         gap: .28rem;
     }
 
-    .row-actions .btn {
-        font-size: .68rem;
-        padding: .22rem .42rem;
-        min-height: 27px;
+    .plans-action {
+        width: 100%;
+        min-height: 28px;
+        border-radius: .48rem;
+        padding: .26rem .35rem;
+        font-size: .65rem;
+        font-weight: 950;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid transparent;
+        text-decoration: none;
+        background: white;
+        cursor: pointer;
+        line-height: 1.05;
+        text-align: center;
     }
+
+    .plans-action.primary { border-color: #2563eb; color: #1d4ed8; background: #eff6ff; }
+    .plans-action.success { border-color: #059669; color: #047857; background: #ecfdf5; }
+    .plans-action.neutral { border-color: #64748b; color: #334155; background: #f8fafc; }
 
     .plans-empty {
         padding: .9rem;
@@ -385,17 +595,16 @@
         font-weight: 850;
     }
 
-    @@media (max-width: 1100px) {
-        .plans-table-wrapper {
-            overflow-x: auto;
-        }
+    .plans-empty.compact {
+        padding: .55rem;
+        font-size: .72rem;
+    }
 
-        .plans-table {
-            min-width: 1100px;
-        }
-
-        .plans-card-title {
-            flex-direction: column;
+    @@media (max-width: 1300px) {
+        .plans-board,
+        .plans-kpis,
+        .plans-focus-list {
+            grid-template-columns: 1fr;
         }
 
         .plans-filters {
@@ -404,133 +613,124 @@
             grid-template-columns: 1fr;
         }
 
-        .plans-kpi-grid {
-            grid-template-columns: repeat(2, 1fr);
+        .plans-card-title {
+            flex-direction: column;
+        }
+
+        .plans-table {
+            min-width: 1100px;
         }
     }
 
-    /* ============================================================
-       Mejora visual botones Acciones - Planes de mantenimiento
-       ============================================================ */
+/* ============================================================
+   NAVI MAINTENANCE PLANS KPIS PATCH
+   Distribución del plan + KPIs al lado derecho
+   ============================================================ */
 
-    .plans-table th:last-child,
-    .plans-table td:last-child {
-        width: 140px;
-        min-width: 140px;
-        text-align: center;
-        vertical-align: middle;
-    }
-
-    .plans-table td:last-child {
-        padding-right: .25rem;
-    }
-
-    .plans-table .row-actions {
+    .plans-board {
         display: grid !important;
-        grid-template-columns: 1fr;
-        gap: .34rem;
-        width: 100%;
-        min-width: 125px;
-        align-items: stretch;
+        grid-template-columns: .78fr 1.22fr !important;
+        gap: .65rem !important;
+        align-items: stretch !important;
+        margin-bottom: .65rem !important;
     }
 
-    .plans-action {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 29px;
-        width: 100%;
-        border-radius: .48rem;
-        padding: .30rem .38rem;
-        font-size: .66rem;
-        font-weight: 950;
-        line-height: 1.1;
-        text-decoration: none;
-        border: 1px solid transparent;
-        background: #fff;
-        cursor: pointer;
-        white-space: nowrap;
-        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    .plan-focus {
+        display: none !important;
     }
 
-    .plans-action:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 .25rem .55rem rgba(15, 23, 42, .12);
-        text-decoration: none;
+    .plans-kpis-panel {
+        min-height: 100% !important;
     }
 
-    .plans-action-neutral {
-        border-color: #64748b;
-        color: #334155;
-        background: #f8fafc;
+    .plans-kpis-inline {
+        display: grid !important;
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: .45rem !important;
+        margin: 0 !important;
     }
 
-    .plans-action-neutral:hover {
-        color: #1e293b;
-        background: #e2e8f0;
+    .plans-kpis-inline article {
+        min-height: 74px !important;
+        margin: 0 !important;
     }
 
-    .plans-action-primary {
-        border-color: #2563eb;
-        color: #1d4ed8;
-        background: #eff6ff;
+    .plans-kpis-inline span {
+        font-size: .58rem !important;
     }
 
-    .plans-action-primary:hover {
-        color: #1e40af;
-        background: #dbeafe;
+    .plans-kpis-inline strong {
+        font-size: 1.22rem !important;
     }
 
-    .plans-action-success {
-        border-color: #059669;
-        color: #047857;
-        background: #ecfdf5;
+    .plans-kpis-inline small {
+        font-size: .58rem !important;
     }
 
-    .plans-action-success:hover {
-        color: #065f46;
-        background: #d1fae5;
-    }
-
-    .plans-table {
-        width: 100%;
-        table-layout: fixed;
-    }
-
-    .plans-table td {
-        vertical-align: top;
-        overflow-wrap: anywhere;
-    }
-
-    .plans-table td strong,
-    .plans-table td small {
-        max-width: 100%;
-        overflow-wrap: anywhere;
-    }
-
-    .plans-table-wrapper {
-        width: 100%;
-        overflow-x: auto;
+    .plans-donut-row {
+        min-height: 170px !important;
     }
 
     @@media (max-width: 1300px) {
-        .plans-table th:last-child,
-        .plans-table td:last-child {
-            width: 120px;
-            min-width: 120px;
+        .plans-board {
+            grid-template-columns: 1fr !important;
         }
 
-        .plans-action {
-            font-size: .62rem;
-            min-height: 27px;
-            padding: .26rem .30rem;
-            white-space: normal;
+        .plans-kpis-inline {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
         }
     }
+
+    @@media (max-width: 700px) {
+        .plans-kpis-inline {
+            grid-template-columns: 1fr !important;
+        }
+    }
+
+/* ============================================================
+   FIN NAVI MAINTENANCE PLANS KPIS PATCH
+   ============================================================ */
 
 </style>
 
 @code {
+
+    private bool CanViewPlans => PlanHasPermission("MaintenancePlans.View");
+    private bool CanCreatePlan => PlanHasPermission("MaintenancePlans.Create");
+    private bool CanEditPlan => PlanHasPermission("MaintenancePlans.Edit");
+    private bool CanDeletePlan => PlanHasPermission("MaintenancePlans.Delete");
+
+    private bool CanOpenMaintenanceSchedule =>
+        CanViewPlans || CanCreatePlan || CanEditPlan || CanDeletePlan ||
+        PlanHasPermission("TechnicalLifeRecord.Maintenance");
+
+    private bool CanOpenLifeRecord =>
+        PlanHasPermission("TechnicalLifeRecord.View") ||
+        PlanHasPermission("ToolDetail.LifeRecord.Open") ||
+        PlanHasPermission("ToolDetail.View");
+
+    private bool CanRequestMaintenance =>
+        PlanHasPermission("Maintenance.Request") ||
+        CanCreatePlan ||
+        CanEditPlan;
+
+    private bool PlanHasPermission(string permission)
+    {
+        return AuthSession.HasPermission(permission)
+            || string.Equals(AuthSession.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(AuthSession.RoleCode, "SUPERADMIN", StringComparison.OrdinalIgnoreCase);
+    }
+
+
+
+
+
+
+
+
+
+
+
     private List<MaintenancePlanItem> plans = new();
     private bool isLoading;
     private string selectedStatus = string.Empty;
@@ -596,7 +796,9 @@
                Contains(item.BranchCode, value) ||
                Contains(item.BranchName, value) ||
                Contains(item.LocationName, value) ||
-               Contains(item.ResponsibleName, value);
+               Contains(item.ResponsibleName, value) ||
+               Contains(item.LastProvider, value) ||
+               Contains(item.LastTechnician, value);
     }
 
     private static bool Contains(string? source, string value) =>
@@ -627,6 +829,45 @@
         _ => status
     };
 
+    private string GetPlanDonutStyle()
+    {
+        var total = plans.Count;
+
+        if (total <= 0)
+        {
+            return "background: conic-gradient(#eadff0 0 100%);";
+        }
+
+        var onTime = plans.Count(x => x.PlanStatus == "OnTime");
+        var dueSoon = plans.Count(x => x.PlanStatus == "DueSoon");
+        var overdue = plans.Count(x => x.PlanStatus == "Overdue");
+
+        var onTimeEnd = PercentEnd(onTime, total, 0);
+        var dueSoonEnd = PercentEnd(dueSoon, total, onTimeEnd);
+
+        return $"background: conic-gradient(#198754 0% {onTimeEnd}%, #ffc107 {onTimeEnd}% {dueSoonEnd}%, #dc3545 {dueSoonEnd}% 100%);";
+    }
+
+    private static decimal PercentEnd(int value, int total, decimal start)
+    {
+        if (value <= 0 || total <= 0)
+        {
+            return start;
+        }
+
+        return Math.Min(100, start + Math.Round((decimal)value / total * 100, 2));
+    }
+
+    private static string GetPercentLabel(int value, int total)
+    {
+        if (value <= 0 || total <= 0)
+        {
+            return "0%";
+        }
+
+        return $"{Math.Round((decimal)value / total * 100, 1)}%";
+    }
+
     private sealed class MaintenancePlanItem
     {
         public Guid ToolAssetId { get; set; }
@@ -650,4 +891,3 @@
         public string? LastProvider { get; set; }
     }
 }
-

@@ -1,4 +1,13 @@
-﻿@page "/access-denied"
+@page "/access-denied"
+@rendermode InteractiveServer
+
+@using System.Text.Json
+@using Microsoft.JSInterop
+@using Navi.ToolsAssets.Admin.Services.Auth
+
+@inject WebAuthSessionService AuthSession
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <PageTitle>Acceso denegado - NAVI</PageTitle>
 
@@ -6,9 +15,15 @@
     <div class="access-denied-card">
         <span>ACCESO DENEGADO</span>
         <h2>No tienes permisos para acceder</h2>
-        <p>Tu usuario o rol actual no tiene permisos para ingresar a este módulo.</p>
 
-        <a class="btn btn-primary" href="/dashboard">Volver al dashboard</a>
+        <p>
+            Tu usuario o rol actual no tiene permisos para ingresar a este módulo.
+            Puedes volver al primer módulo disponible para tu rol.
+        </p>
+
+        <button class="btn btn-primary" @onclick="GoToAllowedStart">
+            @NaviPermissionRouteService.GetStartLabel(AuthSession)
+        </button>
     </div>
 </section>
 
@@ -17,6 +32,7 @@
         min-height: calc(100vh - 160px);
         display: grid;
         place-items: center;
+        padding: 1rem;
     }
 
     .access-denied-card {
@@ -26,16 +42,16 @@
         border-radius: 1rem;
         padding: 1.5rem;
         text-align: center;
-        box-shadow: 0 .65rem 1.6rem rgba(0,0,0,.08);
+        box-shadow: 0 .65rem 1.5rem rgba(0,0,0,.08);
     }
 
     .access-denied-card span {
         display: inline-flex;
+        border-radius: 999px;
         background: #fff3cd;
         color: #7a5200;
-        border-radius: 999px;
-        padding: .22rem .7rem;
-        font-size: .72rem;
+        padding: .2rem .7rem;
+        font-size: .7rem;
         font-weight: 950;
         margin-bottom: .7rem;
     }
@@ -43,12 +59,63 @@
     .access-denied-card h2 {
         margin: 0;
         color: #17111c;
-        font-size: 1.45rem;
+        font-size: 1.35rem;
         font-weight: 950;
     }
 
     .access-denied-card p {
         color: #657083;
+        font-size: .88rem;
+        line-height: 1.45;
         margin: .55rem 0 1rem;
     }
 </style>
+
+@code {
+    private const string StorageKey = "navi-auth-session";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || AuthSession.IsAuthenticated)
+        {
+            return;
+        }
+
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", StorageKey);
+
+            if (!string.IsNullOrWhiteSpace(json))
+            {
+                var user = JsonSerializer.Deserialize<AuthSessionUser>(
+                    json,
+                    new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+
+                if (user is not null && !string.IsNullOrWhiteSpace(user.UserName))
+                {
+                    AuthSession.Login(user);
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+        }
+        catch
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("localStorage.removeItem", StorageKey);
+            }
+            catch
+            {
+                // Ignorar error JS.
+            }
+        }
+    }
+
+    private void GoToAllowedStart()
+    {
+        Navigation.NavigateTo(NaviPermissionRouteService.GetStartRoute(AuthSession), forceLoad: true);
+    }
+}

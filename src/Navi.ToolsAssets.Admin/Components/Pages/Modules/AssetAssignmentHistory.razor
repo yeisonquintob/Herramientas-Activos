@@ -1,8 +1,10 @@
-﻿@page "/asset-assignment-history"
+@page "/asset-assignment-history"
 @rendermode InteractiveServer
 @using System.Net.Http.Json
+@using Navi.ToolsAssets.Admin.Services.Auth
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager NavigationManager
+@inject NaviAccessScopeService AccessScope
 
 <PageTitle>Historial de asignaciones - NAVI</PageTitle>
 
@@ -10,22 +12,12 @@
 
 <section class="history-hero">
     <div>
-        <button class="btn-history-back" @onclick="@(() => NavigationManager.NavigateTo("/asset-assignment"))">
-            ← Volver a Asignar AF
-        </button>
-
         <span class="history-pill">HISTORIAL</span>
         <h2>Historial de asignaciones</h2>
         <p>Consulta herramientas asignadas por usuario, fecha de entrega, fecha de regreso y detalle del movimiento.</p>
     </div>
 
-    <div class="history-hero-side">
-        <div class="history-status-box">
-            <span>Movimientos</span>
-            <strong>@FilteredHistory.Count() visibles</strong>
-        </div>
-
-        <button class="btn btn-sm btn-outline-light" @onclick="LoadHistoryAsync">
+    <div class="history-hero-side"><button class="btn btn-sm btn-outline-light" @onclick="LoadHistoryAsync">
             Actualizar
         </button>
     </div>
@@ -307,6 +299,7 @@
 
     private IEnumerable<AssignmentHistoryItem> FilteredHistory =>
         historyItems
+            .Where(x => AccessScope.CanSeeBranch(x.CurrentBranchCode))
             .Where(x => string.IsNullOrWhiteSpace(search) ||
                         x.ToolInternalCode.Contains(search, StringComparison.OrdinalIgnoreCase) ||
                         x.ToolName.Contains(search, StringComparison.OrdinalIgnoreCase) ||

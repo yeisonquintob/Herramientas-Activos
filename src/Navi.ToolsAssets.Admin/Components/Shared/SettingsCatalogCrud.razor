@@ -1,4 +1,4 @@
-﻿@rendermode InteractiveServer
+@rendermode InteractiveServer
 @using Navi.ToolsAssets.Admin.Services.Auth
 @inject IHttpClientFactory HttpClientFactory
 @inject WebAuthSessionService AuthSession
@@ -230,7 +230,11 @@
 </style>
 
 @code {
-    private bool CanManageSettings => AuthSession.HasPermission("Settings.Manage");
+    private bool IsAdmin =>
+        string.Equals(AuthSession.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(AuthSession.RoleCode, "SUPERADMIN", StringComparison.OrdinalIgnoreCase);
+
+    private bool CanManageSettings => IsAdmin || AuthSession.HasPermission("Settings.Manage");
 
     [Parameter] public string Title { get; set; } = string.Empty;
     [Parameter] public string Pill { get; set; } = string.Empty;
@@ -273,6 +277,12 @@
 
     private async Task SaveAsync()
     {
+        if (!CanManageSettings)
+        {
+            ShowError("No tienes permiso para modificar configuración.");
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(formModel.Code) ||
             string.IsNullOrWhiteSpace(formModel.Name))
         {
@@ -313,6 +323,12 @@
 
     private void Edit(CatalogDto item)
     {
+        if (!CanManageSettings)
+        {
+            ShowError("No tienes permiso para editar configuración.");
+            return;
+        }
+
         editingId = item.Id;
 
         formModel = new CatalogFormModel
@@ -326,6 +342,12 @@
 
     private async Task DeleteAsync(Guid id)
     {
+        if (!CanManageSettings)
+        {
+            ShowError("No tienes permiso para eliminar configuración.");
+            return;
+        }
+
         try
         {
             var response = await Api.DeleteAsync($"{Endpoint}/{id}?changedBy=admin-web");

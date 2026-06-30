@@ -1,11 +1,13 @@
-﻿@rendermode InteractiveServer
+@rendermode InteractiveServer
 @implements IDisposable
 @using System.Text.Json
+@using System.Net.Http.Json
 @using Microsoft.JSInterop
 @using Navi.ToolsAssets.Admin.Services.Auth
 @inject WebAuthSessionService AuthSession
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject IHttpClientFactory HttpClientFactory
 
 <aside class="navi-sidebar-shell">
     <div class="navi-brand">
@@ -50,13 +52,13 @@
 
         <div class="nav-scrollable">
             <nav class="nav-menu-list">
-                @if (Has("Dashboard.View"))
+                @if (AuthSession.HasPermission("Dashboard.View"))
                 {
                     <div class="nav-section-title">PRINCIPAL</div>
 
                     <div class="nav-item">
                         <NavLink class="nav-link" href="dashboard" Match="NavLinkMatch.All">
-                            <span class="nav-icon">⌂</span>
+                            <span class="nav-icon">📊</span>
                             <span class="nav-text">Dashboard</span>
                         </NavLink>
                     </div>
@@ -70,8 +72,8 @@
                     {
                         <div class="nav-item">
                             <NavLink class="nav-link" href="tools">
-                                <span class="nav-icon">■</span>
-                                <span class="nav-text">Inventario de AF</span>
+                                <span class="nav-icon">🧰</span>
+                                <span class="nav-text">Inventario de Herramientas y AF</span>
                             </NavLink>
                         </div>
                     }
@@ -80,7 +82,7 @@
                     {
                         <div class="nav-item">
                             <NavLink class="nav-link" href="asset-availability">
-                                <span class="nav-icon">◆</span>
+                                <span class="nav-icon">📍</span>
                                 <span class="nav-text">Disponible y Ubicación</span>
                             </NavLink>
                         </div>
@@ -90,8 +92,8 @@
                     {
                         <div class="nav-item">
                             <NavLink class="nav-link" href="asset-assignment">
-                                <span class="nav-icon">⇄</span>
-                                <span class="nav-text">Asignar AF</span>
+                                <span class="nav-icon">🔁</span>
+                                <span class="nav-text">Asignar Herramientas y AF</span>
                             </NavLink>
                         </div>
                     }
@@ -100,7 +102,7 @@
                     {
                         <div class="nav-item">
                             <NavLink class="nav-link" href="asset-assignment-history">
-                                <span class="nav-icon">◷</span>
+                                <span class="nav-icon">🕘</span>
                                 <span class="nav-text">Historial de asignaciones</span>
                             </NavLink>
                         </div>
@@ -110,14 +112,14 @@
                     {
                         <div class="nav-item">
                             <NavLink class="nav-link" href="technical-life-records">
-                                <span class="nav-icon">▣</span>
-                                <span class="nav-text">Hoja de Vida del AF</span>
+                                <span class="nav-icon">📋</span>
+                                <span class="nav-text">Hoja de Vida de Herramientas y AF</span>
                             </NavLink>
                         </div>
                     }
                 }
 
-                @if (HasAny("Purchases.View", "Purchases.Request", "Maintenance.View", "Maintenance.Request", "Maintenance.Execute", "Maintenance.Close"))
+                @if (HasAny("Purchases.View", "Purchases.Request", "Maintenance.View", "Maintenance.Request", "Maintenance.Execute", "Maintenance.Close", "MaintenancePlans.View", "MaintenancePlans.Create", "MaintenancePlans.Edit", "MaintenancePlans.Delete"))
                 {
                     <div class="nav-section-title">OPERACIONES</div>
 
@@ -125,8 +127,8 @@
                     {
                         <div class="nav-item">
                             <NavLink class="nav-link" href="mro-purchases">
-                                <span class="nav-icon">＋</span>
-                                <span class="nav-text">Solicitar Compra AF</span>
+                                <span class="nav-icon">🛒</span>
+                                <span class="nav-text">Solicitar Compra Herramientas y AF</span>
                             </NavLink>
                         </div>
                     }
@@ -135,34 +137,34 @@
                     {
                         <div class="nav-item">
                             <NavLink class="nav-link" href="maintenance-request">
-                                <span class="nav-icon">⚒</span>
+                                <span class="nav-icon">🛠️</span>
                                 <span class="nav-text">Solicitar Mantenimiento</span>
                             </NavLink>
                         </div>
                     }
 
-                    @if (Has("Maintenance.View"))
+                    @if (HasAny("Maintenance.View", "Purchases.View"))
                     {
                         <div class="nav-item">
                             <NavLink class="nav-link" href="maintenance">
-                                <span class="nav-icon">☰</span>
-                                <span class="nav-text">Consultar Mantenimientos</span>
+                                <span class="nav-icon">🔎</span>
+                                <span class="nav-text">Consulta Compras y Mtto.</span>
                             </NavLink>
                         </div>
                     }
 
-                    @if (Has("Maintenance.View"))
+                    @if (HasAny("MaintenancePlans.View", "MaintenancePlans.Create", "MaintenancePlans.Edit", "MaintenancePlans.Delete"))
                     {
                         <div class="nav-item">
                             <NavLink class="nav-link" href="maintenance-plans">
-                                <span class="nav-icon">☑</span>
+                                <span class="nav-icon">🗓️</span>
                                 <span class="nav-text">Planes de Mantenimiento</span>
                             </NavLink>
                         </div>
                     }
                 }
 
-                @if (HasAny("PhysicalCounts.View", "Documents.View", "Reports.View", "Settings.View", "Security.Users", "Security.Roles"))
+                @if (HasAny("PhysicalCounts.View", "Reconciliation.View", "Reconciliation.Clarify", "Reconciliation.ApproveCreation", "Reconciliation.Manage", "Documents.View", "Reports.View", "Settings.View", "Security.Users", "Security.Roles"))
                 {
                     <div class="nav-section-title">CONTROL</div>
 
@@ -170,17 +172,17 @@
                     {
                         <div class="nav-item">
                             <NavLink class="nav-link" href="physical-counts">
-                                <span class="nav-icon">▦</span>
+                                <span class="nav-icon">📦</span>
                                 <span class="nav-text">Tomas Físicas</span>
                             </NavLink>
                         </div>
                     }
 
-                    @if (Has("PhysicalCounts.View"))
+                    @if (HasAny("Reconciliation.View", "Reconciliation.Clarify", "Reconciliation.ApproveCreation", "Reconciliation.Manage"))
                     {
                         <div class="nav-item">
                             <NavLink class="nav-link" href="reconciliation">
-                                <span class="nav-icon">⇄</span>
+                                <span class="nav-icon">⚖️</span>
                                 <span class="nav-text">Conciliación</span>
                             </NavLink>
                         </div>
@@ -190,7 +192,7 @@
                     {
                         <div class="nav-item">
                             <NavLink class="nav-link" href="documents">
-                                <span class="nav-icon">▧</span>
+                                <span class="nav-icon">📄</span>
                                 <span class="nav-text">Documentos</span>
                             </NavLink>
                         </div>
@@ -200,7 +202,7 @@
                     {
                         <div class="nav-item">
                             <NavLink class="nav-link" href="reports">
-                                <span class="nav-icon">■</span>
+                                <span class="nav-icon">📈</span>
                                 <span class="nav-text">Reportes</span>
                             </NavLink>
                         </div>
@@ -210,7 +212,7 @@
                     {
                         <div class="nav-item">
                             <NavLink class="nav-link" href="settings">
-                                <span class="nav-icon">⚙</span>
+                                <span class="nav-icon">⚙️</span>
                                 <span class="nav-text">Configuración</span>
                             </NavLink>
                         </div>
@@ -220,7 +222,7 @@
                     {
                         <div class="nav-item">
                             <NavLink class="nav-link" href="settings/users">
-                                <span class="nav-icon">♙</span>
+                                <span class="nav-icon">👤</span>
                                 <span class="nav-text">Usuarios</span>
                             </NavLink>
                         </div>
@@ -275,6 +277,7 @@
                     if (user is not null && !string.IsNullOrWhiteSpace(user.UserName))
                     {
                         AuthSession.Login(user);
+                        await RefreshCurrentRolePermissionsAsync();
                     }
                 }
             }
@@ -306,6 +309,76 @@
     {
         return AuthSession.HasAnyPermission(permissions);
     }
+
+    
+    private async Task RefreshCurrentRolePermissionsAsync()
+    {
+        if (!AuthSession.IsAuthenticated || AuthSession.RoleId is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var api = HttpClientFactory.CreateClient("NaviApi");
+            var roles = await api.GetFromJsonAsync<List<RoleRefreshDto>>("api/settings/roles") ?? new();
+
+            var role = roles.FirstOrDefault(x => x.Id == AuthSession.RoleId.Value);
+
+            if (role is null)
+            {
+                return;
+            }
+
+            var current = AuthSession.CurrentUser;
+
+            if (current is null)
+            {
+                return;
+            }
+
+            current.RoleCode = role.Code;
+            current.RoleName = role.Name;
+            current.Permissions = ParsePermissions(role.Permissions).ToList();
+
+            AuthSession.Login(current);
+
+            var json = JsonSerializer.Serialize(current);
+            await JS.InvokeVoidAsync("localStorage.setItem", StorageKey, json);
+        }
+        catch
+        {
+            // Si no se puede refrescar, se conserva la sesión actual.
+        }
+    }
+
+    private static IEnumerable<string> ParsePermissions(string? permissions)
+    {
+        if (string.IsNullOrWhiteSpace(permissions))
+        {
+            return Array.Empty<string>();
+        }
+
+        if (permissions.Equals("ALL", StringComparison.OrdinalIgnoreCase))
+        {
+            return Array.Empty<string>();
+        }
+
+        return permissions
+            .Split(new[] { ',', ';', '|', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private sealed class RoleRefreshDto
+    {
+        public Guid Id { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? Permissions { get; set; }
+        public bool IsActive { get; set; }
+    }
+
 
     private string GetInitials()
     {
@@ -354,14 +427,3 @@
         AuthSession.OnChange -= HandleAuthChanged;
     }
 }
-
-
-
-
-
-
-
-
-
-
-

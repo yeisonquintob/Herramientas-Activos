@@ -1,887 +1,1353 @@
-﻿@page "/settings/roles"
+@page "/settings/roles"
 @rendermode InteractiveServer
+@using System.Net.Http.Json
 @using Navi.ToolsAssets.Admin.Services.Auth
 @inject IHttpClientFactory HttpClientFactory
 @inject WebAuthSessionService AuthSession
 
-<PageTitle>Roles y permisos - Configuración</PageTitle>
+<PageTitle>Roles y permisos - NAVI</PageTitle>
 
-<section class="roles-tech-banner">
+<section class="navi-module-hero">
     <div>
-        <span class="roles-tech-pill">CONFIGURACIÓN</span>
+        <span class="navi-module-pill">SEGURIDAD · MATRIZ DE ACCIÓN · PERMISOS</span>
         <h2>Roles y permisos</h2>
-        <p>Administra perfiles del sistema y define qué módulos puede consultar, crear, editar, eliminar, aprobar o reportar cada rol.</p>
+        <p>Define qué puede ver, crear, editar, aprobar, rechazar, reportar, exportar o administrar cada rol del sistema NAVI.</p>
     </div>
 
-    <div class="roles-tech-side">
-        <div class="roles-tech-status">
+    <div class="navi-module-hero-actions">
+        <div class="navi-module-hero-counter">
             <span>Roles</span>
-            <strong>@roles.Count registrados</strong>
+            <strong>@roles.Count</strong>
         </div>
 
-        <a class="btn btn-sm btn-outline-light roles-back-button" href="/settings">
+        <a class="navi-module-hero-btn" href="/settings">
             Volver a Configuración
         </a>
     </div>
 </section>
 
-<section class="settings-crud-layout roles-crud-layout">
-    <div class="settings-crud-form roles-form-card">
-        <h2>@(editingId is null ? "Crear rol" : "Editar rol")</h2>
+<section class="rolesx-kpis">
+    <article>
+        <span>Permisos definidos</span>
+        <strong>@AllPermissions.Count</strong>
+        <small>Matriz funcional</small>
+    </article>
+
+    <article class="success">
+        <span>Plantillas</span>
+        <strong>@roleTemplates.Count</strong>
+        <small>Perfiles rápidos</small>
+    </article>
+
+    <article class="warning">
+        <span>Seleccionados</span>
+        <strong>@selectedPermissions.Count</strong>
+        <small>Rol actual</small>
+    </article>
+
+    <article class="purple">
+        <span>Modo</span>
+        <strong>@(CanManageRoles ? "Edición" : "Consulta")</strong>
+        <small>@(CanManageRoles ? "Puede modificar" : "Solo lectura")</small>
+    </article>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="@messageClass rolesx-message">@message</div>
+}
+
+<section class="rolesx-workspace">
+    <aside class="rolesx-card rolesx-left">
+        <div class="rolesx-card-title">
+            <div>
+                <h3>@(editingId is null ? "Crear rol" : "Editar rol")</h3>
+                <p>Información base del perfil.</p>
+            </div>
+        </div>
 
         <EditForm Model="formModel" OnValidSubmit="SaveAsync">
             <DataAnnotationsValidator />
 
-            <div class="mb-3">
-                <label class="form-label">Código</label>
-                <InputText class="form-control" @bind-Value="formModel.Code" placeholder="ADMIN, TECNICO, AUDITOR" disabled="@(!CanManageRoles)" />
+            <div class="rolesx-form-grid">
+                <div>
+                    <label>Código del rol</label>
+                    <InputText class="form-control"
+                               @bind-Value="formModel.Code"
+                               placeholder="TECNICO, HERRAMIENT, COORD_TALLER"
+                               disabled="@(!CanManageRoles)" />
+                </div>
+
+                <div>
+                    <label>Nombre</label>
+                    <InputText class="form-control"
+                               @bind-Value="formModel.Name"
+                               placeholder="Técnico, Herramientero, Coordinador"
+                               disabled="@(!CanManageRoles)" />
+                </div>
+
+                <div class="span-2">
+                    <label>Descripción</label>
+                    <InputTextArea class="form-control"
+                                   @bind-Value="formModel.Description"
+                                   rows="3"
+                                   placeholder="Describe el alcance del rol dentro del proceso."
+                                   disabled="@(!CanManageRoles)" />
+                </div>
+
+                <div class="rolesx-check-row span-2">
+                    <InputCheckbox class="form-check-input"
+                                   @bind-Value="formModel.IsActive"
+                                   disabled="@(!CanManageRoles)" />
+                    <label>Rol activo</label>
+                </div>
             </div>
 
-            <div class="mb-3">
-                <label class="form-label">Nombre</label>
-                <InputText class="form-control" @bind-Value="formModel.Name" placeholder="Administrador, Técnico, Auditor" disabled="@(!CanManageRoles)" />
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label">Descripción</label>
-                <InputTextArea class="form-control" @bind-Value="formModel.Description" rows="3" disabled="@(!CanManageRoles)" />
-            </div>
-
-            <div class="form-check mb-3">
-                <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive" disabled="@(!CanManageRoles)" />
-                <label class="form-check-label">Activo</label>
-            </div>
-
-            @if (!string.IsNullOrWhiteSpace(message))
-            {
-                <div class="@messageClass">@message</div>
-            }
-
-            <div class="settings-crud-actions">
+            <div class="rolesx-actions">
                 @if (CanManageRoles)
                 {
-                    <button class="btn btn-primary" type="submit">Guardar</button>
+                    <button type="submit">Guardar matriz del rol</button>
                 }
                 else
                 {
-                    <span class="permission-action-denied">Solo consulta</span>
+                    <span class="rolesx-denied">Solo consulta</span>
                 }
-                <button class="btn btn-outline-secondary" type="button" @onclick="ClearForm">Limpiar</button>
+
+                <button type="button" class="secondary" @onclick="ClearForm">Limpiar</button>
             </div>
         </EditForm>
-    </div>
 
-    <div class="settings-crud-table roles-matrix-card">
-        <div class="settings-table-header">
+        <div class="rolesx-separator"></div>
+
+        <div class="rolesx-card-title compact">
             <div>
-                <h2>Matriz de permisos</h2>
-                <p>Marca los permisos que tendrá el rol seleccionado.</p>
-            </div>
-
-            <div class="roles-profile-toolbar">
-                <div class="profile-toolbar-left">
-                    <span class="toolbar-label">Perfiles rápidos</span>
-                    <small>Selecciona una plantilla y luego guarda el rol.</small>
-                </div>
-
-                <div class="profile-toolbar-actions">
-                    <button class="profile-btn admin" type="button" @onclick="SelectAdminProfile">
-                        Admin
-                    </button>
-
-                    <button class="profile-btn gerencial" type="button" @onclick="SelectGerencialProfile">
-                        Gerencial
-                    </button>
-
-                    <button class="profile-btn herramientas" type="button" @onclick="SelectHerramienteroProfile">
-                        Herramientero
-                    </button>
-
-                    <button class="profile-btn servicios" type="button" @onclick="SelectIngServiciosProfile">
-                        Ing. Servicios
-                    </button>
-
-                    <button class="profile-btn coordinador" type="button" @onclick="SelectCoordinadorProfile">
-                        Coord. Taller
-                    </button>
-
-                    <button class="profile-btn tecnico" type="button" @onclick="SelectTecnicoProfile">
-                        Técnico
-                    </button>
-
-                    <button class="profile-btn clear" type="button" @onclick="ClearPermissions">
-                        Quitar permisos
-                    </button>
-                </div>
+                <h3>Plantillas por cargo</h3>
+                <p>Selecciona un perfil y ajusta permisos antes de guardar.</p>
             </div>
         </div>
 
-        <div class="permissions-matrix">
-            @foreach (var group in permissionGroups)
+        <div class="rolesx-template-list">
+            @foreach (var template in roleTemplates)
             {
-                <article class="permission-group">
-                    <div class="permission-group-header">
-                        <span>@group.Area</span>
-                        <strong>@group.Title</strong>
+                <button type="button"
+                        class="@GetTemplateClass(template.Code)"
+                        @onclick="() => SelectProfile(template.Code)"
+                        disabled="@(!CanManageRoles)">
+                    <span>@template.Icon</span>
+
+                    <div>
+                        <strong>@template.Name</strong>
+                        <small>@template.Scope</small>
                     </div>
 
-                    <div class="permission-list">
-                        @foreach (var permission in group.Permissions)
-                        {
-                            <label class="permission-item">
-                                <input type="checkbox"
-                                       checked="@IsPermissionSelected(permission.Code)"
-                                       @onchange="args => TogglePermission(permission.Code, args.Value)" />
-
-                                <span>
-                                    <strong>@permission.Name</strong>
-                                    <small>@permission.Code</small>
-                                </span>
-                            </label>
-                        }
-                    </div>
-                </article>
+                    <em>@template.Permissions.Count</em>
+                </button>
             }
         </div>
-    </div>
-</section>
+        <div class="rolesx-separator"></div>
 
-<section class="roles-table-card">
-    <div class="settings-table-header">
-        <h2>Roles registrados</h2>
-        <button class="btn btn-sm btn-outline-primary" @onclick="LoadAsync">Actualizar</button>
-    </div>
+        <section class="rolesx-left-summary">
 
-    @if (isLoading)
-    {
-        <p>Cargando roles...</p>
-    }
-    else if (roles.Count == 0)
-    {
-        <div class="alert alert-info">No hay roles registrados.</div>
-    }
-    else
-    {
-        <table class="table table-hover align-middle">
-            <thead>
-                <tr>
-                    <th>Código</th>
-                    <th>Nombre</th>
-                    <th>Permisos</th>
-                    <th>Estado</th>
-                    <th class="text-end">Acciones</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var role in roles)
+        <div class="rolesx-card-title compact">
+            <div>
+                <h3>Resumen del rol</h3>
+                <p>Qué puede y qué no puede hacer.</p>
+            </div>
+        </div>
+
+        <div class="rolesx-current-role">
+            <span>@GetSelectedTemplateIcon()</span>
+            <div>
+                <strong>@(string.IsNullOrWhiteSpace(formModel.Name) ? "Rol sin seleccionar" : formModel.Name)</strong>
+                <small>@(string.IsNullOrWhiteSpace(formModel.Code) ? "Código pendiente" : formModel.Code)</small>
+            </div>
+        </div>
+
+        <div class="rolesx-summary-grid">
+            <div>
+                <span>Ver</span>
+                <strong>@CountByKind("View")</strong>
+            </div>
+
+            <div>
+                <span>Crear</span>
+                <strong>@CountByKind("Create", "Request")</strong>
+            </div>
+
+            <div>
+                <span>Editar</span>
+                <strong>@CountByKind("Edit", "Manage", "Execute", "Assign", "Return")</strong>
+            </div>
+
+            <div>
+                <span>Aprobar</span>
+                <strong>@CountByKind("Approve", "Close")</strong>
+            </div>
+        </div>
+
+        <div class="rolesx-separator"></div>
+
+        <div class="rolesx-card-title compact">
+            <div>
+                <h3>Reglas recomendadas</h3>
+                <p>Base para aplicar seguridad real.</p>
+            </div>
+        </div>
+
+        <div class="rolesx-rules">
+            @foreach (var rule in CurrentRoleRules)
+            {
+                <div>
+                    <span>@rule.Icon</span>
+                    <strong>@rule.Title</strong>
+                    <small>@rule.Description</small>
+                </div>
+            }
+        </div>
+
+        <div class="rolesx-separator"></div>
+
+        <div class="rolesx-card-title compact">
+            <div>
+                <h3>Permisos seleccionados</h3>
+                <p>@selectedPermissions.Count permiso(s) en el rol actual.</p>
+            </div>
+        </div>
+
+        <div class="rolesx-selected-list">
+            @if (selectedPermissions.Count == 0)
+            {
+                <div class="rolesx-empty small">Sin permisos seleccionados.</div>
+            }
+            else
+            {
+                @foreach (var permission in selectedPermissions.OrderBy(x => x))
                 {
-                    <tr>
-                        <td><strong>@role.Code</strong></td>
-                        <td>
-                            <div>@role.Name</div>
-                            <small class="text-muted">@role.Description</small>
-                        </td>
-                        <td>
-                            <span class="settings-permissions-text">
-                                @(string.IsNullOrWhiteSpace(role.Permissions) ? "Sin permisos" : role.Permissions)
-                            </span>
-                        </td>
-                        <td>
-                            <span class="badge @(role.IsActive ? "bg-success" : "bg-secondary")">
-                                @(role.IsActive ? "Activo" : "Inactivo")
-                            </span>
-                        </td>
-                        <td class="text-end">
-                            @if (CanManageRoles)
-                                    {
-                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(role)">Editar</button>
-                                    }
-                            @if (CanManageRoles)
-                                    {
-                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(role.Id)">Eliminar</button>
-                                    }
-                        </td>
-                    </tr>
+                    <span>@permission</span>
                 }
-            </tbody>
-        </table>
-    }
+            }
+        </div>
+        </section>
+
+    </aside>
+
+    <main class="rolesx-main">
+        <article class="rolesx-card">
+            <div class="rolesx-card-title">
+                <div>
+                    <h3>Matriz de acción por módulo</h3>
+                    <p>Permisos separados por ver, crear, editar, aprobar, rechazar, reportar, exportar y administrar.</p>
+                </div>
+
+                <div class="rolesx-tools">
+                    <input class="form-control"
+                           placeholder="Buscar permiso, módulo o acción..."
+                           @bind="permissionSearch"
+                           @bind:event="oninput" />
+
+                    <div class="rolesx-tool-actions">
+                        <button type="button" class="soft" @onclick="ExpandAllPermissionGroups">Mostrar todo</button>
+                        <button type="button" class="soft" @onclick="CollapseAllPermissionGroups">Ocultar todo</button>
+                        <button type="button" @onclick="SelectAdminProfile" disabled="@(!CanManageRoles)">Todo</button>
+                        <button type="button" class="danger-light" @onclick="ClearPermissions" disabled="@(!CanManageRoles)">Quitar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rolesx-legend">
+                <span><b class="view"></b> Ver / consultar</span>
+                <span><b class="create"></b> Crear / solicitar</span>
+                <span><b class="edit"></b> Editar / gestionar</span>
+                <span><b class="approve"></b> Aprobar / cerrar</span>
+                <span><b class="danger"></b> Eliminar / rechazar</span>
+                <span><b class="mobile"></b> Móvil / técnico</span>
+            </div>
+
+            <div class="rolesx-matrix">
+                @foreach (var group in FilteredPermissionGroups)
+                {
+                    <section class="@(IsGroupCollapsed(group) ? "rolesx-permission-group collapsed" : "rolesx-permission-group")">
+                        <header>
+                            <div>
+                                <span>@group.Area</span>
+                                <strong>@group.Title</strong>
+                                <small>@group.Permissions.Count permiso(s)</small>
+                            </div>
+
+                            <button type="button"
+                                    class="rolesx-collapse-btn"
+                                    @onclick="() => TogglePermissionGroup(group)">
+                                @(IsGroupCollapsed(group) ? "Ver" : "Ocultar")
+                            </button>
+                        </header>
+
+                        @if (!IsGroupCollapsed(group))
+                        {
+                            <div class="rolesx-permission-list">
+                                @foreach (var permission in group.Permissions)
+                                {
+                                    <label class="@GetPermissionClass(permission)">
+                                        <input type="checkbox"
+                                               checked="@IsPermissionSelected(permission.Code)"
+                                               disabled="@(!CanManageRoles)"
+                                               @onchange="args => TogglePermission(permission.Code, args.Value)" />
+
+                                        <span>
+                                            <strong>@permission.Name</strong>
+                                            <small>@permission.Code</small>
+                                        </span>
+
+                                        <em>@permission.Scope</em>
+                                    </label>
+                                }
+                            </div>
+                        }
+                    </section>
+                }
+            </div>
+        </article>
+
+        <article class="rolesx-card rolesx-role-table">
+            <div class="rolesx-card-title">
+                <div>
+                    <h3>Roles registrados</h3>
+                    <p>Perfiles guardados en base de datos y permisos activos por rol.</p>
+                </div>
+
+                <button class="rolesx-light-btn" type="button" @onclick="LoadAsync">Actualizar</button>
+            </div>
+
+            @if (isLoading)
+            {
+                <div class="rolesx-empty">Cargando roles...</div>
+            }
+            else if (roles.Count == 0)
+            {
+                <div class="rolesx-empty">No hay roles registrados.</div>
+            }
+            else
+            {
+                <div class="rolesx-table-wrapper">
+                    <table class="rolesx-table">
+                        <thead>
+                            <tr>
+                                <th>Rol</th>
+                                <th>Perfil detectado</th>
+                                <th>Permisos</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var role in roles.OrderBy(x => x.Code))
+                            {
+                                <tr>
+                                    <td>
+                                        <strong>@role.Code</strong>
+                                        <small>@role.Name</small>
+                                    </td>
+
+                                    <td>
+                                        <span class="rolesx-profile-pill">@GetRoleProfileName(role)</span>
+                                        <small>@role.Description</small>
+                                    </td>
+
+                                    <td>
+                                        <div class="rolesx-permission-count">
+                                            <strong>@GetRolePermissionCount(role)</strong>
+                                            <small>@GetRolePermissionPreview(role)</small>
+                                        </div>
+                                    </td>
+
+                                    <td>
+                                        <span class="@(role.IsActive ? "rolesx-status active" : "rolesx-status inactive")">
+                                            @(role.IsActive ? "Activo" : "Inactivo")
+                                        </span>
+                                    </td>
+
+                                    <td>
+                                        <div class="rolesx-row-actions">
+                                            <button type="button" @onclick="() => Edit(role)" disabled="@(!CanManageRoles)">
+                                                Editar
+                                            </button>
+
+                                            <button type="button" class="danger" @onclick="() => DeleteAsync(role.Id)" disabled="@(!CanManageRoles)">
+                                                Eliminar
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </article>
+    </main>
+
+
 </section>
 
 <style>
-    .settings-roles-page,
-    .roles-page {
-        --navi-purple: #4b005c;
-        --navi-purple-2: #7b0d8e;
-        --navi-purple-soft: #f7eef9;
-        --navi-border: #dfe3e8;
-        --navi-muted: #657083;
-        --navi-dark: #17111c;
-    }
-
-    .roles-layout,
-    .settings-grid,
-    .settings-content-grid {
-        gap: .85rem !important;
-        align-items: flex-start;
-    }
-
-    .settings-card,
-    .roles-form-card,
-    .roles-matrix-card,
-    .roles-list-card {
-        border: 1px solid var(--navi-border) !important;
-        border-radius: .95rem !important;
-        background: #ffffff !important;
-        box-shadow: 0 .4rem 1rem rgba(0, 0, 0, .045) !important;
-    }
-
-    .roles-matrix-card {
-        padding: .85rem !important;
-    }
-
-    .roles-matrix-card h3,
-    .settings-card h3,
-    .roles-list-card h3 {
-        color: var(--navi-dark);
-        font-weight: 950;
-        letter-spacing: -.02rem;
-        margin-bottom: .1rem;
-    }
-
-    .roles-matrix-card p,
-    .settings-card p,
-    .roles-list-card p {
-        color: var(--navi-muted);
-        font-size: .76rem;
-    }
-
-    .roles-profile-toolbar {
+    .rolesx-hero {
+        margin-bottom: .7rem;
+        padding: .95rem 1.1rem;
+        border-radius: 1rem;
+        background: linear-gradient(105deg, #050507 0%, #07070b 34%, #120017 58%, #350040 78%, #710083 100%);
+        color: white;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        gap: .75rem;
-        margin: .65rem 0 .8rem;
-        padding: .65rem;
-        border: 1px solid #ead7f0;
-        border-radius: .85rem;
-        background: linear-gradient(135deg, #fff 0%, #fbf4fd 100%);
+        gap: 1rem;
+        box-shadow: 0 .55rem 1.2rem rgba(75,0,92,.18);
     }
 
-    .profile-toolbar-left {
-        min-width: 175px;
+    .rolesx-pill {
+        display: inline-flex;
+        padding: .18rem .62rem;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,.35);
+        background: rgba(255,255,255,.10);
+        font-size: .68rem;
+        font-weight: 950;
     }
 
-    .toolbar-label {
+    .rolesx-hero h2 {
+        margin: .34rem 0 .14rem;
+        font-size: 1.75rem;
+        font-weight: 950;
+        line-height: 1.05;
+    }
+
+    .rolesx-hero p {
+        margin: 0;
+        color: rgba(255,255,255,.88);
+        font-size: .88rem;
+    }
+
+    .rolesx-hero-actions {
+        display: grid;
+        gap: .45rem;
+        width: 190px;
+    }
+
+    .rolesx-hero-counter {
+        border: 1px solid rgba(255,255,255,.18);
+        border-radius: .72rem;
+        background: rgba(255,255,255,.10);
+        padding: .45rem .7rem;
+        text-align: right;
+    }
+
+    .rolesx-hero-counter span,
+    .rolesx-hero-counter strong {
         display: block;
-        color: var(--navi-purple);
-        font-size: .75rem;
+        line-height: 1.08;
+    }
+
+    .rolesx-hero-counter span {
+        color: #ffdd57;
+        font-size: .66rem;
         font-weight: 950;
         text-transform: uppercase;
-        letter-spacing: .04rem;
     }
 
-    .profile-toolbar-left small {
+    .rolesx-hero-counter strong {
+        color: #fff;
+        font-size: 1.25rem;
+        font-weight: 950;
+    }
+
+    .rolesx-hero-btn {
+        min-height: 34px;
+        border-radius: .55rem;
+        border: 1px solid rgba(255,255,255,.70);
+        background: rgba(255,255,255,.06);
+        color: #fff;
+        font-size: .76rem;
+        font-weight: 950;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+    }
+
+    .rolesx-kpis {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(130px, 1fr));
+        gap: .45rem;
+        margin-bottom: .65rem;
+    }
+
+    .rolesx-kpis article,
+    .rolesx-card {
+        background: #fff;
+        border: 1px solid #eadff0;
+        border-radius: .9rem;
+        box-shadow: 0 .25rem .75rem rgba(75,0,92,.045);
+    }
+
+    .rolesx-kpis article {
+        border-left: 4px solid #2186d9;
+        padding: .55rem;
+    }
+
+    .rolesx-kpis article.success { border-left-color: #198754; }
+    .rolesx-kpis article.warning { border-left-color: #ffc107; }
+    .rolesx-kpis article.purple { border-left-color: #7b0d8e; }
+
+    .rolesx-kpis span {
         display: block;
-        color: var(--navi-muted);
-        font-size: .68rem;
-        margin-top: .1rem;
+        color: #526071;
+        font-size: .62rem;
+        font-weight: 950;
+        text-transform: uppercase;
     }
 
-    .profile-toolbar-actions {
+    .rolesx-kpis strong {
+        display: block;
+        color: #06111f;
+        font-size: 1.25rem;
+        font-weight: 950;
+        line-height: 1;
+    }
+
+    .rolesx-kpis small {
+        color: #657083;
+        font-size: .62rem;
+    }
+
+    .rolesx-message {
+        border-radius: .65rem;
+        margin-bottom: .65rem;
+        font-size: .76rem;
+        font-weight: 850;
+    }
+
+    .rolesx-workspace {
+        display: grid;
+        grid-template-columns: 345px minmax(0, 1fr);
+        gap: .65rem;
+        align-items: start;
+    }
+
+    .rolesx-card {
+        padding: .82rem;
+    }
+
+    .rolesx-left {
+        position: sticky;
+        top: .7rem;
+        max-height: calc(100vh - 1.4rem);
+        overflow-y: auto;
+    }
+
+    .rolesx-main {
+        display: grid;
+        gap: .65rem;
+        min-width: 0;
+    }
+
+    .rolesx-card-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: .75rem;
+        margin-bottom: .62rem;
+    }
+
+    .rolesx-card-title.compact {
+        display: block;
+        margin-bottom: .45rem;
+    }
+
+    .rolesx-card-title h3 {
+        margin: 0;
+        color: #100018;
+        font-size: 1rem;
+        font-weight: 950;
+    }
+
+    .rolesx-card-title p {
+        margin: .08rem 0 0;
+        color: #657083;
+        font-size: .72rem;
+        line-height: 1.25;
+    }
+
+    .rolesx-form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .5rem;
+    }
+
+    .rolesx-form-grid .span-2 {
+        grid-column: span 2;
+    }
+
+    .rolesx-form-grid label,
+    .rolesx-check-row label {
+        color: #24102e;
+        font-size: .68rem;
+        font-weight: 950;
+        margin-bottom: .18rem;
+    }
+
+    .rolesx-check-row {
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+    }
+
+    .rolesx-actions {
+        display: flex;
+        gap: .4rem;
+        margin-top: .65rem;
+        flex-wrap: wrap;
+    }
+
+    .rolesx-actions button,
+    .rolesx-tools button,
+    .rolesx-light-btn,
+    .rolesx-row-actions button {
+        min-height: 30px;
+        border-radius: .48rem;
+        font-size: .66rem;
+        font-weight: 950;
+        padding: .28rem .65rem;
+        border: 1px solid #2563eb;
+        background: #eff6ff;
+        color: #1d4ed8;
+    }
+
+    .rolesx-actions button:first-child {
+        border: 0;
+        color: #fff;
+        background: linear-gradient(135deg, #7b0d8e, #4b005c);
+    }
+
+    .rolesx-actions button.secondary {
+        border: 1px solid #cbd5e1;
+        background: #f8fafc;
+        color: #334155;
+    }
+
+    .rolesx-denied {
+        display: inline-flex;
+        align-items: center;
+        min-height: 30px;
+        padding: .28rem .65rem;
+        border-radius: .48rem;
+        background: #fff3cd;
+        color: #7a5200;
+        font-size: .66rem;
+        font-weight: 950;
+    }
+
+    .rolesx-separator {
+        height: 1px;
+        background: #eadff0;
+        margin: .75rem 0 .6rem;
+    }
+
+    .rolesx-template-list {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: .28rem;
+    }
+
+    .rolesx-template-list button {
+        min-height: 42px;
+        border: 1px solid #eadff0;
+        background: #fbf8ff;
+        border-radius: .58rem;
+        display: grid;
+        grid-template-columns: 28px minmax(0, 1fr) 30px;
+        gap: .36rem;
+        align-items: center;
+        text-align: left;
+        padding: .34rem .38rem;
+    }
+
+    .rolesx-template-list button.active {
+        border-color: #7b0d8e;
+        background: linear-gradient(135deg, rgba(123,13,142,.12), rgba(33,134,217,.08));
+    }
+
+    .rolesx-template-list span,
+    .rolesx-current-role > span,
+    .rolesx-rules span {
+        width: 28px;
+        height: 28px;
+        border-radius: .5rem;
+        display: grid;
+        place-items: center;
+        color: #fff;
+        background: linear-gradient(145deg, #7b0d8e, #4b005c);
+        font-size: .78rem;
+    }
+
+    .rolesx-template-list strong,
+    .rolesx-template-list small {
+        color: #657083;
+        font-size: .54rem;
+        margin-top: .06rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .rolesx-template-list strong {
+        color: #100018;
+        font-size: .64rem;
+        font-weight: 950;
+    }
+
+    .rolesx-template-list small {
+        color: #657083;
+        font-size: .58rem;
+        margin-top: .08rem;
+    }
+
+    .rolesx-template-list em {
+        font-style: normal;
+        font-size: .62rem;
+        font-weight: 950;
+        color: #4b005c;
+        text-align: right;
+    }
+
+    .rolesx-tools {
+        display: grid;
+        grid-template-columns: minmax(260px, 1fr) auto;
+        gap: .45rem;
+        align-items: center;
+        min-width: 540px;
+    }
+
+    .rolesx-tool-actions {
         display: flex;
         flex-wrap: wrap;
         justify-content: flex-end;
-        gap: .35rem;
+        gap: .3rem;
     }
 
-    .profile-btn {
-        border: 1px solid #d8b7e4;
-        background: #ffffff;
-        color: var(--navi-purple);
-        border-radius: 999px;
-        padding: .28rem .68rem;
-        font-size: .72rem;
-        font-weight: 900;
-        transition: all .15s ease;
+    .rolesx-tool-actions button {
+        min-height: 30px;
+        border-radius: .48rem;
+        font-size: .62rem;
+        font-weight: 950;
+        padding: .24rem .55rem;
+        border: 1px solid #2563eb;
+        background: #eff6ff;
+        color: #1d4ed8;
         white-space: nowrap;
     }
 
-    .profile-btn:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 .35rem .75rem rgba(75, 0, 92, .14);
+    .rolesx-tool-actions button.soft {
+        border-color: #d8b7e4;
+        background: #fbf4ff;
+        color: #4b005c;
     }
 
-    .profile-btn.admin {
-        background: linear-gradient(135deg, #4b005c 0%, #8c119f 100%);
-        color: #ffffff;
-        border-color: #4b005c;
+    .rolesx-tool-actions button.danger-light {
+        border-color: #f5c2c7;
+        background: #fff5f5;
+        color: #b42318;
     }
 
-    .profile-btn.gerencial {
-        border-color: #0d6efd;
-        color: #0d6efd;
+    .rolesx-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .35rem;
+        margin-bottom: .6rem;
     }
 
-    .profile-btn.herramientas {
-        border-color: #198754;
-        color: #198754;
+    .rolesx-legend span {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        border: 1px solid #edf1f5;
+        background: #fbf8ff;
+        border-radius: 999px;
+        padding: .18rem .45rem;
+        font-size: .58rem;
+        font-weight: 850;
+        color: #526071;
     }
 
-    .profile-btn.servicios {
-        border-color: #0dcaf0;
-        color: #087990;
+    .rolesx-legend b {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        display: inline-block;
+        background: #2186d9;
     }
 
-    .profile-btn.coordinador {
-        border-color: #fd7e14;
-        color: #b45309;
+    .rolesx-legend b.create { background: #198754; }
+    .rolesx-legend b.edit { background: #7b0d8e; }
+    .rolesx-legend b.approve { background: #fd7e14; }
+    .rolesx-legend b.danger { background: #dc3545; }
+    .rolesx-legend b.mobile { background: #0dcaf0; }
+
+    .rolesx-matrix {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: .55rem;
     }
 
-    .profile-btn.tecnico {
-        border-color: #6f42c1;
-        color: #6f42c1;
-    }
-
-    .profile-btn.clear {
-        border-color: #ced4da;
-        color: #495057;
-        background: #f8f9fa;
-    }
-
-    .permissions-matrix {
-        display: grid !important;
-        grid-template-columns: repeat(auto-fit, minmax(245px, 1fr)) !important;
-        gap: .65rem !important;
-        align-items: stretch;
-    }
-
-    .permission-group,
-    .permission-card,
-    .permission-block {
-        border: 1px solid #e5e8ef !important;
-        border-radius: .85rem !important;
-        background: #fff !important;
+    .rolesx-permission-group {
+        border: 1px solid #e5e8ef;
+        border-radius: .78rem;
         overflow: hidden;
-        transition: box-shadow .15s ease, transform .15s ease, border-color .15s ease;
+        background: #fff;
     }
 
-    .permission-group:hover,
-    .permission-card:hover,
-    .permission-block:hover {
-        border-color: #d8b7e4 !important;
-        box-shadow: 0 .45rem .95rem rgba(75, 0, 92, .08);
-        transform: translateY(-1px);
-    }
-
-    .permission-group-header,
-    .permission-card-header,
-    .permission-block-header {
-        padding: .48rem .58rem !important;
+    .rolesx-permission-group header {
+        padding: .44rem .5rem;
         background: linear-gradient(135deg, #fbf4fd 0%, #ffffff 100%);
         border-bottom: 1px solid #edf1f5;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .5rem;
     }
 
-    .permission-group-header small,
-    .permission-card-header small,
-    .permission-block-header small {
+    .rolesx-collapse-btn {
+        min-width: 58px;
+        min-height: 25px;
+        border-radius: 999px;
+        border: 1px solid #d8b7e4;
+        background: #ffffff;
+        color: #4b005c;
+        font-size: .56rem;
+        font-weight: 950;
+        padding: .12rem .45rem;
+        white-space: nowrap;
+    }
+
+    .rolesx-permission-group.collapsed {
+        opacity: .96;
+    }
+
+    .rolesx-permission-group.collapsed header {
+        border-bottom: 0;
+    }
+
+    .rolesx-permission-group header span,
+    .rolesx-permission-group header strong,
+    .rolesx-permission-group header small {
         display: block;
-        color: var(--navi-purple);
+        line-height: 1.08;
+    }
+
+    .rolesx-permission-group header span {
+        color: #4b005c;
         font-size: .58rem;
         font-weight: 950;
         text-transform: uppercase;
-        letter-spacing: .05rem;
-        line-height: 1.1;
     }
 
-    .permission-group-header strong,
-    .permission-card-header strong,
-    .permission-block-header strong {
-        display: block;
-        color: var(--navi-dark);
+    .rolesx-permission-group header strong {
+        color: #100018;
         font-size: .78rem;
         font-weight: 950;
-        line-height: 1.1;
         margin-top: .08rem;
     }
 
-    .permission-group-body,
-    .permission-card-body,
-    .permission-block-body {
-        padding: .5rem .58rem .58rem !important;
+    .rolesx-permission-group header small {
+        color: #657083;
+        font-size: .56rem;
+        margin-top: .08rem;
+    }
+
+    .rolesx-permission-list {
+        padding: .45rem;
         display: grid;
-        gap: .32rem;
+        gap: .28rem;
     }
 
-    .permission-check,
-    .form-check.permission-check,
-    .permission-item {
-        display: grid !important;
-        grid-template-columns: 17px 1fr;
-        gap: .35rem;
-        align-items: flex-start;
-        min-height: 30px;
-        margin: 0 !important;
-        padding: .24rem .25rem;
+    .rolesx-permission-item {
+        display: grid;
+        grid-template-columns: 16px minmax(0, 1fr) auto;
+        gap: .36rem;
+        align-items: start;
+        min-height: 34px;
+        padding: .27rem .3rem;
         border-radius: .5rem;
+        border-left: 3px solid transparent;
     }
 
-    .permission-check:hover,
-    .permission-item:hover {
+    .rolesx-permission-item:hover {
         background: #f8fafc;
     }
 
-    .permission-check input,
-    .permission-item input,
-    .permission-check .form-check-input {
-        margin: .15rem 0 0 !important;
+    .rolesx-permission-item.selected {
+        background: #fbf4ff;
+        border-left-color: #7b0d8e;
+    }
+
+    .rolesx-permission-item.kind-view { border-left-color: #2186d9; }
+    .rolesx-permission-item.kind-create { border-left-color: #198754; }
+    .rolesx-permission-item.kind-edit { border-left-color: #7b0d8e; }
+    .rolesx-permission-item.kind-approve { border-left-color: #fd7e14; }
+    .rolesx-permission-item.kind-danger { border-left-color: #dc3545; }
+    .rolesx-permission-item.kind-mobile { border-left-color: #0dcaf0; }
+
+    .rolesx-permission-item input {
         width: 14px;
         height: 14px;
-        cursor: pointer;
-        accent-color: var(--navi-purple);
+        margin-top: .14rem;
+        accent-color: #7b0d8e;
     }
 
-    .permission-check label,
-    .permission-item label,
-    .permission-label {
-        cursor: pointer;
-        color: var(--navi-dark);
-        font-size: .72rem;
-        font-weight: 900;
-        line-height: 1.1;
-    }
-
-    .permission-check small,
-    .permission-item small,
-    .permission-code {
+    .rolesx-permission-item strong,
+    .rolesx-permission-item small {
         display: block;
-        color: #8a94a6;
-        font-size: .56rem;
-        font-weight: 800;
-        line-height: 1.1;
-        margin-top: .08rem;
-        word-break: break-word;
+        line-height: 1.08;
     }
 
-    .roles-list-card,
-    .roles-table-wrapper {
-        margin-top: .85rem;
-    }
-
-    .roles-list-card table,
-    .roles-table-wrapper table,
-    table.roles-table {
-        font-size: .76rem;
-    }
-
-    .roles-list-card thead th,
-    .roles-table-wrapper thead th,
-    table.roles-table thead th {
-        color: var(--navi-dark);
+    .rolesx-permission-item strong {
+        color: #100018;
         font-size: .68rem;
-        text-transform: uppercase;
-        letter-spacing: .03rem;
-        border-bottom: 1px solid #17111c !important;
+        font-weight: 950;
+    }
+
+    .rolesx-permission-item small {
+        color: #8a94a6;
+        font-size: .55rem;
+        margin-top: .08rem;
+        overflow-wrap: anywhere;
+    }
+
+    .rolesx-permission-item em {
+        font-style: normal;
+        font-size: .55rem;
+        font-weight: 900;
+        border-radius: 999px;
+        color: #4b005c;
+        background: #fbf4ff;
+        border: 1px solid #eadff0;
+        padding: .12rem .35rem;
         white-space: nowrap;
     }
 
-    .roles-list-card tbody td,
-    .roles-table-wrapper tbody td,
-    table.roles-table tbody td {
-        vertical-align: middle;
-        padding-top: .48rem !important;
-        padding-bottom: .48rem !important;
+    .rolesx-table-wrapper {
+        overflow-x: auto;
     }
 
-    .roles-list-card tbody tr:hover,
-    .roles-table-wrapper tbody tr:hover,
-    table.roles-table tbody tr:hover {
-        background: #fbf4fd;
+    .rolesx-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: .72rem;
     }
 
-    .badge.bg-success,
-    .status-badge.active {
-        background: #198754 !important;
-        color: #fff !important;
+    .rolesx-table th {
+        border-bottom: 1px solid #17111c;
+        padding: .42rem .35rem;
+        font-size: .62rem;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .rolesx-table td {
+        border-bottom: 1px solid #e5e8ef;
+        padding: .45rem .35rem;
+        vertical-align: top;
+    }
+
+    .rolesx-table td strong,
+    .rolesx-table td small {
+        display: block;
+        line-height: 1.15;
+    }
+
+    .rolesx-table td small {
+        color: #657083;
+        font-size: .6rem;
+        margin-top: .1rem;
+    }
+
+    .rolesx-profile-pill,
+    .rolesx-status {
+        display: inline-flex;
+        align-items: center;
         border-radius: 999px;
-        font-size: .65rem;
-        padding: .22rem .5rem;
+        padding: .14rem .48rem;
+        font-size: .58rem;
+        font-weight: 950;
+        white-space: nowrap;
+    }
+
+    .rolesx-profile-pill {
+        color: #4b005c;
+        background: #fbf4ff;
+        border: 1px solid #eadff0;
+    }
+
+    .rolesx-status.active {
+        background: #d1e7dd;
+        color: #0f5132;
+    }
+
+    .rolesx-status.inactive {
+        background: #e9ecef;
+        color: #495057;
+    }
+
+    .rolesx-permission-count strong {
+        font-size: 1rem;
+        font-weight: 950;
+        color: #100018;
+    }
+
+    .rolesx-row-actions {
+        display: flex;
+        gap: .3rem;
+        flex-wrap: wrap;
+    }
+
+    .rolesx-row-actions button.danger {
+        color: #b42318;
+        border-color: #f5c2c7;
+        background: #fff5f5;
+    }
+
+    .rolesx-current-role {
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr);
+        gap: .5rem;
+        align-items: center;
+        border: 1px solid #eadff0;
+        background: #fbf8ff;
+        border-radius: .72rem;
+        padding: .55rem;
+    }
+
+    .rolesx-current-role strong,
+    .rolesx-current-role small {
+        display: block;
+        line-height: 1.12;
+    }
+
+    .rolesx-current-role strong {
+        font-size: .8rem;
+        font-weight: 950;
+        color: #100018;
+    }
+
+    .rolesx-current-role small {
+        color: #657083;
+        font-size: .62rem;
+        margin-top: .12rem;
+    }
+
+    .rolesx-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: .3rem;
+        margin-top: .5rem;
+    }
+
+    .rolesx-summary-grid div {
+        border: 1px solid #eadff0;
+        background: #fff;
+        border-radius: .55rem;
+        padding: .34rem .25rem;
+        text-align: center;
+    }
+
+    .rolesx-summary-grid span,
+    .rolesx-summary-grid strong {
+        color: #100018;
+        font-size: .95rem;
+        font-weight: 950;
+        margin-top: .05rem;
+    }
+
+    .rolesx-summary-grid span {
+        color: #657083;
+        font-size: .5rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .rolesx-summary-grid strong {
+        color: #100018;
+        font-size: 1.15rem;
+        font-weight: 950;
+        margin-top: .08rem;
+    }
+
+    .rolesx-rules {
+        display: grid;
+        gap: .28rem;
+    }
+
+    .rolesx-rules div {
+        display: grid;
+        grid-template-columns: 26px minmax(0, 1fr);
+        gap: .35rem;
+        align-items: center;
+        border: 1px solid #eadff0;
+        background: #fbf8ff;
+        border-radius: .58rem;
+        padding: .34rem .38rem;
+        min-height: 42px;
+    }
+
+    .rolesx-rules strong,
+    .rolesx-rules small {
+        color: #657083;
+        font-size: .52rem;
+        margin-top: .06rem;
+        white-space: nowrap;
+    }
+
+    .rolesx-rules strong {
+        color: #100018;
+        font-size: .62rem;
+        font-weight: 950;
+        white-space: nowrap;
+    }
+
+    .rolesx-rules small {
+        color: #657083;
+        font-size: .58rem;
+        margin-top: .08rem;
+    }
+
+    .rolesx-selected-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .25rem;
+    }
+
+    .rolesx-selected-list span {
+        display: inline-flex;
+        border-radius: 999px;
+        border: 1px solid #eadff0;
+        background: #fbf4ff;
+        color: #4b005c;
+        padding: .14rem .42rem;
+        font-size: .55rem;
         font-weight: 900;
     }
 
-    .btn-outline-primary,
-    .btn-outline-danger,
-    .btn-outline-secondary {
-        border-radius: .45rem !important;
-        font-size: .72rem !important;
-        font-weight: 850 !important;
+    .rolesx-empty {
+        border: 1px dashed #d8c8e3;
+        background: #fbf8ff;
+        color: #55445f;
+        border-radius: .75rem;
+        padding: .75rem;
+        font-weight: 850;
+        font-size: .72rem;
     }
 
-    .btn-primary {
-        border-radius: .45rem !important;
-        font-size: .76rem !important;
-        font-weight: 900 !important;
-        background: #0d6efd;
+    .rolesx-empty.small {
+        font-size: .64rem;
+        padding: .5rem;
     }
 
     @@media (max-width: 1450px) {
-        .permissions-matrix {
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)) !important;
+        .rolesx-workspace {
+            grid-template-columns: 285px minmax(0, 1fr);
         }
 
-        .roles-profile-toolbar {
-            align-items: flex-start;
+        .rolesx-right {
+        display: none;
+    }
+    }
+
+    @@media (max-width: 1050px) {
+        .rolesx-hero,
+        .rolesx-card-title {
             flex-direction: column;
+            align-items: flex-start;
         }
 
-        .profile-toolbar-actions {
+        .rolesx-workspace,
+        .rolesx-kpis,
+        .rolesx-tools {
+            grid-template-columns: 1fr;
+            min-width: 0;
+        }
+
+        .rolesx-tool-actions {
             justify-content: flex-start;
         }
+
+        .rolesx-left,
+        .rolesx-right {
+        display: none;
+    }
     }
 
-    @@media (max-width: 900px) {
-        .permissions-matrix {
-            grid-template-columns: 1fr !important;
+    @@media (max-width: 700px) {
+        .rolesx-form-grid,
+        .rolesx-summary-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .rolesx-form-grid .span-2 {
+            grid-column: auto;
+        }
+
+        .rolesx-matrix {
+            grid-template-columns: 1fr;
         }
     }
 
-/* ===== NAVI Roles top hero ===== */
+/* ============================================================
+   NAVI - RESUMEN DE ROL DENTRO DEL PANEL IZQUIERDO
+   ============================================================ */
 
-.settings-hero,
-.settings-header,
-.settings-page-header,
-.settings-module-hero,
-.roles-hero,
-.roles-header,
-.roles-page-header,
-.roles-top-header,
-.page-header {
-    margin: .65rem 0 .9rem !important;
-    padding: 1.05rem 1.15rem !important;
-    border-radius: 1rem !important;
-    background:
-        radial-gradient(circle at top right, rgba(255,255,255,.16), transparent 34%),
-        linear-gradient(135deg, #100015 0%, #4b005c 58%, #7b0d8e 100%) !important;
-    color: #ffffff !important;
-    border: 1px solid rgba(255,255,255,.10) !important;
-    box-shadow: 0 .65rem 1.5rem rgba(75, 0, 92, .22) !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    gap: 1rem !important;
+.rolesx-left-summary {
+    display: grid;
+    gap: .48rem;
 }
 
-.settings-hero h1,
-.settings-hero h2,
-.settings-header h1,
-.settings-header h2,
-.settings-page-header h1,
-.settings-page-header h2,
-.settings-module-hero h1,
-.settings-module-hero h2,
-.roles-hero h1,
-.roles-hero h2,
-.roles-header h1,
-.roles-header h2,
-.roles-page-header h1,
-.roles-page-header h2,
-.roles-top-header h1,
-.roles-top-header h2,
-.page-header h1,
-.page-header h2 {
-    margin: 0 !important;
-    color: #ffffff !important;
-    font-size: 1.55rem !important;
-    font-weight: 950 !important;
-    letter-spacing: -.03rem !important;
-    line-height: 1.1 !important;
+.rolesx-left-summary .rolesx-card-title {
+    margin-bottom: .32rem;
 }
 
-.settings-hero p,
-.settings-header p,
-.settings-page-header p,
-.settings-module-hero p,
-.roles-hero p,
-.roles-header p,
-.roles-page-header p,
-.roles-top-header p,
-.page-header p {
-    color: rgba(255,255,255,.86) !important;
-    margin: .35rem 0 0 !important;
-    font-size: .86rem !important;
-    line-height: 1.35 !important;
+.rolesx-left-summary .rolesx-card-title h3 {
+    font-size: .86rem;
 }
 
-.settings-hero small,
-.settings-header small,
-.settings-page-header small,
-.settings-module-hero small,
-.roles-hero small,
-.roles-header small,
-.roles-page-header small,
-.roles-top-header small,
-.page-header small {
-    color: rgba(255,255,255,.76) !important;
+.rolesx-left-summary .rolesx-card-title p {
+    font-size: .58rem;
+    line-height: 1.12;
 }
 
-.settings-hero .badge,
-.settings-header .badge,
-.settings-page-header .badge,
-.settings-module-hero .badge,
-.roles-hero .badge,
-.roles-header .badge,
-.roles-page-header .badge,
-.roles-top-header .badge,
-.page-header .badge {
-    background: rgba(255,255,255,.12) !important;
-    color: #ffdd57 !important;
-    border-radius: .85rem !important;
-    padding: .6rem .9rem !important;
-    font-size: .78rem !important;
-    font-weight: 950 !important;
+.rolesx-left-summary .rolesx-current-role {
+    grid-template-columns: 30px minmax(0, 1fr);
+    padding: .42rem;
+    border-radius: .62rem;
 }
 
-.settings-hero .btn,
-.settings-header .btn,
-.settings-page-header .btn,
-.settings-module-hero .btn,
-.roles-hero .btn,
-.roles-header .btn,
-.roles-page-header .btn,
-.roles-top-header .btn,
-.page-header .btn {
-    border-radius: .55rem !important;
-    border: 1px solid rgba(255,255,255,.70) !important;
-    background: rgba(255,255,255,.06) !important;
-    color: #ffffff !important;
-    font-size: .78rem !important;
-    font-weight: 950 !important;
-    min-height: 34px !important;
-    padding: .35rem .9rem !important;
+.rolesx-left-summary .rolesx-current-role > span {
+    width: 28px;
+    height: 28px;
+    font-size: .76rem;
 }
 
-.settings-hero .btn:hover,
-.settings-header .btn:hover,
-.settings-page-header .btn:hover,
-.settings-module-hero .btn:hover,
-.roles-hero .btn:hover,
-.roles-header .btn:hover,
-.roles-page-header .btn:hover,
-.roles-top-header .btn:hover,
-.page-header .btn:hover {
-    background: #ffffff !important;
-    color: #4b005c !important;
+.rolesx-left-summary .rolesx-current-role strong {
+    font-size: .68rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-/* Cuando el encabezado tenga contenido dividido en izquierda/derecha */
-.settings-hero > div:first-child,
-.settings-header > div:first-child,
-.settings-page-header > div:first-child,
-.settings-module-hero > div:first-child,
-.roles-hero > div:first-child,
-.roles-header > div:first-child,
-.roles-page-header > div:first-child,
-.roles-top-header > div:first-child,
-.page-header > div:first-child {
-    min-width: 0 !important;
+.rolesx-left-summary .rolesx-current-role small {
+    font-size: .55rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.settings-hero > div:last-child,
-.settings-header > div:last-child,
-.settings-page-header > div:last-child,
-.settings-module-hero > div:last-child,
-.roles-hero > div:last-child,
-.roles-header > div:last-child,
-.roles-page-header > div:last-child,
-.roles-top-header > div:last-child,
-.page-header > div:last-child {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: flex-end !important;
-    gap: .45rem !important;
+.rolesx-left-summary .rolesx-summary-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .25rem;
+    margin-top: .35rem;
 }
 
-/* Ajuste del texto pequeño CONFIGURACIÓN */
-.settings-hero .section-eyebrow,
-.settings-header .section-eyebrow,
-.settings-page-header .section-eyebrow,
-.settings-module-hero .section-eyebrow,
-.roles-hero .section-eyebrow,
-.roles-header .section-eyebrow,
-.roles-page-header .section-eyebrow,
-.roles-top-header .section-eyebrow,
-.page-header .section-eyebrow {
-    display: inline-flex !important;
-    align-items: center !important;
-    width: fit-content !important;
-    padding: .18rem .6rem !important;
-    margin-bottom: .45rem !important;
-    border-radius: 999px !important;
-    border: 1px solid rgba(255,255,255,.30) !important;
-    background: rgba(255,255,255,.08) !important;
-    color: #ffffff !important;
-    font-size: .68rem !important;
-    font-weight: 950 !important;
-    letter-spacing: .04rem !important;
-    text-transform: uppercase !important;
+.rolesx-left-summary .rolesx-summary-grid div {
+    padding: .3rem .18rem;
+    border-radius: .5rem;
+    text-align: center;
 }
 
-@@media (max-width: 900px) {
-    .settings-hero,
-    .settings-header,
-    .settings-page-header,
-    .settings-module-hero,
-    .roles-hero,
-    .roles-header,
-    .roles-page-header,
-    .roles-top-header,
-    .page-header {
-        flex-direction: column !important;
-        align-items: flex-start !important;
+.rolesx-left-summary .rolesx-summary-grid span {
+    font-size: .47rem;
+}
+
+.rolesx-left-summary .rolesx-summary-grid strong {
+    font-size: .88rem;
+}
+
+.rolesx-left-summary .rolesx-rules {
+    gap: .25rem;
+}
+
+.rolesx-left-summary .rolesx-rules div {
+    min-height: 38px;
+    grid-template-columns: 25px minmax(0, 1fr);
+    gap: .32rem;
+    padding: .3rem .34rem;
+    border-radius: .55rem;
+}
+
+.rolesx-left-summary .rolesx-rules span {
+    width: 24px;
+    height: 24px;
+    font-size: .68rem;
+    border-radius: .45rem;
+}
+
+.rolesx-left-summary .rolesx-rules strong {
+    font-size: .58rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rolesx-left-summary .rolesx-rules small {
+    font-size: .5rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rolesx-left-summary .rolesx-selected-list {
+    max-height: 118px;
+    overflow-y: auto;
+    padding-right: .15rem;
+}
+
+.rolesx-left-summary .rolesx-selected-list span {
+    font-size: .5rem;
+    padding: .12rem .35rem;
+}
+
+.rolesx-left-summary .rolesx-separator {
+    margin: .48rem 0 .38rem;
+}
+
+/* Más espacio para matriz y roles registrados */
+.rolesx-main {
+    display: grid;
+    gap: .65rem;
+    min-width: 0;
+    width: 100%;
+}
+
+.rolesx-role-table {
+    min-height: 340px;
+}
+
+.rolesx-table th,
+.rolesx-table td {
+    white-space: normal;
+}
+
+/* Ajuste responsive del nuevo layout */
+@@media (max-width: 1200px) {
+    .rolesx-workspace {
+        grid-template-columns: 1fr;
     }
 
-    .settings-hero > div:last-child,
-    .settings-header > div:last-child,
-    .settings-page-header > div:last-child,
-    .settings-module-hero > div:last-child,
-    .roles-hero > div:last-child,
-    .roles-header > div:last-child,
-    .roles-page-header > div:last-child,
-    .roles-top-header > div:last-child,
-    .page-header > div:last-child {
-        align-items: flex-start !important;
-        width: 100% !important;
+    .rolesx-left {
+        position: static;
+        max-height: none;
     }
 }
 
-/* ===== NAVI Roles Banner Corporativo ===== */
-
-.roles-tech-banner {
-    margin: .65rem 0 .9rem !important;
-    padding: 1.05rem 1.15rem !important;
-    border-radius: 1rem !important;
-    background:
-        radial-gradient(circle at top right, rgba(255,255,255,.16), transparent 34%),
-        linear-gradient(135deg, #100015 0%, #4b005c 58%, #7b0d8e 100%) !important;
-    color: #ffffff !important;
-    border: 1px solid rgba(255,255,255,.10) !important;
-    box-shadow: 0 .65rem 1.5rem rgba(75, 0, 92, .22) !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    gap: 1rem !important;
-}
-
-.roles-tech-banner h1,
-.roles-tech-banner h2 {
-    margin: 0 !important;
-    color: #ffffff !important;
-    font-size: 1.55rem !important;
-    font-weight: 950 !important;
-    letter-spacing: -.03rem !important;
-    line-height: 1.1 !important;
-}
-
-.roles-tech-banner p {
-    color: rgba(255,255,255,.88) !important;
-    margin: .35rem 0 0 !important;
-    font-size: .86rem !important;
-    line-height: 1.35 !important;
-}
-
-.roles-tech-pill {
-    display: inline-flex !important;
-    align-items: center !important;
-    width: fit-content !important;
-    padding: .18rem .6rem !important;
-    margin-bottom: .45rem !important;
-    border-radius: 999px !important;
-    border: 1px solid rgba(255,255,255,.35) !important;
-    background: rgba(255,255,255,.10) !important;
-    color: #ffffff !important;
-    font-size: .68rem !important;
-    font-weight: 950 !important;
-    letter-spacing: .04rem !important;
-    text-transform: uppercase !important;
-}
-
-.roles-tech-side {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: flex-end !important;
-    gap: .5rem !important;
-    min-width: 180px !important;
-}
-
-.roles-tech-status {
-    min-width: 170px !important;
-    padding: .65rem .9rem !important;
-    border-radius: .85rem !important;
-    background: rgba(255,255,255,.12) !important;
-    border: 1px solid rgba(255,255,255,.10) !important;
-    text-align: right !important;
-}
-
-.roles-tech-status span {
-    display: block !important;
-    color: #ffdd57 !important;
-    font-size: .72rem !important;
-    font-weight: 950 !important;
-    line-height: 1.1 !important;
-}
-
-.roles-tech-status strong {
-    display: block !important;
-    color: #ffffff !important;
-    font-size: .88rem !important;
-    font-weight: 950 !important;
-    line-height: 1.15 !important;
-    margin-top: .12rem !important;
-}
-
-.roles-back-button {
-    min-width: 170px !important;
-    min-height: 34px !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    border-radius: .55rem !important;
-    border: 1px solid rgba(255,255,255,.70) !important;
-    background: rgba(255,255,255,.06) !important;
-    color: #ffffff !important;
-    font-size: .78rem !important;
-    font-weight: 950 !important;
-    text-decoration: none !important;
-    padding: .35rem .9rem !important;
-}
-
-.roles-back-button:hover {
-    background: #ffffff !important;
-    color: #4b005c !important;
-}
-
-@@media (max-width: 900px) {
-    .roles-tech-banner {
-        flex-direction: column !important;
-        align-items: flex-start !important;
-    }
-
-    .roles-tech-side {
-        align-items: flex-start !important;
-        width: 100% !important;
-    }
-
-    .roles-tech-status,
-    .roles-back-button {
-        width: 100% !important;
-        text-align: left !important;
-    }
-}
 </style>
 
 @code {
     private bool CanManageRoles => AuthSession.HasPermission("Security.Roles");
-
     private HttpClient Api => HttpClientFactory.CreateClient("NaviApi");
 
     private List<RoleDto> roles = new();
@@ -890,184 +1356,127 @@
     private bool isLoading;
     private string message = string.Empty;
     private string messageClass = "alert alert-info";
+    private string permissionSearch = string.Empty;
+    private string selectedTemplateCode = string.Empty;
     private HashSet<string> selectedPermissions = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> collapsedPermissionGroups = new(StringComparer.OrdinalIgnoreCase);
 
-    private readonly List<PermissionGroup> permissionGroups = new()
+    private readonly List<PermissionGroup> permissionGroups = BuildPermissionGroups();
+    private readonly List<RoleTemplate> roleTemplates = BuildRoleTemplates();
+
+    private List<PermissionItem> AllPermissions =>
+        permissionGroups.SelectMany(x => x.Permissions).ToList();
+
+    private IEnumerable<PermissionGroup> FilteredPermissionGroups
     {
-        new PermissionGroup
+        get
         {
-            Area = "Principal",
-            Title = "Dashboard",
-            Permissions = new()
+            if (string.IsNullOrWhiteSpace(permissionSearch))
             {
-                new PermissionItem("Dashboard.View", "Ver dashboard")
+                return permissionGroups;
             }
-        },
-        new PermissionGroup
-        {
-            Area = "Activos fijos",
-            Title = "Inventario de AF",
-            Permissions = new()
-            {
-                new PermissionItem("Tools.View", "Consultar inventario"),
-                new PermissionItem("Tools.Create", "Crear activo / herramienta"),
-                new PermissionItem("Tools.Edit", "Editar activo / herramienta"),
-                new PermissionItem("Tools.Delete", "Eliminar / desactivar activo")
-            }
-        },
-        new PermissionGroup
-        {
-            Area = "Activos fijos",
-            Title = "Disponible y ubicación",
-            Permissions = new()
-            {
-                new PermissionItem("AssetAvailability.View", "Ver disponibilidad y ubicación"),
-                new PermissionItem("AssetAvailability.Edit", "Cambiar sede, almacén, taller o ubicación")
-            }
-        },
-        new PermissionGroup
-        {
-            Area = "Activos fijos",
-            Title = "Asignaciones",
-            Permissions = new()
-            {
-                new PermissionItem("AssetAssignment.View", "Ver módulo de asignación"),
-                new PermissionItem("AssetAssignment.Assign", "Asignar herramienta / activo"),
-                new PermissionItem("AssetAssignment.Return", "Regresar herramienta a almacén o taller"),
-                new PermissionItem("AssetAssignment.History", "Ver historial de asignaciones")
-            }
-        },
-        new PermissionGroup
-        {
-            Area = "Activos fijos",
-            Title = "Hoja de vida",
-            Permissions = new()
-            {
-                new PermissionItem("TechnicalLifeRecord.View", "Ver hoja de vida"),
-                new PermissionItem("TechnicalLifeRecord.Edit", "Editar datos técnicos"),
-                new PermissionItem("TechnicalLifeRecord.Export", "Exportar PDF / Excel")
-            }
-        },
-        new PermissionGroup
-        {
-            Area = "Operaciones",
-            Title = "Compras AF",
-            Permissions = new()
-            {
-                new PermissionItem("Purchases.View", "Consultar solicitudes de compra"),
-                new PermissionItem("Purchases.Request", "Solicitar compra"),
-                new PermissionItem("Purchases.Approve", "Aprobar compra"),
-                new PermissionItem("Purchases.Reject", "Rechazar compra")
-            }
-        },
-        new PermissionGroup
-        {
-            Area = "Operaciones",
-            Title = "Mantenimiento",
-            Permissions = new()
-            {
-                new PermissionItem("Maintenance.View", "Consultar mantenimientos"),
-                new PermissionItem("Maintenance.Request", "Solicitar mantenimiento"),
-                new PermissionItem("Maintenance.Execute", "Registrar ejecución"),
-                new PermissionItem("Maintenance.Close", "Cerrar / aprobar mantenimiento")
-            }
-        },
-        new PermissionGroup
-        {
-            Area = "Operaciones",
-            Title = "Daños y novedades",
-            Permissions = new()
-            {
-                new PermissionItem("Mobile.Damage.Report", "Reportar daño o novedad"),
-                new PermissionItem("Mobile.PreOperational.Report", "Reportar preoperacional SSTA")
-            }
-        },
-        new PermissionGroup
-        {
-            Area = "Operaciones",
-            Title = "Préstamos",
-            Permissions = new()
-            {
-                new PermissionItem("Mobile.Loans.Request", "Solicitar préstamo"),
-                new PermissionItem("DeliveryAct.Generate", "Generar acta de entrega")
-            }
-        },
-        new PermissionGroup
-        {
-            Area = "Control",
-            Title = "Documentos",
-            Permissions = new()
-            {
-                new PermissionItem("Documents.View", "Ver documentos"),
-                new PermissionItem("Documents.Upload", "Cargar documentos"),
-                new PermissionItem("Documents.Download", "Descargar documentos"),
-                new PermissionItem("Documents.Delete", "Eliminar documentos")
-            }
-        },
-        new PermissionGroup
-        {
-            Area = "Control",
-            Title = "Tomas físicas",
-            Permissions = new()
-            {
-                new PermissionItem("PhysicalCounts.View", "Consultar toma física"),
-                new PermissionItem("PhysicalCounts.Create", "Crear toma física"),
-                new PermissionItem("PhysicalCounts.Close", "Cerrar toma física")
-            }
-        },
-        new PermissionGroup
-        {
-            Area = "Control",
-            Title = "Conciliación",
-            Permissions = new()
-            {
-                new PermissionItem("Reconciliation.View", "Ver conciliación"),
-                new PermissionItem("Reconciliation.Manage", "Aclarar, aprobar creación, conciliar o rechazar")
-            }
-        },
-        new PermissionGroup
-        {
-            Area = "Control",
-            Title = "Reportes",
-            Permissions = new()
-            {
-                new PermissionItem("Reports.View", "Ver reportes")
-            }
-        },
-        new PermissionGroup
-        {
-            Area = "Control",
-            Title = "Bajas de activos",
-            Permissions = new()
-            {
-                new PermissionItem("FixedAssets.Disposal.Request", "Solicitar baja"),
-                new PermissionItem("FixedAssets.Disposal.Approve", "Aprobar baja")
-            }
-        },
-        new PermissionGroup
-        {
-            Area = "Móvil",
-            Title = "App móvil",
-            Permissions = new()
-            {
-                new PermissionItem("Mobile.Access", "Acceso App Móvil"),
-                new PermissionItem("Mobile.Tools.View", "Ver herramientas en móvil"),
-                new PermissionItem("Mobile.Tools.Review", "Revisar herramientas")
-            }
-        },
-        new PermissionGroup
-        {
-            Area = "Configuración",
-            Title = "Administración",
-            Permissions = new()
-            {
-                new PermissionItem("Settings.View", "Ver configuración"),
-                new PermissionItem("Settings.Manage", "Gestionar configuración"),
-                new PermissionItem("Security.Users", "Gestionar usuarios"),
-                new PermissionItem("Security.Roles", "Gestionar roles y permisos")
-            }
+
+            var value = permissionSearch.Trim();
+
+            return permissionGroups
+                .Select(group => group with
+                {
+                    Permissions = group.Permissions
+                        .Where(permission =>
+                            Contains(group.Area, value) ||
+                            Contains(group.Title, value) ||
+                            Contains(permission.Code, value) ||
+                            Contains(permission.Name, value) ||
+                            Contains(permission.Scope, value) ||
+                            Contains(permission.Kind, value))
+                        .ToList()
+                })
+                .Where(group => group.Permissions.Count > 0)
+                .ToList();
         }
-    };
+    }
+
+    private IEnumerable<RoleRule> CurrentRoleRules
+    {
+        get
+        {
+            var code = formModel.Code?.Trim().ToUpperInvariant() ?? selectedTemplateCode;
+
+            if (code.Contains("TECNICO"))
+            {
+                return new[]
+                {
+                    new RoleRule("📱", "Operación móvil", "Debe trabajar principalmente desde la PWA móvil."),
+                    new RoleRule("🧰", "Solo asignado", "Consulta herramientas propias o asignadas a su responsabilidad."),
+                    new RoleRule("🚫", "Sin administración", "No compra, no aprueba, no configura, no concilia."),
+                    new RoleRule("📸", "Puede reportar", "Reporta toma física, daños, novedades y evidencias.")
+                };
+            }
+
+            if (code.Contains("HERR"))
+            {
+                return new[]
+                {
+                    new RoleRule("🧰", "Custodia herramientas", "Controla disponibilidad, préstamos, ubicación y evidencias."),
+                    new RoleRule("📦", "Toma física", "Puede crear y gestionar tomas físicas de su sede."),
+                    new RoleRule("🛠️", "Mantenimiento", "Puede solicitar o registrar mantenimiento operativo."),
+                    new RoleRule("🚫", "Sin seguridad", "No administra usuarios ni matriz de roles.")
+                };
+            }
+
+            if (code.Contains("COORD"))
+            {
+                return new[]
+                {
+                    new RoleRule("✅", "Aprobación operativa", "Aprueba préstamos, compras y mantenimientos según sede."),
+                    new RoleRule("⚖️", "Conciliación", "Puede decidir diferencias de toma física."),
+                    new RoleRule("📊", "Seguimiento", "Consulta reportes de operación."),
+                    new RoleRule("🚫", "Sin seguridad global", "No debería modificar roles ni usuarios.")
+                };
+            }
+
+            if (code.Contains("ING"))
+            {
+                return new[]
+                {
+                    new RoleRule("🛠️", "Servicio técnico", "Gestiona mantenimiento, cierre y validación técnica."),
+                    new RoleRule("📄", "Consulta soportes", "Consulta documentos y hojas de vida."),
+                    new RoleRule("🛒", "Aprueba operación", "Puede validar solicitudes relacionadas con servicio."),
+                    new RoleRule("🚫", "No configura base", "No administra catálogos ni seguridad.")
+                };
+            }
+
+            if (code.Contains("AUD"))
+            {
+                return new[]
+                {
+                    new RoleRule("👁️", "Solo lectura", "Debe consultar información sin modificar datos."),
+                    new RoleRule("📄", "Evidencia", "Puede descargar documentos y reportes."),
+                    new RoleRule("📊", "Reportes", "Consulta resultados para auditoría."),
+                    new RoleRule("🚫", "Sin acciones", "No crea, aprueba, rechaza ni elimina.")
+                };
+            }
+
+            if (code.Contains("ADMIN"))
+            {
+                return new[]
+                {
+                    new RoleRule("🔐", "Control total", "Administra usuarios, roles, sedes y parámetros."),
+                    new RoleRule("⚙️", "Configuración", "Puede modificar catálogos y permisos."),
+                    new RoleRule("📊", "Visión global", "Accede a todos los módulos y reportes."),
+                    new RoleRule("🧾", "Auditoría", "Debe dejar trazabilidad en cambios críticos.")
+                };
+            }
+
+            return new[]
+            {
+                new RoleRule("🔎", "Definir alcance", "Selecciona una plantilla o marca permisos manualmente."),
+                new RoleRule("🏢", "Sede/Zona", "El alcance por sede se aplicará en backend y filtros."),
+                new RoleRule("🧩", "Permisos granulares", "Separar ver, crear, editar, aprobar y eliminar."),
+                new RoleRule("🛡️", "Seguridad", "Guardar rol y luego asignarlo a usuarios.")
+            };
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -1097,6 +1506,12 @@
     {
         message = string.Empty;
 
+        if (!CanManageRoles)
+        {
+            ShowError("Tu usuario no tiene permiso para modificar roles.");
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(formModel.Code) || string.IsNullOrWhiteSpace(formModel.Name))
         {
             ShowError("Código y nombre son obligatorios.");
@@ -1107,31 +1522,23 @@
 
         var request = new
         {
-            code = formModel.Code,
-            name = formModel.Name,
+            code = formModel.Code.Trim().ToUpperInvariant(),
+            name = formModel.Name.Trim(),
             description = formModel.Description,
             permissions = formModel.Permissions,
             isActive = formModel.IsActive,
-            changedBy = "admin-web"
+            changedBy = string.IsNullOrWhiteSpace(AuthSession.UserName) ? "admin-web" : AuthSession.UserName
         };
 
         try
         {
-            HttpResponseMessage response;
-
-            if (editingId is null)
-            {
-                response = await Api.PostAsJsonAsync("api/settings/roles", request);
-            }
-            else
-            {
-                response = await Api.PutAsJsonAsync($"api/settings/roles/{editingId}", request);
-            }
+            HttpResponseMessage response = editingId is null
+                ? await Api.PostAsJsonAsync("api/settings/roles", request)
+                : await Api.PutAsJsonAsync($"api/settings/roles/{editingId}", request);
 
             if (!response.IsSuccessStatusCode)
             {
-                var error = await response.Content.ReadAsStringAsync();
-                ShowError(error);
+                ShowError(await response.Content.ReadAsStringAsync());
                 return;
             }
 
@@ -1159,18 +1566,25 @@
         };
 
         selectedPermissions = ParsePermissions(role.Permissions);
+        selectedTemplateCode = DetectTemplateCode(role);
     }
 
     private async Task DeleteAsync(Guid id)
     {
+        if (!CanManageRoles)
+        {
+            ShowError("Tu usuario no tiene permiso para eliminar roles.");
+            return;
+        }
+
         try
         {
-            var response = await Api.DeleteAsync($"api/settings/roles/{id}?changedBy=admin-web");
+            var changedBy = string.IsNullOrWhiteSpace(AuthSession.UserName) ? "admin-web" : AuthSession.UserName;
+            var response = await Api.DeleteAsync($"api/settings/roles/{id}?changedBy={Uri.EscapeDataString(changedBy)}");
 
             if (!response.IsSuccessStatusCode)
             {
-                var error = await response.Content.ReadAsStringAsync();
-                ShowError(error);
+                ShowError(await response.Content.ReadAsStringAsync());
                 return;
             }
 
@@ -1188,6 +1602,56 @@
         editingId = null;
         formModel = new RoleFormModel();
         selectedPermissions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        selectedTemplateCode = string.Empty;
+        permissionSearch = string.Empty;
+        collapsedPermissionGroups.Clear();
+    }
+
+    private void SelectProfile(string code)
+    {
+        var template = roleTemplates.FirstOrDefault(x => x.Code == code);
+
+        if (template is null)
+        {
+            return;
+        }
+
+        selectedTemplateCode = template.Code;
+        selectedPermissions = template.Permissions.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (editingId is null)
+        {
+            formModel.Code = template.RoleCode;
+            formModel.Name = template.Name;
+            formModel.Description = template.Description;
+            formModel.IsActive = true;
+        }
+        else
+        {
+            formModel.Description = template.Description;
+        }
+    }
+
+    private void SelectAdminProfile()
+    {
+        selectedTemplateCode = "ADMIN";
+        selectedPermissions = AllPermissions
+            .Select(x => x.Code)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (editingId is null)
+        {
+            formModel.Code = "ADMIN";
+            formModel.Name = "Administrador NAVI";
+            formModel.Description = "Control total del sistema, seguridad, configuración, operación, reportes y auditoría.";
+            formModel.IsActive = true;
+        }
+    }
+
+    private void ClearPermissions()
+    {
+        selectedPermissions.Clear();
+        selectedTemplateCode = string.Empty;
     }
 
     private bool IsPermissionSelected(string code)
@@ -1207,220 +1671,104 @@
         {
             selectedPermissions.Remove(code);
         }
+
+        selectedTemplateCode = string.Empty;
     }
 
-    private void ClearPermissions()
+    private int CountByKind(params string[] terms)
     {
-        selectedPermissions.Clear();
+        return selectedPermissions.Count(permission =>
+            terms.Any(term => permission.Contains($".{term}", StringComparison.OrdinalIgnoreCase)));
     }
 
-    private void SelectAdminPermissions()
+    private string GetTemplateClass(string code)
     {
-        SelectAdminProfile();
+        return selectedTemplateCode == code ? "active" : string.Empty;
     }
 
-    private void SelectReadOnlyPermissions()
+    private static string GetGroupKey(PermissionGroup group)
     {
-        SelectGerencialProfile();
+        return $"{group.Area}|{group.Title}";
     }
 
-    private void SelectOperationalPermissions()
+    private bool IsGroupCollapsed(PermissionGroup group)
     {
-        SelectHerramienteroProfile();
+        return collapsedPermissionGroups.Contains(GetGroupKey(group));
     }
 
-    private void SelectAdminProfile()
+    private void TogglePermissionGroup(PermissionGroup group)
     {
-        selectedPermissions = permissionGroups
-            .SelectMany(x => x.Permissions)
-            .Select(x => x.Code)
+        var key = GetGroupKey(group);
+
+        if (!collapsedPermissionGroups.Add(key))
+        {
+            collapsedPermissionGroups.Remove(key);
+        }
+    }
+
+    private void CollapseAllPermissionGroups()
+    {
+        collapsedPermissionGroups = FilteredPermissionGroups
+            .Select(GetGroupKey)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
-    private void SelectGerencialProfile()
+    private void ExpandAllPermissionGroups()
     {
-        SetPermissions(
-            "Dashboard.View",
-
-            "Tools.View",
-            "AssetAvailability.View",
-            "AssetAssignment.View",
-            "AssetAssignment.History",
-
-            "TechnicalLifeRecord.View",
-            "TechnicalLifeRecord.Export",
-
-            "Documents.View",
-            "Documents.Download",
-
-            "Maintenance.View",
-            "Maintenance.Close",
-
-            "Purchases.View",
-            "Purchases.Approve",
-            "Purchases.Reject",
-
-            "PhysicalCounts.View",
-            "Reports.View"
-        );
+        collapsedPermissionGroups.Clear();
     }
 
-    private void SelectHerramienteroProfile()
+    private string GetSelectedTemplateIcon()
     {
-        SetPermissions(
-            "Dashboard.View",
-
-            "Tools.View",
-            "Tools.Create",
-            "Tools.Edit",
-
-            "AssetAvailability.View",
-            "AssetAvailability.Edit",
-
-            "AssetAssignment.View",
-            "AssetAssignment.Assign",
-            "AssetAssignment.Return",
-            "AssetAssignment.History",
-
-            "TechnicalLifeRecord.View",
-            "TechnicalLifeRecord.Edit",
-            "TechnicalLifeRecord.Export",
-
-            "Documents.View",
-            "Documents.Upload",
-            "Documents.Download",
-
-            "Maintenance.View",
-            "Maintenance.Request",
-
-            "Purchases.View",
-            "Purchases.Request",
-
-            "PhysicalCounts.View",
-            "PhysicalCounts.Create",
-
-            "Reports.View",
-
-            "Mobile.Access",
-            "Mobile.Tools.View",
-            "Mobile.Tools.Review",
-
-            "DeliveryAct.Generate",
-            "FixedAssets.Disposal.Request"
-        );
+        return roleTemplates.FirstOrDefault(x => x.Code == selectedTemplateCode)?.Icon ?? "🔐";
     }
 
-    private void SelectIngServiciosProfile()
+    private string GetPermissionClass(PermissionItem permission)
     {
-        SetPermissions(
-            "Dashboard.View",
-
-            "Tools.View",
-            "AssetAvailability.View",
-            "AssetAssignment.View",
-            "AssetAssignment.History",
-
-            "TechnicalLifeRecord.View",
-            "TechnicalLifeRecord.Export",
-
-            "Documents.View",
-            "Documents.Download",
-
-            "Maintenance.View",
-            "Maintenance.Close",
-
-            "Purchases.View",
-            "Purchases.Approve",
-            "Purchases.Reject",
-
-            "PhysicalCounts.View",
-            "Reports.View",
-
-            "Mobile.Access",
-            "Mobile.Tools.View",
-
-            "FixedAssets.Disposal.Approve"
-        );
+        var selected = IsPermissionSelected(permission.Code) ? " selected" : string.Empty;
+        return $"rolesx-permission-item kind-{permission.Kind}{selected}";
     }
 
-    private void SelectCoordinadorProfile()
+    private string DetectTemplateCode(RoleDto role)
     {
-        SetPermissions(
-            "Dashboard.View",
+        var code = role.Code?.Trim().ToUpperInvariant() ?? string.Empty;
 
-            "Tools.View",
-            "Tools.Create",
-            "Tools.Edit",
-
-            "AssetAvailability.View",
-            "AssetAvailability.Edit",
-
-            "AssetAssignment.View",
-            "AssetAssignment.Assign",
-            "AssetAssignment.Return",
-            "AssetAssignment.History",
-
-            "TechnicalLifeRecord.View",
-            "TechnicalLifeRecord.Edit",
-            "TechnicalLifeRecord.Export",
-
-            "Documents.View",
-            "Documents.Upload",
-            "Documents.Download",
-            "Documents.Delete",
-
-            "Maintenance.View",
-            "Maintenance.Request",
-            "Maintenance.Execute",
-            "Maintenance.Close",
-
-            "Purchases.View",
-            "Purchases.Request",
-            "Purchases.Approve",
-            "Purchases.Reject",
-
-            "PhysicalCounts.View",
-            "PhysicalCounts.Create",
-            "PhysicalCounts.Close",
-
-            "Reports.View",
-
-            "Mobile.Access",
-            "Mobile.Tools.View",
-            "Mobile.Tools.Review",
-
-            "DeliveryAct.Generate",
-            "FixedAssets.Disposal.Request",
-            "FixedAssets.Disposal.Approve"
-        );
+        return roleTemplates.FirstOrDefault(x =>
+            string.Equals(x.RoleCode, code, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase))?.Code ?? string.Empty;
     }
 
-    private void SelectTecnicoProfile()
+    private string GetRoleProfileName(RoleDto role)
     {
-        SetPermissions(
-            "Tools.View",
-            "AssetAssignment.History",
-            "TechnicalLifeRecord.View",
+        var template = roleTemplates.FirstOrDefault(x =>
+            string.Equals(x.RoleCode, role.Code, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.Name, role.Name, StringComparison.OrdinalIgnoreCase));
 
-            "Documents.View",
-            "Documents.Upload",
-
-            "Mobile.Access",
-            "Mobile.Tools.View",
-            "Mobile.Tools.Review",
-            "Mobile.PreOperational.Report",
-            "Mobile.Damage.Report",
-            "Mobile.Loans.Request"
-        );
+        return template?.Name ?? "Personalizado";
     }
 
-
-
-    private void SetPermissions(params string[] permissions)
+    private int GetRolePermissionCount(RoleDto role)
     {
-        selectedPermissions = permissions
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (string.Equals(role.Permissions, "ALL", StringComparison.OrdinalIgnoreCase))
+        {
+            return AllPermissions.Count;
+        }
+
+        return ParsePermissions(role.Permissions).Count;
+    }
+
+    private string GetRolePermissionPreview(RoleDto role)
+    {
+        var permissions = ParsePermissions(role.Permissions).Take(5).ToList();
+
+        if (permissions.Count == 0)
+        {
+            return "Sin permisos";
+        }
+
+        var suffix = GetRolePermissionCount(role) > permissions.Count ? "..." : string.Empty;
+
+        return string.Join(", ", permissions) + suffix;
     }
 
     private static HashSet<string> ParsePermissions(string? value)
@@ -1452,6 +1800,285 @@
         messageClass = "alert alert-danger";
     }
 
+    private static bool Contains(string? source, string value)
+    {
+        return !string.IsNullOrWhiteSpace(source)
+            && source.Contains(value, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static List<PermissionGroup> BuildPermissionGroups()
+    {
+        return new()
+        {
+            new("Principal", "Dashboard", new()
+            {
+                new("Dashboard.View", "Ver dashboard", "view", "General")
+            }),
+
+            new("Activos fijos", "Inventario de Herramientas y AF", new()
+            {
+                new("Tools.View", "Consultar inventario", "view", "Según alcance"),
+                new("Tools.Create", "Crear activo / herramienta", "create", "Sede"),
+                new("Tools.Edit", "Editar activo / herramienta", "edit", "Sede"),
+                new("Tools.Status.Change", "Cambiar estado operativo", "edit", "Sede"),
+                new("Tools.Specialized.Mark", "Marcar especializada", "edit", "Sede"),
+                new("Tools.Delete", "Desactivar / dar de baja", "danger", "Admin")
+            }),
+
+            new("Activos fijos", "Detalle del activo", new()
+            {
+                new("ToolDetail.View", "Ver detalle del activo", "view", "Según alcance"),
+                new("ToolDetail.Actions", "Acciones rápidas del activo", "edit", "Sede"),
+                new("ToolDetail.LifeRecord.Open", "Abrir hoja de vida", "view", "Según alcance")
+            }),
+
+            new("Activos fijos", "Disponible y ubicación", new()
+            {
+                new("AssetAvailability.View", "Ver disponibilidad y ubicación", "view", "Según alcance"),
+                new("AssetAvailability.Edit", "Cambiar sede, taller, almacén o ubicación", "edit", "Sede"),
+                new("AssetAvailability.Status.Change", "Cambiar estado operativo", "edit", "Sede")
+            }),
+
+            new("Activos fijos", "Asignación / préstamos", new()
+            {
+                new("AssetAssignment.View", "Ver asignaciones", "view", "Según alcance"),
+                new("AssetAssignment.Assign", "Nueva asignación directa", "edit", "Sede"),
+                new("AssetAssignment.Request", "Solicitar préstamo", "create", "Propio"),
+                new("AssetAssignment.Approve", "Aprobar solicitud de préstamo", "approve", "Sede"),
+                new("AssetAssignment.Deny", "Denegar solicitud de préstamo", "danger", "Sede"),
+                new("AssetAssignment.Return", "Regresar activo al taller / almacén", "edit", "Sede"),
+                new("AssetAssignment.History", "Ver historial de asignaciones", "view", "Según alcance")
+            }),
+
+            new("Activos fijos", "Hoja de vida de Herramientas y AF", new()
+            {
+                new("TechnicalLifeRecord.View", "Ver hoja de vida", "view", "Según alcance"),
+                new("TechnicalLifeRecord.Edit", "Editar hoja de vida", "edit", "Sede"),
+                new("TechnicalLifeRecord.Accessories", "Gestionar accesorios", "edit", "Sede"),
+                new("TechnicalLifeRecord.Documents", "Gestionar documentación técnica", "edit", "Sede"),
+                new("TechnicalLifeRecord.Maintenance", "Gestionar cronograma mantenimiento", "edit", "Sede"),
+                new("TechnicalLifeRecord.SafePractices", "Gestionar prácticas seguras", "edit", "Sede"),
+                new("TechnicalLifeRecord.Export", "Exportar PDF / Excel", "view", "Según alcance")
+            }),
+
+            new("Operaciones", "Solicitud de compra Herramientas y AF", new()
+            {
+                new("Purchases.View", "Consultar solicitudes de compra", "view", "Según alcance"),
+                new("Purchases.Request", "Crear borrador / confirmar solicitud", "create", "Sede"),
+                new("Purchases.Quote", "Registrar cotización", "edit", "Sede"),
+                new("Purchases.Generate", "Generar solicitud final", "approve", "Sede"),
+                new("Purchases.Approve", "Aprobar compra", "approve", "Sede/Zona"),
+                new("Purchases.Reject", "Rechazar compra", "danger", "Sede/Zona")
+            }),
+
+            new("Operaciones", "Solicitud mantenimiento", new()
+            {
+                new("Maintenance.View", "Consultar solicitudes / mantenimientos", "view", "Según alcance"),
+                new("Maintenance.Request", "Crear solicitud de mantenimiento", "create", "Sede"),
+                new("Maintenance.Quote", "Registrar cotización de mantenimiento", "edit", "Sede"),
+                new("Maintenance.Generate", "Generar solicitud final", "approve", "Sede"),
+                new("Maintenance.Execute", "Registrar ejecución", "edit", "Sede"),
+                new("Maintenance.Close", "Cerrar / aprobar mantenimiento", "approve", "Sede/Zona"),
+                new("Maintenance.Reject", "Rechazar mantenimiento", "danger", "Sede/Zona")
+            }),
+
+            new("Operaciones", "Planes de mantenimiento", new()
+            {
+                new("MaintenancePlans.View", "Ver planes de mantenimiento", "view", "Según alcance"),
+                new("MaintenancePlans.Create", "Crear plan", "create", "Sede/Zona"),
+                new("MaintenancePlans.Edit", "Editar plan", "edit", "Sede/Zona"),
+                new("MaintenancePlans.Delete", "Eliminar / desactivar plan", "danger", "Admin")
+            }),
+
+            new("Control", "Toma física", new()
+            {
+                new("PhysicalCounts.View", "Consultar tomas físicas", "view", "Sede"),
+                new("PhysicalCounts.Create", "Crear toma física", "create", "Sede"),
+                new("PhysicalCounts.Start", "Iniciar toma física", "edit", "Sede"),
+                new("PhysicalCounts.Close", "Cerrar toma física", "approve", "Sede"),
+                new("PhysicalCounts.Cancel", "Cancelar toma física", "danger", "Sede"),
+                new("PhysicalCounts.Report", "Reportar activo asignado / no listado", "mobile", "Propio"),
+                new("PhysicalCounts.Evidence.Upload", "Cargar evidencia de toma", "mobile", "Propio")
+            }),
+
+            new("Control", "Conciliación", new()
+            {
+                new("Reconciliation.View", "Ver conciliación", "view", "Sede/Zona"),
+                new("Reconciliation.Clarify", "Solicitar aclaración", "edit", "Sede/Zona"),
+                new("Reconciliation.ApproveCreation", "Aprobar creación de activo", "approve", "Sede/Zona"),
+                new("Reconciliation.Manage", "Conciliar / rechazar diferencias", "approve", "Sede/Zona")
+            }),
+
+            new("Control", "Documentos", new()
+            {
+                new("Documents.View", "Ver documentos", "view", "Según alcance"),
+                new("Documents.Upload", "Cargar documento", "create", "Sede"),
+                new("Documents.Download", "Descargar documento", "view", "Según alcance"),
+                new("Documents.Delete", "Eliminar documento", "danger", "Admin")
+            }),
+
+            new("Control", "Reportes", new()
+            {
+                new("Reports.View", "Ver reportes", "view", "Sede/Zona"),
+                new("Reports.Export", "Exportar reportes", "view", "Sede/Zona")
+            }),
+
+            new("Móvil", "App móvil", new()
+            {
+                new("Mobile.Access", "Acceder a PWA móvil", "mobile", "Propio"),
+                new("Mobile.Tools.View", "Ver herramientas asignadas", "mobile", "Propio"),
+                new("Mobile.Tools.Review", "Revisar herramientas", "mobile", "Propio"),
+                new("Mobile.Damage.Report", "Reportar daño o novedad", "mobile", "Propio"),
+                new("Mobile.PreOperational.Report", "Reportar preoperacional SSTA", "mobile", "Propio"),
+                new("Mobile.Loans.Request", "Solicitar préstamo desde móvil", "mobile", "Propio")
+            }),
+
+            new("Configuración", "Administración base", new()
+            {
+                new("Settings.View", "Ver configuración", "view", "Admin"),
+                new("Settings.Manage", "Gestionar sedes, zonas, ubicaciones y catálogos", "edit", "Admin"),
+                new("Security.Users", "Gestionar usuarios", "edit", "Admin"),
+                new("Security.Roles", "Gestionar roles y matriz de permisos", "edit", "Admin")
+            })
+        };
+    }
+
+    private static List<RoleTemplate> BuildRoleTemplates()
+    {
+        return new()
+        {
+            new("ADMIN", "👑", "ADMIN", "Administrador NAVI", "Total", "Control total del sistema, usuarios, roles, configuración, operación, reportes y auditoría.",
+                new[]
+                {
+                    "Dashboard.View",
+                    "Tools.View", "Tools.Create", "Tools.Edit", "Tools.Status.Change", "Tools.Specialized.Mark", "Tools.Delete",
+                    "ToolDetail.View", "ToolDetail.Actions", "ToolDetail.LifeRecord.Open",
+                    "AssetAvailability.View", "AssetAvailability.Edit", "AssetAvailability.Status.Change",
+                    "AssetAssignment.View", "AssetAssignment.Assign", "AssetAssignment.Request", "AssetAssignment.Approve", "AssetAssignment.Deny", "AssetAssignment.Return", "AssetAssignment.History",
+                    "TechnicalLifeRecord.View", "TechnicalLifeRecord.Edit", "TechnicalLifeRecord.Accessories", "TechnicalLifeRecord.Documents", "TechnicalLifeRecord.Maintenance", "TechnicalLifeRecord.SafePractices", "TechnicalLifeRecord.Export",
+                    "Purchases.View", "Purchases.Request", "Purchases.Quote", "Purchases.Generate", "Purchases.Approve", "Purchases.Reject",
+                    "Maintenance.View", "Maintenance.Request", "Maintenance.Quote", "Maintenance.Generate", "Maintenance.Execute", "Maintenance.Close", "Maintenance.Reject",
+                    "MaintenancePlans.View", "MaintenancePlans.Create", "MaintenancePlans.Edit", "MaintenancePlans.Delete",
+                    "PhysicalCounts.View", "PhysicalCounts.Create", "PhysicalCounts.Start", "PhysicalCounts.Close", "PhysicalCounts.Cancel", "PhysicalCounts.Report", "PhysicalCounts.Evidence.Upload",
+                    "Reconciliation.View", "Reconciliation.Clarify", "Reconciliation.ApproveCreation", "Reconciliation.Manage",
+                    "Documents.View", "Documents.Upload", "Documents.Download", "Documents.Delete",
+                    "Reports.View", "Reports.Export",
+                    "Mobile.Access", "Mobile.Tools.View", "Mobile.Tools.Review", "Mobile.Damage.Report", "Mobile.PreOperational.Report", "Mobile.Loans.Request",
+                    "Settings.View", "Settings.Manage", "Security.Users", "Security.Roles"
+                }),
+
+            new("GERENCIA", "📊", "GERENCIA", "Gerencia / Jefatura", "Zona/Sede", "Consulta ejecutiva, reportes, indicadores, aprobaciones de alto nivel y seguimiento sin administración técnica.",
+                new[]
+                {
+                    "Dashboard.View",
+                    "Tools.View", "ToolDetail.View", "ToolDetail.LifeRecord.Open",
+                    "AssetAvailability.View", "AssetAssignment.View", "AssetAssignment.History",
+                    "TechnicalLifeRecord.View", "TechnicalLifeRecord.Export",
+                    "Purchases.View", "Purchases.Approve", "Purchases.Reject",
+                    "Maintenance.View", "Maintenance.Close",
+                    "PhysicalCounts.View", "Reconciliation.View",
+                    "Documents.View", "Documents.Download",
+                    "Reports.View", "Reports.Export"
+                }),
+
+            new("ADMIN_SEDE", "🏢", "ADMIN_SEDE", "Administrador de sede", "Sede", "Administra operación de su sede: inventario, disponibilidad, asignaciones, toma física y documentación.",
+                new[]
+                {
+                    "Dashboard.View",
+                    "Tools.View", "Tools.Create", "Tools.Edit", "Tools.Status.Change", "Tools.Specialized.Mark",
+                    "ToolDetail.View", "ToolDetail.Actions", "ToolDetail.LifeRecord.Open",
+                    "AssetAvailability.View", "AssetAvailability.Edit", "AssetAvailability.Status.Change",
+                    "AssetAssignment.View", "AssetAssignment.Assign", "AssetAssignment.Approve", "AssetAssignment.Deny", "AssetAssignment.Return", "AssetAssignment.History",
+                    "TechnicalLifeRecord.View", "TechnicalLifeRecord.Edit", "TechnicalLifeRecord.Accessories", "TechnicalLifeRecord.Documents", "TechnicalLifeRecord.Maintenance", "TechnicalLifeRecord.SafePractices", "TechnicalLifeRecord.Export",
+                    "Purchases.View", "Purchases.Request", "Purchases.Quote", "Purchases.Generate",
+                    "Maintenance.View", "Maintenance.Request", "Maintenance.Quote", "Maintenance.Generate", "Maintenance.Execute",
+                    "MaintenancePlans.View",
+                    "PhysicalCounts.View", "PhysicalCounts.Create", "PhysicalCounts.Start", "PhysicalCounts.Close", "PhysicalCounts.Cancel",
+                    "Reconciliation.View", "Reconciliation.Clarify", "Reconciliation.ApproveCreation", "Reconciliation.Manage",
+                    "Documents.View", "Documents.Upload", "Documents.Download",
+                    "Reports.View", "Reports.Export"
+                }),
+
+            new("COORD_TALLER", "🧭", "COORD_TALLER", "Coordinador de taller", "Sede", "Aprueba préstamos, coordina herramientas, mantenimiento, compras, toma física y conciliación de su sede.",
+                new[]
+                {
+                    "Dashboard.View",
+                    "Tools.View", "Tools.Create", "Tools.Edit", "Tools.Status.Change", "Tools.Specialized.Mark",
+                    "ToolDetail.View", "ToolDetail.Actions", "ToolDetail.LifeRecord.Open",
+                    "AssetAvailability.View", "AssetAvailability.Edit", "AssetAvailability.Status.Change",
+                    "AssetAssignment.View", "AssetAssignment.Assign", "AssetAssignment.Approve", "AssetAssignment.Deny", "AssetAssignment.Return", "AssetAssignment.History",
+                    "TechnicalLifeRecord.View", "TechnicalLifeRecord.Edit", "TechnicalLifeRecord.Accessories", "TechnicalLifeRecord.Documents", "TechnicalLifeRecord.Maintenance", "TechnicalLifeRecord.SafePractices", "TechnicalLifeRecord.Export",
+                    "Purchases.View", "Purchases.Request", "Purchases.Quote", "Purchases.Generate", "Purchases.Approve", "Purchases.Reject",
+                    "Maintenance.View", "Maintenance.Request", "Maintenance.Quote", "Maintenance.Generate", "Maintenance.Execute", "Maintenance.Close", "Maintenance.Reject",
+                    "MaintenancePlans.View", "MaintenancePlans.Create", "MaintenancePlans.Edit",
+                    "PhysicalCounts.View", "PhysicalCounts.Create", "PhysicalCounts.Start", "PhysicalCounts.Close", "PhysicalCounts.Cancel",
+                    "Reconciliation.View", "Reconciliation.Clarify", "Reconciliation.ApproveCreation", "Reconciliation.Manage",
+                    "Documents.View", "Documents.Upload", "Documents.Download",
+                    "Reports.View", "Reports.Export",
+                    "Mobile.Access", "Mobile.Tools.View", "Mobile.Tools.Review"
+                }),
+
+            new("HERRAMIENT", "🧰", "HERRAMIENT", "Herramientero", "Sede", "Custodia herramientas, administra disponibilidad, préstamos, evidencia documental y toma física operativa.",
+                new[]
+                {
+                    "Dashboard.View",
+                    "Tools.View", "Tools.Edit", "Tools.Status.Change",
+                    "ToolDetail.View", "ToolDetail.Actions", "ToolDetail.LifeRecord.Open",
+                    "AssetAvailability.View", "AssetAvailability.Edit", "AssetAvailability.Status.Change",
+                    "AssetAssignment.View", "AssetAssignment.Assign", "AssetAssignment.Approve", "AssetAssignment.Deny", "AssetAssignment.Return", "AssetAssignment.History",
+                    "TechnicalLifeRecord.View", "TechnicalLifeRecord.Edit", "TechnicalLifeRecord.Accessories", "TechnicalLifeRecord.Documents", "TechnicalLifeRecord.Maintenance", "TechnicalLifeRecord.SafePractices",
+                    "Purchases.View", "Purchases.Request", "Purchases.Quote", "Purchases.Generate",
+                    "Maintenance.View", "Maintenance.Request", "Maintenance.Quote", "Maintenance.Generate", "Maintenance.Execute",
+                    "PhysicalCounts.View", "PhysicalCounts.Create", "PhysicalCounts.Start", "PhysicalCounts.Close", "PhysicalCounts.Cancel",
+                    "Documents.View", "Documents.Upload", "Documents.Download",
+                    "Reports.View",
+                    "Mobile.Access", "Mobile.Tools.View", "Mobile.Tools.Review",
+                    "Mobile.Damage.Report", "Mobile.PreOperational.Report", "Mobile.Loans.Request"
+                }),
+
+            new("ING_SERVICIO", "🛠️", "ING_SERVICIO", "Ingeniero de servicio", "Sede/Zona", "Gestiona validación técnica, mantenimiento, cierre operativo y seguimiento de activos de servicio.",
+                new[]
+                {
+                    "Dashboard.View",
+                    "Tools.View", "ToolDetail.View", "ToolDetail.LifeRecord.Open",
+                    "AssetAvailability.View", "AssetAssignment.View", "AssetAssignment.History",
+                    "TechnicalLifeRecord.View", "TechnicalLifeRecord.Edit", "TechnicalLifeRecord.Maintenance", "TechnicalLifeRecord.SafePractices", "TechnicalLifeRecord.Export",
+                    "Purchases.View", "Purchases.Approve", "Purchases.Reject",
+                    "Maintenance.View", "Maintenance.Request", "Maintenance.Quote", "Maintenance.Generate", "Maintenance.Execute", "Maintenance.Close", "Maintenance.Reject",
+                    "MaintenancePlans.View", "MaintenancePlans.Edit",
+                    "PhysicalCounts.View",
+                    "Reconciliation.View", "Reconciliation.Clarify",
+                    "Documents.View", "Documents.Upload", "Documents.Download",
+                    "Reports.View", "Reports.Export",
+                    "Mobile.Access", "Mobile.Tools.View", "Mobile.Tools.Review"
+                }),
+
+            new("TECNICO", "📱", "TECNICO", "Técnico", "Solo propio", "Rol operativo móvil. Solo ve herramientas asignadas, reporta toma física, daños, preoperacionales y solicita préstamo.",
+                new[]
+                {
+                    "ToolDetail.View", "ToolDetail.LifeRecord.Open",
+                    "TechnicalLifeRecord.View",
+                    "Documents.View", "Documents.Upload",
+                    "AssetAssignment.Request", "AssetAssignment.History",
+                    "PhysicalCounts.Report", "PhysicalCounts.Evidence.Upload",
+                    "Mobile.Access", "Mobile.Tools.View", "Mobile.Tools.Review", "Mobile.Damage.Report", "Mobile.PreOperational.Report", "Mobile.Loans.Request"
+                }),
+
+            new("AUDITOR", "👁️", "AUDITOR", "Auditor / Consulta", "Solo lectura", "Consulta trazabilidad, documentos, reportes, inventario, tomas físicas y conciliación sin modificar información.",
+                new[]
+                {
+                    "Dashboard.View",
+                    "Tools.View", "ToolDetail.View", "ToolDetail.LifeRecord.Open",
+                    "AssetAvailability.View", "AssetAssignment.View", "AssetAssignment.History",
+                    "TechnicalLifeRecord.View", "TechnicalLifeRecord.Export",
+                    "Purchases.View", "Maintenance.View", "MaintenancePlans.View",
+                    "PhysicalCounts.View", "Reconciliation.View",
+                    "Documents.View", "Documents.Download",
+                    "Reports.View", "Reports.Export"
+                })
+        };
+    }
+
     private sealed class RoleDto
     {
         public Guid Id { get; set; }
@@ -1471,695 +2098,11 @@
         public bool IsActive { get; set; } = true;
     }
 
-    private sealed class PermissionGroup
-    {
-        public string Area { get; set; } = string.Empty;
-        public string Title { get; set; } = string.Empty;
-        public List<PermissionItem> Permissions { get; set; } = new();
-    }
+    private sealed record PermissionGroup(string Area, string Title, List<PermissionItem> Permissions);
 
-    private sealed record PermissionItem(string Code, string Name);
+    private sealed record PermissionItem(string Code, string Name, string Kind, string Scope);
+
+    private sealed record RoleTemplate(string Code, string Icon, string RoleCode, string Name, string Scope, string Description, IReadOnlyList<string> Permissions);
+
+    private sealed record RoleRule(string Icon, string Title, string Description);
 }
-
-<style>
-    .settings-roles-page,
-    .roles-page {
-        --navi-purple: #4b005c;
-        --navi-purple-2: #7b0d8e;
-        --navi-purple-soft: #f7eef9;
-        --navi-border: #dfe3e8;
-        --navi-muted: #657083;
-        --navi-dark: #17111c;
-    }
-
-    .roles-layout,
-    .settings-grid,
-    .settings-content-grid {
-        gap: .85rem !important;
-        align-items: flex-start;
-    }
-
-    .settings-card,
-    .roles-form-card,
-    .roles-matrix-card,
-    .roles-list-card {
-        border: 1px solid var(--navi-border) !important;
-        border-radius: .95rem !important;
-        background: #ffffff !important;
-        box-shadow: 0 .4rem 1rem rgba(0, 0, 0, .045) !important;
-    }
-
-    .roles-matrix-card {
-        padding: .85rem !important;
-    }
-
-    .roles-matrix-card h3,
-    .settings-card h3,
-    .roles-list-card h3 {
-        color: var(--navi-dark);
-        font-weight: 950;
-        letter-spacing: -.02rem;
-        margin-bottom: .1rem;
-    }
-
-    .roles-matrix-card p,
-    .settings-card p,
-    .roles-list-card p {
-        color: var(--navi-muted);
-        font-size: .76rem;
-    }
-
-    .roles-profile-toolbar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: .75rem;
-        margin: .65rem 0 .8rem;
-        padding: .65rem;
-        border: 1px solid #ead7f0;
-        border-radius: .85rem;
-        background: linear-gradient(135deg, #fff 0%, #fbf4fd 100%);
-    }
-
-    .profile-toolbar-left {
-        min-width: 175px;
-    }
-
-    .toolbar-label {
-        display: block;
-        color: var(--navi-purple);
-        font-size: .75rem;
-        font-weight: 950;
-        text-transform: uppercase;
-        letter-spacing: .04rem;
-    }
-
-    .profile-toolbar-left small {
-        display: block;
-        color: var(--navi-muted);
-        font-size: .68rem;
-        margin-top: .1rem;
-    }
-
-    .profile-toolbar-actions {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: flex-end;
-        gap: .35rem;
-    }
-
-    .profile-btn {
-        border: 1px solid #d8b7e4;
-        background: #ffffff;
-        color: var(--navi-purple);
-        border-radius: 999px;
-        padding: .28rem .68rem;
-        font-size: .72rem;
-        font-weight: 900;
-        transition: all .15s ease;
-        white-space: nowrap;
-    }
-
-    .profile-btn:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 .35rem .75rem rgba(75, 0, 92, .14);
-    }
-
-    .profile-btn.admin {
-        background: linear-gradient(135deg, #4b005c 0%, #8c119f 100%);
-        color: #ffffff;
-        border-color: #4b005c;
-    }
-
-    .profile-btn.gerencial {
-        border-color: #0d6efd;
-        color: #0d6efd;
-    }
-
-    .profile-btn.herramientas {
-        border-color: #198754;
-        color: #198754;
-    }
-
-    .profile-btn.servicios {
-        border-color: #0dcaf0;
-        color: #087990;
-    }
-
-    .profile-btn.coordinador {
-        border-color: #fd7e14;
-        color: #b45309;
-    }
-
-    .profile-btn.tecnico {
-        border-color: #6f42c1;
-        color: #6f42c1;
-    }
-
-    .profile-btn.clear {
-        border-color: #ced4da;
-        color: #495057;
-        background: #f8f9fa;
-    }
-
-    .permissions-matrix {
-        display: grid !important;
-        grid-template-columns: repeat(auto-fit, minmax(245px, 1fr)) !important;
-        gap: .65rem !important;
-        align-items: stretch;
-    }
-
-    .permission-group,
-    .permission-card,
-    .permission-block {
-        border: 1px solid #e5e8ef !important;
-        border-radius: .85rem !important;
-        background: #fff !important;
-        overflow: hidden;
-        transition: box-shadow .15s ease, transform .15s ease, border-color .15s ease;
-    }
-
-    .permission-group:hover,
-    .permission-card:hover,
-    .permission-block:hover {
-        border-color: #d8b7e4 !important;
-        box-shadow: 0 .45rem .95rem rgba(75, 0, 92, .08);
-        transform: translateY(-1px);
-    }
-
-    .permission-group-header,
-    .permission-card-header,
-    .permission-block-header {
-        padding: .48rem .58rem !important;
-        background: linear-gradient(135deg, #fbf4fd 0%, #ffffff 100%);
-        border-bottom: 1px solid #edf1f5;
-    }
-
-    .permission-group-header small,
-    .permission-card-header small,
-    .permission-block-header small {
-        display: block;
-        color: var(--navi-purple);
-        font-size: .58rem;
-        font-weight: 950;
-        text-transform: uppercase;
-        letter-spacing: .05rem;
-        line-height: 1.1;
-    }
-
-    .permission-group-header strong,
-    .permission-card-header strong,
-    .permission-block-header strong {
-        display: block;
-        color: var(--navi-dark);
-        font-size: .78rem;
-        font-weight: 950;
-        line-height: 1.1;
-        margin-top: .08rem;
-    }
-
-    .permission-group-body,
-    .permission-card-body,
-    .permission-block-body {
-        padding: .5rem .58rem .58rem !important;
-        display: grid;
-        gap: .32rem;
-    }
-
-    .permission-check,
-    .form-check.permission-check,
-    .permission-item {
-        display: grid !important;
-        grid-template-columns: 17px 1fr;
-        gap: .35rem;
-        align-items: flex-start;
-        min-height: 30px;
-        margin: 0 !important;
-        padding: .24rem .25rem;
-        border-radius: .5rem;
-    }
-
-    .permission-check:hover,
-    .permission-item:hover {
-        background: #f8fafc;
-    }
-
-    .permission-check input,
-    .permission-item input,
-    .permission-check .form-check-input {
-        margin: .15rem 0 0 !important;
-        width: 14px;
-        height: 14px;
-        cursor: pointer;
-        accent-color: var(--navi-purple);
-    }
-
-    .permission-check label,
-    .permission-item label,
-    .permission-label {
-        cursor: pointer;
-        color: var(--navi-dark);
-        font-size: .72rem;
-        font-weight: 900;
-        line-height: 1.1;
-    }
-
-    .permission-check small,
-    .permission-item small,
-    .permission-code {
-        display: block;
-        color: #8a94a6;
-        font-size: .56rem;
-        font-weight: 800;
-        line-height: 1.1;
-        margin-top: .08rem;
-        word-break: break-word;
-    }
-
-    .roles-list-card,
-    .roles-table-wrapper {
-        margin-top: .85rem;
-    }
-
-    .roles-list-card table,
-    .roles-table-wrapper table,
-    table.roles-table {
-        font-size: .76rem;
-    }
-
-    .roles-list-card thead th,
-    .roles-table-wrapper thead th,
-    table.roles-table thead th {
-        color: var(--navi-dark);
-        font-size: .68rem;
-        text-transform: uppercase;
-        letter-spacing: .03rem;
-        border-bottom: 1px solid #17111c !important;
-        white-space: nowrap;
-    }
-
-    .roles-list-card tbody td,
-    .roles-table-wrapper tbody td,
-    table.roles-table tbody td {
-        vertical-align: middle;
-        padding-top: .48rem !important;
-        padding-bottom: .48rem !important;
-    }
-
-    .roles-list-card tbody tr:hover,
-    .roles-table-wrapper tbody tr:hover,
-    table.roles-table tbody tr:hover {
-        background: #fbf4fd;
-    }
-
-    .badge.bg-success,
-    .status-badge.active {
-        background: #198754 !important;
-        color: #fff !important;
-        border-radius: 999px;
-        font-size: .65rem;
-        padding: .22rem .5rem;
-        font-weight: 900;
-    }
-
-    .btn-outline-primary,
-    .btn-outline-danger,
-    .btn-outline-secondary {
-        border-radius: .45rem !important;
-        font-size: .72rem !important;
-        font-weight: 850 !important;
-    }
-
-    .btn-primary {
-        border-radius: .45rem !important;
-        font-size: .76rem !important;
-        font-weight: 900 !important;
-        background: #0d6efd;
-    }
-
-    @@media (max-width: 1450px) {
-        .permissions-matrix {
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)) !important;
-        }
-
-        .roles-profile-toolbar {
-            align-items: flex-start;
-            flex-direction: column;
-        }
-
-        .profile-toolbar-actions {
-            justify-content: flex-start;
-        }
-    }
-
-    @@media (max-width: 900px) {
-        .permissions-matrix {
-            grid-template-columns: 1fr !important;
-        }
-    }
-
-/* ===== NAVI Roles top hero ===== */
-
-.settings-hero,
-.settings-header,
-.settings-page-header,
-.settings-module-hero,
-.roles-hero,
-.roles-header,
-.roles-page-header,
-.roles-top-header,
-.page-header {
-    margin: .65rem 0 .9rem !important;
-    padding: 1.05rem 1.15rem !important;
-    border-radius: 1rem !important;
-    background:
-        radial-gradient(circle at top right, rgba(255,255,255,.16), transparent 34%),
-        linear-gradient(135deg, #100015 0%, #4b005c 58%, #7b0d8e 100%) !important;
-    color: #ffffff !important;
-    border: 1px solid rgba(255,255,255,.10) !important;
-    box-shadow: 0 .65rem 1.5rem rgba(75, 0, 92, .22) !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    gap: 1rem !important;
-}
-
-.settings-hero h1,
-.settings-hero h2,
-.settings-header h1,
-.settings-header h2,
-.settings-page-header h1,
-.settings-page-header h2,
-.settings-module-hero h1,
-.settings-module-hero h2,
-.roles-hero h1,
-.roles-hero h2,
-.roles-header h1,
-.roles-header h2,
-.roles-page-header h1,
-.roles-page-header h2,
-.roles-top-header h1,
-.roles-top-header h2,
-.page-header h1,
-.page-header h2 {
-    margin: 0 !important;
-    color: #ffffff !important;
-    font-size: 1.55rem !important;
-    font-weight: 950 !important;
-    letter-spacing: -.03rem !important;
-    line-height: 1.1 !important;
-}
-
-.settings-hero p,
-.settings-header p,
-.settings-page-header p,
-.settings-module-hero p,
-.roles-hero p,
-.roles-header p,
-.roles-page-header p,
-.roles-top-header p,
-.page-header p {
-    color: rgba(255,255,255,.86) !important;
-    margin: .35rem 0 0 !important;
-    font-size: .86rem !important;
-    line-height: 1.35 !important;
-}
-
-.settings-hero small,
-.settings-header small,
-.settings-page-header small,
-.settings-module-hero small,
-.roles-hero small,
-.roles-header small,
-.roles-page-header small,
-.roles-top-header small,
-.page-header small {
-    color: rgba(255,255,255,.76) !important;
-}
-
-.settings-hero .badge,
-.settings-header .badge,
-.settings-page-header .badge,
-.settings-module-hero .badge,
-.roles-hero .badge,
-.roles-header .badge,
-.roles-page-header .badge,
-.roles-top-header .badge,
-.page-header .badge {
-    background: rgba(255,255,255,.12) !important;
-    color: #ffdd57 !important;
-    border-radius: .85rem !important;
-    padding: .6rem .9rem !important;
-    font-size: .78rem !important;
-    font-weight: 950 !important;
-}
-
-.settings-hero .btn,
-.settings-header .btn,
-.settings-page-header .btn,
-.settings-module-hero .btn,
-.roles-hero .btn,
-.roles-header .btn,
-.roles-page-header .btn,
-.roles-top-header .btn,
-.page-header .btn {
-    border-radius: .55rem !important;
-    border: 1px solid rgba(255,255,255,.70) !important;
-    background: rgba(255,255,255,.06) !important;
-    color: #ffffff !important;
-    font-size: .78rem !important;
-    font-weight: 950 !important;
-    min-height: 34px !important;
-    padding: .35rem .9rem !important;
-}
-
-.settings-hero .btn:hover,
-.settings-header .btn:hover,
-.settings-page-header .btn:hover,
-.settings-module-hero .btn:hover,
-.roles-hero .btn:hover,
-.roles-header .btn:hover,
-.roles-page-header .btn:hover,
-.roles-top-header .btn:hover,
-.page-header .btn:hover {
-    background: #ffffff !important;
-    color: #4b005c !important;
-}
-
-/* Cuando el encabezado tenga contenido dividido en izquierda/derecha */
-.settings-hero > div:first-child,
-.settings-header > div:first-child,
-.settings-page-header > div:first-child,
-.settings-module-hero > div:first-child,
-.roles-hero > div:first-child,
-.roles-header > div:first-child,
-.roles-page-header > div:first-child,
-.roles-top-header > div:first-child,
-.page-header > div:first-child {
-    min-width: 0 !important;
-}
-
-.settings-hero > div:last-child,
-.settings-header > div:last-child,
-.settings-page-header > div:last-child,
-.settings-module-hero > div:last-child,
-.roles-hero > div:last-child,
-.roles-header > div:last-child,
-.roles-page-header > div:last-child,
-.roles-top-header > div:last-child,
-.page-header > div:last-child {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: flex-end !important;
-    gap: .45rem !important;
-}
-
-/* Ajuste del texto pequeño CONFIGURACIÓN */
-.settings-hero .section-eyebrow,
-.settings-header .section-eyebrow,
-.settings-page-header .section-eyebrow,
-.settings-module-hero .section-eyebrow,
-.roles-hero .section-eyebrow,
-.roles-header .section-eyebrow,
-.roles-page-header .section-eyebrow,
-.roles-top-header .section-eyebrow,
-.page-header .section-eyebrow {
-    display: inline-flex !important;
-    align-items: center !important;
-    width: fit-content !important;
-    padding: .18rem .6rem !important;
-    margin-bottom: .45rem !important;
-    border-radius: 999px !important;
-    border: 1px solid rgba(255,255,255,.30) !important;
-    background: rgba(255,255,255,.08) !important;
-    color: #ffffff !important;
-    font-size: .68rem !important;
-    font-weight: 950 !important;
-    letter-spacing: .04rem !important;
-    text-transform: uppercase !important;
-}
-
-@@media (max-width: 900px) {
-    .settings-hero,
-    .settings-header,
-    .settings-page-header,
-    .settings-module-hero,
-    .roles-hero,
-    .roles-header,
-    .roles-page-header,
-    .roles-top-header,
-    .page-header {
-        flex-direction: column !important;
-        align-items: flex-start !important;
-    }
-
-    .settings-hero > div:last-child,
-    .settings-header > div:last-child,
-    .settings-page-header > div:last-child,
-    .settings-module-hero > div:last-child,
-    .roles-hero > div:last-child,
-    .roles-header > div:last-child,
-    .roles-page-header > div:last-child,
-    .roles-top-header > div:last-child,
-    .page-header > div:last-child {
-        align-items: flex-start !important;
-        width: 100% !important;
-    }
-}
-
-/* ===== NAVI Roles Banner Corporativo ===== */
-
-.roles-tech-banner {
-    margin: .65rem 0 .9rem !important;
-    padding: 1.05rem 1.15rem !important;
-    border-radius: 1rem !important;
-    background:
-        radial-gradient(circle at top right, rgba(255,255,255,.16), transparent 34%),
-        linear-gradient(135deg, #100015 0%, #4b005c 58%, #7b0d8e 100%) !important;
-    color: #ffffff !important;
-    border: 1px solid rgba(255,255,255,.10) !important;
-    box-shadow: 0 .65rem 1.5rem rgba(75, 0, 92, .22) !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    gap: 1rem !important;
-}
-
-.roles-tech-banner h1,
-.roles-tech-banner h2 {
-    margin: 0 !important;
-    color: #ffffff !important;
-    font-size: 1.55rem !important;
-    font-weight: 950 !important;
-    letter-spacing: -.03rem !important;
-    line-height: 1.1 !important;
-}
-
-.roles-tech-banner p {
-    color: rgba(255,255,255,.88) !important;
-    margin: .35rem 0 0 !important;
-    font-size: .86rem !important;
-    line-height: 1.35 !important;
-}
-
-.roles-tech-pill {
-    display: inline-flex !important;
-    align-items: center !important;
-    width: fit-content !important;
-    padding: .18rem .6rem !important;
-    margin-bottom: .45rem !important;
-    border-radius: 999px !important;
-    border: 1px solid rgba(255,255,255,.35) !important;
-    background: rgba(255,255,255,.10) !important;
-    color: #ffffff !important;
-    font-size: .68rem !important;
-    font-weight: 950 !important;
-    letter-spacing: .04rem !important;
-    text-transform: uppercase !important;
-}
-
-.roles-tech-side {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: flex-end !important;
-    gap: .5rem !important;
-    min-width: 180px !important;
-}
-
-.roles-tech-status {
-    min-width: 170px !important;
-    padding: .65rem .9rem !important;
-    border-radius: .85rem !important;
-    background: rgba(255,255,255,.12) !important;
-    border: 1px solid rgba(255,255,255,.10) !important;
-    text-align: right !important;
-}
-
-.roles-tech-status span {
-    display: block !important;
-    color: #ffdd57 !important;
-    font-size: .72rem !important;
-    font-weight: 950 !important;
-    line-height: 1.1 !important;
-}
-
-.roles-tech-status strong {
-    display: block !important;
-    color: #ffffff !important;
-    font-size: .88rem !important;
-    font-weight: 950 !important;
-    line-height: 1.15 !important;
-    margin-top: .12rem !important;
-}
-
-.roles-back-button {
-    min-width: 170px !important;
-    min-height: 34px !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    border-radius: .55rem !important;
-    border: 1px solid rgba(255,255,255,.70) !important;
-    background: rgba(255,255,255,.06) !important;
-    color: #ffffff !important;
-    font-size: .78rem !important;
-    font-weight: 950 !important;
-    text-decoration: none !important;
-    padding: .35rem .9rem !important;
-}
-
-.roles-back-button:hover {
-    background: #ffffff !important;
-    color: #4b005c !important;
-}
-
-@@media (max-width: 900px) {
-    .roles-tech-banner {
-        flex-direction: column !important;
-        align-items: flex-start !important;
-    }
-
-    .roles-tech-side {
-        align-items: flex-start !important;
-        width: 100% !important;
-    }
-
-    .roles-tech-status,
-    .roles-back-button {
-        width: 100% !important;
-        text-align: left !important;
-    }
-}
-</style>
-
-
-
-
-
-
-
-
-
-
-
-

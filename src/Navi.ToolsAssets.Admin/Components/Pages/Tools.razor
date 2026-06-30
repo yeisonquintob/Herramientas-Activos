@@ -1,25 +1,22 @@
-﻿@page "/tools"
+@page "/tools"
 @rendermode InteractiveServer
+@using Navi.ToolsAssets.Admin.Services.Auth
 @inject IHttpClientFactory HttpClientFactory
+@inject NaviAccessScopeService AccessScope
+@inject WebAuthSessionService AuthSession
 
 <PageTitle>Inventario maestro - NAVI Herramientas</PageTitle>
 
-<PermissionGuard Permission="Tools.View" ModuleName="Inventario de AF">
+<PermissionGuard Permission="Tools.View" ModuleName="Inventario de Herramientas y AF">
 
 <section class="inventory-hero-banner">
     <div>
         <span class="inventory-hero-pill">ACTIVOS FIJOS</span>
-        <h2>Inventario de AF</h2>
+        <h2>Inventario de Herramientas y AF</h2>
         <p>Consulta general de herramientas y activos fijos registrados en NAVI.</p>
     </div>
 
-    <div class="inventory-hero-side">
-        <div class="inventory-hero-status">
-            <span>Total activos</span>
-            <strong>@tools.Count registrados</strong>
-        </div>
-
-        <button class="btn btn-sm btn-outline-light inventory-hero-refresh" @onclick="LoadToolsAsync" disabled="@isLoading">
+    <div class="inventory-hero-side"><button class="btn btn-sm btn-outline-light inventory-hero-refresh" @onclick="LoadToolsAsync" disabled="@isLoading">
             @(isLoading ? "Actualizando..." : "Actualizar")
         </button>
     </div>
@@ -40,23 +37,23 @@ else
 {
     <section class="inventory-kpi-grid">
         <article class="inventory-kpi-card total">
-            <span>Total AF</span>
-            <strong>@tools.Count</strong>
+            <span>Total Herramientas y AF</span>
+            <strong>@ScopedTools.Count()</strong>
         </article>
 
         <article class="inventory-kpi-card success">
             <span>Disponibles</span>
-            <strong>@tools.Count(x => x.OperationalStatus == "Available")</strong>
+            <strong>@ScopedTools.Count(x => x.OperationalStatus == "Available")</strong>
         </article>
 
         <article class="inventory-kpi-card warning">
             <span>Pendientes validación</span>
-            <strong>@tools.Count(x => x.OperationalStatus == "PendingValidation")</strong>
+            <strong>@ScopedTools.Count(x => x.OperationalStatus == "PendingValidation")</strong>
         </article>
 
         <article class="inventory-kpi-card danger">
             <span>Bloqueadas</span>
-            <strong>@tools.Count(IsBlocked)</strong>
+            <strong>@ScopedTools.Count(IsBlocked)</strong>
         </article>
     </section>
 
@@ -65,7 +62,7 @@ else
                 class="@GetStatusFilterChipClass(string.Empty)"
                 @onclick="@(() => SelectStatus(string.Empty))">
             Todos
-            <span>@tools.Count</span>
+            <span>@ScopedTools.Count()</span>
         </button>
 
         @foreach (var option in StatusFilterOptions)
@@ -95,8 +92,8 @@ else
             </select>
 
             <select class="form-select" @bind="selectedBranch">
-                <option value="">Todas las sedes</option>
-                @foreach (var branch in tools.Select(x => x.BranchCode).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x))
+                <option value="">@(AccessScope.IsAllBranchScope() ? "Todas las sedes" : AccessScope.GetDefaultBranchFilterText())</option>
+                @foreach (var branch in ScopedTools.Select(x => x.BranchCode).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x))
                 {
                     <option value="@branch">@branch</option>
                 }
@@ -104,7 +101,7 @@ else
         </div>
 
         <div class="inventory-count">
-            Mostrando <strong>@FilteredTools.Count()</strong> de <strong>@tools.Count</strong> herramientas.
+            Mostrando <strong>@FilteredTools.Count()</strong> de <strong>@ScopedTools.Count()</strong> herramientas y activos fijos.
         </div>
 
         <div class="table-responsive">
@@ -165,7 +162,14 @@ else
                                 }
                             </td>
                             <td>
-                                <a class="btn-inventory-detail" href="@($"/tools/{tool.Id}")">Detalle</a>
+                                @if (CanViewToolDetail)
+                                {
+                                    <a class="btn-inventory-detail" href="@($"/tools/{tool.Id}")">Detalle</a>
+                                }
+                                else
+                                {
+                                    <span class="inventory-action-muted">Sin permiso</span>
+                                }
                             </td>
                         </tr>
                     }
@@ -176,6 +180,20 @@ else
 }
 
 @code {
+
+    private bool CanViewToolDetail => AuthSession.HasPermission("ToolDetail.View");
+
+    private bool CanCreateTool => AuthSession.HasPermission("Tools.Create");
+
+    private bool CanEditTool => AuthSession.HasPermission("Tools.Edit");
+
+    private bool CanChangeToolStatus => AuthSession.HasPermission("Tools.Status.Change");
+
+    private bool CanMarkToolSpecialized => AuthSession.HasPermission("Tools.Specialized.Mark");
+
+    private bool CanDeactivateTool => AuthSession.HasPermission("Tools.Delete");
+
+
     private bool isLoading;
     private string? errorMessage;
     private string searchText = string.Empty;
@@ -185,7 +203,7 @@ else
     private List<ToolListItem> tools = new();
 
     private IEnumerable<StatusFilterOption> StatusFilterOptions =>
-        tools
+        ScopedTools
             .Where(x => !string.IsNullOrWhiteSpace(x.OperationalStatus))
             .GroupBy(x => x.OperationalStatus)
             .Select(x => new StatusFilterOption
@@ -196,8 +214,14 @@ else
             })
             .OrderBy(x => x.Label);
 
+    private IEnumerable<ToolListItem> ScopedTools =>
+        AccessScope.FilterTools(
+            tools,
+            x => x.BranchCode,
+            x => x.ResponsiblePersonName);
+
     private IEnumerable<ToolListItem> FilteredTools =>
-        tools
+        ScopedTools
             .Where(MatchesSearch)
             .Where(x => string.IsNullOrWhiteSpace(selectedStatus) || x.OperationalStatus == selectedStatus)
             .Where(x => string.IsNullOrWhiteSpace(selectedBranch) || x.BranchCode == selectedBranch)
@@ -572,7 +596,7 @@ else
     }
 
     /* ============================================================
-       Mejora visual botones Acciones - Inventario de AF
+       Mejora visual botones Acciones - Inventario de Herramientas y AF
        ============================================================ */
 
     .inventory-table th:last-child,
@@ -684,6 +708,22 @@ else
             padding: .26rem .32rem;
             white-space: normal;
         }
+    }
+
+
+    .inventory-action-muted {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 76px;
+        height: 31px;
+        border-radius: 999px;
+        background: #f1f5f9;
+        color: #64748b;
+        font-size: .68rem;
+        font-weight: 900;
+        border: 1px solid #dbe3ee;
+        white-space: nowrap;
     }
 
 </style>

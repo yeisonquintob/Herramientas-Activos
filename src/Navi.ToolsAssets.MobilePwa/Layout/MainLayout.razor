@@ -1,9 +1,223 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
 
 <div class="mobile-shell">
     <main class="mobile-main">
-        @Body
+        @if (!isReady)
+        {
+            <section class="mobile-page">
+                <div class="mobile-empty">
+                    <strong>Validando permisos</strong>
+                    <span>Estamos verificando tu acceso móvil.</span>
+                </div>
+            </section>
+        }
+        else if (IsRouteDenied)
+        {
+            <section class="mobile-page">
+                <div class="mobile-empty">
+                    <strong>Acceso restringido</strong>
+                    <span>No tienes permiso para visualizar esta pantalla en la app móvil.</span>
+                    <button class="mobile-primary-button" type="button" @onclick="GoHome">Volver al inicio</button>
+                </div>
+            </section>
+        }
+        else
+        {
+            @Body
+        }
     </main>
 
     <NavMenu />
 </div>
+
+@code {
+    private bool isReady;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await Auth.InitializeAsync();
+        isReady = true;
+    }
+
+    private bool IsRouteDenied
+    {
+        get
+        {
+            if (!Auth.IsAuthenticated)
+            {
+                return false;
+            }
+
+            var path = Navigation.ToBaseRelativePath(Navigation.Uri)
+                .Split('?', '#')[0]
+                .Trim('/')
+                .ToLowerInvariant();
+
+            if (string.IsNullOrWhiteSpace(path) || path == "login")
+            {
+                return false;
+            }
+
+            return !CanAccessRoute(path);
+        }
+    }
+
+    private bool CanAccessRoute(string path)
+    {
+        if (!Auth.CanAccessMobile())
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return true;
+        }
+
+        if (path == "login")
+        {
+            return true;
+        }
+
+        if (path == "counter" || path == "weather")
+        {
+            return false;
+        }
+
+        if (path == "mobile/dashboard")
+        {
+            return Auth.HasPermission("Dashboard.View");
+        }
+
+        if (path == "my-tools")
+        {
+            return Auth.HasAnyPermission("Mobile.Tools.View", "Tools.View");
+        }
+
+        if (path == "all-tools")
+        {
+            return Auth.HasPermission("Tools.View");
+        }
+
+        if (path == "asset-availability" ||
+            path == "mobile/availability" ||
+            path == "availability-location" ||
+            path == "available-location" ||
+            path == "disponible-ubicacion")
+        {
+            return Auth.HasAnyPermission(
+                "AssetAvailability.View",
+                "AssetAvailability.Update",
+                "AssetAvailability.Manage");
+        }
+
+        if (path == "mobile/assignment")
+        {
+            return Auth.HasAnyPermission(
+                "AssetAssignment.View",
+                "AssetAssignment.Request",
+                "Mobile.Loans.Request",
+                "AssetAssignment.Assign",
+                "AssetAssignment.Return",
+                "AssetAssignment.Approve",
+                "AssetAssignment.Deny",
+                "AssetAssignment.History");
+        }
+
+        if (path == "mobile/life-records" ||
+            (path.StartsWith("tools/") && path.Contains("/life-record")) ||
+            (path.StartsWith("tools/") && path.Contains("/technical-life-record")) ||
+            (path.StartsWith("tools/") && path.Contains("/life-record-view")) ||
+            (path.StartsWith("tools/") && path.Contains("/technical-life-record-view")))
+        {
+            return Auth.HasAnyPermission(
+                "TechnicalLifeRecord.View",
+                "ToolDetail.LifeRecord.Open",
+                "Tools.View",
+                "Mobile.Tools.View");
+        }
+
+        if (path.StartsWith("tools/"))
+        {
+            return Auth.HasAnyPermission(
+                "ToolDetail.View",
+                "Tools.View",
+                "Mobile.Tools.View");
+        }
+
+        if (path == "report-damage" || path.StartsWith("report-damage/"))
+        {
+            return true;
+        }
+
+        if (path == "mobile/history")
+        {
+            return Auth.HasPermission("AssetAssignment.History");
+        }
+
+        if (path == "mobile/preoperational")
+        {
+            return Auth.HasPermission("Mobile.PreOperational.Report");
+        }
+
+        if (path == "mobile/documents")
+        {
+            return Auth.HasAnyPermission("Documents.View", "Documents.Upload");
+        }
+
+        if (path == "mobile/physical-counts")
+        {
+            return Auth.HasAnyPermission(
+                "PhysicalCounts.View",
+                "PhysicalCounts.Report",
+                "PhysicalCounts.Evidence.Upload");
+        }
+
+        if (path == "mobile/reports")
+        {
+            return Auth.HasPermission("Reports.View");
+        }
+
+        if (path == "mobile/purchases")
+        {
+            return Auth.HasAnyPermission("Purchases.View", "Purchases.Request");
+        }
+
+        if (path == "mobile/maintenance-request")
+        {
+            return Auth.HasAnyPermission("Maintenance.View", "Maintenance.Request");
+        }
+
+        if (path == "mobile/maintenance-plans")
+        {
+            return Auth.HasPermission("MaintenancePlans.View");
+        }
+
+        if (path == "mobile/reconciliation")
+        {
+            return Auth.HasPermission("Reconciliation.View");
+        }
+
+        if (path == "mobile/settings")
+        {
+            return Auth.HasAnyPermission("Settings.View", "Settings.Manage");
+        }
+
+        if (path == "mobile/internal-control" ||
+            path == "mobile/expirations" ||
+            path == "mobile/reception")
+        {
+            return Auth.HasAnyPermission("Tools.View", "Reports.View", "Settings.View");
+        }
+
+        return false;
+    }
+
+
+    private void GoHome()
+    {
+        Navigation.NavigateTo("/", forceLoad: false);
+    }
+}

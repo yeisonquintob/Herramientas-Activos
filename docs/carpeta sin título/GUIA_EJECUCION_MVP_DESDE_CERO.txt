@@ -1,0 +1,398 @@
+﻿NAVI Herramientas & Activos — Guía rápida para ejecutar el MVP desde cero
+
+1. Objetivo de la guía
+
+Esta guía explica cómo levantar el MVP de NAVI Herramientas & Activos en un equipo local, validando API, Admin, base de datos, almacenamiento documental y exportación de hoja de vida técnica.
+
+El objetivo es que otro desarrollador pueda abrir el proyecto, compilarlo y probar el flujo principal del sistema.
+
+
+2. Requisitos previos
+
+El equipo debe tener instalado:
+
+- .NET SDK 8 o superior.
+- Docker Desktop.
+- Git.
+- Visual Studio 2022 o Visual Studio Code.
+- PowerShell.
+- Navegador web.
+- Microsoft Excel o visor compatible para abrir archivos .xlsx.
+
+Servicios usados localmente:
+
+- SQL Server en Docker.
+- MinIO en Docker.
+- API .NET.
+- Admin Blazor Server.
+
+
+3. Clonar repositorio
+
+Ejecutar:
+
+git clone https://github.com/yeisonquintob/Herramientas-Activos.git
+
+Entrar a la carpeta:
+
+cd Herramientas-Activos
+
+
+4. Restaurar paquetes
+
+Ejecutar:
+
+dotnet restore "Navitrans.ToolsAssets.Management.sln"
+
+
+5. Compilar solución
+
+Ejecutar:
+
+dotnet build "Navitrans.ToolsAssets.Management.sln"
+
+Resultado esperado:
+
+0 Errores
+0 Advertencias
+
+Si aparecen errores, validar:
+
+- Que Docker Desktop esté activo.
+- Que el SDK de .NET esté instalado.
+- Que los paquetes NuGet se hayan restaurado correctamente.
+- Que las cadenas de conexión estén configuradas.
+
+
+6. Servicios Docker requeridos
+
+6.1 SQL Server
+
+Contenedor esperado:
+
+navi-tools-sqlserver
+
+Puerto:
+
+1434:1433
+
+Base de datos:
+
+NaviToolsAssetsDb
+
+Cadena de conexión local:
+
+Server=localhost,1434;Database=NaviToolsAssetsDb;User Id=sa;Password=Navitrans_2026*Tools!;TrustServerCertificate=True;
+
+
+6.2 MinIO
+
+Puertos:
+
+API: http://localhost:9100
+Console: http://localhost:9101
+
+Credenciales locales:
+
+Usuario: naviadmin
+Clave: Navitrans_2026*Minio!
+
+Bucket:
+
+navi-tools-documents
+
+
+7. Levantar API
+
+Ejecutar en una consola:
+
+dotnet run --project "src\Navi.ToolsAssets.Api\Navi.ToolsAssets.Api.csproj" --urls "http://localhost:5218"
+
+URL esperada:
+
+http://localhost:5218
+
+Swagger:
+
+http://localhost:5218/swagger
+
+
+8. Levantar Admin
+
+Ejecutar en otra consola:
+
+dotnet run --project "src\Navi.ToolsAssets.Admin\Navi.ToolsAssets.Admin.csproj" --urls "http://localhost:5264"
+
+URL esperada:
+
+http://localhost:5264
+
+Abrir inventario:
+
+Start-Process "http://localhost:5264/tools"
+
+
+9. Validación rápida de API
+
+Ejecutar en PowerShell:
+
+$toolId = "b7eb9929-0be2-4627-9b9b-7f25fcfa2fdf"
+
+Invoke-RestMethod "http://localhost:5218/api/tools"
+
+Invoke-RestMethod "http://localhost:5218/api/tools/$toolId/technical-life-record"
+
+Invoke-RestMethod "http://localhost:5218/api/tools/$toolId/documents"
+
+Invoke-RestMethod "http://localhost:5218/api/tools/$toolId/maintenance-schedule"
+
+
+10. Flujo funcional principal desde Admin
+
+10.1 Inventario
+
+Ruta:
+
+http://localhost:5264/tools
+
+Validar:
+
+- Que cargue la lista de herramientas.
+- Que funcionen los filtros por estado.
+- Que funcionen los filtros por sede.
+- Que funcione la búsqueda.
+- Que se visualicen los semáforos de estado.
+- Que abra el detalle.
+- Que abra la hoja de vida técnica.
+
+
+10.2 Detalle de herramienta
+
+Ruta ejemplo:
+
+http://localhost:5264/tools/b7eb9929-0be2-4627-9b9b-7f25fcfa2fdf
+
+Validar:
+
+- Información general.
+- Cambio de estado operativo.
+- Marcación como especializada o no especializada.
+- Registro de cambios.
+
+
+10.3 Hoja de vida técnica
+
+Ruta ejemplo:
+
+http://localhost:5264/tools/b7eb9929-0be2-4627-9b9b-7f25fcfa2fdf/technical-life-record
+
+Validar:
+
+- Información general del equipo.
+- Especificaciones técnicas.
+- Vida útil.
+- Plan de mantenimiento.
+- Accesorios.
+- Documentos.
+- Cronograma de mantenimiento.
+- Prácticas seguras.
+- Trazabilidad.
+- Alertas visuales.
+- Exportación PDF.
+- Exportación Excel.
+
+
+10.4 Gestión documental
+
+Ruta ejemplo:
+
+http://localhost:5264/tools/b7eb9929-0be2-4627-9b9b-7f25fcfa2fdf/documents
+
+Validar:
+
+- Cargar PDF, imagen, Excel o Word.
+- Descargar documento.
+- Eliminar documento.
+- Confirmar que no aparezca en listado activo después de eliminar.
+
+
+10.5 Gestión de mantenimientos
+
+Ruta ejemplo:
+
+http://localhost:5264/tools/b7eb9929-0be2-4627-9b9b-7f25fcfa2fdf/maintenance-schedule
+
+Validar:
+
+- Crear mantenimiento.
+- Editar mantenimiento.
+- Asociar documento como evidencia.
+- Descargar evidencia.
+- Eliminar o desactivar mantenimiento.
+
+
+10.6 Gestión de accesorios
+
+Ruta ejemplo:
+
+http://localhost:5264/tools/b7eb9929-0be2-4627-9b9b-7f25fcfa2fdf/accessories
+
+Validar:
+
+- Crear accesorio.
+- Editar accesorio.
+- Desactivar accesorio.
+
+
+10.7 Gestión de prácticas seguras
+
+Ruta ejemplo:
+
+http://localhost:5264/tools/b7eb9929-0be2-4627-9b9b-7f25fcfa2fdf/safe-practices
+
+Validar:
+
+- Crear práctica.
+- Editar práctica.
+- Desactivar práctica.
+- Cargar prácticas por defecto.
+
+
+10.8 Trazabilidad
+
+Ruta ejemplo:
+
+http://localhost:5264/tools/b7eb9929-0be2-4627-9b9b-7f25fcfa2fdf/life-cycle-events
+
+Validar:
+
+- Carga de eventos.
+- Filtro por texto.
+- Filtro por tipo de evento en español.
+- Limpiar filtros.
+
+
+11. Exportar Excel desde API
+
+Ejecutar:
+
+$toolId = "b7eb9929-0be2-4627-9b9b-7f25fcfa2fdf"
+
+Invoke-WebRequest `
+  -Uri "http://localhost:5218/api/tools/$toolId/technical-life-record/export-excel" `
+  -OutFile ".\validacion-hoja-vida.xlsx"
+
+Abrir archivo:
+
+Start-Process ".\validacion-hoja-vida.xlsx"
+
+Validar hojas:
+
+- Hoja de vida.
+- Mantenimientos.
+- Documentos.
+- Eventos.
+
+
+12. Exportar PDF desde Admin
+
+Desde la hoja de vida técnica:
+
+1. Clic en Exportar PDF.
+2. Se abre ventana de impresión.
+3. Seleccionar Guardar como PDF.
+4. Guardar archivo.
+5. Verificar que el contenido se visualice correctamente.
+
+
+13. Problemas comunes
+
+13.1 API no responde
+
+Validar que esté corriendo:
+
+dotnet run --project "src\Navi.ToolsAssets.Api\Navi.ToolsAssets.Api.csproj" --urls "http://localhost:5218"
+
+13.2 Admin no responde
+
+Validar que esté corriendo:
+
+dotnet run --project "src\Navi.ToolsAssets.Admin\Navi.ToolsAssets.Admin.csproj" --urls "http://localhost:5264"
+
+13.3 Error de conexión a SQL Server
+
+Validar:
+
+- Docker Desktop activo.
+- Contenedor navi-tools-sqlserver activo.
+- Puerto 1434 disponible.
+- Cadena de conexión correcta.
+
+13.4 Error cargando documentos
+
+Validar:
+
+- MinIO activo.
+- Bucket navi-tools-documents creado.
+- Credenciales correctas.
+- Puerto 9100 disponible.
+
+13.5 El documento no aparece como evidencia
+
+Validar:
+
+- Que el documento esté activo.
+- Que el mantenimiento haya sido editado.
+- Que se haya seleccionado el documento en Documento evidencia.
+- Que se haya guardado el mantenimiento.
+
+13.6 El filtro de trazabilidad no funciona
+
+Validar:
+
+- Que la página tenga renderizado interactivo.
+- Que Admin haya sido reiniciado.
+- Que el navegador no tenga una pestaña vieja abierta.
+
+
+14. Comandos útiles
+
+Detener procesos:
+
+Get-Process Navi.ToolsAssets.Api -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process Navi.ToolsAssets.Admin -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process Navi.ToolsAssets.Worker -ErrorAction SilentlyContinue | Stop-Process -Force
+
+Compilar todo:
+
+dotnet build "Navitrans.ToolsAssets.Management.sln"
+
+Abrir Admin:
+
+Start-Process "http://localhost:5264/tools"
+
+Abrir Swagger:
+
+Start-Process "http://localhost:5218/swagger"
+
+
+15. Resultado esperado
+
+Al finalizar la ejecución, el MVP debe permitir:
+
+- Consultar el inventario maestro.
+- Ver semáforos de estado.
+- Editar detalle de herramienta.
+- Consultar hoja de vida técnica.
+- Gestionar documentos.
+- Gestionar mantenimientos.
+- Asociar evidencias.
+- Descargar evidencias.
+- Gestionar accesorios.
+- Gestionar prácticas seguras.
+- Consultar trazabilidad.
+- Exportar PDF.
+- Exportar Excel.
+
+Con esto, el MVP queda listo para demostración funcional y revisión técnica.
+

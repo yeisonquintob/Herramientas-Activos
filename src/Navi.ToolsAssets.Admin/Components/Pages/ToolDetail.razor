@@ -1,8 +1,10 @@
-﻿@page "/tools/{ToolId:guid}"
+@page "/tools/{ToolId:guid}"
 @rendermode InteractiveServer
 @using System.Net.Http.Json
+@using Navi.ToolsAssets.Admin.Services.Auth
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager NavigationManager
+@inject WebAuthSessionService AuthSession
 
 <PageTitle>Detalle herramienta - NAVI Herramientas</PageTitle>
 
@@ -40,23 +42,7 @@ else if (tool is not null)
                 @tool!.InternalCode
             </div>
 
-            @if (!string.IsNullOrWhiteSpace(tool.Description))
-            {
-                <p>@tool!.Description</p>
-            }
-            else
-            {
-                <p>Consulta visual de datos maestros, ubicación, clasificación, estados y hoja de vida operativa.</p>
-            }
-        </div>
-
-        <div class="detail-hero-side">
-            <div class="detail-hero-status-card">
-                <span>Estado operativo</span>
-                <strong>@GetStatusLabel(tool.OperationalStatus)</strong>
-            </div>
-
-            <div class="detail-hero-badges">
+            <div class="detail-hero-inline-badges">
                 <span class="@GetStatusBadgeClass(tool.OperationalStatus)">
                     @GetStatusLabel(tool.OperationalStatus)
                 </span>
@@ -71,15 +57,65 @@ else if (tool is not null)
                 }
             </div>
 
+            @if (!string.IsNullOrWhiteSpace(tool.Description))
+            {
+                <p>@tool!.Description</p>
+            }
+            else
+            {
+                <p>Consulta visual de datos maestros, ubicación, clasificación, estados y hoja de vida operativa.</p>
+            }
+        </div>
+
+                <div class="detail-hero-side navi-header-actions-stack">
             <button class="btn btn-sm btn-outline-light detail-hero-refresh" @onclick="LoadAsync" disabled="@isLoading">
                 @(isLoading ? "Actualizando..." : "Actualizar")
             </button>
 
-            <div class="detail-hero-right-actions">
-                <button class="btn-detail-back" type="button" @onclick="GoBack">
-                    Volver al inventario
+            <button class="btn-detail-back" type="button" @onclick="GoBack">
+                Volver al inventario
+            </button>
+
+                @if (CanOpenLifeRecord)
+                {
+                    <a class="detail-action detail-action-primary navi-life-record-hero-link"
+                       href="@($"/tools/{ToolId}/technical-life-record-view")">
+                        Ver hoja vida técnica
+                    </a>
+                }
+
+            @if (!isEditingMasterData)
+            {
+                @if (CanEditTool)
+                {
+                    <button class="detail-action detail-action-primary" type="button" @onclick="StartMasterDataEdit">
+                        Editar
+                    </button>
+                }
+
+                @if (CanChangeOperationalStatus)
+                {
+                    
+                }
+            }
+            else
+            {
+                @if (CanEditTool)
+                    {
+                        <button class="detail-action detail-action-success" type="button" @onclick="SaveMasterDataAsync">
+                            Guardar
+                        </button>
+                    }
+
+                <button class="detail-action detail-action-neutral" type="button" @onclick="CancelMasterDataEdit">
+                    Cancelar
                 </button>
-            </div>
+
+                @if (CanChangeOperationalStatus)
+                {
+                    
+                }
+            }
         </div>
     </section>
 
@@ -98,9 +134,7 @@ else if (tool is not null)
                         Editar
                     </button>
 
-                    <button class="detail-action detail-action-danger" type="button" @onclick="MarkAsNotSuitableAsync">
-                        No apto
-                    </button>
+                    
                 }
                 else
                 {
@@ -112,9 +146,7 @@ else if (tool is not null)
                         Cancelar
                     </button>
 
-                    <button class="detail-action detail-action-danger" type="button" @onclick="MarkAsNotSuitableAsync">
-                        No apto
-                    </button>
+                    
                 }
             </div>
         </div>
@@ -409,13 +441,15 @@ else if (tool is not null)
     }
 
 <div class="tool-detail-grid">
-        <section class="tool-detail-panel">
+        @if (CanUseDetailActions)
+    {
+<section class="tool-detail-panel">
             <h2>Acciones rápidas</h2>
 
             <div class="quick-actions">
                 <div>
                     <label class="form-label">Cambiar estado operativo</label>
-                    <select class="form-select" @bind="selectedOperationalStatus">
+                    <select class="form-select" @bind="selectedOperationalStatus" disabled="@(!CanChangeOperationalStatus)">
                         <option value="Available">Disponible</option>
                         <option value="PendingValidation">Pendiente validación</option>
                         <option value="Assigned">Asignada</option>
@@ -434,21 +468,24 @@ else if (tool is not null)
                     <label class="form-label">Observación</label>
                     <input class="form-control"
                            placeholder="Motivo del cambio..."
-                           @bind="actionObservation" />
+                           @bind="actionObservation"
+                           disabled="@(!CanChangeOperationalStatus)" />
                 </div>
 
                 <div class="detail-actions-group">
-                    <button class="btn btn-primary btn-sm" @onclick="ChangeOperationalStatusAsync" disabled="@isSaving">
-                        @(isSaving ? "Guardando..." : "Guardar estado")
-                    </button>
+                    @if (CanChangeOperationalStatus)
+                    {
+                        <button class="btn btn-primary btn-sm" @onclick="ChangeOperationalStatusAsync" disabled="@isSaving">
+                            @(isSaving ? "Guardando..." : "Guardar estado")
+                        </button>
+                    }
 
-                    <button class="btn btn-outline-primary btn-sm" @onclick="ToggleSpecializedAsync" disabled="@isSaving">
-                        @(tool?.IsSpecialized == true ? "Marcar no especializada" : "Marcar especializada")
-                    </button>
-
-                    <a class="btn btn-outline-dark btn-sm" href="@($"/tools/{ToolId}/technical-life-record-view")">
-                        Ver hoja vida técnica
-                    </a>
+                    @if (CanMarkSpecialized)
+                    {
+                        <button class="btn btn-outline-primary btn-sm" @onclick="ToggleSpecializedAsync" disabled="@isSaving">
+                            @(tool?.IsSpecialized == true ? "Marcar no especializada" : "Marcar especializada")
+                        </button>
+                    }
                 </div>
 
                 @if (!string.IsNullOrWhiteSpace(actionMessage))
@@ -459,6 +496,8 @@ else if (tool is not null)
                 }
             </div>
         </section>
+    }
+
 
 
         <section class="tool-detail-panel">
@@ -561,7 +600,32 @@ else if (tool is not null)
 }
 
 @code {
-    [Parameter]
+
+    
+    private bool CanEditTool => AuthSession.HasPermission("Tools.Edit");
+
+    private bool CanUseDetailActions => AuthSession.HasPermission("ToolDetail.Actions");
+
+    private bool CanChangeOperationalStatus =>
+        CanUseDetailActions && AuthSession.HasPermission("Tools.Status.Change");
+
+    private bool CanMarkSpecialized =>
+        CanUseDetailActions && AuthSession.HasPermission("Tools.Specialized.Mark");
+
+    private bool CanOpenLifeRecord =>
+        AuthSession.HasPermission("ToolDetail.LifeRecord.Open") ||
+        AuthSession.HasPermission("TechnicalLifeRecord.View");
+
+    private bool CanDeactivateTool => AuthSession.HasPermission("Tools.Delete");
+
+    private void DenyAction(string action)
+    {
+        errorMessage = $"No tienes permiso para {action}.";
+        successMessage = null;
+        actionMessage = null;
+    }
+
+[Parameter]
     public Guid ToolId { get; set; }
 
     private bool isLoading;
@@ -609,6 +673,13 @@ else if (tool is not null)
 
     private async Task ChangeOperationalStatusAsync()
     {
+
+        if (!CanChangeOperationalStatus)
+        {
+            DenyAction("cambiar el estado operativo del activo");
+            return;
+        }
+
         if (tool is null)
         {
             return;
@@ -657,6 +728,13 @@ else if (tool is not null)
 
     private async Task ToggleSpecializedAsync()
     {
+
+        if (!CanMarkSpecialized)
+        {
+            DenyAction("marcar o desmarcar especialización del activo");
+            return;
+        }
+
         if (tool is null)
         {
             return;
@@ -809,6 +887,13 @@ else if (tool is not null)
 
     private void StartMasterDataEdit()
     {
+
+        if (!CanEditTool)
+        {
+            DenyAction("editar el activo");
+            return;
+        }
+
         if (tool is null)
         {
             return;
@@ -850,6 +935,13 @@ else if (tool is not null)
 
     private async Task SaveMasterDataAsync()
     {
+
+        if (!CanEditTool)
+        {
+            DenyAction("guardar cambios del activo");
+            return;
+        }
+
         if (tool is null)
         {
             return;
@@ -904,6 +996,20 @@ else if (tool is not null)
     }
     private async Task MarkAsNotSuitableAsync()
     {
+
+        if (!CanChangeOperationalStatus)
+        {
+            DenyAction("marcar el activo como no apto");
+            return;
+        }
+
+
+        if (!CanChangeOperationalStatus)
+        {
+            DenyAction("marcar el activo como no apto");
+            return;
+        }
+
         if (tool is null)
         {
             return;
@@ -921,13 +1027,13 @@ else if (tool is not null)
             var payload = new
             {
                 operationalStatus = "NotSuitable",
-                changedBy = "admin",
-                updatedBy = "admin",
+                changedBy = AuthSession.AuditUser,
+                updatedBy = AuthSession.AuditUser,
                 reason = string.IsNullOrWhiteSpace(actionObservation)
-                    ? "Activo marcado como no apto desde pantalla de detalle de Inventario de AF."
+                    ? "Activo marcado como no apto desde pantalla de detalle de Inventario de Herramientas y AF."
                     : actionObservation,
                 observation = string.IsNullOrWhiteSpace(actionObservation)
-                    ? "Activo marcado como no apto desde pantalla de detalle de Inventario de AF."
+                    ? "Activo marcado como no apto desde pantalla de detalle de Inventario de Herramientas y AF."
                     : actionObservation
             };
 
@@ -1279,13 +1385,13 @@ private sealed class ToolMasterEditModel
             var payload = new
             {
                 operationalStatus = "NotSuitable",
-                changedBy = "admin",
-                updatedBy = "admin",
+                changedBy = AuthSession.AuditUser,
+                updatedBy = AuthSession.AuditUser,
                 reason = string.IsNullOrWhiteSpace(actionObservation)
-                    ? "Activo marcado como no apto desde pantalla de detalle de Inventario de AF."
+                    ? "Activo marcado como no apto desde pantalla de detalle de Inventario de Herramientas y AF."
                     : actionObservation,
                 observation = string.IsNullOrWhiteSpace(actionObservation)
-                    ? "Activo marcado como no apto desde pantalla de detalle de Inventario de AF."
+                    ? "Activo marcado como no apto desde pantalla de detalle de Inventario de Herramientas y AF."
                     : actionObservation
             };
 
@@ -1331,7 +1437,7 @@ private sealed class ToolMasterEditModel
     }
 
     /* ============================================================
-       Mejora visual botones - Detalle herramienta / Inventario AF
+       Mejora visual botones - Detalle herramienta / Inventario Herramientas y AF
        ============================================================ */
 
     .detail-actions-group {
@@ -1520,6 +1626,19 @@ private sealed class ToolMasterEditModel
     }
 
     /* === DETAIL BANNER RIGHT ACTIONS END === */
+
+    .navi-life-record-hero-link {
+        background: rgba(255,255,255,.08) !important;
+        border-color: rgba(255,255,255,.72) !important;
+        color: #fff !important;
+        text-decoration: none !important;
+    }
+
+    .navi-life-record-hero-link:hover {
+        background: rgba(255,255,255,.16) !important;
+        color: #fff !important;
+    }
+
 </style>
 
 
@@ -1612,7 +1731,7 @@ private sealed class ToolMasterEditModel
     }
 
     /* ============================================================
-       Mejora visual botones - Detalle herramienta / Inventario AF
+       Mejora visual botones - Detalle herramienta / Inventario Herramientas y AF
        ============================================================ */
 
     .detail-actions-group {

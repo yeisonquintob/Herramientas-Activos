@@ -1,13 +1,15 @@
-﻿@page "/tools/{ToolId:guid}/technical-life-record-view"
+@page "/tools/{ToolId:guid}/technical-life-record-view"
 @page "/tools/{ToolId:guid}/life-record-view"
 
 @rendermode InteractiveServer
 
 @using System.Net.Http.Json
+@using Navi.ToolsAssets.Admin.Services.Auth
 @using System.Text.Json.Nodes
 
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager NavigationManager
+@inject WebAuthSessionService AuthSession
 @inject IConfiguration Configuration
 
 <PageTitle>Consulta hoja de vida técnica - NAVI Herramientas</PageTitle>
@@ -37,16 +39,7 @@ else if (record is not null)
                 @Show(Text("Summary", "InternalCode"))
             </div>
 
-            <p>Vista solo lectura abierta desde el detalle del activo fijo. Para editar o gestionar, ingresa desde el módulo Hoja de Vida del AF.</p>
-        </div>
-
-        <div class="life-hero-side">
-            <div class="life-hero-status-card">
-                <span>Estado operativo</span>
-                <strong>@GetStatusLabel(Text("Summary", "OperationalStatus"))</strong>
-            </div>
-
-            <div class="life-hero-badges">
+            <div class="life-hero-inline-badges">
                 <span class="@GetStatusBadgeClass(Text("Summary", "OperationalStatus"))">
                     @GetStatusLabel(Text("Summary", "OperationalStatus"))
                 </span>
@@ -56,17 +49,19 @@ else if (record is not null)
                 </span>
             </div>
 
+            <p>Vista solo lectura abierta desde el detalle del activo fijo. Para editar o gestionar, ingresa desde el módulo Hoja de Vida de Herramientas y AF.</p>
+        </div>
+
+                <div class="life-hero-side navi-header-actions-stack">
             <button class="btn btn-sm btn-outline-light life-hero-refresh"
                     @onclick="LoadAsync"
                     disabled="@isLoading">
                 @(isLoading ? "Actualizando..." : "Actualizar")
             </button>
 
-            <div class="life-hero-right-actions">
-                <button class="btn-life-back" type="button" @onclick="GoBack">
-                    Volver al detalle
-                </button>
-            </div>
+            <button class="btn-life-back" type="button" @onclick="GoBack">
+                Volver al detalle
+            </button>
         </div>
     </section>
 
@@ -573,6 +568,11 @@ else if (record is not null)
 </style>
 
 @code {
+
+    private bool CanExportLifeRecord =>
+        AuthSession.HasPermission("TechnicalLifeRecord.Export");
+
+
     [Parameter]
     public Guid ToolId { get; set; }
 

@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Microsoft.JSInterop;
 using Navi.ToolsAssets.MobilePwa.Models;
 
@@ -65,16 +65,56 @@ public sealed class MobileAuthSessionService
 
     public bool HasPermission(string permission)
     {
-        return CurrentUser?.Permissions?.Any(x =>
-            string.Equals(x, permission, StringComparison.OrdinalIgnoreCase)) == true;
+        if (string.IsNullOrWhiteSpace(permission))
+        {
+            return false;
+        }
+
+        var permissions = CurrentUser?.Permissions ?? new();
+
+        return permissions.Any(x => string.Equals(x, "ALL", StringComparison.OrdinalIgnoreCase))
+            || permissions.Any(x => string.Equals(x, permission, StringComparison.OrdinalIgnoreCase));
     }
+
+
+
+
+
+
+
+
+
+
+    public bool HasAnyPermission(params string[] permissions)
+    {
+        return permissions.Any(HasPermission);
+    }
+
+
+
+
+
+
+
+
+
+
+    public bool CanAccessMobile()
+    {
+        return HasPermission("Mobile.Access");
+    }
+
 
     public bool IsAdmin()
     {
         var role = NormalizeRole(CurrentUser?.RoleCode);
 
-        return role is "ADMIN" or "ADMINISTRADOR";
+        return role is "ADMIN" or "SUPERADMIN";
     }
+
+
+
+
 
     public bool IsTecnico()
     {

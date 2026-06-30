@@ -1,4 +1,4 @@
-﻿using Navi.ToolsAssets.Admin.Services.Auth;
+using Navi.ToolsAssets.Admin.Services.Auth;
 using Navi.ToolsAssets.Admin.Components;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,6 +14,7 @@ builder.Services.AddHttpClient("NaviApi", client =>
 }).AddHttpMessageHandler<NaviPermissionHttpMessageHandler>();
 
 builder.Services.AddScoped<WebAuthSessionService>();
+builder.Services.AddScoped<NaviAccessScopeService>();
 
 var app = builder.Build();
 

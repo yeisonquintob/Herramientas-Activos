@@ -1,5 +1,6 @@
-﻿@using Navi.ToolsAssets.Admin.Services.Auth
+@using Navi.ToolsAssets.Admin.Services.Auth
 @inject WebAuthSessionService AuthSession
+@inject NaviAccessScopeService AccessScope
 
 @if (CanShow)
 {
@@ -46,6 +47,15 @@ else if (ShowDenied)
     public string DeniedTitle { get; set; } = "No tienes permiso para ejecutar esta acción.";
 
     [Parameter]
+    public string? BranchCode { get; set; }
+
+    [Parameter]
+    public string? ResponsibleName { get; set; }
+
+    [Parameter]
+    public bool OwnRequired { get; set; }
+
+    [Parameter]
     public RenderFragment? ChildContent { get; set; }
 
     private bool CanShow
@@ -57,19 +67,27 @@ else if (ShowDenied)
                 return false;
             }
 
+            var permissionGranted = false;
+
             if (!string.IsNullOrWhiteSpace(Permission) &&
                 AuthSession.HasPermission(Permission))
             {
-                return true;
+                permissionGranted = true;
             }
 
-            if (AnyOf.Length > 0 &&
+            if (!permissionGranted &&
+                AnyOf.Length > 0 &&
                 AuthSession.HasAnyPermission(AnyOf))
             {
-                return true;
+                permissionGranted = true;
             }
 
-            return false;
+            if (!permissionGranted)
+            {
+                return false;
+            }
+
+            return AccessScope.CanExecute(Permission, BranchCode, ResponsibleName, OwnRequired);
         }
     }
 }

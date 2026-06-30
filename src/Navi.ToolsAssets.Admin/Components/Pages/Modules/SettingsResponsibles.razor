@@ -1,6 +1,8 @@
-﻿@page "/settings/responsibles"
+@page "/settings/responsibles"
 @rendermode InteractiveServer
+@using Navi.ToolsAssets.Admin.Services.Auth
 @inject IHttpClientFactory HttpClientFactory
+@inject WebAuthSessionService AuthSession
 
 <PageTitle>Responsables - Configuración</PageTitle>
 
@@ -32,36 +34,36 @@
 
             <div class="mb-3">
                 <label class="form-label">Código empleado</label>
-                <InputText class="form-control" @bind-Value="formModel.EmployeeCode" />
+                <InputText class="form-control" @bind-Value="formModel.EmployeeCode"  disabled="@(!CanManageSettings)" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Documento</label>
-                <InputText class="form-control" @bind-Value="formModel.DocumentNumber" />
+                <InputText class="form-control" @bind-Value="formModel.DocumentNumber"  disabled="@(!CanManageSettings)" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Nombre completo</label>
-                <InputText class="form-control" @bind-Value="formModel.FullName" />
+                <InputText class="form-control" @bind-Value="formModel.FullName"  disabled="@(!CanManageSettings)" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Correo</label>
-                <InputText class="form-control" @bind-Value="formModel.Email" />
+                <InputText class="form-control" @bind-Value="formModel.Email"  disabled="@(!CanManageSettings)" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Cargo</label>
-                <InputText class="form-control" @bind-Value="formModel.Position" />
+                <InputText class="form-control" @bind-Value="formModel.Position"  disabled="@(!CanManageSettings)" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Área</label>
-                <InputText class="form-control" @bind-Value="formModel.Area" />
+                <InputText class="form-control" @bind-Value="formModel.Area"  disabled="@(!CanManageSettings)" />
             </div>
 
             <div class="form-check mb-3">
-                <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive" />
+                <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive"  disabled="@(!CanManageSettings)" />
                 <label class="form-check-label">Activo</label>
             </div>
 
@@ -71,7 +73,7 @@
             }
 
             <div class="settings-crud-actions">
-                <button class="btn btn-primary" type="submit">Guardar</button>
+                <button class="btn btn-primary" type="submit" disabled="@(!CanManageSettings)">Guardar</button>
                 <button class="btn btn-outline-secondary" type="button" @onclick="ClearForm">Limpiar</button>
             </div>
         </EditForm>
@@ -117,8 +119,14 @@
                                 </span>
                             </td>
                             <td class="text-end">
-                                <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(item)">Editar</button>
-                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(item.Id)">Eliminar</button>
+                                @if (CanManageSettings)
+                                    {
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(item)">Editar</button>
+                                    }
+                                @if (CanManageSettings)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(item.Id)">Eliminar</button>
+                                    }
                             </td>
                         </tr>
                     }
@@ -218,6 +226,14 @@
 </style>
 
 @code {
+
+    private bool IsAdmin =>
+        string.Equals(AuthSession.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(AuthSession.RoleCode, "SUPERADMIN", StringComparison.OrdinalIgnoreCase);
+
+    private bool CanManageSettings => IsAdmin || AuthSession.HasPermission("Settings.Manage");
+
+
     private HttpClient Api => HttpClientFactory.CreateClient("NaviApi");
 
     private List<ResponsibleDto> items = new();
@@ -253,6 +269,12 @@
 
     private async Task SaveAsync()
     {
+        if (!CanManageSettings)
+        {
+            ShowError("No tienes permiso para modificar configuración.");
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(formModel.FullName))
         {
             ShowError("El nombre completo es obligatorio.");
@@ -295,6 +317,12 @@
 
     private void Edit(ResponsibleDto item)
     {
+        if (!CanManageSettings)
+        {
+            ShowError("No tienes permiso para editar configuración.");
+            return;
+        }
+
         editingId = item.Id;
 
         formModel = new ResponsibleFormModel
@@ -311,6 +339,12 @@
 
     private async Task DeleteAsync(Guid id)
     {
+        if (!CanManageSettings)
+        {
+            ShowError("No tienes permiso para eliminar configuración.");
+            return;
+        }
+
         try
         {
             var response = await Api.DeleteAsync($"api/settings/responsibles/{id}?changedBy=admin-web");

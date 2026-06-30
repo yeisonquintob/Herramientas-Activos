@@ -1,26 +1,31 @@
-﻿@page "/tools/{ToolId:guid}/maintenance-schedule"
+@page "/tools/{ToolId:guid}/maintenance-schedule"
 @rendermode InteractiveServer
 @using System.Net.Http.Json
+@using Navi.ToolsAssets.Admin.Services.Auth
 @inject IHttpClientFactory HttpClientFactory
+@inject WebAuthSessionService AuthSession
 @inject NavigationManager NavigationManager
 
 <PageTitle>Cronograma mantenimiento - NAVI Herramientas</PageTitle>
 
-<PermissionGuard Permission="Maintenance.Execute" ModuleName="Plan de mantenimiento">
+<PermissionGuard Permission="MaintenancePlans.View" ModuleName="Cronograma de mantenimiento">
 
-<div class="page-header">
+<div class="page-header navi-life-subheader">
     <div>
-        <button class="btn btn-outline-secondary btn-sm mb-2" @onclick="GoBack">
-            ? Volver a hoja de vida
-        </button>
-
+        <span class="navi-page-pill">MANTENIMIENTO</span>
         <h1>Cronograma de mantenimiento</h1>
         <p>Registra, actualiza o desactiva mantenimientos preventivos, correctivos y de calibración.</p>
     </div>
 
-    <button class="btn btn-outline-primary" @onclick="LoadAsync" disabled="@isLoading">
+    <div class="navi-header-actions-stack">
+        <button class="btn btn-sm btn-outline-light navi-header-btn" @onclick="GoBack">
+                ← Volver a planes
+            </button>
+
+        <button class="btn btn-sm btn-outline-light navi-header-btn" @onclick="LoadAsync" disabled="@isLoading">
         @(isLoading ? "Cargando..." : "Recargar")
     </button>
+    </div>
 </div>
 
 @if (!string.IsNullOrWhiteSpace(errorMessage))
@@ -57,6 +62,14 @@
         </div>
 
         <EditForm Model="formModel" OnValidSubmit="SaveAsync">
+            @if (!CanUseMaintenanceForm)
+            {
+                <div class="alert alert-warning">
+                    No tienes permiso para crear o editar registros de mantenimiento en este cronograma.
+                </div>
+            }
+
+            <fieldset class="schedule-permission-fieldset" disabled="@(!CanUseMaintenanceForm)">
             <div class="edit-form-grid">
                 <div>
                     <label>Número mantenimiento</label>
@@ -186,6 +199,8 @@
                                placeholder="Resultado final o pendiente..." />
             </div>
 
+            </fieldset>
+
             <div class="technical-edit-actions static-actions mt-3">
                 @if (editingMaintenanceId.HasValue)
                 {
@@ -194,7 +209,7 @@
                     </button>
                 }
 
-                <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                <button type="submit" class="btn btn-primary" disabled="@(!CanUseMaintenanceForm || isSaving)">
                     @GetSaveButtonText()
                 </button>
             </div>
@@ -254,11 +269,11 @@
                         <p class="maintenance-description">@Show(item.Description)</p>
 
                         <div class="d-flex gap-1 flex-wrap mt-2">
-                            <button class="btn btn-sm btn-outline-primary" @onclick="() => StartEdit(item)">
+                            <button class="btn btn-sm btn-outline-primary" disabled="@(!CanEditSchedule)" @onclick="() => StartEdit(item)">
                                 Editar
                             </button>
 
-                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(item)">
+                            <button class="btn btn-sm btn-outline-danger" disabled="@(!CanDeleteSchedule)" @onclick="() => DeleteAsync(item)">
                                 Desactivar
                             </button>
                         </div>
@@ -272,6 +287,30 @@
 </PermissionGuard>
 
 @code {
+
+    private bool CanViewSchedule =>
+        ScheduleHasPermission("MaintenancePlans.View") ||
+        ScheduleHasPermission("MaintenancePlans.Create") ||
+        ScheduleHasPermission("MaintenancePlans.Edit") ||
+        ScheduleHasPermission("MaintenancePlans.Delete") ||
+        ScheduleHasPermission("TechnicalLifeRecord.Maintenance");
+
+    private bool CanCreateSchedule => ScheduleHasPermission("MaintenancePlans.Create");
+    private bool CanEditSchedule => ScheduleHasPermission("MaintenancePlans.Edit");
+    private bool CanDeleteSchedule => ScheduleHasPermission("MaintenancePlans.Delete");
+
+    private bool CanUseMaintenanceForm =>
+        (!editingMaintenanceId.HasValue && CanCreateSchedule) ||
+        (editingMaintenanceId.HasValue && CanEditSchedule);
+
+    private bool ScheduleHasPermission(string permission)
+    {
+        return AuthSession.HasPermission(permission)
+            || string.Equals(AuthSession.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(AuthSession.RoleCode, "SUPERADMIN", StringComparison.OrdinalIgnoreCase);
+    }
+
+
     [Parameter]
     public Guid ToolId { get; set; }
 
@@ -328,9 +367,20 @@
             isLoading = false;
         }
     }
-
-    private async Task SaveAsync()
+private async Task SaveAsync()
     {
+        if (editingMaintenanceId.HasValue && !CanEditSchedule)
+        {
+            errorMessage = "No tienes permiso para editar registros del cronograma de mantenimiento.";
+            return;
+        }
+
+        if (!editingMaintenanceId.HasValue && !CanCreateSchedule)
+        {
+            errorMessage = "No tienes permiso para crear registros del cronograma de mantenimiento.";
+            return;
+        }
+
         try
         {
             isSaving = true;
@@ -376,6 +426,7 @@
         }
     }
 
+
     private object BuildPayload(string mode)
     {
         return new
@@ -405,9 +456,14 @@
             updatedBy = mode == "updated" ? "yquinto" : null
         };
     }
-
-    private void StartEdit(MaintenanceItemModel item)
+private void StartEdit(MaintenanceItemModel item)
     {
+        if (!CanEditSchedule)
+        {
+            errorMessage = "No tienes permiso para editar registros del cronograma de mantenimiento.";
+            return;
+        }
+
         editingMaintenanceId = item.Id;
 
         formModel = new MaintenanceFormModel
@@ -436,6 +492,7 @@
         errorMessage = null;
     }
 
+
     private void CancelEdit()
     {
         editingMaintenanceId = null;
@@ -448,9 +505,14 @@
             IsToolOperational = true
         };
     }
-
-    private async Task DeleteAsync(MaintenanceItemModel item)
+private async Task DeleteAsync(MaintenanceItemModel item)
     {
+        if (!CanDeleteSchedule)
+        {
+            errorMessage = "No tienes permiso para desactivar registros del cronograma de mantenimiento.";
+            return;
+        }
+
         try
         {
             isSaving = true;
@@ -459,7 +521,11 @@
 
             var client = HttpClientFactory.CreateClient("NaviApi");
 
-            var response = await client.DeleteAsync($"api/tools/maintenance-schedule/{item.Id}?deletedBy=yquinto");
+            var deletedBy = string.IsNullOrWhiteSpace(AuthSession.UserName)
+                ? "admin"
+                : AuthSession.UserName;
+
+            var response = await client.DeleteAsync($"api/tools/maintenance-schedule/{item.Id}?deletedBy={Uri.EscapeDataString(deletedBy)}");
 
             if (!response.IsSuccessStatusCode)
             {
@@ -487,10 +553,11 @@
         }
     }
 
-    private void GoBack()
+private void GoBack()
     {
-        NavigationManager.NavigateTo($"/tools/{ToolId}/technical-life-record");
+        NavigationManager.NavigateTo("/maintenance-plans");
     }
+
 
     private string GetSaveButtonText()
     {

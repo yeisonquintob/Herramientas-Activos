@@ -1,4 +1,6 @@
-﻿@page "/mobile/dashboard"
+@page "/mobile/dashboard"
+
+@using Navi.ToolsAssets.MobilePwa.Models
 
 @inject NaviMobileApiClient Api
 @inject MobileAuthSessionService Auth
@@ -6,7 +8,7 @@
 
 <PageTitle>Dashboard móvil - NAVI Herramientas y AF</PageTitle>
 
-<section class="mobile-page mobile-page-compact">
+<section class="mobile-page mobile-page-compact navi-mobile-dashboard">
     @if (isLoading)
     {
         <div class="mobile-loading">Cargando dashboard móvil...</div>
@@ -19,141 +21,159 @@
             <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
         </div>
     }
+    else if (!CanViewDashboard)
+    {
+        <div class="mobile-empty">
+            <strong>Sin permiso</strong>
+            <span>Tu rol no tiene el permiso Dashboard.View.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoHome">Volver al inicio</button>
+        </div>
+    }
     else
     {
-        <header class="mobile-state-hero">
-            <div>
-                <span>Estado</span>
-                <h1>Dashboard móvil</h1>
-                <p>@Auth.CurrentUser?.RoleName · @Auth.CurrentUser?.BranchName</p>
+        <header class="mobile-hero mobile-hero-compact-pro mobile-home-web-hero">
+            <div class="mobile-hero-top">
+                <span class="mobile-pill mobile-pill-dark">DASHBOARD</span>
+
+                <button class="mobile-logout-button mobile-logout-compact" type="button" @onclick="GoHome">
+                    Inicio
+                </button>
             </div>
 
-            <button type="button" @onclick="GoHome">Inicio</button>
+            <div class="mobile-hero-title-row">
+                <div>
+                    <h1>Dashboard móvil</h1>
+                    <p>@Display(Auth.CurrentUser?.RoleName) · @Display(Auth.CurrentUser?.BranchName)</p>
+                </div>
+            </div>
         </header>
 
         @if (!string.IsNullOrWhiteSpace(message))
         {
-            <div class="mobile-alert">@message</div>
+            <div class="mobile-alert error">@message</div>
         }
 
-        @if (dashboard is not null)
-        {
-            <section class="mobile-state-kpis">
-                <article>
-                    <span>Activos</span>
-                    <strong>@dashboard.Summary.TotalTools</strong>
-                    <small>Registrados</small>
-                </article>
+        <section class="mobile-kpi-grid mobile-kpi-grid-compact mobile-kpi-grid-ultra">
+            <div class="mobile-kpi-card mobile-kpi-compact mobile-kpi-ultra">
+                <span>Total activos</span>
+                <strong>@TotalVisibleTools</strong>
+                <small>@ScopeLabel</small>
+            </div>
 
-                <article>
-                    <span>Pendientes</span>
-                    <strong>@GetPendingTotal()</strong>
-                    <small>Validación</small>
-                </article>
+            <div class="mobile-kpi-card mobile-kpi-compact mobile-kpi-ultra ok">
+                <span>Disponibles</span>
+                <strong>@AvailableVisibleTools</strong>
+                <small>Operación</small>
+            </div>
 
-                <article>
-                    <span>Avance</span>
-                    <strong>@GetAdvancePercent()%</strong>
-                    <small>Hoja de vida</small>
-                </article>
-            </section>
+            <div class="mobile-kpi-card mobile-kpi-compact mobile-kpi-ultra warning">
+                <span>Asignados</span>
+                <strong>@AssignedVisibleTools</strong>
+                <small>Custodia</small>
+            </div>
+        </section>
 
-            <section class="mobile-state-card">
-                <h2>Local de herramientas</h2>
+        <section class="mobile-menu-panel mobile-menu-panel-compact mobile-menu-panel-full mobile-menu-white-panel">
+            <div class="mobile-panel-head mobile-panel-head-compact mobile-panel-head-no-action">
+                <h2>Resumen ejecutivo</h2>
+            </div>
 
-                <div class="mobile-state-list">
-                    <div><span>Total herramientas</span><strong>@dashboard.Summary.TotalTools</strong></div>
-                    <div><span>Disponibles</span><strong>@dashboard.Summary.AvailableTools</strong></div>
-                    <div><span>Asignadas</span><strong>@dashboard.Summary.AssignedTools</strong></div>
-                    <div><span>En mantenimiento</span><strong>@dashboard.Summary.InMaintenanceTools</strong></div>
-                    <div><span>Pendientes validación</span><strong>@dashboard.Summary.PendingValidationTools</strong></div>
-                    <div><span>Dañadas / no aptas</span><strong>@dashboard.Summary.DamagedTools</strong></div>
-                </div>
-            </section>
+            <div class="mobile-info-grid compact">
+                <div><span>Herramientas</span><strong>@(dashboard?.Summary.ToolsOnly ?? 0)</strong></div>
+                <div><span>Activos fijos</span><strong>@(dashboard?.Summary.FixedAssets ?? 0)</strong></div>
+                <div><span>Especializadas</span><strong>@(dashboard?.Summary.SpecializedTools ?? 0)</strong></div>
+                <div><span>Sin código AF</span><strong>@(dashboard?.Summary.ToolsWithoutFixedAssetCode ?? 0)</strong></div>
+                <div><span>Con hoja de vida</span><strong>@(dashboard?.Summary.WithLifeRecord ?? 0)</strong></div>
+                <div><span>Sin hoja de vida</span><strong>@(dashboard?.Summary.WithoutLifeRecord ?? 0)</strong></div>
+            </div>
+        </section>
 
-            <section class="mobile-state-two">
-                <article class="mobile-state-card">
-                    <h2>Herramientas vs activos</h2>
+        <section class="mobile-menu-panel mobile-menu-panel-compact mobile-menu-panel-full mobile-menu-white-panel">
+            <div class="mobile-panel-head mobile-panel-head-compact mobile-panel-head-no-action">
+                <h2>Estado operativo</h2>
+            </div>
 
-                    <div class="mobile-state-big">
-                        <strong>@dashboard.Summary.ToolsOnly</strong>
-                        <span>Herramientas</span>
-                    </div>
+            <div class="mobile-state-list">
+                <div><span>Disponibles</span><strong>@(dashboard?.Summary.AvailableTools ?? AvailableVisibleTools)</strong></div>
+                <div><span>Asignadas</span><strong>@(dashboard?.Summary.AssignedTools ?? AssignedVisibleTools)</strong></div>
+                <div><span>Prestadas</span><strong>@(dashboard?.Summary.LoanedTools ?? 0)</strong></div>
+                <div><span>Mantenimiento</span><strong>@(dashboard?.Summary.InMaintenanceTools ?? MaintenanceVisibleTools)</strong></div>
+                <div><span>Dañadas</span><strong>@(dashboard?.Summary.DamagedTools ?? DamagedVisibleTools)</strong></div>
+                <div><span>No localizadas</span><strong>@(dashboard?.Summary.NotLocatedTools ?? 0)</strong></div>
+            </div>
+        </section>
 
-                    <div class="mobile-state-big secondary">
-                        <strong>@dashboard.Summary.FixedAssets</strong>
-                        <span>Activos fijos</span>
-                    </div>
-                </article>
-
-                <article class="mobile-state-card">
-                    <h2>Hojas de vida</h2>
-
-                    <div class="mobile-state-big">
-                        <strong>@dashboard.Summary.WithLifeRecord</strong>
-                        <span>Con hoja</span>
-                    </div>
-
-                    <div class="mobile-state-big secondary">
-                        <strong>@dashboard.Summary.WithoutLifeRecord</strong>
-                        <span>Sin hoja</span>
-                    </div>
-                </article>
-            </section>
-
-            <section class="mobile-state-card">
+        <section class="mobile-menu-panel mobile-menu-panel-compact mobile-menu-panel-full mobile-menu-white-panel">
+            <div class="mobile-panel-head mobile-panel-head-compact mobile-panel-head-no-action">
                 <h2>Herramientas por sede</h2>
+            </div>
 
+            @if (!BranchBars.Any())
+            {
+                <div class="mobile-empty compact">No hay datos por sede para mostrar.</div>
+            }
+            else
+            {
                 <div class="mobile-state-bars">
-                    @foreach (var item in dashboard.ToolsByBranch.Take(6))
+                    @foreach (var item in BranchBars.Take(8))
                     {
                         <div>
-                            <span>@item.BranchCode</span>
-                            <div><strong style="@($"width:{GetPercent(item.Total, GetMaxBranch())}%")"></strong></div>
+                            <span>@Display(item.BranchCode)</span>
+                            <div>
+                                <strong style="@($"width:{GetPercent(item.Total, GetMaxBranch())}%")"></strong>
+                            </div>
                             <small>@item.Total</small>
                         </div>
                     }
                 </div>
-            </section>
+            }
+        </section>
 
-            <section class="mobile-state-card">
-                <div class="mobile-state-head">
-                    <h2>Últimos activos</h2>
-                    <a href="/my-tools">Ver lista</a>
+        <section class="mobile-panel mobile-panel-compact mobile-last-assets-panel">
+            <div class="mobile-panel-head mobile-panel-head-compact">
+                <h2>Últimos activos visibles</h2>
+                <a class="mobile-panel-link" href="/all-tools">Ver inventario</a>
+            </div>
+
+            @if (!VisibleTools.Any())
+            {
+                <div class="mobile-empty compact">
+                    No hay activos visibles para este rol o sede.
                 </div>
-
-                @if (!tools.Any())
-                {
-                    <div class="mobile-empty compact">No se encontraron activos visibles.</div>
-                }
-                else
-                {
-                    <div class="mobile-state-assets">
-                        @foreach (var tool in tools.Take(3))
-                        {
-                            <article>
+            }
+            else
+            {
+                <div class="mobile-assigned-assets-list">
+                    @foreach (var tool in VisibleTools.Take(5))
+                    {
+                        <article class="mobile-assigned-card">
+                            <div class="mobile-assigned-card-head">
                                 <div>
                                     <span>@tool.InternalCode</span>
                                     <strong>@tool.Name</strong>
-                                    <small>@Display(tool.LocationName) · @Display(tool.OperationalStatus)</small>
                                 </div>
 
-                                <a href="@GetDetailUrl(tool.Id)">Detalle</a>
-                            </article>
-                        }
-                    </div>
-                }
-            </section>
+                                <em class="@GetToolStateClass(tool)">
+                                    @GetStatusLabel(tool.OperationalStatus)
+                                </em>
+                            </div>
 
-            <section class="mobile-state-menu">
-                <a href="/">Inicio</a>
-                <a href="/all-tools">Inventario</a>
-                <a href="/my-tools">Mis AF</a>
-                <a href="/report-damage">Novedad</a>
-                <a href="/mobile/history">Historial</a>
-                <a href="/mobile/reports">Reportes</a>
-            </section>
-        }
+                            <div class="mobile-assigned-grid">
+                                <div><span>Sede</span><strong>@Display(tool.BranchCode)</strong></div>
+                                <div><span>Ubicación</span><strong>@Display(tool.LocationName)</strong></div>
+                                <div><span>Responsable</span><strong>@Display(tool.ResponsiblePersonName)</strong></div>
+                                <div><span>Físico</span><strong>@Display(tool.PhysicalStatus)</strong></div>
+                            </div>
+
+                            <div class="mobile-assigned-actions">
+                                <a href="@GetDetailUrl(tool.Id)">Detalle</a>
+                                <a href="@GetLifeRecordUrl(tool.Id)">Hoja de vida</a>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
     }
 </section>
 
@@ -163,17 +183,48 @@
     private MobileExecutiveDashboard? dashboard;
     private List<MobileToolDto> tools = new();
 
+    private bool CanViewDashboard => Auth.HasPermission("Dashboard.View");
+
+    private IEnumerable<MobileToolDto> VisibleTools =>
+        tools
+            .Where(IsSameBranch)
+            .OrderBy(x => x.BranchCode)
+            .ThenBy(x => x.InternalCode)
+            .ToList();
+
+    private int TotalVisibleTools => VisibleTools.Count();
+
+    private int AvailableVisibleTools =>
+        VisibleTools.Count(x => Contains(x.OperationalStatus, "Available") || Contains(x.OperationalStatus, "Disponible"));
+
+    private int AssignedVisibleTools =>
+        VisibleTools.Count(x => Contains(x.OperationalStatus, "Assigned") || Contains(x.OperationalStatus, "Loaned") || Contains(x.OperationalStatus, "Asignada") || Contains(x.OperationalStatus, "Prestada"));
+
+    private int MaintenanceVisibleTools =>
+        VisibleTools.Count(x => Contains(x.OperationalStatus, "Maintenance") || x.RequiresMaintenance);
+
+    private int DamagedVisibleTools =>
+        VisibleTools.Count(x => Contains(x.OperationalStatus, "Damaged") || Contains(x.OperationalStatus, "NotSuitable") || Contains(x.PhysicalStatus, "Dañ") || Contains(x.PhysicalStatus, "Damage"));
+
+    private string ScopeLabel =>
+        UserCanSeeAllBranches()
+            ? "Todas las sedes"
+            : Display(Auth.CurrentUser?.BranchCode ?? Auth.CurrentUser?.BranchName);
+
+    private IEnumerable<MobileBranchItem> BranchBars =>
+        dashboard?.ToolsByBranch ?? new List<MobileBranchItem>();
+
     protected override async Task OnInitializedAsync()
     {
         await Auth.InitializeAsync();
 
-        if (!Auth.IsAuthenticated)
+        if (!Auth.IsAuthenticated || !CanViewDashboard)
         {
             isLoading = false;
             return;
         }
 
-        await LoadAsync(false);
+        await LoadAsync(forceRefresh: true);
     }
 
     private async Task LoadAsync(bool forceRefresh)
@@ -194,34 +245,53 @@
         }
     }
 
-    private int GetPendingTotal()
+    private bool IsSameBranch(MobileToolDto tool)
     {
-        if (dashboard is null)
+        var user = Auth.CurrentUser;
+
+        if (user is null)
         {
-            return 0;
+            return false;
         }
 
-        return dashboard.Summary.PendingValidationTools + dashboard.Summary.WithoutLifeRecord;
+        if (UserCanSeeAllBranches())
+        {
+            return true;
+        }
+
+        return SameNormalized(tool.BranchCode, user.BranchCode)
+            || SameNormalized(tool.BranchName, user.BranchName)
+            || SameNormalized(tool.BranchCode, user.BranchName)
+            || SameNormalized(tool.BranchName, user.BranchCode);
     }
 
-    private int GetAdvancePercent()
+    private bool UserCanSeeAllBranches()
     {
-        if (dashboard is null || dashboard.Summary.TotalTools <= 0)
+        var user = Auth.CurrentUser;
+
+        if (user is null || !Auth.IsAdmin())
         {
-            return 0;
+            return false;
         }
 
-        return Math.Min(100, Math.Max(0, (int)Math.Round((decimal)dashboard.Summary.WithLifeRecord / dashboard.Summary.TotalTools * 100)));
+        return string.IsNullOrWhiteSpace(user.BranchCode)
+            || SameNormalized(user.BranchCode, "TODAS")
+            || SameNormalized(user.BranchCode, "ALL")
+            || SameNormalized(user.BranchName, "TODAS")
+            || SameNormalized(user.BranchName, "ALL")
+            || SameNormalized(user.BranchName, "Todas las sedes");
     }
 
     private int GetMaxBranch()
     {
-        if (dashboard is null || dashboard.ToolsByBranch.Count == 0)
+        var items = BranchBars.ToList();
+
+        if (!items.Any())
         {
             return 1;
         }
 
-        return Math.Max(1, dashboard.ToolsByBranch.Max(x => x.Total));
+        return Math.Max(1, items.Max(x => x.Total));
     }
 
     private static int GetPercent(int value, int max)
@@ -234,6 +304,90 @@
         return Math.Max(5, (int)Math.Round((decimal)value / max * 100));
     }
 
+    private static bool Contains(string? value, string expected)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+               value.Contains(expected, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool SameNormalized(string? left, string? right)
+    {
+        var a = Normalize(left);
+        var b = Normalize(right);
+
+        return !string.IsNullOrWhiteSpace(a)
+            && !string.IsNullOrWhiteSpace(b)
+            && string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Normalize(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return value
+            .Trim()
+            .ToUpperInvariant()
+            .Replace("Á", "A")
+            .Replace("É", "E")
+            .Replace("Í", "I")
+            .Replace("Ó", "O")
+            .Replace("Ú", "U")
+            .Replace("Ü", "U")
+            .Replace("Ñ", "N");
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "Sin dato" : value;
+    }
+
+    private static string GetStatusLabel(string? status)
+    {
+        return status switch
+        {
+            "Available" => "Disponible",
+            "Assigned" => "Asignada",
+            "Loaned" => "Prestada",
+            "InMaintenance" => "En mantenimiento",
+            "Damaged" => "Dañada",
+            "NotSuitable" => "No apta",
+            "PendingValidation" => "Pendiente validación",
+            "Inconsistent" => "Inconsistente",
+            "NotLocated" => "No localizada",
+            "PendingDisposal" => "Pendiente baja",
+            "Disposed" => "Dada de baja",
+            _ => Display(status)
+        };
+    }
+
+    private static string GetToolStateClass(MobileToolDto tool)
+    {
+        return tool.OperationalStatus switch
+        {
+            "Available" => "mobile-state ok",
+            "Assigned" => "mobile-state assigned",
+            "Loaned" => "mobile-state assigned",
+            "InMaintenance" => "mobile-state warning",
+            "Damaged" => "mobile-state danger",
+            "NotSuitable" => "mobile-state danger",
+            "NotLocated" => "mobile-state dark",
+            _ => "mobile-state neutral"
+        };
+    }
+
+    private static string GetDetailUrl(Guid id)
+    {
+        return "/tools/" + id;
+    }
+
+    private static string GetLifeRecordUrl(Guid id)
+    {
+        return "/tools/" + id + "/life-record?from=dashboard";
+    }
+
     private void GoHome()
     {
         Navigation.NavigateTo("/");
@@ -242,15 +396,5 @@
     private void GoLogin()
     {
         Navigation.NavigateTo("/login", forceLoad: true);
-    }
-
-    private static string Display(string? value)
-    {
-        return string.IsNullOrWhiteSpace(value) ? "Sin dato" : value;
-    }
-
-    private static string GetDetailUrl(Guid id)
-    {
-        return "/tools/" + id;
     }
 }

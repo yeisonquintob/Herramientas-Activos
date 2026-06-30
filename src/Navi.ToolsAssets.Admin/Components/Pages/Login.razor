@@ -1,4 +1,4 @@
-﻿@page "/login"
+@page "/login"
 @rendermode InteractiveServer
 
 @using System.Net.Http.Json
@@ -14,25 +14,26 @@
 <PageTitle>Ingreso - NAVI Herramientas y AF</PageTitle>
 
 <div class="login-shell">
-    <header class="login-topbar">
-        <div class="login-brand">
-            <div class="login-brand-icon">N</div>
+    <header class="login-topbar login-topbar-balanced">
+        <div class="login-brand login-brand-balanced">
+            <div class="login-brand-icon login-brand-icon-balanced">N</div>
 
-            <div>
-                <h1>NAVI Herramientas y AF</h1>
+            <div class="login-brand-copy login-brand-copy-balanced">
+                <h1>
+                    <span class="brand-navi">NAVI</span>
+                    <span class="brand-tools">Herramientas y AF</span>
+                </h1>
                 <p>Consola de administración</p>
             </div>
-        </div>
-
-        <div class="login-brand-right">
-            <span class="login-divider"></span>
-            <strong>Herramientas y AF</strong>
         </div>
     </header>
 
     <main class="login-main">
         <section class="login-card">
-            <div class="login-card-icon">N</div>
+            <div class="login-card-icon login-user-card-icon" aria-hidden="true">
+                <span class="login-user-head"></span>
+                <span class="login-user-body"></span>
+            </div>
 
             <h2>Bienvenido</h2>
 
@@ -111,7 +112,7 @@
 
         if (AuthSession.IsAuthenticated)
         {
-            Navigation.NavigateTo("/dashboard", forceLoad: true);
+            Navigation.NavigateTo(NaviPermissionRouteService.GetStartRoute(AuthSession), forceLoad: true);
             return;
         }
 
@@ -128,7 +129,7 @@
                 if (user is not null && !string.IsNullOrWhiteSpace(user.UserName))
                 {
                     AuthSession.Login(user);
-                    Navigation.NavigateTo("/dashboard", forceLoad: true);
+                    Navigation.NavigateTo(NaviPermissionRouteService.GetStartRoute(AuthSession), forceLoad: true);
                 }
             }
         }
@@ -185,7 +186,7 @@
             var json = JsonSerializer.Serialize(user);
             await JS.InvokeVoidAsync("localStorage.setItem", StorageKey, json);
 
-            Navigation.NavigateTo("/dashboard", forceLoad: true);
+            Navigation.NavigateTo(NaviPermissionRouteService.GetStartRoute(AuthSession), forceLoad: true);
         }
         catch (Exception ex)
         {
@@ -540,5 +541,317 @@
             display: none;
         }
     }
+
+/* ============================================================
+   NAVI LOGIN GRADIENT PATCH V2
+   Degradado corporativo 70% oscuro + transición morada
+   ============================================================ */
+
+.login-shell {
+    background:
+        radial-gradient(circle at 82% 18%, rgba(133, 0, 155, .30), transparent 28%),
+        radial-gradient(circle at 10% 0%, rgba(255, 255, 255, .055), transparent 22%),
+        linear-gradient(
+            105deg,
+            #07070b 0%,
+            #0b0b10 34%,
+            #120017 55%,
+            #23002b 70%,
+            #530064 86%,
+            #85009b 100%
+        ) !important;
+}
+
+.login-card {
+    background:
+        linear-gradient(
+            145deg,
+            rgba(255,255,255,.98) 0%,
+            rgba(255,255,255,.94) 72%,
+            rgba(250,244,255,.98) 100%
+        ) !important;
+    border: 1px solid rgba(255,255,255,.52) !important;
+    box-shadow: 0 1.2rem 3rem rgba(0,0,0,.28) !important;
+}
+
+.login-topbar {
+    background:
+        linear-gradient(
+            100deg,
+            rgba(255,255,255,.075) 0%,
+            rgba(255,255,255,.035) 70%,
+            rgba(133,0,155,.18) 100%
+        ) !important;
+    border-bottom: 1px solid rgba(255,255,255,.12) !important;
+}
+
+.login-brand-icon,
+.login-card-icon {
+    background:
+        linear-gradient(145deg, #d20a11 0%, #ff3d45 100%) !important;
+    box-shadow: 0 .65rem 1.35rem rgba(210,10,17,.25) !important;
+}
+
+.login-primary-button,
+.login-card button[type="submit"] {
+    background:
+        linear-gradient(105deg, #07070b 0%, #15001c 58%, #530064 86%, #85009b 100%) !important;
+    border: 0 !important;
+    color: #ffffff !important;
+}
+
+/* ============================================================
+   FIN NAVI LOGIN GRADIENT PATCH V2
+   ============================================================ */
+
+/* ============================================================
+   NAVI LOGIN TITLE CLEAN FINAL PATCH
+   Quita recuadro del título, elimina barra Herramientas y AF,
+   aumenta título 15%
+   ============================================================ */
+
+.login-shell {
+    background:
+        radial-gradient(circle at 82% 18%, rgba(113, 0, 131, .30), transparent 30%),
+        linear-gradient(
+            105deg,
+            #050507 0%,
+            #07070b 22%,
+            #090910 48%,
+            #100014 70%,
+            #2b0035 84%,
+            #520063 94%,
+            #710083 100%
+        ) !important;
+}
+
+/* Quitar recuadro/fondo visible del título superior */
+.login-topbar {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+}
+
+/* Quitar barrita y texto "Herramientas y AF" del lado derecho */
+.login-brand-right,
+.login-divider {
+    display: none !important;
+}
+
+/* Aumentar título superior 15% */
+.login-brand h1 {
+    font-size: 1.15em !important;
+    transform: scale(1.15) !important;
+    transform-origin: left center !important;
+    letter-spacing: -.02em !important;
+}
+
+/* Mantener consola de administración visible y limpia */
+.login-brand p {
+    margin-top: .12rem !important;
+    color: rgba(255,255,255,.82) !important;
+}
+
+/* Tarjeta central limpia */
+.login-card {
+    background:
+        linear-gradient(
+            145deg,
+            rgba(255,255,255,.98) 0%,
+            rgba(255,255,255,.94) 72%,
+            rgba(250,244,255,.98) 100%
+        ) !important;
+    border: 1px solid rgba(255,255,255,.52) !important;
+    box-shadow: 0 1.2rem 3rem rgba(0,0,0,.28) !important;
+}
+
+/* Botón ingresar con degradado igual */
+.login-primary-button,
+.login-card button[type="submit"] {
+    background:
+        linear-gradient(
+            105deg,
+            #050507 0%,
+            #090910 46%,
+            #100014 70%,
+            #520063 94%,
+            #710083 100%
+        ) !important;
+    border: 0 !important;
+    color: #ffffff !important;
+}
+
+/* ============================================================
+   FIN NAVI LOGIN TITLE CLEAN FINAL PATCH
+   ============================================================ */
+
+
+
+
+/* ============================================================
+   NAVI LOGIN - CABECERA ARMÓNICA + ICONO USUARIO LIMPIO
+   ============================================================ */
+
+.login-topbar-balanced {
+    justify-content: center !important;
+    align-items: center !important;
+    text-align: center !important;
+    padding-top: 1.15rem !important;
+    padding-bottom: .85rem !important;
+    min-height: auto !important;
+}
+
+.login-brand-balanced {
+    width: 100% !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: .72rem !important;
+    text-align: center !important;
+}
+
+.login-brand-icon-balanced {
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    border-radius: .85rem !important;
+    display: grid !important;
+    place-items: center !important;
+    background: linear-gradient(145deg, #ff2d35, #d90f22) !important;
+    color: #fff !important;
+    font-size: 1.28rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    box-shadow: 0 .65rem 1.35rem rgba(255, 0, 35, .22) !important;
+}
+
+.login-brand-copy-balanced {
+    display: grid !important;
+    justify-items: start !important;
+    text-align: left !important;
+}
+
+.login-brand-copy-balanced h1 {
+    margin: 0 !important;
+    display: flex !important;
+    align-items: baseline !important;
+    justify-content: center !important;
+    gap: .48rem !important;
+    flex-wrap: nowrap !important;
+    color: #fff !important;
+    font-size: clamp(1.65rem, 2.45vw, 2.35rem) !important;
+    font-weight: 950 !important;
+    line-height: .96 !important;
+    letter-spacing: -.045em !important;
+    transform: none !important;
+    white-space: nowrap !important;
+    text-align: left !important;
+}
+
+.login-brand-copy-balanced h1 span {
+    display: inline-block !important;
+    white-space: nowrap !important;
+}
+
+.login-brand-copy-balanced h1 .brand-navi {
+    letter-spacing: -.035em !important;
+}
+
+.login-brand-copy-balanced h1 .brand-tools {
+    opacity: .98 !important;
+}
+
+.login-brand-copy-balanced p {
+    margin: .28rem 0 0 !important;
+    color: rgba(255,255,255,.86) !important;
+    font-size: .88rem !important;
+    font-weight: 850 !important;
+    line-height: 1.05 !important;
+    letter-spacing: .01em !important;
+    text-align: left !important;
+}
+
+.login-brand-right,
+.login-divider {
+    display: none !important;
+}
+
+/* Ícono limpio: sin emoji, sin fondo blanco tipo copa */
+.login-user-card-icon {
+    width: 72px !important;
+    height: 72px !important;
+    border-radius: 1.25rem !important;
+    margin: 0 auto .95rem !important;
+    position: relative !important;
+    display: grid !important;
+    place-items: center !important;
+    overflow: hidden !important;
+    background: linear-gradient(145deg, rgba(123,13,142,.13), rgba(75,0,92,.06)) !important;
+    border: 1px solid rgba(123,13,142,.28) !important;
+    box-shadow: 0 .75rem 1.65rem rgba(75,0,92,.12) !important;
+    color: transparent !important;
+    font-size: 0 !important;
+}
+
+.login-user-card-icon::before,
+.login-user-card-icon::after {
+    content: none !important;
+}
+
+.login-user-head {
+    position: absolute !important;
+    top: 17px !important;
+    left: 50% !important;
+    width: 20px !important;
+    height: 20px !important;
+    transform: translateX(-50%) !important;
+    border-radius: 999px !important;
+    background: linear-gradient(145deg, #8a159f, #4b005c) !important;
+    box-shadow: 0 .25rem .65rem rgba(75,0,92,.18) !important;
+}
+
+.login-user-body {
+    position: absolute !important;
+    left: 50% !important;
+    bottom: 15px !important;
+    width: 38px !important;
+    height: 24px !important;
+    transform: translateX(-50%) !important;
+    border-radius: 999px 999px .7rem .7rem !important;
+    background: linear-gradient(145deg, #8a159f, #4b005c) !important;
+    box-shadow: 0 .25rem .65rem rgba(75,0,92,.15) !important;
+}
+
+@@media (max-width: 760px) {
+    .login-brand-balanced {
+        gap: .55rem !important;
+    }
+
+    .login-brand-icon-balanced {
+        width: 42px !important;
+        height: 42px !important;
+        min-width: 42px !important;
+        font-size: 1.08rem !important;
+    }
+
+    .login-brand-copy-balanced h1 {
+        font-size: 1.48rem !important;
+        gap: .34rem !important;
+    }
+
+    .login-brand-copy-balanced p {
+        font-size: .76rem !important;
+    }
+
+    .login-user-card-icon {
+        width: 66px !important;
+        height: 66px !important;
+    }
+}
+
+/* ============================================================
+   FIN NAVI LOGIN - TITULO CENTRADO + ICONO USUARIO
+   ============================================================ */
+
 </style>
 

@@ -1,0 +1,2449 @@
+@rendermode InteractiveServer
+@using System.Text
+@using System.Text.Json
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
+@using Navi.ToolsAssets.Admin.Components.Security
+@using Navi.ToolsAssets.Admin.Services.Auth
+@inject WebAuthSessionService AuthSession
+@inject IHttpClientFactory HttpClientFactory
+@inject IJSRuntime JS
+@inject IServiceProvider ServiceProvider
+
+<PermissionGuard Permission="@PermissionName" ModuleName="@ModuleName">
+
+<section class="spc-hero navi-standard-hero">
+    <div class="spc-hero-copy">
+        <span class="spc-pill">@HeroPill</span>
+        <h2>@PageTitleText</h2>
+        <p>@PageSubtitle</p>
+    </div>
+
+    <div class="spc-hero-actions">
+        <div class="spc-hero-status">
+            <span>Solicitudes registradas</span>
+            <strong>@(storedRequests.Count + registeredItems.Count)</strong>
+        </div>
+
+        <button type="button" class="spc-hero-btn" @onclick="LoadAsync">
+            Actualizar
+        </button>
+    </div>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(successMessage))
+{
+    <div class="alert alert-success">@successMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+<section class="spc-shell">
+    <div class="spc-column">
+        <article class="spc-card">
+            <div class="spc-card-title">
+                <div>
+                    <h3>@HeaderTitle</h3>
+                    <p>@HeaderSubtitle</p>
+                </div>
+            </div>
+
+            <div class="spc-grid two">
+                <div class="form-group">
+                    <label>Nombre de la solicitud</label>
+                    <InputText class="form-control" @bind-Value="header.RequestName" disabled="@(!CanEditRequest)" />
+                </div>
+
+                <div class="form-group">
+                    <label>Sede</label>
+                    <InputSelect class="form-select" @bind-Value="header.BranchIdText" disabled="@(!CanEditRequest)">
+                        <option value="">Seleccione sede</option>
+                        @foreach (var branch in branches)
+                        {
+                            <option value="@branch.Id">@branch.Code - @branch.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+
+                <div class="form-group">
+                    <label>Solicitante</label>
+                    <InputText class="form-control" @bind-Value="header.RequestedBy" readonly />
+                </div>
+
+                <div class="form-group">
+                    <label>Responsable que aprueba</label>
+                    <InputText class="form-control" @bind-Value="header.Approver" disabled="@(!CanEditRequest)" />
+                </div>
+
+                @if (IsMaintenance)
+                {
+                    <div class="form-group">
+                        <label>Tipo mantenimiento</label>
+                        <InputSelect class="form-select" @bind-Value="header.RequestType" disabled="@(!CanEditRequest)">
+                            <option value="Correctivo">Correctivo</option>
+                            <option value="Preventivo">Preventivo</option>
+                            <option value="Calibración">Calibración</option>
+                            <option value="Garantía">Garantía</option>
+                            <option value="Seguridad/SSTA">Seguridad/SSTA</option>
+                        </InputSelect>
+                    </div>
+                }
+                else
+                {
+                    <div class="form-group">
+                        <label>Tipo solicitud</label>
+                        <InputSelect class="form-select" @bind-Value="header.RequestType" disabled="@(!CanEditRequest)">
+                            <option value="SPC">SPC</option>
+                            <option value="Activo fijo">Activo fijo</option>
+                            <option value="Herramienta">Herramienta</option>
+                            <option value="Equipo">Equipo</option>
+                            <option value="Kit de herramientas">Kit de herramientas</option>
+                        </InputSelect>
+                    </div>
+                }
+
+                <div class="form-group">
+                    <label>Prioridad</label>
+                    <InputSelect class="form-select" @bind-Value="header.Priority" disabled="@(!CanEditRequest)">
+                        <option value="Baja">Baja</option>
+                        <option value="Media">Media</option>
+                        <option value="Alta">Alta</option>
+                        <option value="Crítica">Crítica</option>
+                    </InputSelect>
+                </div>
+
+                <div class="form-group">
+                    <label>Fecha requerida</label>
+                    <InputDate class="form-control" @bind-Value="header.RequiredAt" disabled="@(!CanEditRequest)" />
+                </div>
+
+                <div class="form-group">
+                    <label>Ubicación / área</label>
+                    <InputText class="form-control" @bind-Value="header.Location" disabled="@(!CanEditRequest)" />
+                </div>
+
+                <div class="form-group full">
+                    <label>Descripción general de la necesidad</label>
+                    <InputTextArea class="form-control" @bind-Value="header.NeedDescription" rows="2" disabled="@(!CanEditRequest)" />
+                </div>
+            </div>
+        </article>
+
+        <article class="spc-card">
+            <div class="spc-card-title">
+                <div>
+                    <h3>@LinesTitle</h3>
+                    <p>Agrega una herramienta principal o varias herramientas que hagan parte del kit solicitado.</p>
+                </div>
+            </div>
+
+            <div class="spc-grid two">
+                <div class="form-group">
+                    <label>Foto / evidencia</label>
+                    <InputFile class="form-control" OnChange="OnImageSelected" accept="image/*" disabled="@(!CanEditRequest)" />
+                    @if (!string.IsNullOrWhiteSpace(lineForm.ImageReference))
+                    {
+                        <small class="photo-file-name">@lineForm.ImageReference</small>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(lineForm.ImagePreview))
+                    {
+                        <img class="photo-preview" src="@lineForm.ImagePreview" alt="Vista previa" />
+                    }
+                </div>
+
+                <div class="form-group">
+                    <label>Información técnica / serial</label>
+                    <InputText class="form-control" @bind-Value="lineForm.TechnicalOrSerial" disabled="@(!CanEditRequest)" />
+                </div>
+
+                <div class="form-group">
+                    <label>Nombre herramienta / equipo</label>
+                    <InputText class="form-control" @bind-Value="lineForm.ToolName" disabled="@(!CanEditRequest)" />
+                </div>
+
+                @if (IsMaintenance)
+                {
+                    <div class="form-group">
+                        <label>Estado / criticidad</label>
+                        <InputSelect class="form-select" @bind-Value="lineForm.Criticality" disabled="@(!CanEditRequest)">
+                            <option value="Normal">Normal</option>
+                            <option value="Alta">Alta</option>
+                            <option value="Crítica">Crítica</option>
+                        </InputSelect>
+                    </div>
+                }
+                else
+                {
+                    <div class="form-group">
+                        <label>Cantidad</label>
+                        <InputNumber class="form-control" @bind-Value="lineForm.Quantity" disabled="@(!CanEditRequest)" />
+                    </div>
+                }
+
+                <div class="form-group full">
+                    <label>Detalles</label>
+                    <InputTextArea class="form-control" @bind-Value="lineForm.Details" rows="2" disabled="@(!CanEditRequest)" />
+                </div>
+
+                <div class="form-group full">
+                    <label>Novedades / falla / observación</label>
+                    <InputTextArea class="form-control" @bind-Value="lineForm.Novelty" rows="2" disabled="@(!CanEditRequest)" />
+                </div>
+            </div>
+
+            <div class="spc-actions">
+                <button type="button" class="btn btn-primary" @onclick="AddLine" disabled="@(!CanCreateOrConfirmRequest)">
+                    @(editingLineId.HasValue ? "Actualizar herramienta" : "Agregar herramienta")
+                </button>
+
+                <button type="button" class="btn btn-outline-secondary" @onclick="ClearLine">
+                    Limpiar línea
+                </button>
+            </div>
+
+            @if (!currentLines.Any())
+            {
+                <div class="spc-empty">No hay herramientas agregadas.</div>
+            }
+            else
+            {
+                <div class="spc-table-wrap">
+                    <table class="spc-table">
+                        <thead>
+                            <tr>
+                                <th>Usar</th>
+                                <th>Herramienta</th>
+                                <th>Técnico / serial</th>
+                                <th>@(IsMaintenance ? "Criticidad" : "Cant.")</th>
+                                <th>Detalles / novedades</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in currentLines)
+                            {
+                                <tr>
+                                    <td><InputCheckbox @bind-Value="item.Selected" disabled="@(!CanEditRequest)" /></td>
+                                    <td>
+                                        <strong>@item.ToolName</strong>
+                                        @if (!string.IsNullOrWhiteSpace(item.ImagePreview))
+                                        {
+                                            <img class="photo-thumb" src="@item.ImagePreview" alt="Foto herramienta" />
+                                        }
+                                        <small>@item.ImageReference</small>
+                                    </td>
+                                    <td>@item.TechnicalOrSerial</td>
+                                    <td>@(IsMaintenance ? item.Criticality : item.Quantity)</td>
+                                    <td>
+                                        <small>@item.Details</small>
+                                        <small>@item.Novelty</small>
+                                    </td>
+                                    <td>
+                                        <div class="row-actions">
+                                            <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => EditLine(item.Id)">Editar</button>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemoveLine(item.Id)">Quitar</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </article>
+
+        <article class="spc-card spc-request-state-card">
+            <div class="spc-card-title">
+                <div>
+                    <h3>Estado de la solicitud</h3>
+                    <p>Guarda el borrador o confirma la solicitud. Al guardar se limpia el formulario y queda abajo en solicitudes registradas.</p>
+                </div>
+            </div>
+
+            <div class="spc-state-box">
+                <span>Estado actual</span>
+                <strong>@RequestVisualState</strong>
+            </div>
+
+            <div class="spc-actions">
+                <button type="button" class="btn btn-outline-primary" @onclick="SaveDraftAsync">
+                    Guardar como borrador
+                </button>
+
+                <button type="button" class="btn btn-primary" @onclick="ConfirmRequestAsync" disabled="@(!CanCreateOrConfirmRequest)">
+                    Confirmar solicitud
+                </button>
+            </div>
+        </article>
+    </div>
+
+    <div class="spc-column">
+        <article class="spc-card">
+            <div class="spc-card-title">
+                <div>
+                    <h3>@QuotationTitle</h3>
+                    <p>Solo se habilita cuando una solicitud confirmada entra a Realizar cotización.</p>
+                </div>
+            </div>
+
+            @if (!CanQuote)
+            {
+                <div class="spc-locked">
+                    Selecciona una solicitud confirmada en la parte inferior y presiona <strong>Realizar cotización</strong>.
+                </div>
+            }
+
+            <div class="quote-header-box">
+                <div>
+                    <span>Solicitud</span>
+                    <strong>@Display(header.RequestName)</strong>
+                </div>
+                <div>
+                    <span>Sede</span>
+                    <strong>@SelectedBranchLabel</strong>
+                </div>
+                <div>
+                    <span>Estado</span>
+                    <strong>@RequestVisualState</strong>
+                </div>
+            </div>
+
+            <div class="spc-grid two">
+                <div class="form-group">
+                    <label>Proveedor</label>
+                    <InputText class="form-control" @bind-Value="quoteForm.Provider" disabled="@(!CanQuote)" />
+                </div>
+
+                <div class="form-group">
+                    <label>Herramienta cotizada</label>
+                    <select class="form-select" @bind="quoteForm.LineIdText" disabled="@(!CanQuote)">
+                        <option value="">Toda la solicitud / kit</option>
+                        @foreach (var line in currentLines)
+                        {
+                            <option value="@line.Id">@line.ToolName</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Fecha cotización</label>
+                    <InputDate class="form-control" @bind-Value="quoteForm.QuotationDate" disabled="@(!CanQuote)" />
+                </div>
+
+                <div class="form-group">
+                    <label>Tiempo entrega / reparación</label>
+                    <InputText class="form-control" @bind-Value="quoteForm.DeliveryTime" disabled="@(!CanQuote)" />
+                </div>
+
+                <div class="form-group">
+                    <label>Precio antes de IVA</label>
+                    <InputNumber class="form-control" @bind-Value="quoteForm.PriceBeforeVat" disabled="@(!CanQuote)" />
+                </div>
+
+                <div class="form-group full">
+                    <label>Detalles adicionales de cotización</label>
+                    <InputTextArea class="form-control" @bind-Value="quoteForm.AdditionalDetails" rows="2" disabled="@(!CanQuote)" />
+                </div>
+            </div>
+
+            <div class="spc-actions">
+                <button type="button" class="btn btn-primary" @onclick="AddQuotationAsync" disabled="@(!CanRegisterQuotation)">
+                    @(editingQuoteId.HasValue ? "Actualizar cotización" : "Agregar cotización")
+                </button>
+
+                <button type="button" class="btn btn-outline-secondary" @onclick="ClearQuotation">
+                    Limpiar cotización
+                </button>
+            </div>
+
+            @if (!currentQuotes.Any())
+            {
+                <div class="spc-empty">No hay cotizaciones agregadas.</div>
+            }
+            else
+            {
+                <div class="spc-table-wrap">
+                    <table class="spc-table">
+                        <thead>
+                            <tr>
+                                <th>Usar</th>
+                                <th>Proveedor</th>
+                                <th>Herramienta</th>
+                                <th>Fecha</th>
+                                <th>Entrega</th>
+                                <th>Precio sin IVA</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var quote in currentQuotes)
+                            {
+                                <tr>
+                                    <td><InputCheckbox @bind-Value="quote.Selected" disabled="@(!CanQuote)" /></td>
+                                    <td>
+                                        <strong>@quote.Provider</strong>
+                                        <small>@quote.AdditionalDetails</small>
+                                    </td>
+                                    <td>@GetLineName(quote.LineId)</td>
+                                    <td>@FormatDate(quote.QuotationDate)</td>
+                                    <td>@quote.DeliveryTime</td>
+                                    <td>@FormatMoney(quote.PriceBeforeVat)</td>
+                                    <td>
+                                        <div class="row-actions">
+                                            <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => EditQuotation(quote.Id)">Editar</button>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemoveQuotationAsync(quote.Id)">Quitar</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </article>
+
+        <article class="spc-card spc-final-card">
+            <h3>@GenerateTitle</h3>
+            <p>Solo se habilita cuando la solicitud está en cotización y tiene mínimo una cotización seleccionada.</p>
+
+            <div class="spc-summary-grid">
+                <div>
+                    <span>Herramientas seleccionadas</span>
+                    <strong>@SelectedLines.Count()</strong>
+                </div>
+                <div>
+                    <span>Cotizaciones seleccionadas</span>
+                    <strong>@SelectedQuotes.Count()</strong>
+                </div>
+                <div>
+                    <span>Total antes de IVA</span>
+                    <strong>@FormatMoney(SelectedQuotes.Sum(x => x.PriceBeforeVat ?? 0))</strong>
+                </div>
+            </div>
+
+            <div class="spc-actions vertical">
+                <button type="button" class="btn btn-success" @onclick="GenerateAsync" disabled="@(!CanGenerateFinalRequest)">
+                    @(isSaving ? "Generando..." : GenerateButtonText)
+                </button>
+
+                @if (CanQuote && !SelectedQuotes.Any())
+                {
+                    <div class="spc-generate-warning">
+                        Agrega y selecciona al menos una cotización para generar la solicitud.
+                    </div>
+                }
+            </div>
+        </article>
+    </div>
+</section>
+
+<section class="spc-card spc-registered">
+    <div class="spc-card-title">
+        <div>
+            <h3>Solicitudes registradas</h3>
+            <p>Borradores, solicitudes confirmadas pendientes por cotizar y solicitudes generadas.</p>
+        </div>
+        <button type="button" class="btn btn-outline-primary btn-sm" @onclick="LoadAsync">Actualizar</button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="spc-empty">Cargando solicitudes...</div>
+    }
+    else if (!storedRequests.Any() && !registeredItems.Any())
+    {
+        <div class="spc-empty">No hay solicitudes registradas.</div>
+    }
+    else
+    {
+        <div class="spc-table-wrap">
+            <table class="spc-table">
+                <thead>
+                    <tr>
+                        <th>Solicitud</th>
+                        <th>Nombre</th>
+                        <th>Tipo</th>
+                        <th>Prioridad</th>
+                        <th>Estado</th>
+                        <th>Herramientas</th>
+                        <th>Cotizaciones</th>
+                        <th>Actualización</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in storedRequests.OrderByDescending(x => x.UpdatedAt))
+                    {
+                        <tr class="@GetStoredRowClass(item)">
+                            <td><strong>@item.LocalNumber</strong></td>
+                            <td>@Display(item.Header.RequestName)</td>
+                            <td>@Display(item.Header.RequestType)</td>
+                            <td>@Display(item.Header.Priority)</td>
+                            <td><span class="@GetStoredStatusClass(item.Status)">@GetStoredStatusLabel(item.Status)</span></td>
+                            <td>@item.Lines.Count</td>
+                            <td>@item.Quotations.Count</td>
+                            <td>@FormatDateTime(item.UpdatedAt)</td>
+                            <td>
+                                <div class="row-actions">
+                                    @if (item.Status == LocalStatusDraft)
+                                    {
+                                        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => LoadDraftForEdit(item.Id)">Editar</button>
+                                        <button type="button" class="btn btn-sm btn-primary" @onclick="() => ConfirmStoredRequestAsync(item.Id)">Confirmar</button>
+                                    }
+                                    else if (item.Status == LocalStatusConfirmed)
+                                    {
+                                        <button type="button" class="btn btn-sm btn-warning" disabled="@(!CanRegisterQuotation)" @onclick="() => StartQuotationAsync(item.Id)">Realizar cotización</button>
+                                    }
+                                    else if (item.Status == LocalStatusQuoting)
+                                    {
+                                        <button type="button" class="btn btn-sm btn-warning" disabled="@(!CanRegisterQuotation)" @onclick="() => ContinueQuotation(item.Id)">Continuar cotización</button>
+                                    }
+
+                                    <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => DeleteLocalRequestAsync(item.Id)">Eliminar</button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+
+                    @foreach (var item in registeredItems.OrderByDescending(x => x.CreatedAt).Take(20))
+                    {
+                        <tr>
+                            <td><strong>@item.RequestNumber</strong></td>
+                            <td>@item.Title</td>
+                            <td>@item.Type</td>
+                            <td>@item.Priority</td>
+                            <td><span class="status-pill">@GetStatusLabel(item.Status)</span></td>
+                            <td>—</td>
+                            <td>—</td>
+                            <td>@FormatDateTime(item.CreatedAt)</td>
+                            <td><span class="text-muted">Generada</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+</PermissionGuard>
+
+@code {
+
+    private bool CanCreateOrConfirmRequest =>
+        HasSpcPermission(IsPurchase ? "Purchases.Request" : "Maintenance.Request");
+
+    private bool CanRegisterQuotation =>
+        HasSpcPermission(IsPurchase ? "Purchases.Quote" : "Maintenance.Quote");
+
+    private bool CanGenerateFinalRequest =>
+        HasSpcPermission(IsPurchase ? "Purchases.Generate" : "Maintenance.Generate");
+
+    private bool CanApproveRequest =>
+        HasSpcPermission(IsPurchase ? "Purchases.Approve" : "Maintenance.Close");
+
+    private bool CanRejectRequest =>
+        HasSpcPermission(IsPurchase ? "Purchases.Reject" : "Maintenance.Reject");
+
+    private bool HasSpcPermission(string permission)
+    {
+        try
+        {
+            var serviceType = AppDomain.CurrentDomain
+                .GetAssemblies()
+                .SelectMany(assembly =>
+                {
+                    try
+                    {
+                        return assembly.GetTypes();
+                    }
+                    catch
+                    {
+                        return Array.Empty<Type>();
+                    }
+                })
+                .FirstOrDefault(type => type.Name == "WebAuthSessionService");
+
+            if (serviceType is null)
+            {
+                return false;
+            }
+
+            var service = ServiceProvider.GetService(serviceType);
+
+            if (service is null)
+            {
+                return false;
+            }
+
+            var method = serviceType.GetMethod("HasPermission", new[] { typeof(string) });
+
+            if (method is null)
+            {
+                return false;
+            }
+
+            return method.Invoke(service, new object[] { permission }) is bool allowed && allowed;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+
+    [Parameter] public string Kind { get; set; } = "purchase";
+
+    private const string LocalStatusDraft = "Draft";
+    private const string LocalStatusConfirmed = "Confirmed";
+    private const string LocalStatusQuoting = "Quoting";
+
+    private readonly JsonSerializerOptions jsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        WriteIndented = false
+    };
+
+    private readonly RequestHeader header = new();
+    private readonly RequestLineForm lineForm = new();
+    private readonly QuotationForm quoteForm = new();
+
+    private List<RequestLineItem> currentLines = new();
+    private List<QuotationItem> currentQuotes = new();
+    private List<StoredRequest> storedRequests = new();
+    private List<ApiRegisteredItem> registeredItems = new();
+    private List<BranchOption> branches = new();
+
+    private Guid? activeStoredRequestId;
+    private Guid? editingLineId;
+    private Guid? editingQuoteId;
+
+    private string currentStatus = "New";
+    private bool isLoading;
+    private bool isSaving;
+    private bool localLoaded;
+    private string? successMessage;
+    private string? errorMessage;
+
+    private bool IsPurchase => Kind.Equals("purchase", StringComparison.OrdinalIgnoreCase);
+    private bool IsMaintenance => !IsPurchase;
+
+    private string StorageKey => IsPurchase ? "navi-spc-purchase-workspace-v2" : "navi-maintenance-request-workspace-v2";
+private string PermissionName => IsPurchase ? "Purchases.Request" : "Maintenance.Request";
+    private string RequestPermissionName => IsPurchase ? "Purchases.Request" : "Maintenance.Request";
+    private string ModuleName => IsPurchase ? "Solicitar Compra Herramientas y AF" : "Solicitar Mantenimiento";
+    private string HeroPill => IsPurchase ? "SPC · SOLICITUD DE COMPRA" : "MANTENIMIENTO · HERRAMIENTAS · EQUIPOS";
+    private string PageTitleText => IsPurchase ? "Solicitud de compra Herramientas y AF" : "Solicitud de mantenimiento";
+    private string PageSubtitle => IsPurchase
+        ? "Crea un borrador o confirma la solicitud. Después cotiza y genera la solicitud final."
+        : "Crea un borrador o confirma el mantenimiento. Después cotiza y genera la solicitud final.";
+    private string HeaderTitle => IsPurchase ? "Encabezado de compra" : "Encabezado de mantenimiento";
+    private string HeaderSubtitle => IsPurchase
+        ? "Información mínima de la solicitud SPC."
+        : "Información mínima de la solicitud de mantenimiento.";
+    private string LinesTitle => IsPurchase ? "Herramientas / activos solicitados" : "Herramientas / equipos a intervenir";
+    private string QuotationTitle => IsPurchase ? "Cotización de compra" : "Cotización de mantenimiento";
+    private string GenerateTitle => IsPurchase ? "Generar solicitud de compra" : "Generar solicitud de mantenimiento";
+    private string GenerateButtonText => IsPurchase ? "Generar solicitud de compra" : "Generar solicitud de mantenimiento";
+
+    private bool CanRequest =>
+        AuthSession.HasPermission(RequestPermissionName);
+
+    private bool CanEditRequest => CanRequest && (currentStatus == "New" || currentStatus == LocalStatusDraft);
+    private bool CanQuote => CanRequest && currentStatus == LocalStatusQuoting && activeStoredRequestId.HasValue;
+    private bool CanSaveAsDraft => CanEditRequest && SelectedLines.Any();
+    private bool CanConfirmRequest => CanEditRequest && SelectedLines.Any();
+    private bool CanGenerateRequest => CanQuote && SelectedQuotes.Any();
+
+    private IEnumerable<RequestLineItem> SelectedLines => currentLines.Where(x => x.Selected);
+    private IEnumerable<QuotationItem> SelectedQuotes => currentQuotes.Where(x => x.Selected);
+
+    private string RequestVisualState => currentStatus switch
+    {
+        LocalStatusDraft => "Estado borrador",
+        LocalStatusConfirmed => "Solicitud confirmada",
+        LocalStatusQuoting => "Cotizando",
+        _ => "Nueva solicitud"
+    };
+
+    private string SelectedBranchLabel
+    {
+        get
+        {
+            var branch = branches.FirstOrDefault(x => x.Id.ToString() == header.BranchIdText);
+            return branch is null ? "Sin sede" : $"{branch.Code} - {branch.Name}";
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        ResetHeaderDefaults();
+        await LoadBranchesAsync();
+        await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || localLoaded)
+        {
+            return;
+        }
+
+        await LoadLocalStateAsync();
+        localLoaded = true;
+        StateHasChanged();
+    }
+
+    private void ResetHeaderDefaults()
+    {
+        header.RequestedBy = string.IsNullOrWhiteSpace(AuthSession.UserName) ? "admin" : AuthSession.UserName;
+        header.Priority = "Media";
+        header.RequestType = IsPurchase ? "SPC" : "Correctivo";
+
+        if (AuthSession.BranchId.HasValue)
+        {
+            header.BranchIdText = AuthSession.BranchId.Value.ToString();
+        }
+    }
+
+    private async Task LoadBranchesAsync()
+    {
+        try
+        {
+            var api = CreateApiClient();
+            branches = await api.GetFromJsonAsync<List<BranchOption>>("api/organization/branches") ?? new();
+        }
+        catch
+        {
+            branches = new();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var api = CreateApiClient();
+
+            if (IsPurchase)
+            {
+                var data = await api.GetFromJsonAsync<List<PurchaseRequestItem>>("api/purchase-requests") ?? new();
+                registeredItems = data.Select(x => new ApiRegisteredItem
+                {
+                    Id = x.Id,
+                    RequestNumber = x.RequestNumber,
+                    Title = x.ItemName,
+                    Type = "Compra",
+                    Priority = x.Priority,
+                    Status = x.Status,
+                    CreatedAt = x.CreatedAt
+                }).ToList();
+            }
+            else
+            {
+                var data = await api.GetFromJsonAsync<List<MaintenanceRequestItem>>("api/maintenance-requests") ?? new();
+                registeredItems = data.Select(x => new ApiRegisteredItem
+                {
+                    Id = x.Id,
+                    RequestNumber = x.RequestNumber,
+                    Title = x.Title,
+                    Type = x.RequestType,
+                    Priority = x.Priority,
+                    Status = x.Status,
+                    CreatedAt = x.CreatedAt
+                }).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudieron cargar las solicitudes generadas: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private HttpClient CreateApiClient()
+    {
+        var api = HttpClientFactory.CreateClient("NaviApi");
+
+        api.DefaultRequestHeaders.Remove("X-Navi-User");
+        api.DefaultRequestHeaders.Remove("X-Navi-Role");
+        api.DefaultRequestHeaders.Remove("X-Navi-Role-Code");
+        api.DefaultRequestHeaders.Remove("X-Navi-Permissions");
+        api.DefaultRequestHeaders.Remove("X-Navi-BranchId");
+        api.DefaultRequestHeaders.Remove("X-Navi-ResponsiblePersonId");
+        api.DefaultRequestHeaders.Remove("X-Navi-ResponsiblePersonName");
+
+        api.DefaultRequestHeaders.Add("X-Navi-User", string.IsNullOrWhiteSpace(AuthSession.UserName) ? "admin" : AuthSession.UserName);
+        api.DefaultRequestHeaders.Add("X-Navi-Role", string.IsNullOrWhiteSpace(AuthSession.RoleName) ? "Administrador" : AuthSession.RoleName);
+        api.DefaultRequestHeaders.Add("X-Navi-Role-Code", string.IsNullOrWhiteSpace(AuthSession.RoleCode) ? "ADMIN" : AuthSession.RoleCode);
+
+        var permissions = AuthSession.Permissions ?? new List<string>();
+
+        if (!permissions.Any())
+        {
+            permissions = IsPurchase
+                ? new List<string> { "Purchases.View", "Purchases.Request", "Purchases.Approve", "Purchases.Reject" }
+                : new List<string> { "Maintenance.View", "Maintenance.Request", "Maintenance.Execute", "Maintenance.Close" };
+        }
+
+        api.DefaultRequestHeaders.Add("X-Navi-Permissions", string.Join(";", permissions.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase)));
+
+        if (AuthSession.BranchId.HasValue)
+        {
+            api.DefaultRequestHeaders.Add("X-Navi-BranchId", AuthSession.BranchId.Value.ToString());
+        }
+
+        if (AuthSession.ResponsiblePersonId.HasValue)
+        {
+            api.DefaultRequestHeaders.Add("X-Navi-ResponsiblePersonId", AuthSession.ResponsiblePersonId.Value.ToString());
+        }
+
+        if (!string.IsNullOrWhiteSpace(AuthSession.ResponsiblePersonName))
+        {
+            api.DefaultRequestHeaders.Add("X-Navi-ResponsiblePersonName", AuthSession.ResponsiblePersonName);
+        }
+
+        return api;
+    }
+
+    private async Task LoadLocalStateAsync()
+    {
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", StorageKey);
+
+            if (!string.IsNullOrWhiteSpace(json))
+            {
+                storedRequests = JsonSerializer.Deserialize<List<StoredRequest>>(json, jsonOptions) ?? new();
+            }
+        }
+        catch
+        {
+            storedRequests = new();
+        }
+    }
+
+    private async Task SaveLocalStateAsync()
+    {
+        var json = JsonSerializer.Serialize(storedRequests, jsonOptions);
+        await JS.InvokeVoidAsync("localStorage.setItem", StorageKey, json);
+    }
+
+    private async Task OnImageSelected(InputFileChangeEventArgs e)
+    {
+        errorMessage = null;
+
+        var file = e.File;
+
+        if (file is null)
+        {
+            return;
+        }
+
+        if (!file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        {
+            errorMessage = "Solo se permiten archivos de imagen.";
+            return;
+        }
+
+        const long maxFileSize = 2 * 1024 * 1024;
+
+        if (file.Size > maxFileSize)
+        {
+            errorMessage = "La imagen no puede superar 2 MB.";
+            return;
+        }
+
+        await using var stream = file.OpenReadStream(maxFileSize);
+        using var memory = new MemoryStream();
+        await stream.CopyToAsync(memory);
+
+        lineForm.ImageReference = file.Name;
+        lineForm.ImagePreview = $"data:{file.ContentType};base64,{Convert.ToBase64String(memory.ToArray())}";
+    }
+
+    private void AddLine()
+    {
+
+        if (!CanCreateOrConfirmRequest)
+        {
+            return;
+        }
+
+        errorMessage = null;
+
+        if (!CanEditRequest)
+        {
+            errorMessage = "Solo puedes modificar herramientas cuando la solicitud está nueva o en borrador.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(lineForm.ToolName))
+        {
+            errorMessage = "Debes indicar el nombre de la herramienta o equipo.";
+            return;
+        }
+
+        if (editingLineId.HasValue)
+        {
+            var existing = currentLines.FirstOrDefault(x => x.Id == editingLineId.Value);
+
+            if (existing is not null)
+            {
+                existing.ImageReference = lineForm.ImageReference?.Trim();
+                existing.ImagePreview = lineForm.ImagePreview;
+                existing.TechnicalOrSerial = lineForm.TechnicalOrSerial?.Trim();
+                existing.ToolName = lineForm.ToolName.Trim();
+                existing.Quantity = lineForm.Quantity <= 0 ? 1 : lineForm.Quantity;
+                existing.Criticality = string.IsNullOrWhiteSpace(lineForm.Criticality) ? "Normal" : lineForm.Criticality;
+                existing.Details = lineForm.Details?.Trim();
+                existing.Novelty = lineForm.Novelty?.Trim();
+            }
+        }
+        else
+        {
+            currentLines.Add(new RequestLineItem
+            {
+                Id = Guid.NewGuid(),
+                Selected = true,
+                ImageReference = lineForm.ImageReference?.Trim(),
+                ImagePreview = lineForm.ImagePreview,
+                TechnicalOrSerial = lineForm.TechnicalOrSerial?.Trim(),
+                ToolName = lineForm.ToolName.Trim(),
+                Quantity = lineForm.Quantity <= 0 ? 1 : lineForm.Quantity,
+                Criticality = string.IsNullOrWhiteSpace(lineForm.Criticality) ? "Normal" : lineForm.Criticality,
+                Details = lineForm.Details?.Trim(),
+                Novelty = lineForm.Novelty?.Trim()
+            });
+        }
+
+        ClearLine();
+    }
+
+    private void EditLine(Guid id)
+    {
+        if (!CanEditRequest)
+        {
+            errorMessage = "La solicitud confirmada no permite editar encabezado ni herramientas.";
+            return;
+        }
+
+        var item = currentLines.FirstOrDefault(x => x.Id == id);
+
+        if (item is null)
+        {
+            return;
+        }
+
+        editingLineId = item.Id;
+        lineForm.ImageReference = item.ImageReference;
+        lineForm.ImagePreview = item.ImagePreview;
+        lineForm.TechnicalOrSerial = item.TechnicalOrSerial;
+        lineForm.ToolName = item.ToolName;
+        lineForm.Quantity = item.Quantity;
+        lineForm.Criticality = item.Criticality;
+        lineForm.Details = item.Details;
+        lineForm.Novelty = item.Novelty;
+    }
+
+    private void RemoveLine(Guid id)
+    {
+        if (!CanEditRequest)
+        {
+            return;
+        }
+
+        currentLines.RemoveAll(x => x.Id == id);
+        currentQuotes.RemoveAll(x => x.LineId == id);
+    }
+
+    private void ClearLine()
+    {
+        editingLineId = null;
+        lineForm.ImageReference = string.Empty;
+        lineForm.ImagePreview = string.Empty;
+        lineForm.TechnicalOrSerial = string.Empty;
+        lineForm.ToolName = string.Empty;
+        lineForm.Quantity = 1;
+        lineForm.Criticality = "Normal";
+        lineForm.Details = string.Empty;
+        lineForm.Novelty = string.Empty;
+    }
+
+    private async Task SaveDraftAsync()
+    {
+        await SaveOrUpdateStoredRequestAsync(LocalStatusDraft);
+        successMessage = "Borrador guardado. La solicitud quedó registrada abajo para editar o confirmar.";
+        ClearWorkspace();
+    }
+
+    private async Task ConfirmRequestAsync()
+    {
+
+        if (!CanCreateOrConfirmRequest)
+        {
+            return;
+        }
+
+        await SaveOrUpdateStoredRequestAsync(LocalStatusConfirmed);
+        successMessage = "Solicitud confirmada. Quedó registrada abajo como pendiente por cotizar.";
+        ClearWorkspace();
+    }
+
+    private async Task SaveOrUpdateStoredRequestAsync(string status)
+    {
+        if (!SelectedLines.Any())
+        {
+            errorMessage = "Debes agregar y seleccionar al menos una herramienta.";
+            return;
+        }
+
+        var now = DateTime.Now;
+        var id = activeStoredRequestId ?? Guid.NewGuid();
+
+        var item = storedRequests.FirstOrDefault(x => x.Id == id);
+
+        if (item is null)
+        {
+            item = new StoredRequest
+            {
+                Id = id,
+                CreatedAt = now,
+                LocalNumber = BuildLocalNumber(status, now)
+            };
+
+            storedRequests.Add(item);
+        }
+
+        item.Status = status;
+        item.Header = header.Clone();
+        item.Lines = currentLines.Select(x => x.Clone()).ToList();
+        item.Quotations = currentQuotes.Select(x => x.Clone()).ToList();
+        item.UpdatedAt = now;
+
+        await SaveLocalStateAsync();
+    }
+
+    private void LoadDraftForEdit(Guid id)
+    {
+        var item = storedRequests.FirstOrDefault(x => x.Id == id && x.Status == LocalStatusDraft);
+
+        if (item is null)
+        {
+            return;
+        }
+
+        LoadStoredRequestToWorkspace(item);
+        currentStatus = LocalStatusDraft;
+        successMessage = "Borrador cargado para edición.";
+    }
+
+    private async Task ConfirmStoredRequestAsync(Guid id)
+    {
+        var item = storedRequests.FirstOrDefault(x => x.Id == id && x.Status == LocalStatusDraft);
+
+        if (item is null)
+        {
+            return;
+        }
+
+        item.Status = LocalStatusConfirmed;
+        item.UpdatedAt = DateTime.Now;
+        await SaveLocalStateAsync();
+
+        if (activeStoredRequestId == id)
+        {
+            ClearWorkspace();
+        }
+
+        successMessage = "Borrador confirmado. Ahora puedes realizar cotización.";
+    }
+
+    private async Task StartQuotationAsync(Guid id)
+    {
+
+        if (!CanRegisterQuotation)
+        {
+            return;
+        }
+
+        var item = storedRequests.FirstOrDefault(x => x.Id == id && x.Status == LocalStatusConfirmed);
+
+        if (item is null)
+        {
+            return;
+        }
+
+        item.Status = LocalStatusQuoting;
+        item.UpdatedAt = DateTime.Now;
+        await SaveLocalStateAsync();
+
+        LoadStoredRequestToWorkspace(item);
+        currentStatus = LocalStatusQuoting;
+        successMessage = "Cotización habilitada. Agrega las cotizaciones y luego genera la solicitud.";
+    }
+
+    private void ContinueQuotation(Guid id)
+    {
+
+        if (!CanRegisterQuotation)
+        {
+            return;
+        }
+
+        var item = storedRequests.FirstOrDefault(x => x.Id == id && x.Status == LocalStatusQuoting);
+
+        if (item is null)
+        {
+            return;
+        }
+
+        LoadStoredRequestToWorkspace(item);
+        currentStatus = LocalStatusQuoting;
+        successMessage = "Cotización cargada para continuar.";
+    }
+
+    private void LoadStoredRequestToWorkspace(StoredRequest item)
+    {
+        activeStoredRequestId = item.Id;
+        header.CopyFrom(item.Header);
+        currentLines = item.Lines.Select(x => x.Clone()).ToList();
+        currentQuotes = item.Quotations.Select(x => x.Clone()).ToList();
+        ClearLine();
+        ClearQuotation();
+    }
+
+    private async Task AddQuotationAsync()
+    {
+
+        if (!CanRegisterQuotation)
+        {
+            return;
+        }
+
+        errorMessage = null;
+
+        if (!CanQuote)
+        {
+            errorMessage = "Primero debes seleccionar una solicitud confirmada y presionar Realizar cotización.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(quoteForm.Provider))
+        {
+            errorMessage = "Debes indicar el proveedor.";
+            return;
+        }
+
+        if (editingQuoteId.HasValue)
+        {
+            var existing = currentQuotes.FirstOrDefault(x => x.Id == editingQuoteId.Value);
+
+            if (existing is not null)
+            {
+                existing.Provider = quoteForm.Provider.Trim();
+                existing.LineId = TryGuid(quoteForm.LineIdText);
+                existing.QuotationDate = quoteForm.QuotationDate;
+                existing.DeliveryTime = quoteForm.DeliveryTime?.Trim();
+                existing.PriceBeforeVat = quoteForm.PriceBeforeVat;
+                existing.AdditionalDetails = quoteForm.AdditionalDetails?.Trim();
+            }
+        }
+        else
+        {
+            currentQuotes.Add(new QuotationItem
+            {
+                Id = Guid.NewGuid(),
+                Selected = true,
+                Provider = quoteForm.Provider.Trim(),
+                LineId = TryGuid(quoteForm.LineIdText),
+                QuotationDate = quoteForm.QuotationDate,
+                DeliveryTime = quoteForm.DeliveryTime?.Trim(),
+                PriceBeforeVat = quoteForm.PriceBeforeVat,
+                AdditionalDetails = quoteForm.AdditionalDetails?.Trim()
+            });
+        }
+
+        await PersistActiveQuotationStateAsync();
+        ClearQuotation();
+    }
+
+    private void EditQuotation(Guid id)
+    {
+
+        if (!CanRegisterQuotation)
+        {
+            return;
+        }
+
+        if (!CanQuote)
+        {
+            return;
+        }
+
+        var quote = currentQuotes.FirstOrDefault(x => x.Id == id);
+
+        if (quote is null)
+        {
+            return;
+        }
+
+        editingQuoteId = quote.Id;
+        quoteForm.Provider = quote.Provider;
+        quoteForm.LineIdText = quote.LineId?.ToString();
+        quoteForm.QuotationDate = quote.QuotationDate;
+        quoteForm.DeliveryTime = quote.DeliveryTime;
+        quoteForm.PriceBeforeVat = quote.PriceBeforeVat;
+        quoteForm.AdditionalDetails = quote.AdditionalDetails;
+    }
+
+    private async Task RemoveQuotationAsync(Guid id)
+    {
+
+        if (!CanRegisterQuotation)
+        {
+            return;
+        }
+
+        if (!CanQuote)
+        {
+            return;
+        }
+
+        currentQuotes.RemoveAll(x => x.Id == id);
+        await PersistActiveQuotationStateAsync();
+    }
+
+    private async Task PersistActiveQuotationStateAsync()
+    {
+
+        if (!CanRegisterQuotation)
+        {
+            return;
+        }
+
+        if (!activeStoredRequestId.HasValue)
+        {
+            return;
+        }
+
+        var item = storedRequests.FirstOrDefault(x => x.Id == activeStoredRequestId.Value);
+
+        if (item is null)
+        {
+            return;
+        }
+
+        item.Status = LocalStatusQuoting;
+        item.Header = header.Clone();
+        item.Lines = currentLines.Select(x => x.Clone()).ToList();
+        item.Quotations = currentQuotes.Select(x => x.Clone()).ToList();
+        item.UpdatedAt = DateTime.Now;
+
+        await SaveLocalStateAsync();
+    }
+
+    private void ClearQuotation()
+    {
+
+        if (!CanRegisterQuotation)
+        {
+            return;
+        }
+
+        editingQuoteId = null;
+        quoteForm.Provider = string.Empty;
+        quoteForm.LineIdText = string.Empty;
+        quoteForm.QuotationDate = null;
+        quoteForm.DeliveryTime = string.Empty;
+        quoteForm.PriceBeforeVat = null;
+        quoteForm.AdditionalDetails = string.Empty;
+    }
+
+    private async Task DeleteLocalRequestAsync(Guid id)
+    {
+        storedRequests.RemoveAll(x => x.Id == id);
+        await SaveLocalStateAsync();
+
+        if (activeStoredRequestId == id)
+        {
+            ClearWorkspace();
+        }
+
+        successMessage = "Solicitud local eliminada.";
+    }
+
+    private async Task GenerateAsync()
+    {
+
+        if (!CanGenerateFinalRequest)
+        {
+            return;
+        }
+
+        isSaving = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            if (!CanGenerateRequest)
+            {
+                errorMessage = "Debes tener la solicitud en cotización y mínimo una cotización seleccionada.";
+                return;
+            }
+
+            var selectedLines = SelectedLines.ToList();
+            var selectedQuotes = SelectedQuotes.ToList();
+
+            if (IsPurchase)
+            {
+                await GeneratePurchaseAsync(selectedLines, selectedQuotes);
+            }
+            else
+            {
+                await GenerateMaintenanceAsync(selectedLines, selectedQuotes);
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error generando solicitud: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task GeneratePurchaseAsync(List<RequestLineItem> selectedLines, List<QuotationItem> selectedQuotes)
+    {
+
+        if (!CanGenerateFinalRequest)
+        {
+            return;
+        }
+
+        var summary = BuildSummary(selectedLines, selectedQuotes);
+        var total = selectedQuotes.Sum(x => x.PriceBeforeVat ?? 0);
+        var firstLine = selectedLines.First();
+
+        var request = new CreatePurchaseRequestRequest
+        {
+            ItemCode = firstLine.TechnicalOrSerial,
+            ItemName = string.IsNullOrWhiteSpace(header.RequestName) ? $"SPC - {firstLine.ToolName}" : header.RequestName.Trim(),
+            ItemDescription = summary,
+            Quantity = selectedLines.Sum(x => x.Quantity),
+            Unit = "Und",
+            PurchasePurpose = header.RequestType,
+            Justification = string.IsNullOrWhiteSpace(header.NeedDescription) ? summary : header.NeedDescription,
+            Priority = header.Priority,
+            BranchId = TryGuid(header.BranchIdText),
+            RequiredAt = header.RequiredAt,
+            ProjectId = "SPC-MRO",
+            VendorSuggestion = string.Join(" | ", selectedQuotes.Select(x => x.Provider).Distinct()),
+            EstimatedCostText = total > 0 ? total.ToString("N0") : null,
+            Notes = summary,
+            SendToReview = true
+        };
+
+        var api = CreateApiClient();
+        var response = await api.PostAsJsonAsync("api/purchase-requests", request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadFromJsonAsync<ApiError>();
+            errorMessage = error?.Message ?? "No se pudo generar la solicitud de compra.";
+            return;
+        }
+
+        await RemoveActiveAfterGeneratedAsync();
+        successMessage = "Solicitud de compra generada correctamente.";
+        await LoadAsync();
+    }
+
+    private async Task GenerateMaintenanceAsync(List<RequestLineItem> selectedLines, List<QuotationItem> selectedQuotes)
+    {
+
+        if (!CanGenerateFinalRequest)
+        {
+            return;
+        }
+
+        var summary = BuildSummary(selectedLines, selectedQuotes);
+        var total = selectedQuotes.Sum(x => x.PriceBeforeVat ?? 0);
+        var firstLine = selectedLines.First();
+
+        var request = new CreateMaintenanceRequestRequest
+        {
+            BranchId = TryGuid(header.BranchIdText),
+            RequestType = header.RequestType,
+            Priority = header.Priority,
+            Title = string.IsNullOrWhiteSpace(header.RequestName) ? $"Mantenimiento - {firstLine.ToolName}" : header.RequestName.Trim(),
+            ProblemDescription = summary,
+            WorkDescription = header.NeedDescription,
+            FailureCause = string.Join(" | ", selectedLines.Select(x => x.Novelty).Where(x => !string.IsNullOrWhiteSpace(x))),
+            RequiresStop = selectedLines.Any(x => x.Criticality == "Crítica"),
+            IsSafetyRisk = selectedLines.Any(x => x.Criticality == "Crítica"),
+            EstimatedCostText = total > 0 ? total.ToString("N0") : null,
+            VendorSuggestion = string.Join(" | ", selectedQuotes.Select(x => x.Provider).Distinct()),
+            Notes = summary,
+            SendToReview = true
+        };
+
+        var api = CreateApiClient();
+        var response = await api.PostAsJsonAsync("api/maintenance-requests", request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadFromJsonAsync<ApiError>();
+            errorMessage = error?.Message ?? "No se pudo generar la solicitud de mantenimiento.";
+            return;
+        }
+
+        await RemoveActiveAfterGeneratedAsync();
+        successMessage = "Solicitud de mantenimiento generada correctamente.";
+        await LoadAsync();
+    }
+
+    private async Task RemoveActiveAfterGeneratedAsync()
+    {
+
+        if (!CanGenerateFinalRequest)
+        {
+            return;
+        }
+
+        if (activeStoredRequestId.HasValue)
+        {
+            storedRequests.RemoveAll(x => x.Id == activeStoredRequestId.Value);
+            await SaveLocalStateAsync();
+        }
+
+        ClearWorkspace();
+    }
+
+    private string BuildSummary(List<RequestLineItem> lines, List<QuotationItem> quotes)
+    {
+        var sb = new StringBuilder();
+
+        sb.AppendLine("ENCABEZADO");
+        sb.AppendLine($"Solicitud: {Display(header.RequestName)}");
+        sb.AppendLine($"Tipo: {Display(header.RequestType)}");
+        sb.AppendLine($"Sede: {SelectedBranchLabel}");
+        sb.AppendLine($"Solicitante: {Display(header.RequestedBy)}");
+        sb.AppendLine($"Responsable aprueba: {Display(header.Approver)}");
+        sb.AppendLine($"Prioridad: {Display(header.Priority)}");
+        sb.AppendLine($"Fecha requerida: {FormatDate(header.RequiredAt)}");
+        sb.AppendLine($"Ubicación/área: {Display(header.Location)}");
+        sb.AppendLine($"Necesidad: {Display(header.NeedDescription)}");
+        sb.AppendLine();
+
+        sb.AppendLine("HERRAMIENTAS / KIT");
+        foreach (var line in lines)
+        {
+            sb.AppendLine($"- {line.ToolName} | Cantidad: {line.Quantity} | Técnico/Serial: {Display(line.TechnicalOrSerial)} | Criticidad: {Display(line.Criticality)}");
+            sb.AppendLine($"  Foto/evidencia: {Display(line.ImageReference)}");
+            sb.AppendLine($"  Detalles: {Display(line.Details)}");
+            sb.AppendLine($"  Novedades: {Display(line.Novelty)}");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("COTIZACIONES");
+        foreach (var quote in quotes)
+        {
+            sb.AppendLine($"- Proveedor: {quote.Provider} | Herramienta: {GetLineName(quote.LineId)} | Fecha: {FormatDate(quote.QuotationDate)} | Entrega: {Display(quote.DeliveryTime)} | Precio sin IVA: {FormatMoney(quote.PriceBeforeVat)}");
+            sb.AppendLine($"  Detalles: {Display(quote.AdditionalDetails)}");
+        }
+
+        return sb.ToString();
+    }
+
+    private void ClearWorkspace()
+    {
+        activeStoredRequestId = null;
+        editingLineId = null;
+        editingQuoteId = null;
+        currentStatus = "New";
+        currentLines = new();
+        currentQuotes = new();
+        ClearLine();
+        ClearQuotation();
+
+        var currentRequester = header.RequestedBy;
+        var currentBranch = header.BranchIdText;
+
+        header.Clear();
+        ResetHeaderDefaults();
+
+        if (!string.IsNullOrWhiteSpace(currentRequester))
+        {
+            header.RequestedBy = currentRequester;
+        }
+
+        if (!string.IsNullOrWhiteSpace(currentBranch))
+        {
+            header.BranchIdText = currentBranch;
+        }
+    }
+
+    private string GetLineName(Guid? id)
+    {
+        if (!id.HasValue)
+        {
+            return "Toda la solicitud / kit";
+        }
+
+        return currentLines.FirstOrDefault(x => x.Id == id.Value)?.ToolName ?? "Herramienta no encontrada";
+    }
+
+    private string BuildLocalNumber(string status, DateTime date)
+    {
+        var prefix = IsPurchase ? "BOR-COMP" : "BOR-MANT";
+        var suffix = status == LocalStatusConfirmed ? "CONF" : "DRAFT";
+        return $"{prefix}-{suffix}-{date:yyyyMMddHHmmss}";
+    }
+
+    private string GetStoredStatusLabel(string status)
+    {
+        return status switch
+        {
+            LocalStatusDraft => "Borrador",
+            LocalStatusConfirmed => "Confirmada / pendiente por cotizar",
+            LocalStatusQuoting => "Cotizando",
+            _ => status
+        };
+    }
+
+    private string GetStoredStatusClass(string status)
+    {
+        return status switch
+        {
+            LocalStatusDraft => "status-pill draft",
+            LocalStatusConfirmed => "status-pill confirmed",
+            LocalStatusQuoting => "status-pill quoting",
+            _ => "status-pill"
+        };
+    }
+
+    private string GetStoredRowClass(StoredRequest item)
+    {
+        return item.Status switch
+        {
+            LocalStatusDraft => "draft-row",
+            LocalStatusConfirmed => "confirmed-row",
+            LocalStatusQuoting => "quoting-row",
+            _ => string.Empty
+        };
+    }
+
+    private static Guid? TryGuid(string? value)
+    {
+        return Guid.TryParse(value, out var id) ? id : null;
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "—" : value;
+    }
+
+    private static string FormatDate(DateTime? value)
+    {
+        return value.HasValue ? value.Value.ToString("dd/MM/yyyy") : "—";
+    }
+
+    private static string FormatDateTime(DateTime? value)
+    {
+        return value.HasValue ? value.Value.ToString("dd/MM/yyyy HH:mm") : "—";
+    }
+
+    private static string FormatMoney(decimal? value)
+    {
+        return value.HasValue ? $"${value.Value:N0}" : "—";
+    }
+
+    private static string GetStatusLabel(string status)
+    {
+        return status switch
+        {
+            "Draft" => "Borrador",
+            "InReview" => "En revisión",
+            "Approved" => "Aprobado",
+            "Scheduled" => "Programado",
+            "InExecution" => "En ejecución",
+            "Closed" => "Cerrado",
+            "Rejected" => "Rechazado",
+            "Canceled" => "Cancelado",
+            _ => status
+        };
+    }
+
+    private sealed class StoredRequest
+    {
+        public Guid Id { get; set; }
+        public string LocalNumber { get; set; } = string.Empty;
+        public string Status { get; set; } = LocalStatusDraft;
+        public RequestHeader Header { get; set; } = new();
+        public List<RequestLineItem> Lines { get; set; } = new();
+        public List<QuotationItem> Quotations { get; set; } = new();
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
+    }
+
+    private sealed class RequestHeader
+    {
+        public string? RequestName { get; set; }
+        public string? BranchIdText { get; set; }
+        public string? RequestedBy { get; set; }
+        public string? Approver { get; set; }
+        public string? RequestType { get; set; }
+        public string Priority { get; set; } = "Media";
+        public DateTime? RequiredAt { get; set; }
+        public string? Location { get; set; }
+        public string? NeedDescription { get; set; }
+
+        public RequestHeader Clone()
+        {
+            return new RequestHeader
+            {
+                RequestName = RequestName,
+                BranchIdText = BranchIdText,
+                RequestedBy = RequestedBy,
+                Approver = Approver,
+                RequestType = RequestType,
+                Priority = Priority,
+                RequiredAt = RequiredAt,
+                Location = Location,
+                NeedDescription = NeedDescription
+            };
+        }
+
+        public void CopyFrom(RequestHeader source)
+        {
+            RequestName = source.RequestName;
+            BranchIdText = source.BranchIdText;
+            RequestedBy = source.RequestedBy;
+            Approver = source.Approver;
+            RequestType = source.RequestType;
+            Priority = source.Priority;
+            RequiredAt = source.RequiredAt;
+            Location = source.Location;
+            NeedDescription = source.NeedDescription;
+        }
+
+        public void Clear()
+        {
+            RequestName = string.Empty;
+            Approver = string.Empty;
+            RequiredAt = null;
+            Location = string.Empty;
+            NeedDescription = string.Empty;
+        }
+    }
+
+    private sealed class RequestLineForm
+    {
+        public string? ImageReference { get; set; }
+        public string? ImagePreview { get; set; }
+        public string? TechnicalOrSerial { get; set; }
+        public string? ToolName { get; set; }
+        public int Quantity { get; set; } = 1;
+        public string Criticality { get; set; } = "Normal";
+        public string? Details { get; set; }
+        public string? Novelty { get; set; }
+    }
+
+    private sealed class RequestLineItem
+    {
+        public Guid Id { get; set; }
+        public bool Selected { get; set; } = true;
+        public string? ImageReference { get; set; }
+        public string? ImagePreview { get; set; }
+        public string? TechnicalOrSerial { get; set; }
+        public string ToolName { get; set; } = string.Empty;
+        public int Quantity { get; set; } = 1;
+        public string Criticality { get; set; } = "Normal";
+        public string? Details { get; set; }
+        public string? Novelty { get; set; }
+
+        public RequestLineItem Clone()
+        {
+            return new RequestLineItem
+            {
+                Id = Id,
+                Selected = Selected,
+                ImageReference = ImageReference,
+                ImagePreview = ImagePreview,
+                TechnicalOrSerial = TechnicalOrSerial,
+                ToolName = ToolName,
+                Quantity = Quantity,
+                Criticality = Criticality,
+                Details = Details,
+                Novelty = Novelty
+            };
+        }
+    }
+
+    private sealed class QuotationForm
+    {
+        public string? Provider { get; set; }
+        public string? LineIdText { get; set; }
+        public DateTime? QuotationDate { get; set; }
+        public string? DeliveryTime { get; set; }
+        public decimal? PriceBeforeVat { get; set; }
+        public string? AdditionalDetails { get; set; }
+    }
+
+    private sealed class QuotationItem
+    {
+        public Guid Id { get; set; }
+        public bool Selected { get; set; } = true;
+        public string Provider { get; set; } = string.Empty;
+        public Guid? LineId { get; set; }
+        public DateTime? QuotationDate { get; set; }
+        public string? DeliveryTime { get; set; }
+        public decimal? PriceBeforeVat { get; set; }
+        public string? AdditionalDetails { get; set; }
+
+        public QuotationItem Clone()
+        {
+            return new QuotationItem
+            {
+                Id = Id,
+                Selected = Selected,
+                Provider = Provider,
+                LineId = LineId,
+                QuotationDate = QuotationDate,
+                DeliveryTime = DeliveryTime,
+                PriceBeforeVat = PriceBeforeVat,
+                AdditionalDetails = AdditionalDetails
+            };
+        }
+    }
+
+    private sealed class BranchOption
+    {
+        public Guid Id { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class ApiRegisteredItem
+    {
+        public Guid Id { get; set; }
+        public string RequestNumber { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
+        public string Priority { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+    }
+
+    private sealed class PurchaseRequestItem
+    {
+        public Guid Id { get; set; }
+        public string RequestNumber { get; set; } = string.Empty;
+        public string ItemName { get; set; } = string.Empty;
+        public string Priority { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+    }
+
+    private sealed class MaintenanceRequestItem
+    {
+        public Guid Id { get; set; }
+        public string RequestNumber { get; set; } = string.Empty;
+        public string RequestType { get; set; } = string.Empty;
+        public string Priority { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+    }
+
+    private sealed class CreatePurchaseRequestRequest
+    {
+        public Guid? ToolAssetId { get; set; }
+        public string? ItemCode { get; set; }
+        public string ItemName { get; set; } = string.Empty;
+        public string? ItemDescription { get; set; }
+        public int Quantity { get; set; } = 1;
+        public string? Unit { get; set; }
+        public string? PurchasePurpose { get; set; }
+        public string Justification { get; set; } = string.Empty;
+        public string? Priority { get; set; }
+        public Guid? BranchId { get; set; }
+        public DateTime? RequiredAt { get; set; }
+        public string? ProjectId { get; set; }
+        public string? VendorSuggestion { get; set; }
+        public string? EstimatedCostText { get; set; }
+        public string? Notes { get; set; }
+        public bool SendToReview { get; set; }
+    }
+
+    private sealed class CreateMaintenanceRequestRequest
+    {
+        public Guid? ToolAssetId { get; set; }
+        public Guid? BranchId { get; set; }
+        public string? RequestType { get; set; }
+        public string? Priority { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string ProblemDescription { get; set; } = string.Empty;
+        public string? WorkDescription { get; set; }
+        public string? FailureCause { get; set; }
+        public bool RequiresStop { get; set; }
+        public bool IsSafetyRisk { get; set; }
+        public string? EstimatedCostText { get; set; }
+        public string? VendorSuggestion { get; set; }
+        public string? Notes { get; set; }
+        public bool SendToReview { get; set; }
+    }
+
+    private sealed class ApiError
+    {
+        public string? Message { get; set; }
+    }
+}
+
+<style>
+    .spc-hero {
+        margin-bottom: .9rem;
+        padding: 1rem 1.15rem;
+        border-radius: 1rem;
+        color: white;
+        background: linear-gradient(135deg, #170019 0%, #4b005c 56%, #8b1a9b 100%);
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        box-shadow: 0 .65rem 1.5rem rgba(75,0,92,.20);
+    }
+
+    .spc-pill {
+        display: inline-flex;
+        padding: .2rem .6rem;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,.35);
+        font-size: .68rem;
+        font-weight: 950;
+    }
+
+    .spc-hero h2 {
+        margin: .45rem 0 .2rem;
+        font-weight: 950;
+    }
+
+    .spc-side {
+        min-width: 200px;
+        border-radius: .9rem;
+        background: rgba(255,255,255,.12);
+        padding: .75rem;
+        text-align: right;
+        display: grid;
+        gap: .35rem;
+    }
+
+    .spc-side strong {
+        font-size: 1.4rem;
+    }
+
+    .spc-shell {
+        display: grid;
+        grid-template-columns: minmax(0, 1.02fr) minmax(0, .98fr);
+        gap: .85rem;
+        align-items: start;
+    }
+
+    .spc-column {
+        display: grid;
+        gap: .85rem;
+        min-width: 0;
+    }
+
+    .spc-card {
+        background: white;
+        border: 1px solid #dde3ec;
+        border-radius: .95rem;
+        padding: .85rem;
+        box-shadow: 0 .35rem .9rem rgba(0,0,0,.04);
+    }
+
+    .spc-card-title {
+        display: flex;
+        justify-content: space-between;
+        gap: .75rem;
+        align-items: flex-start;
+        margin-bottom: .7rem;
+    }
+
+    .spc-card-title h3 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 950;
+    }
+
+    .spc-card-title p {
+        margin: .1rem 0 0;
+        color: #657083;
+        font-size: .78rem;
+    }
+
+    .spc-grid {
+        display: grid;
+        gap: .55rem;
+    }
+
+    .spc-grid.two {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .form-group.full {
+        grid-column: 1 / -1;
+    }
+
+    .form-group label {
+        font-size: .75rem;
+        font-weight: 850;
+        margin-bottom: .18rem;
+    }
+
+    .spc-actions {
+        margin-top: .65rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem;
+    }
+
+    .spc-actions.vertical {
+        display: grid;
+    }
+
+    .spc-empty {
+        margin-top: .65rem;
+        padding: .75rem;
+        border-radius: .75rem;
+        background: #f8fafc;
+        color: #526071;
+        font-size: .82rem;
+        font-weight: 800;
+    }
+
+    .spc-table-wrap {
+        width: 100%;
+        overflow-x: auto;
+        margin-top: .65rem;
+    }
+
+    .spc-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: .75rem;
+    }
+
+    .spc-table th {
+        border-bottom: 1px solid #15101c;
+        padding: .45rem;
+        text-transform: uppercase;
+        font-size: .64rem;
+        white-space: nowrap;
+    }
+
+    .spc-table td {
+        border-bottom: 1px solid #e6e9ef;
+        padding: .45rem;
+        vertical-align: top;
+    }
+
+    .spc-table small {
+        display: block;
+        color: #657083;
+        font-size: .68rem;
+    }
+
+    .quote-header-box,
+    .spc-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: .45rem;
+        margin-bottom: .65rem;
+    }
+
+    .quote-header-box div,
+    .spc-summary-grid div {
+        border: 1px solid #e3e8ef;
+        border-radius: .7rem;
+        padding: .6rem;
+        background: #f8fafc;
+    }
+
+    .quote-header-box span,
+    .spc-summary-grid span {
+        display: block;
+        color: #657083;
+        font-size: .68rem;
+        font-weight: 850;
+        text-transform: uppercase;
+    }
+
+    .quote-header-box strong,
+    .spc-summary-grid strong {
+        display: block;
+        font-size: .82rem;
+        color: #111827;
+    }
+
+    .spc-locked,
+    .spc-generate-warning {
+        margin-bottom: .65rem;
+        padding: .7rem;
+        border-radius: .75rem;
+        background: #fff7ed;
+        color: #9a3412;
+        border: 1px solid #fed7aa;
+        font-size: .78rem;
+        font-weight: 850;
+    }
+
+    .spc-state-box {
+        margin-bottom: .65rem;
+        padding: .7rem;
+        border-radius: .75rem;
+        background: #f8fafc;
+        border: 1px solid #dde3ec;
+    }
+
+    .spc-state-box span {
+        display: block;
+        font-size: .68rem;
+        color: #657083;
+        text-transform: uppercase;
+        font-weight: 900;
+    }
+
+    .spc-state-box strong {
+        display: block;
+        font-size: .9rem;
+        color: #111827;
+    }
+
+    .spc-request-state-card {
+        border-left: 5px solid #0d6efd;
+    }
+
+    .spc-final-card {
+        border-left: 5px solid #198754;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        border-radius: 999px;
+        padding: .22rem .55rem;
+        background: #f1f3f5;
+        color: #343a40;
+        font-weight: 900;
+        font-size: .68rem;
+    }
+
+    .status-pill.draft {
+        background: #fff7ed;
+        color: #9a3412;
+        border: 1px solid #fed7aa;
+    }
+
+    .status-pill.confirmed {
+        background: #e0f2fe;
+        color: #075985;
+        border: 1px solid #bae6fd;
+    }
+
+    .status-pill.quoting {
+        background: #ecfdf3;
+        color: #166534;
+        border: 1px solid #bbf7d0;
+    }
+
+    .draft-row {
+        background: #fffaf2;
+    }
+
+    .confirmed-row {
+        background: #f0f9ff;
+    }
+
+    .quoting-row {
+        background: #f0fdf4;
+    }
+
+    .row-actions {
+        display: flex;
+        gap: .35rem;
+        flex-wrap: wrap;
+    }
+
+    .photo-file-name {
+        display: block;
+        margin-top: .25rem;
+        color: #526071;
+        font-weight: 750;
+    }
+
+    .photo-preview {
+        margin-top: .45rem;
+        width: 100%;
+        max-height: 150px;
+        object-fit: cover;
+        border-radius: .75rem;
+        border: 1px solid #dde3ec;
+    }
+
+    .photo-thumb {
+        display: block;
+        width: 58px;
+        height: 42px;
+        object-fit: cover;
+        border-radius: .4rem;
+        border: 1px solid #dde3ec;
+        margin: .25rem 0;
+    }
+
+    .spc-registered {
+        margin-top: .85rem;
+    }
+
+    @@media (max-width: 1200px) {
+        .spc-shell {
+            grid-template-columns: 1fr;
+        }
+
+        .quote-header-box,
+        .spc-summary-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @@media (max-width: 800px) {
+        .spc-grid.two {
+            grid-template-columns: 1fr;
+        }
+
+        .spc-hero {
+            display: block;
+        }
+
+        .spc-side {
+            margin-top: .75rem;
+            text-align: left;
+        }
+    }
+/* ============================================================
+   NAVI SPC REQUEST HERO STANDARD PATCH
+   Solicitud de compra y solicitud de mantenimiento
+   ============================================================ */
+
+    .spc-hero {
+        width: 100% !important;
+        min-height: 112px !important;
+        margin: 0 0 .85rem 0 !important;
+        padding: 1rem 1.12rem !important;
+        border-radius: 1rem !important;
+        border: 1px solid rgba(255,255,255,.10) !important;
+        background:
+            linear-gradient(
+                105deg,
+                #050507 0%,
+                #07070b 34%,
+                #120017 58%,
+                #350040 78%,
+                #710083 100%
+            ) !important;
+        color: #ffffff !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        gap: 1rem !important;
+        box-shadow: 0 .55rem 1.2rem rgba(75,0,92,.18) !important;
+        overflow: hidden !important;
+    }
+
+    .spc-hero > div:first-child {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+    }
+
+    .spc-hero h2 {
+        margin: .25rem 0 .15rem 0 !important;
+        color: #ffffff !important;
+        font-size: clamp(1.35rem, 1.8vw, 1.65rem) !important;
+        line-height: 1.08 !important;
+        font-weight: 950 !important;
+        letter-spacing: -.02em !important;
+    }
+
+    .spc-hero p {
+        margin: .18rem 0 0 0 !important;
+        max-width: 920px !important;
+        color: rgba(255,255,255,.86) !important;
+        font-size: .84rem !important;
+        line-height: 1.34 !important;
+        font-weight: 560 !important;
+    }
+
+    .spc-pill {
+        display: inline-flex !important;
+        width: fit-content !important;
+        min-height: 23px !important;
+        align-items: center !important;
+        padding: .18rem .65rem !important;
+        border-radius: 999px !important;
+        border: 1px solid rgba(255,255,255,.34) !important;
+        background: rgba(255,255,255,.09) !important;
+        color: #ffffff !important;
+        font-size: .66rem !important;
+        font-weight: 950 !important;
+        letter-spacing: .04rem !important;
+        text-transform: uppercase !important;
+    }
+
+    .spc-side {
+        margin-left: auto !important;
+        width: 190px !important;
+        min-width: 190px !important;
+        flex: 0 0 190px !important;
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: .42rem !important;
+        padding: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        text-align: center !important;
+    }
+
+    .spc-side strong,
+    .spc-side span,
+    .spc-side .btn {
+        width: 190px !important;
+        min-width: 190px !important;
+        min-height: 36px !important;
+        border-radius: .62rem !important;
+        border: 1px solid rgba(255,255,255,.70) !important;
+        background: rgba(255,255,255,.08) !important;
+        color: #ffffff !important;
+        font-size: .76rem !important;
+        font-weight: 950 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
+        text-decoration: none !important;
+        padding: .35rem .6rem !important;
+    }
+
+    .spc-side strong {
+        font-size: 1rem !important;
+    }
+
+    .spc-side span {
+        min-height: 30px !important;
+        font-size: .68rem !important;
+        color: rgba(255,255,255,.88) !important;
+    }
+
+    .spc-side .btn:hover {
+        background: #ffffff !important;
+        color: #530064 !important;
+    }
+
+    @@media (max-width: 900px) {
+        .spc-hero {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            min-height: auto !important;
+        }
+
+        .spc-side {
+            width: 100% !important;
+            min-width: 0 !important;
+            flex: 0 0 auto !important;
+            align-items: end !important;
+        }
+    }
+
+/* ============================================================
+   FIN NAVI SPC REQUEST HERO STANDARD PATCH
+   ============================================================ */
+/* ============================================================
+   NAVI SPC HERO FINAL STANDARD PATCH
+   Corrige Solicitud de Compra Herramientas y AF y Solicitud de Mantenimiento
+   ============================================================ */
+
+    .spc-hero.navi-standard-hero,
+    section.spc-hero.navi-standard-hero {
+        width: 100% !important;
+        min-height: 108px !important;
+        margin: 0 0 .85rem 0 !important;
+        padding: 1rem 1.12rem !important;
+        border-radius: 1rem !important;
+        border: 1px solid rgba(255,255,255,.10) !important;
+        background:
+            linear-gradient(
+                105deg,
+                #050507 0%,
+                #07070b 34%,
+                #120017 58%,
+                #350040 78%,
+                #710083 100%
+            ) !important;
+        color: #ffffff !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        gap: 1rem !important;
+        box-shadow: 0 .55rem 1.2rem rgba(75,0,92,.18) !important;
+        overflow: hidden !important;
+    }
+
+    .spc-hero-copy {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+    }
+
+    .spc-hero-copy h2,
+    .spc-hero.navi-standard-hero h2 {
+        margin: .25rem 0 .12rem 0 !important;
+        color: #ffffff !important;
+        font-size: clamp(1.35rem, 1.8vw, 1.65rem) !important;
+        line-height: 1.08 !important;
+        font-weight: 950 !important;
+        letter-spacing: -.02em !important;
+    }
+
+    .spc-hero-copy p,
+    .spc-hero.navi-standard-hero p {
+        margin: .18rem 0 0 0 !important;
+        max-width: 920px !important;
+        color: rgba(255,255,255,.86) !important;
+        font-size: .84rem !important;
+        line-height: 1.34 !important;
+        font-weight: 560 !important;
+    }
+
+    .spc-hero-copy .spc-pill,
+    .spc-hero.navi-standard-hero .spc-pill {
+        display: inline-flex !important;
+        width: fit-content !important;
+        min-height: 23px !important;
+        align-items: center !important;
+        padding: .18rem .65rem !important;
+        border-radius: 999px !important;
+        border: 1px solid rgba(255,255,255,.34) !important;
+        background: rgba(255,255,255,.09) !important;
+        color: #ffffff !important;
+        font-size: .66rem !important;
+        font-weight: 950 !important;
+        letter-spacing: .04rem !important;
+        text-transform: uppercase !important;
+    }
+
+    .spc-hero-actions {
+        margin-left: auto !important;
+        width: 190px !important;
+        min-width: 190px !important;
+        flex: 0 0 190px !important;
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: .42rem !important;
+        align-items: stretch !important;
+        background: transparent !important;
+        border: 0 !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+    }
+
+    .spc-hero-status,
+    .spc-hero-btn {
+        width: 190px !important;
+        min-width: 190px !important;
+        min-height: 36px !important;
+        border-radius: .62rem !important;
+        border: 1px solid rgba(255,255,255,.70) !important;
+        background: rgba(255,255,255,.08) !important;
+        color: #ffffff !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
+        text-decoration: none !important;
+    }
+
+    .spc-hero-status {
+        flex-direction: column !important;
+        gap: .05rem !important;
+        padding: .35rem .6rem !important;
+    }
+
+    .spc-hero-status span {
+        color: rgba(255,255,255,.82) !important;
+        font-size: .58rem !important;
+        line-height: 1 !important;
+        font-weight: 900 !important;
+        text-transform: uppercase !important;
+        letter-spacing: .025rem !important;
+    }
+
+    .spc-hero-status strong {
+        color: #ffffff !important;
+        font-size: 1.05rem !important;
+        line-height: 1 !important;
+        font-weight: 950 !important;
+    }
+
+    .spc-hero-btn {
+        padding: .35rem .6rem !important;
+        font-size: .76rem !important;
+        font-weight: 950 !important;
+        cursor: pointer !important;
+    }
+
+    .spc-hero-btn:hover {
+        background: #ffffff !important;
+        color: #530064 !important;
+    }
+
+    /* Anula versiones viejas del lateral morado */
+    .spc-side {
+        background: transparent !important;
+        box-shadow: none !important;
+        border: 0 !important;
+        padding: 0 !important;
+    }
+
+    @@media (max-width: 900px) {
+        .spc-hero.navi-standard-hero,
+        section.spc-hero.navi-standard-hero {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            min-height: auto !important;
+        }
+
+        .spc-hero-actions {
+            width: 100% !important;
+            min-width: 0 !important;
+            flex: 0 0 auto !important;
+        }
+
+        .spc-hero-status,
+        .spc-hero-btn {
+            width: 100% !important;
+            min-width: 0 !important;
+        }
+    }
+
+/* ============================================================
+   FIN NAVI SPC HERO FINAL STANDARD PATCH
+   ============================================================ */
+</style>

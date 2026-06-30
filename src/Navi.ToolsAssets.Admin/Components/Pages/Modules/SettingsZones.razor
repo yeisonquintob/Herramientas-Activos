@@ -1,6 +1,8 @@
-﻿@page "/settings/zones"
+@page "/settings/zones"
 @rendermode InteractiveServer
+@using Navi.ToolsAssets.Admin.Services.Auth
 @inject IHttpClientFactory HttpClientFactory
+@inject WebAuthSessionService AuthSession
 
 <PageTitle>Zonas - Configuración</PageTitle>
 
@@ -32,21 +34,21 @@
 
             <div class="mb-3">
                 <label class="form-label">Código</label>
-                <InputText class="form-control" @bind-Value="formModel.Code" placeholder="ANT, CUN, VAL, NOR" />
+                <InputText class="form-control" @bind-Value="formModel.Code" placeholder="ANT, CUN, VAL, NOR"  disabled="@(!CanManageSettings)" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Nombre</label>
-                <InputText class="form-control" @bind-Value="formModel.Name" placeholder="Antioquia, Cundinamarca, Valle" />
+                <InputText class="form-control" @bind-Value="formModel.Name" placeholder="Antioquia, Cundinamarca, Valle"  disabled="@(!CanManageSettings)" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Descripción</label>
-                <InputTextArea class="form-control" @bind-Value="formModel.Description" rows="3" placeholder="Regional, zona operativa o agrupación administrativa." />
+                <InputTextArea class="form-control" @bind-Value="formModel.Description" rows="3" placeholder="Regional, zona operativa o agrupación administrativa."  disabled="@(!CanManageSettings)" />
             </div>
 
             <div class="form-check mb-3">
-                <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive" />
+                <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive"  disabled="@(!CanManageSettings)" />
                 <label class="form-check-label">Activa</label>
             </div>
 
@@ -56,7 +58,7 @@
             }
 
             <div class="settings-crud-actions">
-                <button class="btn btn-primary" type="submit">Guardar</button>
+                <button class="btn btn-primary" type="submit" disabled="@(!CanManageSettings)">Guardar</button>
                 <button class="btn btn-outline-secondary" type="button" @onclick="ClearForm">Limpiar</button>
             </div>
         </EditForm>
@@ -105,8 +107,14 @@
                                 </span>
                             </td>
                             <td class="text-end">
-                                <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(zone)">Editar</button>
-                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(zone.Id)">Eliminar</button>
+                                @if (CanManageSettings)
+                                    {
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(zone)">Editar</button>
+                                    }
+                                @if (CanManageSettings)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(zone.Id)">Eliminar</button>
+                                    }
                             </td>
                         </tr>
                     }
@@ -230,6 +238,14 @@
 </style>
 
 @code {
+
+    private bool IsAdmin =>
+        string.Equals(AuthSession.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(AuthSession.RoleCode, "SUPERADMIN", StringComparison.OrdinalIgnoreCase);
+
+    private bool CanManageSettings => IsAdmin || AuthSession.HasPermission("Settings.Manage");
+
+
     private HttpClient Api => HttpClientFactory.CreateClient("NaviApi");
 
     private List<ZoneDto> zones = new();
@@ -265,6 +281,12 @@
 
     private async Task SaveAsync()
     {
+        if (!CanManageSettings)
+        {
+            ShowError("No tienes permiso para modificar configuración.");
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(formModel.Code) ||
             string.IsNullOrWhiteSpace(formModel.Name))
         {
@@ -305,6 +327,12 @@
 
     private void Edit(ZoneDto zone)
     {
+        if (!CanManageSettings)
+        {
+            ShowError("No tienes permiso para editar configuración.");
+            return;
+        }
+
         editingId = zone.Id;
 
         formModel = new ZoneFormModel
@@ -318,6 +346,12 @@
 
     private async Task DeleteAsync(Guid id)
     {
+        if (!CanManageSettings)
+        {
+            ShowError("No tienes permiso para eliminar configuración.");
+            return;
+        }
+
         try
         {
             var response = await Api.DeleteAsync($"api/settings/zones/{id}?changedBy=admin-web");

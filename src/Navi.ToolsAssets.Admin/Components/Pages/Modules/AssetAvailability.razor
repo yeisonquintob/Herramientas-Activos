@@ -1,7 +1,10 @@
-﻿@page "/asset-availability"
+@page "/asset-availability"
 @rendermode InteractiveServer
+@using Navi.ToolsAssets.Admin.Services.Auth
 @using System.Net.Http.Json
 @inject IHttpClientFactory HttpClientFactory
+@inject NaviAccessScopeService AccessScope
+@inject WebAuthSessionService AuthSession
 
 <PageTitle>Disponible y Ubicación de Herramientas - NAVI</PageTitle>
 
@@ -14,13 +17,7 @@
         <p>Gestiona disponibilidad, sede, almacén, taller o ubicación interna de las herramientas.</p>
     </div>
 
-    <div class="af-banner-side">
-        <div class="af-status-box">
-            <span>Herramientas</span>
-            <strong>@FilteredTools.Count() visibles</strong>
-        </div>
-
-        <button class="btn btn-sm btn-outline-light" @onclick="LoadAsync">
+    <div class="af-banner-side"><button class="btn btn-sm btn-outline-light" @onclick="LoadAsync">
             Actualizar
         </button>
     </div>
@@ -35,42 +32,63 @@
     <aside class="af-card">
         <h3>Gestionar ubicación</h3>
 
-        <div class="mb-2">
+        <div class="mb-2 navi-search-field">
             <label class="form-label">Herramienta</label>
-            <InputSelect class="form-select" @bind-Value="form.ToolId" @bind-Value:after="LoadSelectedTool">
-                <option value="">Seleccione activo</option>
-                @foreach (var tool in tools.OrderBy(x => x.InternalCode))
+            <input class="form-control"
+                   list="availability-tools-list"
+                   value="@toolSearchText"
+                   @oninput="OnToolSearchInput"
+                   placeholder="Escriba código, nombre o serial..." />
+
+            <datalist id="availability-tools-list">
+                @foreach (var tool in ScopedTools.OrderBy(x => x.InternalCode))
                 {
-                    <option value="@tool.Id">@tool.InternalCode - @tool.Name</option>
+                    <option value="@FormatToolOption(tool)"></option>
                 }
-            </InputSelect>
+            </datalist>
+
+            <small class="@GetToolSearchHintClass()">@GetToolSearchHint()</small>
         </div>
 
-        <div class="mb-2">
+        <div class="mb-2 navi-search-field">
             <label class="form-label">Sede</label>
-            <InputSelect class="form-select" @bind-Value="form.BranchId" @bind-Value:after="OnBranchChanged">
-                <option value="">Seleccione sede</option>
-                @foreach (var branch in branches)
+            <input class="form-control"
+                   list="availability-branches-list"
+                   value="@branchSearchText"
+                   @oninput="OnBranchSearchInput"
+                   placeholder="Escriba código o nombre de sede..." / disabled="@(!CanChangeAvailabilityLocation)">
+
+            <datalist id="availability-branches-list">
+                @foreach (var branch in branches.OrderBy(x => x.Code))
                 {
-                    <option value="@branch.Id">@branch.Code - @branch.Name</option>
+                    <option value="@FormatBranchOption(branch)"></option>
                 }
-            </InputSelect>
+            </datalist>
+
+            <small class="@GetBranchSearchHintClass()">@GetBranchSearchHint()</small>
         </div>
 
-        <div class="mb-2">
+        <div class="mb-2 navi-search-field">
             <label class="form-label">Almacén / Taller / Ubicación</label>
-            <InputSelect class="form-select" @bind-Value="form.LocationId">
-                <option value="">Sin ubicación</option>
-                @foreach (var location in AvailableLocations)
+            <input class="form-control"
+                   list="availability-locations-list"
+                   value="@locationSearchText"
+                   @oninput="OnLocationSearchInput"
+                   placeholder="Escriba almacén, taller o ubicación..." / disabled="@(!CanChangeAvailabilityLocation)">
+
+            <datalist id="availability-locations-list">
+                @foreach (var location in AvailableLocations.OrderBy(x => x.Code))
                 {
-                    <option value="@location.Id">@location.Code - @location.Name</option>
+                    <option value="@FormatLocationOption(location)"></option>
                 }
-            </InputSelect>
+            </datalist>
+
+            <small class="@GetLocationSearchHintClass()">@GetLocationSearchHint()</small>
         </div>
 
         <div class="mb-2">
             <label class="form-label">Estado operativo</label>
-            <InputSelect class="form-select" @bind-Value="form.OperationalStatus">
+            <InputSelect class="form-select" @bind-Value="form.OperationalStatus" disabled="@(!CanChangeAvailabilityStatus)">
                 <option value="Available">Disponible</option>
                 <option value="Assigned">Asignada</option>
                 <option value="Loaned">Prestada</option>
@@ -90,7 +108,22 @@
         </div>
 
         <div class="d-grid gap-2">
-            <button class="btn btn-primary" @onclick="SaveAsync" disabled="@isSaving">
+            @if (!CanChangeAvailabilityLocation || !CanChangeAvailabilityStatus)
+        {
+            <div class="availability-permission-note">
+                @if (!CanChangeAvailabilityLocation)
+                {
+                    <span>Ubicación bloqueada</span>
+                }
+
+                @if (!CanChangeAvailabilityStatus)
+                {
+                    <span>Estado bloqueado</span>
+                }
+            </div>
+        }
+
+        <button class="btn btn-primary" @onclick="SaveAsync" disabled="@(isSaving || !CanSaveAvailability || !form.ToolId.HasValue)">
                 @(isSaving ? "Guardando..." : "Guardar cambios")
             </button>
 
@@ -110,13 +143,19 @@
             <div class="af-filters">
                 <input class="form-control form-control-sm" placeholder="Buscar código, nombre, serial..." @bind="search" @bind:event="oninput" />
 
-                <select class="form-select form-select-sm" @bind="selectedBranchCode">
-                    <option value="">Todas las sedes</option>
-                    @foreach (var branch in branches)
+                <input class="form-control form-control-sm"
+                       list="availability-filter-branches-list"
+                       placeholder="Sede..."
+                       @bind="selectedBranchCode"
+                       @bind:event="oninput" />
+
+                <datalist id="availability-filter-branches-list">
+                    @foreach (var branch in branches.OrderBy(x => x.Code))
                     {
-                        <option value="@branch.Code">@branch.Code</option>
+                        <option value="@branch.Code">@branch.Name</option>
+                        <option value="@branch.Name">@branch.Code</option>
                     }
-                </select>
+                </datalist>
 
                 <select class="form-select form-select-sm" @bind="selectedStatus">
                     <option value="">Todos los estados</option>
@@ -391,6 +430,55 @@
         }
     }
 
+
+    /* ============================================================
+       NAVI - Buscadores escribibles
+       ============================================================ */
+
+    .navi-search-field {
+        position: relative;
+    }
+
+    .navi-search-field input[list] {
+        min-height: 36px;
+        border-radius: .48rem;
+        border: 1px solid #cfd7e3;
+        font-size: .82rem;
+    }
+
+    .navi-search-hint {
+        display: block;
+        margin-top: .16rem;
+        color: #8a5d1e;
+        font-size: .58rem;
+        font-weight: 850;
+        line-height: 1.15;
+    }
+
+    .navi-search-hint.ok {
+        color: #047857;
+    }
+
+
+    .availability-permission-note {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .35rem;
+        margin: .35rem 0 .45rem;
+    }
+
+    .availability-permission-note span {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: .16rem .45rem;
+        background: #fff7ed;
+        color: #9a3412;
+        border: 1px solid #fed7aa;
+        font-size: .62rem;
+        font-weight: 950;
+    }
+
 </style>
 
 @code {
@@ -401,6 +489,10 @@
     private List<LocationItem> locations = new();
 
     private AvailabilityForm form = new();
+
+    private string toolSearchText = string.Empty;
+    private string branchSearchText = string.Empty;
+    private string locationSearchText = string.Empty;
 
     private bool isLoading;
     private bool isSaving;
@@ -415,13 +507,84 @@
             ? locations
             : locations.Where(x => x.BranchId == form.BranchId);
 
-    private IEnumerable<ToolItem> FilteredTools =>
-        tools
+    private IEnumerable<ToolItem> ScopedTools =>
+        AccessScope.FilterTools(
+            tools,
+            x => x.BranchCode,
+            x => x.ResponsiblePersonName);
+
+    private bool CanChangeAvailabilityLocation =>
+        AuthSession.HasPermission("AssetAvailability.Edit");
+
+    private bool CanChangeAvailabilityStatus =>
+        AuthSession.HasPermission("AssetAvailability.Status.Change");
+
+    private bool CanSaveAvailability =>
+        CanChangeAvailabilityLocation || CanChangeAvailabilityStatus;
+
+    private bool CanManageAvailability =>
+        CanSaveAvailability;
+
+    private ToolItem? SelectedAvailabilityTool =>
+        form.ToolId.HasValue
+            ? tools.FirstOrDefault(x => x.Id == form.ToolId.Value)
+            : null;
+
+    private bool HasAvailabilityLocationChange(ToolItem current)
+    {
+        return form.BranchId != current.BranchId ||
+               form.LocationId != current.LocationId;
+    }
+
+    private bool HasAvailabilityStatusChange(ToolItem current)
+    {
+        return !string.Equals(
+            form.OperationalStatus ?? string.Empty,
+            current.OperationalStatus ?? string.Empty,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string? GetAvailabilityPermissionError()
+    {
+        if (form.ToolId is null)
+        {
+            return "Seleccione una herramienta antes de guardar cambios.";
+        }
+
+        var current = SelectedAvailabilityTool;
+
+        if (current is null)
+        {
+            return "No se encontró la herramienta seleccionada.";
+        }
+
+        if (!CanSaveAvailability)
+        {
+            return "No tienes permiso para cambiar ubicación ni estado operativo.";
+        }
+
+        if (HasAvailabilityLocationChange(current) && !CanChangeAvailabilityLocation)
+        {
+            return "No tienes permiso para cambiar sede, almacén, taller o ubicación.";
+        }
+
+        if (HasAvailabilityStatusChange(current) && !CanChangeAvailabilityStatus)
+        {
+            return "No tienes permiso para cambiar el estado operativo.";
+        }
+
+        return null;
+    }
+
+
+private IEnumerable<ToolItem> FilteredTools =>
+        ScopedTools
             .Where(x => string.IsNullOrWhiteSpace(search) ||
                         x.InternalCode.Contains(search, StringComparison.OrdinalIgnoreCase) ||
                         x.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
                         (x.SerialNumber ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase))
-            .Where(x => string.IsNullOrWhiteSpace(selectedBranchCode) || x.BranchCode == selectedBranchCode)
+            .Where(x => string.IsNullOrWhiteSpace(selectedBranchCode) ||
+                        (x.BranchCode ?? string.Empty).Contains(selectedBranchCode, StringComparison.OrdinalIgnoreCase))
             .Where(x => string.IsNullOrWhiteSpace(selectedStatus) || x.OperationalStatus == selectedStatus)
             .OrderBy(x => x.BranchCode)
             .ThenBy(x => x.InternalCode);
@@ -448,9 +611,7 @@
 
         try
         {
-                        tools = (await Api.GetFromJsonAsync<List<ToolItem>>("api/tools") ?? new())
-                .Where(IsToolOnly)
-                .ToList();
+                        tools = await Api.GetFromJsonAsync<List<ToolItem>>("api/tools") ?? new();
             branches = await Api.GetFromJsonAsync<List<BranchItem>>("api/settings/branches") ?? new();
             locations = await Api.GetFromJsonAsync<List<LocationItem>>("api/settings/warehouses") ?? new();
         }
@@ -473,6 +634,18 @@
             LocationId = tool.LocationId,
             OperationalStatus = string.IsNullOrWhiteSpace(tool.OperationalStatus) ? "Available" : tool.OperationalStatus
         };
+
+        toolSearchText = FormatToolOption(tool);
+
+        var branch = branches.FirstOrDefault(x => x.Id == tool.BranchId);
+        branchSearchText = branch is null
+            ? tool.BranchCode ?? string.Empty
+            : FormatBranchOption(branch);
+
+        var location = locations.FirstOrDefault(x => x.Id == tool.LocationId);
+        locationSearchText = location is null
+            ? tool.LocationName ?? string.Empty
+            : FormatLocationOption(location);
     }
 
     private void LoadSelectedTool()
@@ -496,6 +669,17 @@
 
     private async Task SaveAsync()
     {
+
+        var permissionError = GetAvailabilityPermissionError();
+
+        if (!string.IsNullOrWhiteSpace(permissionError))
+        {
+            ShowError(permissionError);
+            return;
+        }
+
+
+
         if (form.ToolId is null || form.BranchId is null)
         {
             ShowError("Debe seleccionar activo y sede.");
@@ -539,7 +723,152 @@
     private void ClearForm()
     {
         form = new AvailabilityForm();
+        toolSearchText = string.Empty;
+        branchSearchText = string.Empty;
+        locationSearchText = string.Empty;
     }
+
+    
+    private void OnToolSearchInput(ChangeEventArgs args)
+    {
+        toolSearchText = args.Value?.ToString() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(toolSearchText))
+        {
+            form.ToolId = null;
+            return;
+        }
+
+        var tool = ResolveTool(toolSearchText);
+
+        if (tool is not null)
+        {
+            SelectTool(tool);
+        }
+    }
+
+    private void OnBranchSearchInput(ChangeEventArgs args)
+    {
+        branchSearchText = args.Value?.ToString() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(branchSearchText))
+        {
+            form.BranchId = null;
+            form.LocationId = null;
+            locationSearchText = string.Empty;
+            return;
+        }
+
+        var branch = ResolveBranch(branchSearchText);
+
+        if (branch is not null)
+        {
+            form.BranchId = branch.Id;
+            branchSearchText = FormatBranchOption(branch);
+            OnBranchChanged();
+        }
+    }
+
+    private void OnLocationSearchInput(ChangeEventArgs args)
+    {
+        locationSearchText = args.Value?.ToString() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(locationSearchText))
+        {
+            form.LocationId = null;
+            return;
+        }
+
+        var location = ResolveLocation(locationSearchText);
+
+        if (location is not null)
+        {
+            form.LocationId = location.Id;
+            locationSearchText = FormatLocationOption(location);
+        }
+    }
+
+    private ToolItem? ResolveTool(string value)
+    {
+        return tools.FirstOrDefault(x =>
+            string.Equals(FormatToolOption(x), value, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals($"{x.InternalCode} - {x.Name}", value, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.InternalCode, value, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.Name, value, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private BranchItem? ResolveBranch(string value)
+    {
+        return branches.FirstOrDefault(x =>
+            string.Equals(FormatBranchOption(x), value, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.Code, value, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.Name, value, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private LocationItem? ResolveLocation(string value)
+    {
+        return AvailableLocations.FirstOrDefault(x =>
+            string.Equals(FormatLocationOption(x), value, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.Code, value, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.Name, value, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string FormatToolOption(ToolItem tool)
+    {
+        var serial = string.IsNullOrWhiteSpace(tool.SerialNumber) ? "Sin serial" : tool.SerialNumber;
+        var branch = string.IsNullOrWhiteSpace(tool.BranchCode) ? "Sin sede" : tool.BranchCode;
+        return $"{tool.InternalCode} - {tool.Name} · {branch} · {serial}";
+    }
+
+    private static string FormatBranchOption(BranchItem branch)
+    {
+        return $"{branch.Code} - {branch.Name}";
+    }
+
+    private static string FormatLocationOption(LocationItem location)
+    {
+        return $"{location.Code} - {location.Name}";
+    }
+
+    private string GetToolSearchHint()
+    {
+        if (string.IsNullOrWhiteSpace(toolSearchText))
+        {
+            return "Escriba y seleccione una herramienta existente.";
+        }
+
+        return form.ToolId.HasValue
+            ? "Herramienta seleccionada correctamente."
+            : "Seleccione una herramienta de las coincidencias.";
+    }
+
+    private string GetBranchSearchHint()
+    {
+        if (string.IsNullOrWhiteSpace(branchSearchText))
+        {
+            return "Escriba y seleccione una sede.";
+        }
+
+        return form.BranchId.HasValue
+            ? "Sede seleccionada correctamente."
+            : "Seleccione una sede de las coincidencias.";
+    }
+
+    private string GetLocationSearchHint()
+    {
+        if (string.IsNullOrWhiteSpace(locationSearchText))
+        {
+            return "Puede dejarla vacía si no aplica ubicación.";
+        }
+
+        return form.LocationId.HasValue
+            ? "Ubicación seleccionada correctamente."
+            : "Seleccione una ubicación de las coincidencias.";
+    }
+
+    private string GetToolSearchHintClass() => form.ToolId.HasValue ? "navi-search-hint ok" : "navi-search-hint";
+    private string GetBranchSearchHintClass() => form.BranchId.HasValue ? "navi-search-hint ok" : "navi-search-hint";
+    private string GetLocationSearchHintClass() => form.LocationId.HasValue || string.IsNullOrWhiteSpace(locationSearchText) ? "navi-search-hint ok" : "navi-search-hint";
 
     private static string Show(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
 

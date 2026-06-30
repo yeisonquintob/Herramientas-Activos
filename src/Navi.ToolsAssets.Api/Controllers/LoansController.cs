@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Navi.ToolsAssets.Api.Security;
 using Microsoft.EntityFrameworkCore;
 using Navi.ToolsAssets.Domain.Entities.LifeCycles;
@@ -23,6 +23,7 @@ public class LoansController : ControllerBase
     public async Task<IActionResult> GetLoans()
     {
         var loans = await _context.ToolLoans
+            .Include(x => x.RequestedByPerson)
             .Include(x => x.Items)
                 .ThenInclude(x => x.ToolAsset)
             .OrderByDescending(x => x.CreatedAt)
@@ -33,6 +34,8 @@ public class LoansController : ControllerBase
                 Status = x.Status.ToString(),
                 x.BranchId,
                 x.RequestedByPersonId,
+                RequestedByPersonName = x.RequestedByPerson == null ? null : x.RequestedByPerson.FullName,
+                RequestedByResponsiblePersonName = x.RequestedByPerson == null ? null : x.RequestedByPerson.FullName,
                 x.RequestedAt,
                 x.ApprovedAt,
                 x.DeliveredAt,
@@ -63,6 +66,7 @@ public class LoansController : ControllerBase
     public async Task<IActionResult> GetLoanById(Guid id)
     {
         var loan = await _context.ToolLoans
+            .Include(x => x.RequestedByPerson)
             .Include(x => x.Items)
                 .ThenInclude(x => x.ToolAsset)
             .Where(x => x.Id == id)
@@ -73,6 +77,8 @@ public class LoansController : ControllerBase
                 Status = x.Status.ToString(),
                 x.BranchId,
                 x.RequestedByPersonId,
+                RequestedByPersonName = x.RequestedByPerson == null ? null : x.RequestedByPerson.FullName,
+                RequestedByResponsiblePersonName = x.RequestedByPerson == null ? null : x.RequestedByPerson.FullName,
                 x.RequestedAt,
                 x.ApprovedAt,
                 x.DeliveredAt,
@@ -110,6 +116,7 @@ public class LoansController : ControllerBase
     public async Task<IActionResult> GetLoansByTool(Guid toolId)
     {
         var loans = await _context.ToolLoans
+            .Include(x => x.RequestedByPerson)
             .Include(x => x.Items)
                 .ThenInclude(x => x.ToolAsset)
             .Where(x => x.Items.Any(i => i.ToolAssetId == toolId))
@@ -143,6 +150,7 @@ public class LoansController : ControllerBase
     public async Task<IActionResult> GetLoansByToolInternalCode(string internalCode)
     {
         var loans = await _context.ToolLoans
+            .Include(x => x.RequestedByPerson)
             .Include(x => x.Items)
                 .ThenInclude(x => x.ToolAsset)
             .Where(x => x.Items.Any(i => i.ToolAsset != null && i.ToolAsset.InternalCode == internalCode))
@@ -237,6 +245,41 @@ public class LoansController : ControllerBase
             });
         }
 
+        Guid? requestedByPersonId = request.RequestedByPersonId;
+
+        if (!requestedByPersonId.HasValue && !string.IsNullOrWhiteSpace(request.RequestedBy))
+        {
+            var requesterKey = request.RequestedBy.Trim();
+
+            var requesterUser = await _context.AppUsers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x =>
+                    !x.IsDeleted &&
+                    (
+                        x.UserName == requesterKey ||
+                        x.DisplayName == requesterKey ||
+                        x.Email == requesterKey
+                    ));
+
+            if (requesterUser?.ResponsiblePersonId is not null)
+            {
+                requestedByPersonId = requesterUser.ResponsiblePersonId;
+            }
+        }
+
+        if (!requestedByPersonId.HasValue)
+        {
+            return BadRequest(new { Message = "El usuario logueado no tiene responsable asociado. Configure el responsable en Configuración > Usuarios antes de crear solicitudes de asignación." });
+        }
+
+        var requesterResponsibleExists = await _context.ResponsiblePeople
+            .AnyAsync(x => x.Id == requestedByPersonId.Value && x.IsActive && !x.IsDeleted);
+
+        if (!requesterResponsibleExists)
+        {
+            return BadRequest(new { Message = "El responsable asociado al usuario no existe o está inactivo." });
+        }
+
         var createdBy = string.IsNullOrWhiteSpace(request.RequestedBy)
             ? "api"
             : request.RequestedBy.Trim();
@@ -245,7 +288,7 @@ public class LoansController : ControllerBase
         {
             LoanNumber = $"PRE-{DateTime.UtcNow:yyyyMMddHHmmss}",
             BranchId = branch.Id,
-            RequestedByPersonId = request.RequestedByPersonId,
+            RequestedByPersonId = requestedByPersonId,
             Status = GetPreferredLoanStatus(ToolLoanStatus.Draft, "Requested", "PendingApproval", "Draft"),
             RequestedAt = DateTime.UtcNow,
             ExpectedReturnAt = request.ExpectedReturnAt,
@@ -299,6 +342,7 @@ public class LoansController : ControllerBase
     public async Task<IActionResult> RejectOrCancelLoan(Guid id, [FromBody] LoanActionRequest request)
     {
         var loan = await _context.ToolLoans
+            .Include(x => x.RequestedByPerson)
             .Include(x => x.Items)
                 .ThenInclude(x => x.ToolAsset)
             .FirstOrDefaultAsync(x => x.Id == id);
@@ -363,6 +407,7 @@ public class LoansController : ControllerBase
     public async Task<IActionResult> ApproveAndAssignLoan(Guid id, [FromBody] LoanActionRequest request)
     {
         var loan = await _context.ToolLoans
+            .Include(x => x.RequestedByPerson)
             .Include(x => x.Items)
                 .ThenInclude(x => x.ToolAsset)
             .FirstOrDefaultAsync(x => x.Id == id);
@@ -377,9 +422,32 @@ public class LoansController : ControllerBase
             return BadRequest(new { Message = $"La solicitud no se puede aprobar porque está en estado {loan.Status}." });
         }
 
+        if (!loan.RequestedByPersonId.HasValue && !string.IsNullOrWhiteSpace(loan.CreatedBy))
+        {
+            var requesterKey = loan.CreatedBy.Trim();
+
+            var requesterUser = await _context.AppUsers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x =>
+                    !x.IsDeleted &&
+                    (
+                        x.UserName == requesterKey ||
+                        x.DisplayName == requesterKey ||
+                        x.Email == requesterKey
+                    ));
+
+            if (requesterUser?.ResponsiblePersonId is not null)
+            {
+                loan.RequestedByPersonId = requesterUser.ResponsiblePersonId;
+                loan.UpdatedAt = DateTime.UtcNow;
+                loan.UpdatedBy = request.ActionBy ?? "approve-assign";
+                await _context.SaveChangesAsync();
+            }
+        }
+
         if (!loan.RequestedByPersonId.HasValue)
         {
-            return BadRequest(new { Message = "La solicitud no tiene responsable solicitante asociado." });
+            return BadRequest(new { Message = "La solicitud no tiene solicitante asociado. Edite el usuario solicitante en Configuración > Usuarios y guárdelo nuevamente para crear su solicitante operativo." });
         }
 
         var responsible = await _context.ResponsiblePeople
@@ -476,6 +544,7 @@ public class LoansController : ControllerBase
     public async Task<IActionResult> ApproveLoan(Guid id, [FromBody] LoanActionRequest request)
     {
         var loan = await _context.ToolLoans
+            .Include(x => x.RequestedByPerson)
             .Include(x => x.Items)
             .FirstOrDefaultAsync(x => x.Id == id);
 
@@ -528,6 +597,7 @@ public class LoansController : ControllerBase
     public async Task<IActionResult> DeliverLoan(Guid id, [FromBody] LoanActionRequest request)
     {
         var loan = await _context.ToolLoans
+            .Include(x => x.RequestedByPerson)
             .Include(x => x.Items)
                 .ThenInclude(x => x.ToolAsset)
             .FirstOrDefaultAsync(x => x.Id == id);
@@ -615,6 +685,7 @@ public class LoansController : ControllerBase
     public async Task<IActionResult> ReturnLoan(Guid id, [FromBody] LoanActionRequest request)
     {
         var loan = await _context.ToolLoans
+            .Include(x => x.RequestedByPerson)
             .Include(x => x.Items)
                 .ThenInclude(x => x.ToolAsset)
             .FirstOrDefaultAsync(x => x.Id == id);

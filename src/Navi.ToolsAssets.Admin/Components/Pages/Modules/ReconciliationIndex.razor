@@ -1,4 +1,4 @@
-﻿@page "/reconciliation"
+@page "/reconciliation"
 @rendermode InteractiveServer
 
 @using System.Net.Http.Json
@@ -11,7 +11,7 @@
 
 <PageTitle>Conciliación</PageTitle>
 
-<PermissionGuard Permission="PhysicalCounts.View">
+<PermissionGuard Permission="Reconciliation.View" ModuleName="Conciliación">
     <div class="reconciliation-page">
         <section class="rec-hero">
             <div>
@@ -19,7 +19,7 @@
                 <h1>Conciliación</h1>
                 <p>
                     Revisa lo reportado por los usuarios, filtra diferencias y toma decisiones:
-                    aclarar, aprobar creación, crear en Inventario de AF, conciliar o rechazar.
+                    aclarar, aprobar creación, crear en Inventario de Herramientas y AF, conciliar o rechazar.
                 </p>
             </div>
 
@@ -196,7 +196,7 @@
             <div class="rec-section-title">
                 <div>
                     <h2>Registros para conciliación</h2>
-                    <p>Vista administrativa de decisión. Aquí se revisan diferencias, se solicitan aclaraciones, se aprueba creación, se concilia o se rechaza.</p>
+                    <p>Vista de conciliación. Administradores y roles conciliadores gestionan decisiones; los demás usuarios solo visualizan sus reportes y el estado de cada activo.</p>
                 </div>
 
                 @if (board is not null)
@@ -376,6 +376,60 @@
 </PermissionGuard>
 
 @code {
+
+    private bool IsAdmin =>
+        string.Equals(AuthSession.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(AuthSession.RoleCode, "SUPERADMIN", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(AuthSession.RoleName, "Administrador", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(AuthSession.RoleName, "Administrador NAVI", StringComparison.OrdinalIgnoreCase);
+
+    private bool CanClarifyReconciliation => HasPermission("Reconciliation.Clarify");
+    private bool CanApproveCreationReconciliation => HasPermission("Reconciliation.ApproveCreation");
+    private bool CanManageReconciliation => HasPermission("Reconciliation.Manage");
+
+    private bool CanSeeAllReconciliation =>
+        IsAdmin || CanClarifyReconciliation || CanApproveCreationReconciliation || CanManageReconciliation;
+
+    private bool HasPermission(string permission)
+    {
+        return AuthSession.Permissions?.Contains(permission, StringComparer.OrdinalIgnoreCase) == true
+            || string.Equals(AuthSession.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(AuthSession.RoleCode, "SUPERADMIN", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private IEnumerable<ReportedItem> VisibleItems =>
+        AllItems.Where(CanSeeReportedItem);
+
+    private bool CanSeeReportedItem(ReportedItem item)
+    {
+        if (CanSeeAllReconciliation)
+        {
+            return true;
+        }
+
+        return IsOwnReportedItem(item);
+    }
+
+    private bool IsOwnReportedItem(ReportedItem item)
+    {
+        var userName = AuthSession.UserName ?? string.Empty;
+        var displayName = AuthSession.DisplayName ?? AuthSession.UserName ?? string.Empty;
+
+        return SameUser(item.ParticipantUserName, userName)
+            || SameUser(item.ReportedBy, userName)
+            || SameUser(item.ParticipantName, displayName)
+            || SameUser(item.ResponsibleName, displayName)
+            || SameUser(item.ResponsibleName, userName);
+    }
+
+    private static bool SameUser(string? left, string? right)
+    {
+        return !string.IsNullOrWhiteSpace(left)
+            && !string.IsNullOrWhiteSpace(right)
+            && left.Trim().Equals(right.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+
     private bool isLoading;
     private string? errorMessage;
     private string? successMessage;
@@ -403,21 +457,21 @@
         board?.Items ?? Enumerable.Empty<ReportedItem>();
 
     private IEnumerable<string> BranchOptions =>
-        AllItems
+        VisibleItems
             .Select(x => (x.BranchCode ?? board?.BranchCode) ?? string.Empty)
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(x => x);
 
     private IEnumerable<string> ParticipantOptions =>
-        AllItems
+        VisibleItems
             .Select(x => (x.ParticipantName ?? x.ResponsibleName) ?? string.Empty)
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(x => x);
 
     private IEnumerable<ReportedItem> FilteredItems =>
-        AllItems
+        VisibleItems
             .Where(MatchesBranch)
             .Where(MatchesParticipant)
             .Where(MatchesReportType)
@@ -431,6 +485,11 @@
 
     protected override async Task OnInitializedAsync()
     {
+        if (!CanSeeAllReconciliation)
+        {
+            onlyPending = false;
+        }
+
         await LoadAsync();
     }
 
@@ -475,8 +534,7 @@
         successMessage = null;
         await LoadBoardAsync();
     }
-
-    private async Task LoadBoardAsync()
+private async Task LoadBoardAsync()
     {
         if (!SelectedCountId.HasValue)
         {
@@ -486,7 +544,15 @@
 
         var api = CreateApiClient();
         board = await api.GetFromJsonAsync<ReportedItemsBoard>($"api/physical-counts/{SelectedCountId.Value}/reported-items-board");
+
+        if (board is not null && !CanSeeAllReconciliation)
+        {
+            board.Items = board.Items
+                .Where(IsOwnReportedItem)
+                .ToList();
+        }
     }
+
 
     private HttpClient CreateApiClient()
     {
@@ -758,23 +824,23 @@
             _ => "rec-pill-neutral"
         };
     }
-
-    private static bool CanRequestClarification(ReportedItem item)
+private bool CanRequestClarification(ReportedItem item)
     {
-        return item.ReconciliationStatus != "Rejected" &&
+        return CanClarifyReconciliation &&
+               item.ReconciliationStatus != "Rejected" &&
                item.ReconciliationStatus != "Reconciled" &&
                item.ReconciliationStatus != "RequiresUserClarification";
     }
-
-    private static bool CanResolveClarification(ReportedItem item)
+private bool CanResolveClarification(ReportedItem item)
     {
-        return item.RequiresUserClarification ||
-               item.ReconciliationStatus == "RequiresUserClarification";
+        return CanClarifyReconciliation &&
+               (item.RequiresUserClarification ||
+                item.ReconciliationStatus == "RequiresUserClarification");
     }
-
-    private static bool CanApproveCreation(ReportedItem item)
+private bool CanApproveCreation(ReportedItem item)
     {
-        return item.ReportType == "ExtraNotListed" &&
+        return CanApproveCreationReconciliation &&
+               item.ReportType == "ExtraNotListed" &&
                item.MinimumDataCompleted &&
                !item.ApprovedForCreation &&
                !item.CreatedToolAssetId.HasValue &&
@@ -782,26 +848,27 @@
                item.ReconciliationStatus != "Rejected" &&
                item.ReconciliationStatus != "Reconciled";
     }
-
-    private static bool CanCreateInventoryAsset(ReportedItem item)
+private bool CanCreateInventoryAsset(ReportedItem item)
     {
-        return item.ReportType == "ExtraNotListed" &&
+        return CanApproveCreationReconciliation &&
+               item.ReportType == "ExtraNotListed" &&
                item.MinimumDataCompleted &&
                !item.CreatedToolAssetId.HasValue &&
                item.ReconciliationStatus == "ApprovedForCreation";
     }
-
-    private static bool CanReconcile(ReportedItem item)
+private bool CanReconcile(ReportedItem item)
     {
-        return item.ReconciliationStatus != "Reconciled" &&
+        return CanManageReconciliation &&
+               item.ReconciliationStatus != "Reconciled" &&
                item.ReconciliationStatus != "Rejected";
     }
-
-    private static bool CanReject(ReportedItem item)
+private bool CanReject(ReportedItem item)
     {
-        return item.ReconciliationStatus != "Rejected" &&
+        return CanManageReconciliation &&
+               item.ReconciliationStatus != "Rejected" &&
                item.ReconciliationStatus != "Reconciled";
     }
+
 
     private async Task RequestClarificationAsync(Guid id)
     {
@@ -826,7 +893,7 @@
         await PatchReportedItemAsync(
             id,
             "approve-creation",
-            "Registro aprobado para creación en Inventario de AF.",
+            "Registro aprobado para creación en Inventario de Herramientas y AF.",
             "Registro aprobado para creación.");
     }
 
@@ -896,17 +963,17 @@
                 {
                     ActionBy = AuthSession.UserName ?? "admin",
                     CreateMissingCatalogs = true,
-                    Observation = "Activo creado en Inventario de AF desde conciliación de toma física."
+                    Observation = "Activo creado en Inventario de Herramientas y AF desde conciliación de toma física."
                 });
 
             if (!response.IsSuccessStatusCode)
             {
                 var detail = await response.Content.ReadAsStringAsync();
-                errorMessage = $"No se pudo crear el activo en Inventario de AF. {(int)response.StatusCode} {detail}";
+                errorMessage = $"No se pudo crear el activo en Inventario de Herramientas y AF. {(int)response.StatusCode} {detail}";
                 return;
             }
 
-            successMessage = "Activo creado correctamente en Inventario de AF.";
+            successMessage = "Activo creado correctamente en Inventario de Herramientas y AF.";
             await LoadBoardAsync();
         }
         catch (Exception ex)

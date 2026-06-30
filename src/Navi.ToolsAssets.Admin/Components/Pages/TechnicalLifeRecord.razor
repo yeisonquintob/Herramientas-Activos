@@ -1,7 +1,9 @@
-﻿@page "/tools/{ToolId:guid}/technical-life-record"
+@using Navi.ToolsAssets.Admin.Services.Auth
+@page "/tools/{ToolId:guid}/technical-life-record"
 @rendermode InteractiveServer
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager NavigationManager
+@inject WebAuthSessionService AuthSession
 @inject IJSRuntime JsRuntime
 @inject IConfiguration Configuration
 
@@ -24,14 +26,7 @@ else if (isLoading && record is null)
 else if (record is not null)
 {
         <section class="life-hero-banner">
-        <div class="life-hero-main">
-            <div class="life-hero-top-actions">
-                <button class="btn-life-back" @onclick="GoBack">
-                    @BackButtonText
-                </button>
-            </div>
-
-            <span class="life-hero-pill">HOJA DE VIDA TÉCNICA</span>
+        <div class="life-hero-main"><span class="life-hero-pill">HOJA DE VIDA TÉCNICA</span>
 
             <h2>@record.Summary.Name</h2>
 
@@ -39,16 +34,7 @@ else if (record is not null)
                 @record.Summary.InternalCode
             </div>
 
-            <p>Formato técnico del activo fijo con datos generales, accesorios, documentos, mantenimiento, evidencias, prácticas seguras y trazabilidad.</p>
-        </div>
-
-        <div class="life-hero-side">
-            <div class="life-hero-status-card">
-                <span>Estado operativo</span>
-                <strong>@GetStatusLabel(record.Summary.OperationalStatus)</strong>
-            </div>
-
-            <div class="life-hero-badges">
+            <div class="life-hero-inline-badges">
                 <span class="@GetStatusBadgeClass(record.Summary.OperationalStatus)">
                     @GetStatusLabel(record.Summary.OperationalStatus)
                 </span>
@@ -58,18 +44,18 @@ else if (record is not null)
                 </span>
             </div>
 
-            <div class="life-hero-buttons">
-                <a class="btn btn-sm btn-outline-light life-hero-edit"
-                   href="@($"/tools/{ToolId}/technical-life-record/edit")">
-                    Editar datos técnicos
-                </a>
+            <p>Formato técnico del activo fijo con datos generales, accesorios, documentos, mantenimiento, evidencias, prácticas seguras y trazabilidad.</p>
+        </div>
 
-                <button class="btn btn-sm btn-outline-light life-hero-refresh"
-                        @onclick="LoadAsync"
-                        disabled="@isLoading">
-                    @(isLoading ? "Actualizando..." : "Actualizar")
-                </button>
-            </div>
+                <div class="life-hero-side navi-header-actions-stack">
+            <button class="btn-life-back" type="button" @onclick="GoBack">
+                Volver a hojas de vida del Herramientas y AF
+            </button>
+<button class="btn btn-sm btn-outline-light life-hero-refresh"
+                    @onclick="LoadAsync"
+                    disabled="@isLoading">
+                @(isLoading ? "Actualizando..." : "Actualizar")
+            </button>
         </div>
     </section>
 <section class="life-record-quick-actions">
@@ -121,21 +107,32 @@ else if (record is not null)
         </a>
     </div>
 
-    <div class="quick-action-card">
-        <span>Exportar</span>
-        <strong>PDF / Excel</strong>
-        <div class="d-flex gap-1 flex-wrap">
-            <button class="life-action life-action-neutral" @onclick="PrintLifeRecord">
-                PDF
-            </button>
+    @if (CanExportLifeRecord)
+    {
+        <div class="quick-action-card">
+            <span>Exportar</span>
+            <strong>PDF / Excel</strong>
+            <div class="d-flex gap-1 flex-wrap">
+                <button class="life-action life-action-neutral" @onclick="PrintLifeRecord">
+                    PDF
+                </button>
 
-            <a class="life-action life-action-success"
-               href="@BuildApiUrl($"/api/tools/{ToolId}/technical-life-record/export-excel")"
-               target="_blank">
-                Excel
-            </a>
+                <a class="life-action life-action-success"
+                   href="@BuildApiUrl($"/api/tools/{ToolId}/technical-life-record/export-excel")"
+                   target="_blank">
+                    Excel
+                </a>
+            </div>
         </div>
-    </div>
+    }
+    else
+    {
+        <div class="quick-action-card export-locked-card">
+            <span>Exportar</span>
+            <strong>Sin permiso</strong>
+            <small>Requiere TechnicalLifeRecord.Export.</small>
+        </div>
+    }
 </section>
 <section class="@GetMaintenanceAlertClass()">
     <div>
@@ -501,6 +498,11 @@ else if (record is not null)
 }
 
 @code {
+
+    private bool CanExportLifeRecord =>
+        AuthSession.HasPermission("TechnicalLifeRecord.Export");
+
+
     private string GetMaintenanceAlertClass()
     {
         var days = GetDaysUntilNextMaintenance();
@@ -650,7 +652,7 @@ else if (record is not null)
 
         if (query.Contains("from=life-records", StringComparison.OrdinalIgnoreCase))
         {
-            BackButtonText = "Volver a hojas de vida del AF";
+            BackButtonText = "Volver a hojas de vida del Herramientas y AF";
             BackUrl = "/technical-life-records";
             return;
         }
@@ -682,6 +684,11 @@ else if (record is not null)
 
     private async Task PrintLifeRecord()
     {
+        if (!CanExportLifeRecord)
+        {
+            return;
+        }
+
         await JsRuntime.InvokeVoidAsync("window.print");
     }
 
@@ -1188,7 +1195,7 @@ else if (record is not null)
     }
 
     /* ============================================================
-       Mejora visual botones Acciones - Hoja de Vida AF
+       Mejora visual botones Acciones - Hoja de Vida Herramientas y AF
        ============================================================ */
 
     .life-hero-buttons {
@@ -1302,6 +1309,20 @@ else if (record is not null)
         .life-hero-buttons {
             min-width: 150px;
         }
+    }
+
+
+    .export-locked-card {
+        opacity: .72;
+        background: #f8fafc;
+    }
+
+    .export-locked-card small {
+        display: block;
+        margin-top: .15rem;
+        color: #64748b;
+        font-size: .65rem;
+        font-weight: 800;
     }
 
 </style>

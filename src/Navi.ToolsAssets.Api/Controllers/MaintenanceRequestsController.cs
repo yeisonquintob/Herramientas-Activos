@@ -1,5 +1,6 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
+using Navi.ToolsAssets.Api.Security;
 using Microsoft.EntityFrameworkCore;
 using Navi.ToolsAssets.Domain.Entities.Maintenance;
 using Navi.ToolsAssets.Domain.Entities.LifeCycles;
@@ -18,7 +19,7 @@ public sealed class MaintenanceRequestsController : ControllerBase
     {
         _context = context;
     }
-
+    [RequirePermission("Maintenance.View")]
     [HttpGet]
     public async Task<IActionResult> GetAll(
         [FromQuery] string? status,
@@ -105,9 +106,7 @@ public sealed class MaintenanceRequestsController : ControllerBase
 
         return Ok(items);
     }
-
-
-
+    [RequirePermission("Maintenance.View")]
     [HttpGet("dashboard-summary")]
     public async Task<IActionResult> GetMaintenanceDashboardSummary(CancellationToken cancellationToken)
     {
@@ -215,6 +214,7 @@ public sealed class MaintenanceRequestsController : ControllerBase
 
         return Ok(summary);
     }
+    [RequirePermission("Maintenance.View")]
     [HttpGet("plans-board")]
     public async Task<IActionResult> GetPlansBoard(CancellationToken cancellationToken)
     {
@@ -346,6 +346,7 @@ public sealed class MaintenanceRequestsController : ControllerBase
 
         return Ok(result);
     }
+    [RequirePermission("Maintenance.Generate")]
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateMaintenanceRequestRequest request, CancellationToken cancellationToken)
     {
@@ -407,7 +408,7 @@ public sealed class MaintenanceRequestsController : ControllerBase
             item.Status
         });
     }
-
+    [RequirePermission("Maintenance.Reject")]
     [HttpPost("{id:guid}/submit")]
     public async Task<IActionResult> Submit(Guid id, CancellationToken cancellationToken)
     {
@@ -435,7 +436,7 @@ public sealed class MaintenanceRequestsController : ControllerBase
 
         return Ok(new { Message = "Solicitud enviada a revisión.", item.Id, item.RequestNumber, item.Status });
     }
-
+    [RequirePermission("Maintenance.Close")]
     [HttpPost("{id:guid}/approve")]
     public async Task<IActionResult> Approve(Guid id, [FromBody] MaintenanceRequestActionCommand request, CancellationToken cancellationToken)
     {
@@ -464,7 +465,7 @@ public sealed class MaintenanceRequestsController : ControllerBase
 
         return Ok(new { Message = "Solicitud de mantenimiento aprobada.", item.Id, item.RequestNumber, item.Status });
     }
-
+    [RequirePermission("Maintenance.Reject")]
     [HttpPost("{id:guid}/reject")]
     public async Task<IActionResult> Reject(Guid id, [FromBody] MaintenanceRequestActionCommand request, CancellationToken cancellationToken)
     {
@@ -495,7 +496,7 @@ public sealed class MaintenanceRequestsController : ControllerBase
 
         return Ok(new { Message = "Solicitud rechazada.", item.Id, item.RequestNumber, item.Status });
     }
-
+    [RequirePermission("Maintenance.Close")]
     [HttpPost("{id:guid}/schedule")]
     public async Task<IActionResult> Schedule(Guid id, [FromBody] MaintenanceRequestActionCommand request, CancellationToken cancellationToken)
     {
@@ -525,7 +526,7 @@ public sealed class MaintenanceRequestsController : ControllerBase
 
         return Ok(new { Message = "Mantenimiento programado.", item.Id, item.RequestNumber, item.Status });
     }
-
+    [RequirePermission("Maintenance.Execute")]
     [HttpPost("{id:guid}/start")]
     public async Task<IActionResult> StartExecution(Guid id, [FromBody] MaintenanceRequestActionCommand request, CancellationToken cancellationToken)
     {
@@ -554,6 +555,7 @@ public sealed class MaintenanceRequestsController : ControllerBase
 
         return Ok(new { Message = "Ejecución de mantenimiento iniciada.", item.Id, item.RequestNumber, item.Status });
     }
+    [RequirePermission("Maintenance.Execute")]
     [HttpPost("{id:guid}/close")]
     public async Task<IActionResult> Close(Guid id, [FromBody] MaintenanceRequestActionCommand request, CancellationToken cancellationToken)
     {
@@ -678,8 +680,7 @@ public sealed class MaintenanceRequestsController : ControllerBase
             ScheduleCreated = scheduleCreated
         });
     }
-
-
+    [RequirePermission("Maintenance.Close")]
     [HttpPost("{id:guid}/cancel")]
     public async Task<IActionResult> Cancel(Guid id, [FromBody] MaintenanceRequestActionCommand request, CancellationToken cancellationToken)
     {
@@ -710,7 +711,7 @@ public sealed class MaintenanceRequestsController : ControllerBase
 
         return Ok(new { Message = "Solicitud cancelada.", item.Id, item.RequestNumber, item.Status });
     }
-
+    [RequirePermission("Maintenance.Execute")]
     [HttpPost("seed-demo")]
     public async Task<IActionResult> SeedDemo(CancellationToken cancellationToken)
     {
@@ -1041,6 +1042,40 @@ public sealed class CreateMaintenanceRequestRequest
     public bool IsSafetyRisk { get; set; }
     public string? EstimatedCostText { get; set; }
     public string? VendorSuggestion { get; set; }
+    public string? RequestChannel { get; set; }
+    public string? MaintenanceClassification { get; set; }
+    public string? ServiceType { get; set; }
+    public DateTime? RequiredAt { get; set; }
+    public string? SerialNumber { get; set; }
+    public string? Brand { get; set; }
+    public string? Model { get; set; }
+    public string? EquipmentReference { get; set; }
+    public string? ImageEvidenceDescription { get; set; }
+    public string? EvidenceReference { get; set; }
+    public string? ExcelReference { get; set; }
+    public DateTime? FailureDate { get; set; }
+    public string? NeedDescription { get; set; }
+    public string? FailureDetail { get; set; }
+    public string? MaintenanceLocation { get; set; }
+    public decimal? EstimatedDowntimeHours { get; set; }
+    public bool WarrantyApplies { get; set; }
+    public string? WarrantyProvider { get; set; }
+    public string? ServiceProvider { get; set; }
+    public bool RequiresQuotation { get; set; }
+    public int? QuotationCount { get; set; }
+    public string? SelectedVendor { get; set; }
+    public string? QuotationReferences { get; set; }
+    public string? VendorSelectionReason { get; set; }
+    public bool RequiresPurchaseOrder { get; set; }
+    public string? PurchaseOrderNumber { get; set; }
+    public string? PurchaseOrderStatus { get; set; }
+    public string? MroCodeOrAccount { get; set; }
+    public string? AccountingConcept { get; set; }
+    public string? AccountingAccount { get; set; }
+    public string? ProviderActivationCriteria { get; set; }
+    public bool RequiresAccountingValidation { get; set; }
+    public string? AccountingValidationStatus { get; set; }
+    public string? AccountingValidationComment { get; set; }
     public string? Notes { get; set; }
     public bool SendToReview { get; set; }
 }

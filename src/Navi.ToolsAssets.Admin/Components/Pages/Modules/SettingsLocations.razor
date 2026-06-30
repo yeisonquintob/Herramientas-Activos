@@ -1,6 +1,8 @@
-﻿@page "/settings/locations"
+@page "/settings/locations"
 @rendermode InteractiveServer
+@using Navi.ToolsAssets.Admin.Services.Auth
 @inject IHttpClientFactory HttpClientFactory
+@inject WebAuthSessionService AuthSession
 
 <PageTitle>Ubicaciones - Configuración</PageTitle>
 
@@ -32,17 +34,17 @@
 
             <div class="mb-3">
                 <label class="form-label">Código</label>
-                <InputText class="form-control" @bind-Value="formModel.Code" placeholder="AGU-EST-A1, AGU-BAHIA-03" />
+                <InputText class="form-control" @bind-Value="formModel.Code" placeholder="AGU-EST-A1, AGU-BAHIA-03"  disabled="@(!CanManageSettings)" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Nombre</label>
-                <InputText class="form-control" @bind-Value="formModel.Name" placeholder="Estante A1, Bahía 03, Zona eléctrica" />
+                <InputText class="form-control" @bind-Value="formModel.Name" placeholder="Estante A1, Bahía 03, Zona eléctrica"  disabled="@(!CanManageSettings)" />
             </div>
 
             <div class="mb-3">
                 <label class="form-label">Sede</label>
-                <InputSelect class="form-select" @bind-Value="formModel.BranchId">
+                <InputSelect class="form-select" @bind-Value="formModel.BranchId" disabled="@(!CanManageSettings)">
                     <option value="">Seleccione sede</option>
                     @foreach (var branch in branches)
                     {
@@ -53,11 +55,11 @@
 
             <div class="mb-3">
                 <label class="form-label">Descripción</label>
-                <InputTextArea class="form-control" @bind-Value="formModel.Description" rows="3" placeholder="Ubicación interna dentro de un almacén, taller o zona operativa." />
+                <InputTextArea class="form-control" @bind-Value="formModel.Description" rows="3" placeholder="Ubicación interna dentro de un almacén, taller o zona operativa."  disabled="@(!CanManageSettings)" />
             </div>
 
             <div class="form-check mb-3">
-                <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive" />
+                <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive"  disabled="@(!CanManageSettings)" />
                 <label class="form-check-label">Activa</label>
             </div>
 
@@ -67,7 +69,7 @@
             }
 
             <div class="settings-crud-actions">
-                <button class="btn btn-primary" type="submit">Guardar</button>
+                <button class="btn btn-primary" type="submit" disabled="@(!CanManageSettings)">Guardar</button>
                 <button class="btn btn-outline-secondary" type="button" @onclick="ClearForm">Limpiar</button>
             </div>
         </EditForm>
@@ -118,8 +120,14 @@
                                 </span>
                             </td>
                             <td class="text-end">
-                                <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(location)">Editar</button>
-                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(location.Id)">Eliminar</button>
+                                @if (CanManageSettings)
+                                    {
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(location)">Editar</button>
+                                    }
+                                @if (CanManageSettings)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(location.Id)">Eliminar</button>
+                                    }
                             </td>
                         </tr>
                     }
@@ -243,6 +251,14 @@
 </style>
 
 @code {
+
+    private bool IsAdmin =>
+        string.Equals(AuthSession.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(AuthSession.RoleCode, "SUPERADMIN", StringComparison.OrdinalIgnoreCase);
+
+    private bool CanManageSettings => IsAdmin || AuthSession.HasPermission("Settings.Manage");
+
+
     private HttpClient Api => HttpClientFactory.CreateClient("NaviApi");
 
     private List<LocationDto> locations = new();
@@ -280,6 +296,12 @@
 
     private async Task SaveAsync()
     {
+        if (!CanManageSettings)
+        {
+            ShowError("No tienes permiso para modificar configuración.");
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(formModel.Code) ||
             string.IsNullOrWhiteSpace(formModel.Name) ||
             formModel.BranchId is null)
@@ -322,6 +344,12 @@
 
     private void Edit(LocationDto location)
     {
+        if (!CanManageSettings)
+        {
+            ShowError("No tienes permiso para editar configuración.");
+            return;
+        }
+
         editingId = location.Id;
 
         formModel = new LocationFormModel
@@ -336,6 +364,12 @@
 
     private async Task DeleteAsync(Guid id)
     {
+        if (!CanManageSettings)
+        {
+            ShowError("No tienes permiso para eliminar configuración.");
+            return;
+        }
+
         try
         {
             var response = await Api.DeleteAsync($"api/settings/warehouses/{id}?changedBy=admin-web");

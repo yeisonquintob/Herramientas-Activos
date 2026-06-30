@@ -92,5 +92,73 @@ public class ToolMaintenanceRequest : BaseEntity
 
     public string? VendorSuggestion { get; set; }
 
+    public string? RequestChannel { get; set; }
+
+    public string? MaintenanceClassification { get; set; }
+
+    public string? ServiceType { get; set; }
+
+    public DateTime? RequiredAt { get; set; }
+
+    public string? SerialNumber { get; set; }
+
+    public string? Brand { get; set; }
+
+    public string? Model { get; set; }
+
+    public string? EquipmentReference { get; set; }
+
+    public string? ImageEvidenceDescription { get; set; }
+
+    public string? EvidenceReference { get; set; }
+
+    public string? ExcelReference { get; set; }
+
+    public DateTime? FailureDate { get; set; }
+
+    public string? NeedDescription { get; set; }
+
+    public string? FailureDetail { get; set; }
+
+    public string? MaintenanceLocation { get; set; }
+
+    public decimal? EstimatedDowntimeHours { get; set; }
+
+    public bool WarrantyApplies { get; set; }
+
+    public string? WarrantyProvider { get; set; }
+
+    public string? ServiceProvider { get; set; }
+
+    public bool RequiresQuotation { get; set; }
+
+    public int? QuotationCount { get; set; }
+
+    public string? SelectedVendor { get; set; }
+
+    public string? QuotationReferences { get; set; }
+
+    public string? VendorSelectionReason { get; set; }
+
+    public bool RequiresPurchaseOrder { get; set; }
+
+    public string? PurchaseOrderNumber { get; set; }
+
+    public string? PurchaseOrderStatus { get; set; }
+
+    public string? MroCodeOrAccount { get; set; }
+
+    public string? AccountingConcept { get; set; }
+
+    public string? AccountingAccount { get; set; }
+
+    public string? ProviderActivationCriteria { get; set; }
+
+    public bool RequiresAccountingValidation { get; set; }
+
+    public string? AccountingValidationStatus { get; set; }
+
+    public string? AccountingValidationComment { get; set; }
+
     public string? Notes { get; set; }
 }

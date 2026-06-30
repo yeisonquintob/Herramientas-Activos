@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
 using System.Text;
@@ -221,8 +221,7 @@ public class SettingsManagementController : ControllerBase
         {
             return Conflict(new { Message = $"Ya existe un usuario con documento/usuario {userName}." });
         }
-
-        var user = new Navi.ToolsAssets.Domain.Entities.Security.AppUser
+var user = new Navi.ToolsAssets.Domain.Entities.Security.AppUser
         {
             UserName = userName,
             DisplayName = request.DisplayName.Trim(),
@@ -232,7 +231,8 @@ public class SettingsManagementController : ControllerBase
             PasswordHash = HashUserPassword(request.Password),
             AppRoleId = request.AppRoleId,
             BranchId = request.BranchId,
-            ResponsiblePersonId = request.ResponsiblePersonId,
+
+ResponsiblePersonId = (await ResolveUserOperationalResponsibleAsync(request, userName, cancellationToken)).Id,
             IsActive = request.IsActive ?? true,
             CreatedAt = DateTime.UtcNow,
             CreatedBy = request.ChangedBy ?? "settings"
@@ -283,15 +283,15 @@ public class SettingsManagementController : ControllerBase
         {
             return Conflict(new { Message = $"Ya existe otro usuario con documento/usuario {userName}." });
         }
-
-        user.UserName = userName;
+user.UserName = userName;
         user.DisplayName = request.DisplayName.Trim();
         user.Email = request.Email?.Trim();
         user.Position = request.Position?.Trim();
         user.Area = request.Area?.Trim();
         user.AppRoleId = request.AppRoleId;
         user.BranchId = request.BranchId;
-        user.ResponsiblePersonId = request.ResponsiblePersonId;
+
+user.ResponsiblePersonId = (await ResolveUserOperationalResponsibleAsync(request, userName, cancellationToken)).Id;
         user.IsActive = request.IsActive ?? user.IsActive;
         user.UpdatedAt = DateTime.UtcNow;
         user.UpdatedBy = request.ChangedBy ?? "settings";
@@ -1493,6 +1493,90 @@ END
     {
         return (userName ?? string.Empty).Trim().ToLowerInvariant();
     }
+
+
+
+
+
+    private async Task<Navi.ToolsAssets.Domain.Entities.Organization.ResponsiblePerson> ResolveUserOperationalResponsibleAsync(
+        SaveUserRequest request,
+        string normalizedUserName,
+        CancellationToken cancellationToken)
+    {
+        var createFromUser = request.CreateResponsibleFromUser ?? true;
+
+        if (!createFromUser && request.ResponsiblePersonId.HasValue)
+        {
+            var selected = await _context.ResponsiblePeople
+                .FirstOrDefaultAsync(x =>
+                    x.Id == request.ResponsiblePersonId.Value &&
+                    x.IsActive &&
+                    !x.IsDeleted,
+                    cancellationToken);
+
+            if (selected is not null)
+            {
+                return selected;
+            }
+        }
+
+        var email = string.IsNullOrWhiteSpace(request.Email)
+            ? null
+            : request.Email.Trim();
+
+        var displayName = string.IsNullOrWhiteSpace(request.DisplayName)
+            ? normalizedUserName
+            : request.DisplayName.Trim();
+
+        var responsible = await _context.ResponsiblePeople
+            .FirstOrDefaultAsync(x =>
+                !x.IsDeleted &&
+                (
+                    x.DocumentNumber == normalizedUserName ||
+                    x.EmployeeCode == normalizedUserName ||
+                    (email != null && x.Email == email)
+                ),
+                cancellationToken);
+
+        if (responsible is null)
+        {
+            responsible = new Navi.ToolsAssets.Domain.Entities.Organization.ResponsiblePerson
+            {
+                EmployeeCode = normalizedUserName,
+                DocumentNumber = normalizedUserName,
+                FullName = displayName,
+                Email = email,
+                Position = request.Position?.Trim(),
+                Area = request.Area?.Trim(),
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = request.ChangedBy ?? "settings-users"
+            };
+
+            _context.ResponsiblePeople.Add(responsible);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        responsible.DocumentNumber = normalizedUserName;
+
+        if (string.IsNullOrWhiteSpace(responsible.EmployeeCode))
+        {
+            responsible.EmployeeCode = normalizedUserName;
+        }
+
+        responsible.FullName = displayName;
+        responsible.Email = email;
+        responsible.Position = request.Position?.Trim();
+        responsible.Area = request.Area?.Trim();
+        responsible.IsActive = true;
+        responsible.UpdatedAt = DateTime.UtcNow;
+        responsible.UpdatedBy = request.ChangedBy ?? "settings-users";
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return responsible;
+    }
+
 }
 
 
@@ -1517,6 +1601,10 @@ public sealed class SaveCatalogRequest
     public string? Description { get; set; }
     public bool? IsActive { get; set; }
     public string? ChangedBy { get; set; }
+
+
+
+
 }
 public sealed class SaveZoneRequest
 {
@@ -1547,6 +1635,7 @@ public sealed class SaveUserRequest
     public Guid AppRoleId { get; set; }
     public Guid? BranchId { get; set; }
     public Guid? ResponsiblePersonId { get; set; }
+    public bool? CreateResponsibleFromUser { get; set; }
     public bool? IsActive { get; set; }
     public string? ChangedBy { get; set; }
 }

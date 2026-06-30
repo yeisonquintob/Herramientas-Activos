@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Navi.ToolsAssets.Domain.Entities.LifeCycles;
 using Navi.ToolsAssets.Domain.Entities.PhysicalCounts;
@@ -566,11 +566,33 @@ public class PhysicalCountsController : ControllerBase
             }
         });
     }
-
-    [HttpPost("{id:guid}/generate-participants")]
+[HttpPost("{id:guid}/generate-participants")]
     public async Task<IActionResult> GenerateParticipants(Guid id, [FromBody] GeneratePhysicalCountParticipantsRequest request, CancellationToken cancellationToken)
     {
         await EnsurePhysicalCountParticipantSchemaAsync(cancellationToken);
+
+        static string NormalizeUserKey(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            return new string(value
+                .Where(char.IsLetterOrDigit)
+                .Select(char.ToUpperInvariant)
+                .ToArray());
+        }
+
+        static bool SameKey(string? left, string? right)
+        {
+            var leftKey = NormalizeUserKey(left);
+            var rightKey = NormalizeUserKey(right);
+
+            return !string.IsNullOrWhiteSpace(leftKey)
+                && !string.IsNullOrWhiteSpace(rightKey)
+                && leftKey.Equals(rightKey, StringComparison.OrdinalIgnoreCase);
+        }
 
         var count = await _context.PhysicalCounts
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
@@ -598,7 +620,7 @@ public class PhysicalCountsController : ControllerBase
             .Select(x => x.CreatedToolAssetId!.Value)
             .ToListAsync(cancellationToken);
 
-        var query = _context.ToolAssets
+        var toolQuery = _context.ToolAssets
             .AsNoTracking()
             .Include(x => x.ResponsiblePerson)
             .Where(x =>
@@ -609,15 +631,15 @@ public class PhysicalCountsController : ControllerBase
 
         if (request.ResponsiblePersonIds is not null && request.ResponsiblePersonIds.Any())
         {
-            query = query.Where(x => x.ResponsiblePersonId.HasValue && request.ResponsiblePersonIds.Contains(x.ResponsiblePersonId.Value));
+            toolQuery = toolQuery.Where(x => x.ResponsiblePersonId.HasValue && request.ResponsiblePersonIds.Contains(x.ResponsiblePersonId.Value));
         }
 
         if (request.LocationId.HasValue)
         {
-            query = query.Where(x => x.LocationId == request.LocationId.Value);
+            toolQuery = toolQuery.Where(x => x.LocationId == request.LocationId.Value);
         }
 
-        var tools = await query
+        var tools = await toolQuery
             .Select(x => new
             {
                 x.Id,
@@ -629,38 +651,102 @@ public class PhysicalCountsController : ControllerBase
             })
             .ToListAsync(cancellationToken);
 
-        var grouped = tools
-            .Where(x => x.ResponsiblePersonId.HasValue || request.IncludeToolsWithoutResponsible)
-            .GroupBy(x => x.ResponsiblePersonId)
-            .ToList();
+        var toolsByResponsible = tools
+            .Where(x => x.ResponsiblePersonId.HasValue)
+            .GroupBy(x => x.ResponsiblePersonId!.Value)
+            .ToDictionary(x => x.Key, x => x.ToList());
 
+        var activeUsers = await _context.AppUsers
+            .AsNoTracking()
+            .Where(x => x.IsActive && x.BranchId == count.BranchId)
+            .OrderBy(x => x.DisplayName)
+            .Select(x => new
+            {
+                x.Id,
+                x.UserName,
+                x.DisplayName,
+                x.Email,
+                x.Area,
+                x.Position,
+                x.ResponsiblePersonId,
+                x.BranchId
+            })
+            .ToListAsync(cancellationToken);
+
+        var existingParticipants = await _context.Set<PhysicalCountParticipant>()
+            .Where(x => !x.IsDeleted && x.PhysicalCountId == count.Id)
+            .ToListAsync(cancellationToken);
+
+        var now = DateTime.UtcNow;
         var created = 0;
         var updated = 0;
-        var now = DateTime.UtcNow;
+        var cleaned = 0;
 
-        foreach (var group in grouped)
+        foreach (var participant in existingParticipants)
         {
-            var first = group.FirstOrDefault();
-            if (first is null)
+            var hasActiveUser = activeUsers.Any(user =>
+                SameKey(participant.UserId, user.Id.ToString()) ||
+                SameKey(participant.UserName, user.UserName) ||
+                SameKey(participant.DisplayName, user.DisplayName) ||
+                SameKey(participant.UserName, user.Email) ||
+                (participant.ResponsiblePersonId.HasValue &&
+                 user.ResponsiblePersonId.HasValue &&
+                 participant.ResponsiblePersonId.Value == user.ResponsiblePersonId.Value));
+
+            if (!hasActiveUser)
             {
-                continue;
+                participant.IsDeleted = true;
+                participant.UpdatedAt = now;
+                participant.UpdatedBy = actionBy;
+                cleaned++;
+            }
+        }
+
+        foreach (var user in activeUsers)
+        {
+            Guid? responsibleId = user.ResponsiblePersonId;
+
+            if (!responsibleId.HasValue || !toolsByResponsible.ContainsKey(responsibleId.Value))
+            {
+                var userNameKey = NormalizeUserKey(user.UserName);
+                var displayNameKey = NormalizeUserKey(user.DisplayName);
+                var emailKey = NormalizeUserKey(user.Email);
+
+                foreach (var group in toolsByResponsible)
+                {
+                    var first = group.Value.FirstOrDefault();
+
+                    if (first is null)
+                    {
+                        continue;
+                    }
+
+                    var responsibleNameKey = NormalizeUserKey(first.ResponsibleName);
+                    var employeeCodeKey = NormalizeUserKey(first.ResponsibleEmployeeCode);
+
+                    var matchesUser =
+                        (!string.IsNullOrWhiteSpace(displayNameKey) && displayNameKey == responsibleNameKey) ||
+                        (!string.IsNullOrWhiteSpace(userNameKey) && userNameKey == employeeCodeKey) ||
+                        (!string.IsNullOrWhiteSpace(emailKey) && emailKey == employeeCodeKey) ||
+                        (!string.IsNullOrWhiteSpace(userNameKey) && responsibleNameKey.Contains(userNameKey, StringComparison.OrdinalIgnoreCase));
+
+                    if (matchesUser)
+                    {
+                        responsibleId = group.Key;
+                        break;
+                    }
+                }
             }
 
-            var responsibleId = group.Key;
-            var displayName = responsibleId.HasValue
-                ? (first.ResponsibleName ?? "Responsable sin nombre")
-                : "Sin responsable asignado";
-
-            var userName = responsibleId.HasValue
-                ? (!string.IsNullOrWhiteSpace(first.ResponsibleEmployeeCode) ? first.ResponsibleEmployeeCode! : displayName)
-                : "SIN-RESPONSABLE";
-
-            var participant = await _context.Set<PhysicalCountParticipant>()
-                .FirstOrDefaultAsync(x =>
-                    !x.IsDeleted &&
-                    x.PhysicalCountId == count.Id &&
-                    x.ResponsiblePersonId == responsibleId,
-                    cancellationToken);
+            var participant = existingParticipants
+                .Where(x => !x.IsDeleted)
+                .FirstOrDefault(x =>
+                    SameKey(x.UserId, user.Id.ToString()) ||
+                    SameKey(x.UserName, user.UserName) ||
+                    SameKey(x.DisplayName, user.DisplayName) ||
+                    (responsibleId.HasValue &&
+                     x.ResponsiblePersonId.HasValue &&
+                     x.ResponsiblePersonId.Value == responsibleId.Value));
 
             if (participant is null)
             {
@@ -670,34 +756,62 @@ public class PhysicalCountsController : ControllerBase
                     PhysicalCountId = count.Id,
                     ResponsiblePersonId = responsibleId,
                     BranchId = count.BranchId,
-                    UserName = userName,
-                    DisplayName = displayName,
-                    Area = first.ResponsibleArea,
-                    Position = first.ResponsiblePosition,
+                    UserId = user.Id.ToString(),
+                    UserName = user.UserName,
+                    DisplayName = string.IsNullOrWhiteSpace(user.DisplayName) ? user.UserName : user.DisplayName,
+                    Area = user.Area,
+                    Position = user.Position,
                     Status = "NotStarted",
                     CreatedAt = now,
                     CreatedBy = actionBy
                 };
 
                 _context.Set<PhysicalCountParticipant>().Add(participant);
+                existingParticipants.Add(participant);
                 created++;
             }
             else
             {
-                participant.UserName = userName;
-                participant.DisplayName = displayName;
-                participant.Area = first.ResponsibleArea;
-                participant.Position = first.ResponsiblePosition;
+                participant.ResponsiblePersonId = responsibleId;
+                participant.BranchId = count.BranchId;
+                participant.UserId = user.Id.ToString();
+                participant.UserName = user.UserName;
+                participant.DisplayName = string.IsNullOrWhiteSpace(user.DisplayName) ? user.UserName : user.DisplayName;
+                participant.Area = user.Area;
+                participant.Position = user.Position;
                 participant.UpdatedAt = now;
                 participant.UpdatedBy = actionBy;
                 updated++;
             }
 
-            participant.ExpectedItems = group.Count();
-            participant.CountedItems = await CountParticipantItemsAsync(count.Id, responsibleId, participant.UserName, cancellationToken);
+            participant.ExpectedItems = responsibleId.HasValue && toolsByResponsible.TryGetValue(responsibleId.Value, out var assignedTools)
+                ? assignedTools.Count
+                : 0;
+
+            participant.CountedItems = responsibleId.HasValue
+                ? await CountParticipantItemsAsync(count.Id, responsibleId, participant.UserName, cancellationToken)
+                : 0;
+
             participant.PendingItems = Math.Max(participant.ExpectedItems - participant.CountedItems, 0);
 
             RefreshParticipantDerivedStatus(participant);
+        }
+
+        foreach (var duplicateGroup in existingParticipants
+            .Where(x => !x.IsDeleted)
+            .GroupBy(x => !string.IsNullOrWhiteSpace(x.UserId) ? x.UserId : NormalizeUserKey(x.UserName)))
+        {
+            var keep = duplicateGroup
+                .OrderBy(x => x.CreatedAt)
+                .First();
+
+            foreach (var duplicate in duplicateGroup.Where(x => x.Id != keep.Id))
+            {
+                duplicate.IsDeleted = true;
+                duplicate.UpdatedAt = now;
+                duplicate.UpdatedBy = actionBy;
+                cleaned++;
+            }
         }
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -708,11 +822,23 @@ public class PhysicalCountsController : ControllerBase
             count.CountNumber,
             CreatedParticipants = created,
             UpdatedParticipants = updated,
-            TotalParticipants = created + updated,
-            TotalExpectedItems = grouped.Sum(x => x.Count()),
-            Message = "Participantes generados correctamente para la toma física."
+            CleanedParticipants = cleaned,
+            TotalParticipants = activeUsers.Count,
+            TotalExpectedItems = activeUsers.Sum(user =>
+            {
+                if (user.ResponsiblePersonId.HasValue &&
+                    toolsByResponsible.TryGetValue(user.ResponsiblePersonId.Value, out var assigned))
+                {
+                    return assigned.Count;
+                }
+
+                return 0;
+            }),
+            Message = "Participantes generados correctamente desde usuarios activos de la sede."
         });
     }
+
+
 
     [HttpPatch("{id:guid}/activate")]
     public async Task<IActionResult> ActivatePhysicalCount(Guid id, [FromBody] PhysicalCountActionRequest request, CancellationToken cancellationToken)

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Navi.ToolsAssets.Api.Security;
 using Navi.ToolsAssets.Domain.Entities.Purchases;
@@ -16,6 +16,7 @@ public sealed class PurchaseRequestsController : ControllerBase
     {
         _context = context;
     }
+    [RequirePermission("Purchases.View")]
     [HttpGet]
     public async Task<IActionResult> GetAll(
         [FromQuery] string? status,
@@ -97,6 +98,7 @@ public sealed class PurchaseRequestsController : ControllerBase
 
         return Ok(items);
     }
+    [RequirePermission("Purchases.View")]
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
     {
@@ -159,6 +161,7 @@ public sealed class PurchaseRequestsController : ControllerBase
 
         return Ok(item);
     }
+    [RequirePermission("Purchases.Generate")]
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreatePurchaseRequestRequest request, CancellationToken cancellationToken)
     {
@@ -229,6 +232,7 @@ public sealed class PurchaseRequestsController : ControllerBase
             item.Status
         });
     }
+    [RequirePermission("Purchases.Reject")]
     [HttpPost("{id:guid}/submit")]
     public async Task<IActionResult> Submit(Guid id, CancellationToken cancellationToken)
     {
@@ -256,6 +260,7 @@ public sealed class PurchaseRequestsController : ControllerBase
 
         return Ok(new { Message = "Solicitud enviada a revisión.", item.Id, item.RequestNumber, item.Status });
     }
+    [RequirePermission("Purchases.Approve")]
     [HttpPost("{id:guid}/approve")]
     public async Task<IActionResult> Approve(Guid id, [FromBody] ApprovalRequest request, CancellationToken cancellationToken)
     {
@@ -284,6 +289,7 @@ public sealed class PurchaseRequestsController : ControllerBase
 
         return Ok(new { Message = "Solicitud aprobada.", item.Id, item.RequestNumber, item.Status });
     }
+    [RequirePermission("Purchases.Reject")]
     [HttpPost("{id:guid}/reject")]
     public async Task<IActionResult> Reject(Guid id, [FromBody] ApprovalRequest request, CancellationToken cancellationToken)
     {
@@ -314,6 +320,7 @@ public sealed class PurchaseRequestsController : ControllerBase
 
         return Ok(new { Message = "Solicitud rechazada.", item.Id, item.RequestNumber, item.Status });
     }
+    [RequirePermission("Purchases.Approve")]
     [HttpPost("{id:guid}/close")]
     public async Task<IActionResult> Close(Guid id, [FromBody] ApprovalRequest request, CancellationToken cancellationToken)
     {
@@ -344,6 +351,7 @@ public sealed class PurchaseRequestsController : ControllerBase
 
         return Ok(new { Message = "Solicitud cerrada.", item.Id, item.RequestNumber, item.Status });
     }
+    [RequirePermission("Purchases.Request")]
     [HttpPost("{id:guid}/mark-sent-dynamics")]
     public async Task<IActionResult> MarkSentToDynamics(Guid id, [FromBody] DynamicsMarkRequest request, CancellationToken cancellationToken)
     {
@@ -371,8 +379,7 @@ public sealed class PurchaseRequestsController : ControllerBase
 
         return Ok(new { Message = "Solicitud marcada como enviada a Dynamics.", item.Id, item.RequestNumber });
     }
-
-
+    [RequirePermission("Purchases.Request")]
     [HttpPost("seed-demo")]
     public async Task<IActionResult> SeedDemo(CancellationToken cancellationToken)
     {
@@ -716,6 +723,51 @@ public sealed class CreatePurchaseRequestRequest
     public string? ProjectId { get; set; }
     public string? VendorSuggestion { get; set; }
     public string? EstimatedCostText { get; set; }
+    public string? PurchaseType { get; set; }
+    public string? RequestChannel { get; set; }
+    public string? InventoryClassification { get; set; }
+    public string? GenericCode { get; set; }
+    public string? ItemVariant { get; set; }
+    public string? VariantDetail { get; set; }
+    public bool CodeExists { get; set; }
+    public bool RequiresCodeCreation { get; set; }
+    public bool RequiresVariantCreation { get; set; }
+    public string? PlanningRequestReference { get; set; }
+    public string? TechnicalSpecifications { get; set; }
+    public string? Capacity { get; set; }
+    public string? Dimensions { get; set; }
+    public string? RequiredUse { get; set; }
+    public string? SerialReference { get; set; }
+    public string? FailureDetail { get; set; }
+    public string? MaintenanceTypeIfApplies { get; set; }
+    public bool HasPhotoSupport { get; set; }
+    public string? PhotoSupportDescription { get; set; }
+    public string? DocumentSupportReference { get; set; }
+    public string? CostCenter { get; set; }
+    public string? AccountingConcept { get; set; }
+    public string? AccountingAccount { get; set; }
+    public bool RequiresAccountingValidation { get; set; }
+    public string? AccountingValidationStatus { get; set; }
+    public string? AccountingValidationComment { get; set; }
+    public string? FixedAssetReason { get; set; }
+    public string? WarehouseCode { get; set; }
+    public string? LocationCode { get; set; }
+    public string? DeliveryWarehouse { get; set; }
+    public string? AmountRange { get; set; }
+    public bool IsLocalLowAmountPurchase { get; set; }
+    public bool RequiresMroManagement { get; set; }
+    public string? SelectedVendor { get; set; }
+    public int? QuotationCount { get; set; }
+    public string? QuotationReferences { get; set; }
+    public string? VendorSelectionCriteria { get; set; }
+    public string? MroBuyer { get; set; }
+    public string? MroValidationStatus { get; set; }
+    public string? PurchaseOrderNumber { get; set; }
+    public string? PurchaseOrderStatus { get; set; }
+    public DateTime? PurchaseOrderDate { get; set; }
+    public string? InvoiceReference { get; set; }
+    public DateTime? ReceivedAt { get; set; }
+    public string? ReceivedBy { get; set; }
     public string? Notes { get; set; }
     public bool SendToReview { get; set; }
 }

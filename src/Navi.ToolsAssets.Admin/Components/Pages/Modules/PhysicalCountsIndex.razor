@@ -1,4 +1,4 @@
-﻿@page "/physical-counts"
+@page "/physical-counts"
 @rendermode InteractiveServer
 @using System.Net.Http.Json
 @using Navi.ToolsAssets.Admin.Components.Security
@@ -41,37 +41,48 @@
 }
 
 <section class="tf-layout">
-    <article class="tf-form-card">
-        <h3>Programar toma física</h3>
-        <p>Crea una campaña por sede. Luego, en el detalle, generas participantes y activas la toma.</p>
-
-        <div class="form-grid">
-            <div class="form-group">
-                <label>Sede</label>
-                <select class="form-select" @bind="newCount.BranchCode">
-                    <option value="">Seleccione...</option>
-                    @foreach (var branch in branches)
-                    {
-                        <option value="@branch.Code">@branch.Code - @branch.Name</option>
-                    }
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label>Responsable / creador</label>
-                <input class="form-control" @bind="newCount.ResponsibleBy" />
-            </div>
-
-            <div class="form-group full">
-                <label>Notas / alcance</label>
-                <textarea class="form-control" rows="3" @bind="newCount.Notes"></textarea>
-            </div>
-        </div>
-
-        <button class="btn btn-success w-100 mt-2" @onclick="CreateAsync">
-            Crear toma física
-        </button>
-    </article>
+    @if (CanCreatePhysicalCount)
+    {
+        <article class="tf-form-card">
+                <h3>Programar toma física</h3>
+                <p>Crea una campaña por sede. Luego, en el detalle, generas participantes y activas la toma.</p>
+        
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Sede</label>
+                        <select class="form-select" @bind="newCount.BranchCode">
+                            <option value="">Seleccione...</option>
+                            @foreach (var branch in branches)
+                            {
+                                <option value="@branch.Code">@branch.Code - @branch.Name</option>
+                            }
+                        </select>
+                    </div>
+        
+                    <div class="form-group">
+                        <label>Responsable / creador</label>
+                        <input class="form-control" @bind="newCount.ResponsibleBy" />
+                    </div>
+        
+                    <div class="form-group full">
+                        <label>Notas / alcance</label>
+                        <textarea class="form-control" rows="3" @bind="newCount.Notes"></textarea>
+                    </div>
+                </div>
+        
+                <button class="btn btn-success w-100 mt-2" @onclick="CreateAsync">
+                    Crear toma física
+                </button>
+            </article>
+    }
+    else
+    {
+        <article class="tf-form-card">
+            <h3>Programar toma física</h3>
+            <p>Tu rol no tiene permiso para crear campañas. Solo puedes consultar tus tomas y tus pendientes.</p>
+            <div class="tf-empty">Permiso requerido para crear: PhysicalCounts.Create</div>
+        </article>
+    }
 
     <article class="tf-list-card">
         <div class="tf-card-title">
@@ -146,15 +157,15 @@
                                             Detalle
                                         </a>
 
-                                        <button class="tf-action tf-action-success" @onclick="() => StartAsync(item.Id)">
+                                        <button class="tf-action tf-action-success" disabled="@(!CanStartPhysicalCount)" @onclick="() => StartAsync(item.Id)">
                                             Iniciar
                                         </button>
 
-                                        <button class="tf-action tf-action-neutral" @onclick="() => CompleteAsync(item.Id)">
+                                        <button class="tf-action tf-action-neutral" disabled="@(!CanClosePhysicalCount)" @onclick="() => CompleteAsync(item.Id)">
                                             Cerrar
                                         </button>
 
-                                        <button class="tf-action tf-action-danger" @onclick="() => CancelAsync(item.Id)">
+                                        <button class="tf-action tf-action-danger" disabled="@(!CanCancelPhysicalCount)" @onclick="() => CancelAsync(item.Id)">
                                             Cancelar
                                         </button>
                                     </div>
@@ -469,6 +480,14 @@
         background: #fff1f2;
     }
 
+    .tf-action:disabled {
+        opacity: .45;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+        filter: grayscale(.25);
+    }
+
     .tf-action-danger:hover {
         color: #b91c1c;
         background: #ffe4e6;
@@ -505,6 +524,59 @@
 </style>
 
 @code {
+
+    private bool IsAdmin =>
+        string.Equals(AuthSession.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(AuthSession.RoleCode, "SUPERADMIN", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(AuthSession.RoleName, "Administrador", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(AuthSession.RoleName, "Administrador NAVI", StringComparison.OrdinalIgnoreCase);
+
+    private bool CanCreatePhysicalCount => HasPermission("PhysicalCounts.Create");
+    private bool CanStartPhysicalCount => HasPermission("PhysicalCounts.Start");
+    private bool CanClosePhysicalCount => HasPermission("PhysicalCounts.Close");
+    private bool CanCancelPhysicalCount => HasPermission("PhysicalCounts.Cancel");
+    private bool CanReportPhysicalCount => HasPermission("PhysicalCounts.Report");
+
+    private bool CanSeeAllPhysicalCounts => IsAdmin || CanCreatePhysicalCount;
+
+    private bool HasPermission(string permission)
+    {
+        return AuthSession.Permissions?.Contains(permission, StringComparer.OrdinalIgnoreCase) == true
+            || string.Equals(AuthSession.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(AuthSession.RoleCode, "SUPERADMIN", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool IsOwnPhysicalCount(PhysicalCountItem item)
+    {
+        if (CanSeeAllPhysicalCounts)
+        {
+            return true;
+        }
+
+        var userName = AuthSession.UserName ?? string.Empty;
+        var displayName = AuthSession.DisplayName ?? AuthSession.UserName ?? string.Empty;
+
+        return SameUser(item.ResponsibleBy, userName)
+            || SameUser(item.ResponsibleBy, displayName)
+            || ContainsUser(item.Notes, userName)
+            || ContainsUser(item.Notes, displayName);
+    }
+
+    private static bool SameUser(string? left, string? right)
+    {
+        return !string.IsNullOrWhiteSpace(left)
+            && !string.IsNullOrWhiteSpace(right)
+            && left.Trim().Equals(right.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ContainsUser(string? text, string? user)
+    {
+        return !string.IsNullOrWhiteSpace(text)
+            && !string.IsNullOrWhiteSpace(user)
+            && text.Contains(user.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+
     private List<PhysicalCountItem> counts = new();
     private List<BranchOption> branches = new();
     private CreatePhysicalCountRequest newCount = new();
@@ -515,10 +587,10 @@
 
     private IEnumerable<PhysicalCountItem> FilteredCounts =>
         counts.Where(x => string.IsNullOrWhiteSpace(searchText) ||
-                          Contains(x.CountNumber, searchText) ||
-                          Contains(x.BranchCode, searchText) ||
-                          Contains(x.BranchName, searchText) ||
-                          Contains(x.ResponsibleBy, searchText));
+                        Contains(x.CountNumber, searchText) ||
+                        Contains(x.BranchCode, searchText) ||
+                        Contains(x.BranchName, searchText) ||
+                        Contains(x.ResponsibleBy, searchText));
 
     protected override async Task OnInitializedAsync()
     {
@@ -576,11 +648,16 @@
             isLoading = false;
         }
     }
-
-    private async Task CreateAsync()
+private async Task CreateAsync()
     {
         successMessage = null;
         errorMessage = null;
+
+        if (!CanCreatePhysicalCount)
+        {
+            errorMessage = "No tienes permiso para crear tomas físicas.";
+            return;
+        }
 
         if (string.IsNullOrWhiteSpace(newCount.BranchCode))
         {
@@ -612,21 +689,38 @@
             errorMessage = ex.Message;
         }
     }
-
-    private async Task StartAsync(Guid id)
+private async Task StartAsync(Guid id)
     {
+        if (!CanStartPhysicalCount)
+        {
+            errorMessage = "No tienes permiso para iniciar tomas físicas.";
+            return;
+        }
+
         await PatchAsync($"api/physical-counts/{id}/start", "Toma física iniciada.");
     }
-
-    private async Task CompleteAsync(Guid id)
+private async Task CompleteAsync(Guid id)
     {
+        if (!CanClosePhysicalCount)
+        {
+            errorMessage = "No tienes permiso para cerrar tomas físicas.";
+            return;
+        }
+
         await PatchAsync($"api/physical-counts/{id}/complete", "Toma física cerrada.");
     }
-
-    private async Task CancelAsync(Guid id)
+private async Task CancelAsync(Guid id)
     {
+        if (!CanCancelPhysicalCount)
+        {
+            errorMessage = "No tienes permiso para cancelar tomas físicas.";
+            return;
+        }
+
         await PatchAsync($"api/physical-counts/{id}/cancel", "Toma física cancelada.");
     }
+
+
 
     private async Task PatchAsync(string endpoint, string success)
     {

@@ -1,12 +1,14 @@
-﻿@rendermode InteractiveServer
+@rendermode InteractiveServer
 @implements IDisposable
 @using System.Text.Json
+@using System.Net.Http.Json
 @using Microsoft.AspNetCore.Components.Routing
 @using Microsoft.JSInterop
 @using Navi.ToolsAssets.Admin.Services.Auth
 @inject WebAuthSessionService AuthSession
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject IHttpClientFactory HttpClientFactory
 
 @code {
     private const string StorageKey = "navi-auth-session";
@@ -25,6 +27,8 @@
         }
 
         await RestoreSessionAsync();
+        await RefreshCurrentRolePermissionsAsync();
+
         initialized = true;
         CheckCurrentRoute();
     }
@@ -70,6 +74,47 @@
         }
     }
 
+    private async Task RefreshCurrentRolePermissionsAsync()
+    {
+        if (!AuthSession.IsAuthenticated || AuthSession.RoleId is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var api = HttpClientFactory.CreateClient("NaviApi");
+            var roles = await api.GetFromJsonAsync<List<RoleRefreshDto>>("api/settings/roles") ?? new();
+
+            var role = roles.FirstOrDefault(x => x.Id == AuthSession.RoleId.Value);
+
+            if (role is null)
+            {
+                return;
+            }
+
+            var current = AuthSession.CurrentUser;
+
+            if (current is null)
+            {
+                return;
+            }
+
+            current.RoleCode = role.Code;
+            current.RoleName = role.Name;
+            current.Permissions = ParsePermissions(role.Permissions).ToList();
+
+            AuthSession.Login(current);
+
+            var json = JsonSerializer.Serialize(current);
+            await JS.InvokeVoidAsync("localStorage.setItem", StorageKey, json);
+        }
+        catch
+        {
+            // Si no se puede refrescar, se conserva la sesión actual.
+        }
+    }
+
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         if (!initialized)
@@ -87,16 +132,14 @@
             .Trim('/')
             .ToLowerInvariant();
 
-        if (string.IsNullOrWhiteSpace(path) ||
-            path == "login" ||
-            path == "access-denied")
+        if (path == "login" || path == "access-denied")
         {
             return;
         }
 
-        var permission = GetRequiredPermission(path);
+        var requiredPermissions = GetRequiredPermissions(path);
 
-        if (string.IsNullOrWhiteSpace(permission))
+        if (requiredPermissions.Length == 0)
         {
             return;
         }
@@ -107,145 +150,218 @@
             return;
         }
 
-        if (!AuthSession.HasPermission(permission))
+        if (!HasAnyRequiredPermission(requiredPermissions))
         {
-            Navigation.NavigateTo("/access-denied");
+            var startRoute = NaviPermissionRouteService.GetStartRoute(AuthSession);
+
+            if ((string.IsNullOrWhiteSpace(path) || path == "dashboard") &&
+                !string.Equals(startRoute, "/dashboard", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(startRoute, "/access-denied", StringComparison.OrdinalIgnoreCase))
+            {
+                Navigation.NavigateTo(startRoute, forceLoad: true);
+                return;
+            }
+
+            Navigation.NavigateTo("/access-denied", forceLoad: true);
         }
     }
 
-    private static string? GetRequiredPermission(string path)
+    private bool HasAnyRequiredPermission(string[] permissions)
     {
-        if (path == "dashboard")
+        foreach (var permission in permissions)
         {
-            return "Dashboard.View";
+            if (AuthSession.HasPermission(permission))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string[] GetRequiredPermissions(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || path == "dashboard")
+        {
+            return new[] { "Dashboard.View" };
         }
 
         if (path == "tools")
         {
-            return "Tools.View";
+            return new[] { "Tools.View" };
         }
 
         if (path.StartsWith("tools/") && path.Contains("/technical-life-record/edit"))
         {
-            return "TechnicalLifeRecord.Edit";
+            return new[] { "TechnicalLifeRecord.Edit" };
         }
 
-        if (path.StartsWith("tools/") && path.Contains("/accessories"))
+        if (path.StartsWith("tools/") && path.Contains("/technical-life-record-view"))
         {
-            return "TechnicalLifeRecord.Edit";
+            return new[] { "ToolDetail.LifeRecord.Open", "TechnicalLifeRecord.View" };
         }
 
-        if (path.StartsWith("tools/") && path.Contains("/safe-practices"))
+        if (path.StartsWith("tools/") && path.Contains("/life-record-view"))
         {
-            return "SafePractices.Manage";
-        }
-
-        if (path.StartsWith("tools/") && path.Contains("/maintenance-schedule"))
-        {
-            return "Maintenance.Execute";
-        }
-
-        if (path.StartsWith("tools/") && path.Contains("/documents"))
-        {
-            return "Documents.View";
-        }
-
-        if (path.StartsWith("tools/") && path.Contains("/life-cycle"))
-        {
-            return "TechnicalLifeRecord.View";
+            return new[] { "ToolDetail.LifeRecord.Open", "TechnicalLifeRecord.View" };
         }
 
         if (path.StartsWith("tools/") && path.Contains("/technical-life-record"))
         {
-            return "TechnicalLifeRecord.View";
+            return new[] { "TechnicalLifeRecord.View", "ToolDetail.LifeRecord.Open" };
+        }
+
+        if (path.StartsWith("tools/") && path.Contains("/accessories"))
+        {
+            return new[] { "TechnicalLifeRecord.Accessories", "TechnicalLifeRecord.Edit" };
+        }
+
+        if (path.StartsWith("tools/") && path.Contains("/safe-practices"))
+        {
+            return new[] { "TechnicalLifeRecord.SafePractices", "TechnicalLifeRecord.Edit", "SafePractices.Manage" };
+        }
+
+        if (path.StartsWith("tools/") && path.Contains("/maintenance-schedule"))
+        {
+            return new[]
+            {
+                "MaintenancePlans.View",
+                "MaintenancePlans.Create",
+                "MaintenancePlans.Edit",
+                "MaintenancePlans.Delete",
+                "TechnicalLifeRecord.Maintenance",
+                "TechnicalLifeRecord.Edit"
+            };
+        }
+
+        if (path.StartsWith("tools/") && path.Contains("/documents"))
+        {
+            return new[] { "TechnicalLifeRecord.Documents", "Documents.View" };
+        }
+
+        if (path.StartsWith("tools/") && path.Contains("/life-cycle"))
+        {
+            return new[] { "TechnicalLifeRecord.View", "ToolDetail.LifeRecord.Open" };
         }
 
         if (path.StartsWith("tools/"))
         {
-            return "Tools.View";
+            return new[] { "ToolDetail.View" };
         }
 
         if (path == "asset-availability")
         {
-            return "AssetAvailability.View";
+            return new[] { "AssetAvailability.View" };
         }
 
         if (path == "asset-assignment")
         {
-            return "AssetAssignment.View";
+            return new[] { "AssetAssignment.View" };
         }
 
         if (path == "asset-assignment-history")
         {
-            return "AssetAssignment.History";
+            return new[] { "AssetAssignment.History" };
         }
 
         if (path == "technical-life-records")
         {
-            return "TechnicalLifeRecord.View";
+            return new[] { "TechnicalLifeRecord.View" };
         }
 
         if (path == "documents")
         {
-            return "Documents.View";
+            return new[] { "Documents.View" };
         }
 
         if (path == "reports")
         {
-            return "Reports.View";
+            return new[] { "Reports.View" };
         }
 
         if (path == "physical-counts")
         {
-            return "PhysicalCounts.View";
+            return new[] { "PhysicalCounts.View" };
+        }
+
+        if (path == "reconciliation")
+        {
+            return new[] { "Reconciliation.View" };
         }
 
         if (path == "maintenance")
         {
-            return "Maintenance.View";
+            return new[] { "Maintenance.View", "Purchases.View" };
         }
 
         if (path == "maintenance-request")
         {
-            return "Maintenance.Request";
+            return new[] { "Maintenance.Request" };
         }
 
         if (path == "maintenance-plans")
         {
-            return "Maintenance.View";
+            return new[] { "MaintenancePlans.View", "Maintenance.View" };
         }
 
         if (path == "mro-purchases" || path == "purchases/mro")
         {
-            return "Purchases.View";
+            return new[] { "Purchases.Request" };
         }
 
         if (path == "approvals")
         {
-            return "Purchases.Approve";
+            return new[] { "Purchases.Approve" };
         }
 
         if (path == "settings/users")
         {
-            return "Security.Users";
+            return new[] { "Security.Users" };
         }
 
         if (path == "settings/roles")
         {
-            return "Security.Roles";
+            return new[] { "Security.Roles" };
         }
 
         if (path.StartsWith("settings/"))
         {
-            return "Settings.View";
+            return new[] { "Settings.View" };
         }
 
         if (path == "settings")
         {
-            return "Settings.View";
+            return new[] { "Settings.View" };
         }
 
-        return null;
+        return Array.Empty<string>();
+    }
+
+    private static IEnumerable<string> ParsePermissions(string? permissions)
+    {
+        if (string.IsNullOrWhiteSpace(permissions))
+        {
+            return Array.Empty<string>();
+        }
+
+        if (permissions.Equals("ALL", StringComparison.OrdinalIgnoreCase))
+        {
+            return Array.Empty<string>();
+        }
+
+        return permissions
+            .Split(new[] { ',', ';', '|', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private sealed class RoleRefreshDto
+    {
+        public Guid Id { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? Permissions { get; set; }
+        public bool IsActive { get; set; }
     }
 
     public void Dispose()
@@ -253,6 +369,3 @@
         Navigation.LocationChanged -= OnLocationChanged;
     }
 }
-
-
-

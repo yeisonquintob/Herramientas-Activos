@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
 using System.Text;
@@ -98,6 +98,64 @@ public sealed class AuthController : ControllerBase
 
 
 
+
+
+    [HttpGet("mobile-session/{userName}")]
+    public async Task<IActionResult> GetMobileSession(string userName, CancellationToken cancellationToken)
+    {
+        var normalizedUserName = userName?.Trim();
+
+        if (string.IsNullOrWhiteSpace(normalizedUserName))
+        {
+            return BadRequest(new { Message = "Debe enviar el usuario de la sesión móvil." });
+        }
+
+        var user = await _context.AppUsers
+            .Include(x => x.AppRole)
+            .Include(x => x.Branch)
+            .Include(x => x.ResponsiblePerson)
+            .FirstOrDefaultAsync(x =>
+                !x.IsDeleted &&
+                x.UserName.ToLower() == normalizedUserName.ToLower(),
+                cancellationToken);
+
+        if (user is null)
+        {
+            return Unauthorized(new { Message = "La sesión móvil no corresponde a un usuario activo." });
+        }
+
+        if (!user.IsActive)
+        {
+            return Unauthorized(new { Message = "El usuario está inactivo o bloqueado." });
+        }
+
+        if (user.AppRole is null || !user.AppRole.IsActive)
+        {
+            return Unauthorized(new { Message = "El usuario no tiene un rol activo asignado." });
+        }
+
+        var permissions = BuildPermissions(user.AppRole.Code, user.AppRole.Permissions);
+
+        return Ok(new LoginResponse
+        {
+            UserId = user.Id,
+            UserName = user.UserName,
+            DisplayName = user.DisplayName,
+            Email = user.Email,
+            Position = user.Position,
+            Area = user.Area,
+            RoleId = user.AppRole.Id,
+            RoleCode = user.AppRole.Code,
+            RoleName = user.AppRole.Name,
+            BranchId = user.BranchId,
+            BranchCode = user.Branch?.Code ?? "TODAS",
+            BranchName = user.Branch?.Name ?? "Todas las sedes",
+            ResponsiblePersonId = user.ResponsiblePersonId,
+            ResponsiblePersonName = user.ResponsiblePerson?.FullName,
+            Permissions = permissions,
+            LastLoginAt = user.LastLoginAt
+        });
+    }
 
     [HttpGet("permissions")]
     public IActionResult GetPermissions()
@@ -202,23 +260,7 @@ END
     }
     private static List<string> BuildPermissions(string roleCode, string? permissions)
     {
-        var code = roleCode.Trim().ToUpperInvariant();
-
-        if (code is "ADMIN" or "ADMINISTRADOR")
-        {
-            return SecurityPermissions.All
-                .Select(x => x.Code)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(x => x)
-                .ToList();
-        }
-
         var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var permission in GetDefaultPermissionsByRole(roleCode))
-        {
-            result.Add(permission);
-        }
 
         var parsed = (permissions ?? string.Empty)
             .Split(new[] { ',', ';', '\n', '\r', '|' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -229,18 +271,19 @@ END
         {
             foreach (var normalized in NormalizePermission(permission))
             {
-                result.Add(normalized);
+                if (!string.IsNullOrWhiteSpace(normalized))
+                {
+                    result.Add(normalized);
+                }
             }
         }
-
-        RemoveAdministrativePermissionsForNonAdmin(code, result);
-        ApplyRoleMatrixRestrictions(code, result);
 
         return result
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(x => x)
             .ToList();
     }
+
 
     private static void ApplyRoleMatrixRestrictions(string roleCode, HashSet<string> permissions)
     {

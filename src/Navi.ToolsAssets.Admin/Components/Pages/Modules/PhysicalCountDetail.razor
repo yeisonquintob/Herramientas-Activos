@@ -1,4 +1,4 @@
-﻿@page "/physical-counts/{Id:guid}"
+@page "/physical-counts/{Id:guid}"
 @rendermode InteractiveServer
 @using System.Net.Http.Json
 @using Microsoft.AspNetCore.Components.Forms
@@ -52,57 +52,57 @@ else if (board is not null)
     <section class="pc-kpi-grid">
         <article class="pc-kpi">
             <span>Participantes</span>
-            <strong>@board.Summary.TotalParticipants</strong>
+            <strong>@VisibleTotalParticipants</strong>
             <small>Usuarios / responsables</small>
         </article>
 
         <article class="pc-kpi info">
             <span>En proceso</span>
-            <strong>@board.Summary.InProgress</strong>
+            <strong>@VisibleInProgress</strong>
             <small>Inventario iniciado</small>
         </article>
 
         <article class="pc-kpi success">
             <span>Finalizados</span>
-            <strong>@board.Summary.Finished</strong>
+            <strong>@VisibleFinished</strong>
             <small>Sin pendientes</small>
         </article>
 
         <article class="pc-kpi warning">
             <span>Pendientes</span>
-            <strong>@board.Summary.TotalPending</strong>
+            <strong>@VisibleTotalPending</strong>
             <small>Herramientas por validar</small>
         </article>
 
         <article class="pc-kpi danger">
             <span>Diferencias</span>
-            <strong>@(board.Summary.DifferentItems + board.Summary.MissingItems + board.Summary.DamagedItems + board.Summary.ExtraItems)</strong>
+            <strong>@VisibleDifferences</strong>
             <small>Conciliación</small>
         </article>
 
         <article class="pc-kpi purple">
             <span>Avance</span>
-            <strong>@board.Summary.Progress%</strong>
-            <small>@board.Summary.TotalCounted de @board.Summary.TotalExpected</small>
+            <strong>@VisibleProgress%</strong>
+            <small>@VisibleTotalCounted de @VisibleTotalExpected</small>
         </article>
     </section>
 
     <section class="pc-actions-card">
         <div>
             <h3>Acciones de la toma física</h3>
-            <p>Genera participantes según los responsables de activos, activa la toma y ciérrala cuando todos terminen.</p>
+            <p>Genera participantes desde los usuarios activos de la sede, activa la toma y ciérrala cuando todos terminen.</p>
         </div>
 
         <div class="pc-actions">
-            <button class="btn btn-outline-primary" type="button" @onclick="GenerateParticipantsAsync">
+            <button class="btn btn-outline-primary" type="button" disabled="@(!CanCreatePhysicalCount)" @onclick="GenerateParticipantsAsync">
                 Generar participantes
             </button>
 
-            <button class="btn btn-success" type="button" @onclick="ActivateAsync">
+            <button class="btn btn-success" type="button" disabled="@(!CanStartPhysicalCount)" @onclick="ActivateAsync">
                 Activar toma
             </button>
 
-            <button class="btn btn-dark" type="button" @onclick="CloseAsync">
+            <button class="btn btn-dark" type="button" disabled="@(!CanClosePhysicalCount)" @onclick="CloseAsync">
                 Cerrar toma
             </button>
 
@@ -113,6 +113,13 @@ else if (board is not null)
     </section>
 
     <section class="pc-card">
+        @if (!CanSeeAllParticipants && !VisibleParticipants.Any())
+        {
+            <div class="alert alert-warning">
+                No tienes participante asociado en esta toma física. Solo el usuario asignado a la toma puede reportar sus activos.
+            </div>
+        }
+
         <div class="pc-card-title">
             <div>
                 <h3>Participantes de la toma</h3>
@@ -128,7 +135,7 @@ else if (board is not null)
         @if (!FilteredParticipants.Any())
         {
             <div class="pc-empty">
-                No hay participantes generados. Usa el botón <strong>Generar participantes</strong>.
+                @(CanSeeAllParticipants ? "No hay participantes generados. Usa el botón Generar participantes." : "No tienes participante asociado en esta toma física.")
             </div>
         }
         else
@@ -191,15 +198,11 @@ else if (board is not null)
 
                                 <td>
     <div class="row-actions">
-        <button class="pc-action pc-action-success"
-                type="button"
-                @onclick="() => StartParticipantAsync(participant.Id)">
+        <button class="pc-action pc-action-success" disabled="@(!CanStartParticipant(participant))" @onclick="() => StartParticipantAsync(participant.Id)">
             Iniciar
         </button>
 
-        <button class="pc-action pc-action-neutral"
-                type="button"
-                @onclick="() => FinishParticipantAsync(participant.Id)">
+        <button class="pc-action pc-action-neutral" disabled="@(!CanFinishParticipant(participant))" @onclick="() => FinishParticipantAsync(participant.Id)">
             Finalizar
         </button>
 
@@ -269,13 +272,16 @@ else if (board is not null)
                                     <div class="pc-pending-actions">
                                         <a class="pc-action pc-action-primary"
                                            href="@($"/physical-counts/{Id}/participants/{GetSelectedPendingParticipantId()}/pending-tools/{GetPendingToolId(tool)}")">
-                                            Detalle / Reportar
+                                            @(CanReportPhysicalCount ? "Detalle / Reportar" : "Detalle")
                                         </a>
 
-                                        <a class="pc-action pc-action-danger"
-                                           href="@($"/physical-counts/{Id}/participants/{GetSelectedPendingParticipantId()}/pending-tools/{GetPendingToolId(tool)}?mode=reject")">
-                                            Rechazar
-                                        </a>
+                                        @if (CanReportPhysicalCount)
+                                        {
+                                            <a class="pc-action pc-action-danger"
+                                               href="@($"/physical-counts/{Id}/participants/{GetSelectedPendingParticipantId()}/pending-tools/{GetPendingToolId(tool)}?mode=reject")">
+                                                Rechazar
+                                            </a>
+                                        }
                                     </div>
                                 </td>
                                 </tr>
@@ -1163,6 +1169,181 @@ else if (board is not null)
 </style>
 
 @code {
+
+    private bool IsAdmin =>
+        string.Equals(AuthSession.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(AuthSession.RoleCode, "SUPERADMIN", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(AuthSession.RoleName, "Administrador", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(AuthSession.RoleName, "Administrador NAVI", StringComparison.OrdinalIgnoreCase);
+
+    private bool CanCreatePhysicalCount => PcHasPermission("PhysicalCounts.Create");
+    private bool CanStartPhysicalCount => PcHasPermission("PhysicalCounts.Start");
+    private bool CanClosePhysicalCount => PcHasPermission("PhysicalCounts.Close");
+    private bool CanCancelPhysicalCount => PcHasPermission("PhysicalCounts.Cancel");
+    private bool CanReportPhysicalCount => PcHasPermission("PhysicalCounts.Report");
+    private bool CanUploadPhysicalEvidence => PcHasPermission("PhysicalCounts.Evidence.Upload");
+
+    private bool CanSeeAllParticipants => IsAdmin || CanCreatePhysicalCount;
+
+    private IEnumerable<ParticipantItem> VisibleParticipants
+    {
+        get
+        {
+            var participants = board?.Participants ?? new();
+
+            if (CanSeeAllParticipants)
+            {
+                return DistinctParticipants(participants);
+            }
+
+            return DistinctParticipants(participants.Where(PcIsCurrentUserParticipant));
+        }
+    }
+
+    private int VisibleTotalParticipants => VisibleParticipants.Count();
+
+    private int VisibleInProgress =>
+        VisibleParticipants.Count(x =>
+            string.Equals(x.Status, "InProgress", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.StatusLabel, "En proceso", StringComparison.OrdinalIgnoreCase));
+
+    private int VisibleFinished =>
+        VisibleParticipants.Count(x =>
+            string.Equals(x.Status, "Finished", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.Status, "FinishedWithDifferences", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.StatusLabel, "Finalizada", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.StatusLabel, "Finalizada con diferencias", StringComparison.OrdinalIgnoreCase));
+
+    private int VisibleTotalPending => VisibleParticipants.Sum(x => x.PendingItems);
+
+    private int VisibleDifferences =>
+        VisibleParticipants.Sum(x => x.DifferentItems + x.MissingItems + x.DamagedItems + x.ExtraItems);
+
+    private int VisibleTotalExpected => VisibleParticipants.Sum(x => x.ExpectedItems);
+    private int VisibleTotalCounted => VisibleParticipants.Sum(x => x.CountedItems);
+
+    private decimal VisibleProgress =>
+        VisibleTotalExpected <= 0
+            ? 0
+            : Math.Round((decimal)VisibleTotalCounted * 100 / VisibleTotalExpected, 2);
+
+    private bool PcHasPermission(string permission)
+    {
+        return AuthSession.HasPermission(permission)
+            || string.Equals(AuthSession.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(AuthSession.RoleCode, "SUPERADMIN", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool CanViewParticipantDetail(ParticipantItem participant)
+    {
+        return CanSeeAllParticipants || PcIsCurrentUserParticipant(participant);
+    }
+
+    private bool CanStartParticipant(ParticipantItem participant)
+    {
+        return CanStartPhysicalCount && CanViewParticipantDetail(participant);
+    }
+
+    private bool CanFinishParticipant(ParticipantItem participant)
+    {
+        return CanClosePhysicalCount && CanViewParticipantDetail(participant);
+    }
+
+    private bool PcIsCurrentUserParticipant(ParticipantItem participant)
+    {
+        var currentUserId = AuthSession.UserId?.ToString();
+        var currentUserName = AuthSession.UserName;
+        var currentDisplayName = AuthSession.DisplayName;
+        var currentEmail = AuthSession.Email;
+
+        return PcSameUser(participant.UserId, currentUserId)
+            || PcSameUser(participant.UserName, currentUserName)
+            || PcSameUser(participant.DisplayName, currentDisplayName)
+            || PcSameUser(participant.UserName, currentEmail)
+            || PcContainsUser(participant.UserName, currentUserName)
+            || PcContainsUser(participant.DisplayName, currentDisplayName);
+    }
+
+    private static IEnumerable<ParticipantItem> DistinctParticipants(IEnumerable<ParticipantItem> source)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var item in source.OrderBy(x => x.DisplayName))
+        {
+            var key =
+                !string.IsNullOrWhiteSpace(item.UserId) ? $"USERID:{PcNormalizeKey(item.UserId)}" :
+                !string.IsNullOrWhiteSpace(item.UserName) ? $"USERNAME:{PcNormalizeKey(item.UserName)}" :
+                item.ResponsiblePersonId.HasValue ? $"RESP:{item.ResponsiblePersonId.Value}" :
+                $"NAME:{PcNormalizeKey(item.DisplayName)}";
+
+            if (seen.Add(key))
+            {
+                yield return item;
+            }
+        }
+    }
+
+    private async Task SelectDefaultParticipantAsync()
+    {
+        var visible = VisibleParticipants.ToList();
+
+        if (selectedPending is not null && visible.Any(x => x.Id == selectedPending.Id))
+        {
+            return;
+        }
+
+        if (!CanSeeAllParticipants && visible.Count == 1)
+        {
+            await LoadPendingToolsAsync(visible[0].Id);
+            return;
+        }
+
+        selectedPending = null;
+        showQuickReportForm = false;
+    }
+
+    private static bool PcSameUser(string? left, string? right)
+    {
+        var leftKey = PcNormalizeKey(left);
+        var rightKey = PcNormalizeKey(right);
+
+        return !string.IsNullOrWhiteSpace(leftKey)
+            && !string.IsNullOrWhiteSpace(rightKey)
+            && leftKey.Equals(rightKey, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool PcContainsUser(string? text, string? user)
+    {
+        var textKey = PcNormalizeKey(text);
+        var userKey = PcNormalizeKey(user);
+
+        return !string.IsNullOrWhiteSpace(textKey)
+            && !string.IsNullOrWhiteSpace(userKey)
+            && textKey.Contains(userKey, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string PcNormalizeKey(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return new string(value
+            .Where(char.IsLetterOrDigit)
+            .Select(char.ToUpperInvariant)
+            .ToArray());
+    }
+
+
+
+
+
+private bool CanManagePhysicalCount =>
+        IsAdmin || CanCreatePhysicalCount || CanStartPhysicalCount || CanClosePhysicalCount || CanCancelPhysicalCount;
+
+
+
     [Parameter] public Guid Id { get; set; }
 
     private PhysicalCountBoard? board;
@@ -1314,8 +1495,7 @@ else if (board is not null)
                item.ReportType.Equals(reportType, StringComparison.OrdinalIgnoreCase);
     }
     private IEnumerable<ParticipantItem> FilteredParticipants =>
-        (board?.Participants ?? new())
-            .Where(x => string.IsNullOrWhiteSpace(searchText) ||
+        VisibleParticipants.Where(x => string.IsNullOrWhiteSpace(searchText) ||
                         Contains(x.DisplayName, searchText) ||
                         Contains(x.UserName, searchText) ||
                         Contains(x.Area, searchText) ||
@@ -1343,8 +1523,7 @@ else if (board is not null)
 
         return api;
     }
-
-    private async Task LoadAsync()
+private async Task LoadAsync()
     {
         isLoading = true;
         errorMessage = null;
@@ -1355,6 +1534,7 @@ else if (board is not null)
             board = await api.GetFromJsonAsync<PhysicalCountBoard>($"api/physical-counts/{Id}/participants-board");
             await LoadExtraItemsAsync();
             await LoadReportedItemsAsync();
+            await SelectDefaultParticipantAsync();
         }
         catch (Exception ex)
         {
@@ -1365,22 +1545,32 @@ else if (board is not null)
             isLoading = false;
         }
     }
-
-    private async Task GenerateParticipantsAsync()
+private async Task GenerateParticipantsAsync()
     {
+        if (!CanCreatePhysicalCount)
+        {
+            errorMessage = "No tienes permiso para generar participantes de la toma física.";
+            return;
+        }
+
         await ExecuteAsync(
             $"api/physical-counts/{Id}/generate-participants",
             new
             {
                 ScopeMode = "Branch",
-                IncludeToolsWithoutResponsible = true,
+                IncludeToolsWithoutResponsible = false,
                 ActionBy = AuthSession.UserName ?? "admin"
             },
-            "Participantes generados correctamente.");
+            "Participantes generados correctamente según usuarios activos de la sede.");
     }
-
-    private async Task ActivateAsync()
+private async Task ActivateAsync()
     {
+        if (!CanStartPhysicalCount)
+        {
+            errorMessage = "No tienes permiso para activar o iniciar tomas físicas.";
+            return;
+        }
+
         await PatchAsync(
             $"api/physical-counts/{Id}/activate",
             new
@@ -1390,9 +1580,14 @@ else if (board is not null)
             },
             "Toma física activada.");
     }
-
-    private async Task CloseAsync()
+private async Task CloseAsync()
     {
+        if (!CanClosePhysicalCount)
+        {
+            errorMessage = "No tienes permiso para cerrar tomas físicas.";
+            return;
+        }
+
         await PatchAsync(
             $"api/physical-counts/{Id}/close-with-participants",
             new
@@ -1403,9 +1598,16 @@ else if (board is not null)
             },
             "Toma física cerrada correctamente.");
     }
-
-    private async Task StartParticipantAsync(Guid participantId)
+private async Task StartParticipantAsync(Guid participantId)
     {
+        var participant = (board?.Participants ?? new()).FirstOrDefault(x => x.Id == participantId);
+
+        if (participant is null || !CanStartParticipant(participant))
+        {
+            errorMessage = "No tienes permiso para iniciar este participante.";
+            return;
+        }
+
         await PatchAsync(
             $"api/physical-counts/participants/{participantId}/start",
             new
@@ -1414,9 +1616,16 @@ else if (board is not null)
             },
             "Participante iniciado.");
     }
-
-    private async Task FinishParticipantAsync(Guid participantId)
+private async Task FinishParticipantAsync(Guid participantId)
     {
+        var participant = (board?.Participants ?? new()).FirstOrDefault(x => x.Id == participantId);
+
+        if (participant is null || !CanFinishParticipant(participant))
+        {
+            errorMessage = "No tienes permiso para finalizar este participante.";
+            return;
+        }
+
         await PatchAsync(
             $"api/physical-counts/participants/{participantId}/finish",
             new
@@ -1426,6 +1635,9 @@ else if (board is not null)
             },
             "Participante finalizado.");
     }
+
+
+
 
     
     private string GetReportedItemsUrl()

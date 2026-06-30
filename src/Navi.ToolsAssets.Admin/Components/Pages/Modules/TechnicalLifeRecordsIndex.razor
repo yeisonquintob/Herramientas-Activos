@@ -1,16 +1,18 @@
-﻿@page "/technical-life-records"
+@page "/technical-life-records"
 @rendermode InteractiveServer
+@using Navi.ToolsAssets.Admin.Services.Auth
 @using System.Net.Http.Json
 @inject IHttpClientFactory HttpClientFactory
+@inject NaviAccessScopeService AccessScope
 
-<PageTitle>Hoja de Vida del AF - NAVI</PageTitle>
+<PageTitle>Hoja de Vida de Herramientas y AF - NAVI</PageTitle>
 
-<PermissionGuard Permission="TechnicalLifeRecord.View" ModuleName="Hoja de Vida del AF">
+<PermissionGuard Permission="TechnicalLifeRecord.View" ModuleName="Hoja de Vida de Herramientas y AF">
 
 <section class="af-banner">
     <div>
         <span class="af-pill">ACTIVOS FIJOS</span>
-        <h2>Hoja de Vida del AF</h2>
+        <h2>Hoja de Vida de Herramientas y AF</h2>
         <p>Consulta consolidada de hojas de vida con datos generales, técnicos, ubicación, responsable, documentos, mantenimientos y trazabilidad.</p>
     </div>
 
@@ -28,23 +30,23 @@
 
 <section class="life-kpi-grid">
     <article>
-        <span>Total AF</span>
-        <strong>@tools.Count</strong>
+        <span>Total Herramientas y AF</span>
+        <strong>@ScopedTools.Count()</strong>
     </article>
 
     <article>
         <span>Con mantenimiento</span>
-        <strong>@tools.Count(x => x.RequiresMaintenance)</strong>
+        <strong>@ScopedTools.Count(x => x.RequiresMaintenance)</strong>
     </article>
 
     <article>
         <span>Especializados</span>
-        <strong>@tools.Count(x => x.IsSpecialized)</strong>
+        <strong>@ScopedTools.Count(x => x.IsSpecialized)</strong>
     </article>
 
     <article>
         <span>Certificación</span>
-        <strong>@tools.Count(x => x.RequiresCertification)</strong>
+        <strong>@ScopedTools.Count(x => x.RequiresCertification)</strong>
     </article>
 </section>
 
@@ -63,7 +65,7 @@
 
             <select class="form-select form-select-sm" @bind="selectedBranchCode">
                 <option value="">Todas las sedes</option>
-                @foreach (var branch in branches)
+                @foreach (var branch in BranchFilterOptions)
                 {
                     <option value="@branch.Code">@branch.Code</option>
                 }
@@ -376,8 +378,31 @@
     private bool isLoading;
     private string search = string.Empty;
     private string selectedBranchCode = string.Empty;
+    private bool branchFilterInitialized;
+
+    private IEnumerable<ToolItem> ScopedTools =>
+        AccessScope.FilterTools(
+            tools,
+            x => x.BranchCode,
+            x => x.ResponsiblePersonName);
+
+    private IEnumerable<BranchItem> BranchFilterOptions =>
+        AccessScope.IsAllBranchScope()
+            ? branches
+            : branches.Where(x => string.Equals(x.Code, AccessScope.GetDefaultBranchCode(), StringComparison.OrdinalIgnoreCase));
 
     private IEnumerable<ToolItem> FilteredTools =>
+        ScopedTools
+            .Where(x => string.IsNullOrWhiteSpace(search) ||
+                        Contains(x.InternalCode, search) ||
+                        Contains(x.Name, search) ||
+                        Contains(x.SerialNumber, search) ||
+                        Contains(x.FixedAssetCode, search))
+            .Where(x => string.IsNullOrWhiteSpace(selectedBranchCode) || string.Equals(x.BranchCode, selectedBranchCode, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(x => x.BranchCode)
+            .ThenBy(x => x.InternalCode);
+
+    private IEnumerable<ToolItem> FilteredTools_OLD =>
         tools
             .Where(x => string.IsNullOrWhiteSpace(search) ||
                         x.InternalCode.Contains(search, StringComparison.OrdinalIgnoreCase) ||
@@ -401,11 +426,24 @@
         {
             tools = await Api.GetFromJsonAsync<List<ToolItem>>("api/tools") ?? new();
             branches = await Api.GetFromJsonAsync<List<BranchItem>>("api/settings/branches") ?? new();
+
+            if (!branchFilterInitialized)
+            {
+                selectedBranchCode = AccessScope.GetDefaultBranchCode();
+                branchFilterInitialized = true;
+            }
         }
         finally
         {
             isLoading = false;
         }
+    }
+
+    private static bool Contains(string? source, string? value)
+    {
+        return !string.IsNullOrWhiteSpace(source) &&
+               !string.IsNullOrWhiteSpace(value) &&
+               source.Contains(value, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string Show(string? value)

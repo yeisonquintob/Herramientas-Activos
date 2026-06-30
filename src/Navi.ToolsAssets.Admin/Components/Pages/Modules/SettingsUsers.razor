@@ -1,4 +1,4 @@
-﻿@page "/settings/users"
+@page "/settings/users"
 @rendermode InteractiveServer
 
 @using System.Net.Http.Json
@@ -10,25 +10,19 @@
 <PageTitle>Usuarios - Configuración</PageTitle>
 
 <section class="users-page">
-    <section class="users-hero">
-        <div>
-            <span class="users-pill">CONFIGURACIÓN</span>
-            <h2>Usuarios</h2>
-            <p>Crea, edita, activa o bloquea usuarios del sistema, asigna rol, sede y contraseña de acceso.</p>
-        </div>
+    <section class="navi-module-hero">
+    <div>
+        <span class="navi-module-pill">SEGURIDAD · USUARIOS · ACCESOS</span>
+        <h2>Usuarios</h2>
+        <p>Administra usuarios del sistema, roles asignados, estado de acceso, cambio de contraseña y alcance operativo por sede o perfil.</p>
+    </div>
 
-        <div class="users-hero-side">
-            <div class="users-kpi">
-                <span>Usuarios registrados</span>
-                <strong>@users.Count</strong>
-                <small>Total de usuarios</small>
-            </div>
-
-            <button class="btn btn-outline-light users-refresh" type="button" @onclick="LoadAsync" disabled="@isLoading">
-                @(isLoading ? "Actualizando..." : "Actualizar")
-            </button>
-        </div>
-    </section>
+    <div class="navi-module-hero-actions">
+        <a class="navi-module-hero-btn" href="/settings">
+            Volver a Configuración
+        </a>
+    </div>
+</section>
 
     @if (!string.IsNullOrWhiteSpace(message))
     {
@@ -86,23 +80,62 @@
                     Rol <strong class="users-required-star">*</strong>
                     <InputSelect class="form-select" @bind-Value="formModel.AppRoleId" disabled="@(!CanManageUsers)">
                         <option value="">Seleccione rol</option>
-                        @foreach (var role in roles)
+                        @foreach (var role in RolesForForm)
                         {
-                            <option value="@role.Id">@role.Name</option>
+                            <option value="@role.Id">@DisplayRoleOption(role)</option>
                         }
                     </InputSelect>
                 </label>
 
                 <label>
-                    Sede
+                    Sede operativa
                     <InputSelect class="form-select" @bind-Value="formModel.BranchId" disabled="@(!CanManageUsers)">
-                        <option value="">Todas / Sin sede</option>
+                        <option value="">Seleccione sede operativa</option>
                         @foreach (var branch in branches)
                         {
                             <option value="@branch.Id">@branch.Code - @branch.Name</option>
                         }
                     </InputSelect>
+                    <small class="users-help">
+                        Para usuarios operativos, la sede define el alcance de inventario, asignaciones, tomas físicas y reportes.
+                    </small>
                 </label>
+
+                <div class="users-operational-box">
+                    <label class="users-switch-row">
+                        <InputCheckbox class="form-check-input"
+                                       @bind-Value="formModel.CreateOperationalResponsibleFromUser"
+                                       disabled="@(!CanManageUsers)" />
+                        <span>Crear/actualizar solicitante operativo con los datos de este usuario</span>
+                    </label>
+
+                    <small class="users-help">
+                        Recomendado. Así la solicitud queda a nombre del usuario logueado, no a nombre del herramentero.
+                    </small>
+
+                    @if (!formModel.CreateOperationalResponsibleFromUser)
+                    {
+                        <label>
+                            Vincular con solicitante existente <strong class="users-required-star">*</strong>
+                            <InputSelect class="form-select"
+                                         @bind-Value="formModel.ResponsiblePersonId"
+                                         disabled="@(!CanManageUsers)">
+                                <option value="">Seleccione solicitante existente</option>
+                                @foreach (var responsible in responsibles.Where(x => x.IsActive).OrderBy(x => x.FullName))
+                                {
+                                    <option value="@responsible.Id">@FormatResponsibleOption(responsible)</option>
+                                }
+                            </InputSelect>
+                        </label>
+
+                        <button type="button"
+                                class="btn btn-sm btn-outline-secondary mt-1"
+                                @onclick="CompleteWithResponsibleButton"
+                                disabled="@(!CanManageUsers || formModel.ResponsiblePersonId is null)">
+                            Completar datos con solicitante existente
+                        </button>
+                    }
+                </div>
 
                 <label class="users-switch-row">
                     <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive" disabled="@(!CanManageUsers)" />
@@ -246,6 +279,7 @@
                                 <th>Correo</th>
                                 <th>Rol</th>
                                 <th>Sede</th>
+                                <th>Responsable</th>
                                 <th>Estado</th>
                                 <th class="text-end">Acciones</th>
                             </tr>
@@ -257,8 +291,9 @@
                                     <td><strong>@user.UserName</strong></td>
                                     <td>@user.DisplayName</td>
                                     <td>@Display(user.Email)</td>
-                                    <td>@Display(user.Role?.Name)</td>
+                                    <td>@DisplayRole(user.Role)</td>
                                     <td>@(user.Branch is null ? "Todas" : $"{user.Branch.Code} - {user.Branch.Name}")</td>
+                                    <td>@DisplayResponsible(user.ResponsiblePerson)</td>
                                     <td>
                                         <span class="users-status @(user.IsActive ? "active" : "inactive")">
                                             @(user.IsActive ? "Activo" : "Inactivo")
@@ -283,6 +318,162 @@
 </section>
 
 @code {
+
+    private void CompleteWithResponsibleButton()
+    {
+        CompleteUserFormFromResponsible(overwriteExisting: true);
+    }
+
+    private void CompleteUserFormFromResponsible(bool overwriteExisting)
+    {
+        if (formModel.CreateOperationalResponsibleFromUser || formModel.ResponsiblePersonId is null)
+        {
+            return;
+        }
+
+        var responsible = responsibles.FirstOrDefault(x => x.Id == formModel.ResponsiblePersonId.Value);
+
+        if (responsible is null)
+        {
+            return;
+        }
+
+        var documentOrCode = !string.IsNullOrWhiteSpace(responsible.DocumentNumber)
+            ? responsible.DocumentNumber
+            : responsible.EmployeeCode;
+
+        if (overwriteExisting || string.IsNullOrWhiteSpace(formModel.UserName))
+        {
+            formModel.UserName = documentOrCode ?? formModel.UserName;
+        }
+
+        if (overwriteExisting || string.IsNullOrWhiteSpace(formModel.DisplayName))
+        {
+            formModel.DisplayName = responsible.FullName;
+        }
+
+        if (overwriteExisting || string.IsNullOrWhiteSpace(formModel.Email))
+        {
+            formModel.Email = responsible.Email;
+        }
+
+        if (overwriteExisting || string.IsNullOrWhiteSpace(formModel.Position))
+        {
+            formModel.Position = responsible.Position;
+        }
+
+        if (overwriteExisting || string.IsNullOrWhiteSpace(formModel.Area))
+        {
+            formModel.Area = responsible.Area;
+        }
+    }
+
+    private bool ValidateUserBeforeSave()
+    {
+        if (!formModel.CreateOperationalResponsibleFromUser && formModel.ResponsiblePersonId is null)
+        {
+            ShowError("Debe seleccionar un solicitante existente o activar la opción para crear/actualizar el solicitante con los datos del usuario.");
+            return false;
+        }
+
+        if (formModel.AppRoleId is not null &&
+            !SelectedRoleAllowsGlobalBranch() &&
+            formModel.BranchId is null)
+        {
+            ShowError("Debe seleccionar una sede operativa para roles no globales.");
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool SelectedRoleAllowsGlobalBranch()
+    {
+        if (formModel.AppRoleId is null)
+        {
+            return false;
+        }
+
+        var role = roles.FirstOrDefault(x => x.Id == formModel.AppRoleId.Value);
+
+        if (role is null)
+        {
+            return false;
+        }
+
+        var code = role.Code ?? string.Empty;
+        var name = role.Name ?? string.Empty;
+
+        return code.Equals("ADMIN", StringComparison.OrdinalIgnoreCase) ||
+               code.Equals("GERENCIAL", StringComparison.OrdinalIgnoreCase) ||
+               name.Contains("Administrador", StringComparison.OrdinalIgnoreCase) ||
+               name.Contains("Gerencial", StringComparison.OrdinalIgnoreCase) ||
+               name.Contains("Gerencia", StringComparison.OrdinalIgnoreCase);
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     private bool CanManageUsers => AuthSession.HasPermission("Security.Users");
 
     private HttpClient Api => HttpClientFactory.CreateClient("NaviApi");
@@ -290,6 +481,7 @@
     private List<UserDto> users = new();
     private List<RoleDto> roles = new();
     private List<BranchDto> branches = new();
+    private List<ResponsibleDto> responsibles = new();
 
     private UserFormModel formModel = new();
     private PasswordFormModel passwordModel = new();
@@ -303,6 +495,31 @@
 
     private IEnumerable<UserDto> FilteredUsers =>
         users.Where(MatchesSearch).OrderBy(x => x.UserName);
+
+    private IEnumerable<RoleDto> RolesForForm
+    {
+        get
+        {
+            List<RoleDto> activeRoles = roles
+                .Where(role => role.IsActive)
+                .OrderBy(role => role.Code)
+                .ThenBy(role => role.Name)
+                .ToList();
+
+            if (formModel.AppRoleId.HasValue &&
+                activeRoles.All(role => role.Id != formModel.AppRoleId))
+            {
+                RoleDto? currentRole = roles.FirstOrDefault(role => role.Id == formModel.AppRoleId);
+
+                if (currentRole is not null)
+                {
+                    activeRoles.Add(currentRole);
+                }
+            }
+
+            return activeRoles;
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -319,6 +536,7 @@
             users = await Api.GetFromJsonAsync<List<UserDto>>("api/settings/users") ?? new();
             roles = await Api.GetFromJsonAsync<List<RoleDto>>("api/settings/roles") ?? new();
             branches = await Api.GetFromJsonAsync<List<BranchDto>>("api/organization/branches") ?? new();
+            responsibles = await Api.GetFromJsonAsync<List<ResponsibleDto>>("api/catalogs/responsible-people") ?? new();
 
             if (selectedUser is not null)
             {
@@ -347,20 +565,34 @@
         return Contains(user.UserName, term) ||
                Contains(user.DisplayName, term) ||
                Contains(user.Email, term) ||
+               Contains(user.Role?.Code, term) ||
                Contains(user.Role?.Name, term) ||
                Contains(user.Branch?.Code, term) ||
-               Contains(user.Branch?.Name, term);
+               Contains(user.Branch?.Name, term) ||
+               Contains(user.ResponsiblePerson?.FullName, term) ||
+               Contains(user.ResponsiblePerson?.EmployeeCode, term) ||
+               Contains(user.ResponsiblePerson?.DocumentNumber, term);
     }
 
     private async Task SaveAsync()
     {
         message = string.Empty;
 
-        if (string.IsNullOrWhiteSpace(formModel.UserName) ||
+        
+
+        CompleteUserFormFromResponsible(overwriteExisting: false);
+
+
+if (string.IsNullOrWhiteSpace(formModel.UserName) ||
             string.IsNullOrWhiteSpace(formModel.DisplayName) ||
             formModel.AppRoleId is null)
         {
             ShowError("Documento/identificación, nombre y rol son obligatorios.");
+            return;
+        }
+
+        if (!ValidateUserBeforeSave())
+        {
             return;
         }
 
@@ -401,9 +633,10 @@
             position = formModel.Position,
             area = formModel.Area,
             password = editingId is null ? formModel.Password : null,
-            appRoleId = formModel.AppRoleId.Value,
+            appRoleId = formModel.AppRoleId,
             branchId = formModel.BranchId,
-            responsiblePersonId = (Guid?)null,
+            responsiblePersonId = formModel.CreateOperationalResponsibleFromUser ? (Guid?)null : formModel.ResponsiblePersonId,
+            createResponsibleFromUser = formModel.CreateOperationalResponsibleFromUser,
             isActive = formModel.IsActive,
             changedBy = AuthSession.AuditUser
         };
@@ -520,6 +753,8 @@
             Area = user.Area,
             AppRoleId = user.Role?.Id,
             BranchId = user.Branch?.Id,
+            ResponsiblePersonId = user.ResponsiblePerson?.Id,
+            CreateOperationalResponsibleFromUser = true,
             IsActive = user.IsActive
         };
     }
@@ -577,6 +812,50 @@
                value.Contains(term, StringComparison.OrdinalIgnoreCase);
     }
 
+    private static string DisplayRoleOption(RoleDto role)
+    {
+        if (string.IsNullOrWhiteSpace(role.Code))
+        {
+            return Display(role.Name);
+        }
+
+        return $"{role.Code} - {Display(role.Name)}";
+    }
+
+
+    private static string FormatResponsibleOption(ResponsibleDto responsible)
+    {
+        var code = !string.IsNullOrWhiteSpace(responsible.EmployeeCode)
+            ? responsible.EmployeeCode
+            : responsible.DocumentNumber;
+
+        var meta = string.Join(" · ", new[]
+        {
+            code,
+            responsible.Position,
+            responsible.Area
+        }.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+        return string.IsNullOrWhiteSpace(meta)
+            ? responsible.FullName
+            : $"{responsible.FullName} - {meta}";
+    }
+
+    private static string DisplayResponsible(ResponsibleDto? responsible)
+    {
+        return responsible is null ? "—" : FormatResponsibleOption(responsible);
+    }
+
+    private static string DisplayRole(RoleDto? role)
+    {
+        if (role is null)
+        {
+            return "—";
+        }
+
+        return DisplayRoleOption(role);
+    }
+
     private static string Display(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? "—" : value;
@@ -593,6 +872,7 @@
         public bool IsActive { get; set; }
         public RoleDto? Role { get; set; }
         public BranchDto? Branch { get; set; }
+        public ResponsibleDto? ResponsiblePerson { get; set; }
     }
 
     private sealed class RoleDto
@@ -600,6 +880,7 @@
         public Guid Id { get; set; }
         public string Code { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
+        public bool IsActive { get; set; } = true;
     }
 
     private sealed class BranchDto
@@ -607,6 +888,19 @@
         public Guid Id { get; set; }
         public string Code { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
+    }
+
+
+    private sealed class ResponsibleDto
+    {
+        public Guid Id { get; set; }
+        public string? EmployeeCode { get; set; }
+        public string? DocumentNumber { get; set; }
+        public string FullName { get; set; } = string.Empty;
+        public string? Email { get; set; }
+        public string? Position { get; set; }
+        public string? Area { get; set; }
+        public bool IsActive { get; set; } = true;
     }
 
     private sealed class UserFormModel
@@ -620,6 +914,8 @@
         public string? ConfirmPassword { get; set; }
         public Guid? AppRoleId { get; set; }
         public Guid? BranchId { get; set; }
+        public Guid? ResponsiblePersonId { get; set; }
+        public bool CreateOperationalResponsibleFromUser { get; set; } = true;
         public bool IsActive { get; set; } = true;
     }
 
@@ -744,6 +1040,15 @@
         font-size: .75rem;
         font-weight: 900;
         color: #33263c;
+    }
+
+    .users-help {
+        display: block;
+        margin-top: .25rem;
+        color: #64748b;
+        font-size: .68rem;
+        font-weight: 750;
+        line-height: 1.25;
     }
 
     .users-create-card label .form-control,
@@ -987,3 +1292,20 @@
 
 
 
+
+
+<style>
+    .users-operational-box {
+        border: 1px solid #eadff0;
+        border-radius: .65rem;
+        background: #fbf7fd;
+        padding: .55rem .65rem;
+        display: grid;
+        gap: .45rem;
+        margin-top: .35rem;
+    }
+
+    .users-operational-box label {
+        margin: 0;
+    }
+</style>

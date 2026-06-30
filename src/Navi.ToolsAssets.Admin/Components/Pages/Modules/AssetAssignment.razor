@@ -1,29 +1,24 @@
-﻿@page "/asset-assignment"
+@page "/asset-assignment"
 @rendermode InteractiveServer
 @using System.Net.Http.Json
 @inject IHttpClientFactory HttpClientFactory
+@inject NaviAccessScopeService AccessScope
 @using Navi.ToolsAssets.Admin.Services.Auth
 @inject NavigationManager NavigationManager
 @inject WebAuthSessionService AuthSession
 
-<PageTitle>Asignar AF - NAVI</PageTitle>
+<PageTitle>Asignar Herramientas y AF - NAVI</PageTitle>
 
-<PermissionGuard Permission="AssetAssignment.View" ModuleName="Asignar AF">
+<PermissionGuard Permission="AssetAssignment.View" ModuleName="Asignar Herramientas y AF">
 
 <section class="af-banner">
     <div>
         <span class="af-pill">ACTIVOS FIJOS</span>
-        <h2>Asignar AF</h2>
+        <h2>Asignar Herramientas y AF</h2>
         <p>Solicita, aprueba, asigna o regresa activos fijos con trazabilidad de préstamo y responsable.</p>
     </div>
 
-    <div class="af-banner-side">
-        <div class="af-status-box">
-            <span>Activos</span>
-            <strong>@FilteredTools.Count() visibles</strong>
-        </div>
-
-        <button class="btn btn-sm btn-outline-light" @onclick="LoadAsync">
+    <div class="af-banner-side"><button class="btn btn-sm btn-outline-light" @onclick="LoadAsync">
             Actualizar
         </button>
     </div>
@@ -39,15 +34,22 @@
         <div class="af-card">
             <h3>@GetMovementTitle()</h3>
 
-            <div class="mb-2">
+            <div class="mb-2 navi-search-field">
                 <label class="form-label">Activo fijo</label>
-                <InputSelect class="form-select" @bind-Value="form.ToolId" @bind-Value:after="LoadSelectedTool">
-                    <option value="">Seleccione activo</option>
-                    @foreach (var tool in tools.OrderBy(x => x.InternalCode))
+                <input class="form-control"
+                       list="assignment-tools-list"
+                       value="@assignmentToolSearchText"
+                       @oninput="OnAssignmentToolSearchInput"
+                       placeholder="Escriba código, nombre o serial..." />
+
+                <datalist id="assignment-tools-list">
+                    @foreach (var tool in ScopedTools.OrderBy(x => x.InternalCode))
                     {
-                        <option value="@tool.Id">@tool.InternalCode - @tool.Name</option>
+                        <option value="@FormatToolOption(tool)"></option>
                     }
-                </InputSelect>
+                </datalist>
+
+                <small class="@GetAssignmentToolHintClass()">@GetAssignmentToolHint()</small>
             </div>
 
             <div class="mb-2">
@@ -60,40 +62,61 @@
 
             @if (form.AssignmentType == "Responsible")
             {
-                <div class="mb-2">
+                <div class="mb-2 navi-search-field">
                     <label class="form-label">Usuario / Responsable</label>
-                    <InputSelect class="form-select" @bind-Value="form.ResponsiblePersonId">
-                        <option value="">Seleccione responsable</option>
+                    <input class="form-control"
+                           list="assignment-responsibles-list"
+                           value="@assignmentResponsibleSearchText"
+                           @oninput="OnAssignmentResponsibleSearchInput"
+                           placeholder="Escriba nombre, cargo o responsable..." />
+
+                    <datalist id="assignment-responsibles-list">
                         @foreach (var responsible in responsibles.OrderBy(x => x.FullName))
                         {
-                            <option value="@responsible.Id">@responsible.FullName - @responsible.Position</option>
+                            <option value="@FormatResponsibleOption(responsible)"></option>
                         }
-                    </InputSelect>
+                    </datalist>
+
+                    <small class="@GetAssignmentResponsibleHintClass()">@GetAssignmentResponsibleHint()</small>
                 </div>
             }
 
             @if (form.AssignmentType == "Warehouse")
             {
-                <div class="mb-2">
+                <div class="mb-2 navi-search-field">
                     <label class="form-label">Sede destino</label>
-                    <InputSelect class="form-select" @bind-Value="form.BranchId" @bind-Value:after="OnBranchChanged">
-                        <option value="">Seleccione sede</option>
+                    <input class="form-control"
+                           list="assignment-branches-list"
+                           value="@assignmentBranchSearchText"
+                           @oninput="OnAssignmentBranchSearchInput"
+                           placeholder="Escriba código o nombre de sede..." />
+
+                    <datalist id="assignment-branches-list">
                         @foreach (var branch in branches.OrderBy(x => x.Code))
                         {
-                            <option value="@branch.Id">@branch.Code - @branch.Name</option>
+                            <option value="@FormatBranchOption(branch)"></option>
                         }
-                    </InputSelect>
+                    </datalist>
+
+                    <small class="@GetAssignmentBranchHintClass()">@GetAssignmentBranchHint()</small>
                 </div>
 
-                <div class="mb-2">
+                <div class="mb-2 navi-search-field">
                     <label class="form-label">Almacén / Taller destino</label>
-                    <InputSelect class="form-select" @bind-Value="form.LocationId">
-                        <option value="">Seleccione almacén/taller</option>
+                    <input class="form-control"
+                           list="assignment-locations-list"
+                           value="@assignmentLocationSearchText"
+                           @oninput="OnAssignmentLocationSearchInput"
+                           placeholder="Escriba almacén, taller o ubicación..." />
+
+                    <datalist id="assignment-locations-list">
                         @foreach (var location in AvailableLocations.OrderBy(x => x.Code))
                         {
-                            <option value="@location.Id">@location.Code - @location.Name</option>
+                            <option value="@FormatLocationOption(location)"></option>
                         }
-                    </InputSelect>
+                    </datalist>
+
+                    <small class="@GetAssignmentLocationHintClass()">@GetAssignmentLocationHint()</small>
                 </div>
             }
 
@@ -136,13 +159,19 @@
 
             <div class="mb-2">
                 <label class="form-label">Usuario / Responsable</label>
-                <select class="form-select form-select-sm" @bind="historyResponsibleId">
-                    <option value="">Todos los usuarios</option>
+                <input class="form-control form-control-sm"
+                       list="history-responsibles-list"
+                       value="@historyResponsibleSearchText"
+                       @oninput="OnHistoryResponsibleSearchInput"
+                       placeholder="Escriba usuario o responsable..." />
+
+                <datalist id="history-responsibles-list">
+                    <option value="Todos los usuarios"></option>
                     @foreach (var responsible in responsibles.OrderBy(x => x.FullName))
                     {
-                        <option value="@responsible.Id">@responsible.FullName</option>
+                        <option value="@FormatResponsibleOption(responsible)"></option>
                     }
-                </select>
+                </datalist>
             </div>
 
             <div class="mb-3">
@@ -153,7 +182,7 @@
                        @bind:event="oninput" />
             </div>
 
-            <button class="btn-open-history" @onclick="OpenHistory">
+            <button class="btn-open-history" @onclick="OpenHistory" disabled="@(!CanViewAssignmentHistory)">
                 Abrir historial de asignaciones
             </button>
         </div>
@@ -168,6 +197,19 @@
                 <strong>@GetCurrentResponsibleLabel()</strong>
             </div>
 
+            @if (!CanRequestAssignment)
+            {
+                <div class="assignment-request-warning">
+                    No tienes permiso AssetAssignment.Request para crear solicitudes de asignación.
+                </div>
+            }
+            else if (CurrentRequesterPersonId is null)
+            {
+                <div class="assignment-request-info">
+                    No hay responsable operativo asociado al usuario. Asócialo en Configuración > Usuarios antes de crear solicitudes.
+                </div>
+            }
+
             <div class="mb-2">
                 <label class="form-label">Buscar herramienta</label>
                 <input class="form-control form-control-sm"
@@ -176,7 +218,7 @@
                        @bind:event="oninput" />
             </div>
 
-            @if (!string.IsNullOrWhiteSpace(requestSearch))
+            @if (!requestForm.ToolId.HasValue && !string.IsNullOrWhiteSpace(requestSearch))
             {
                 <div class="request-results">
                     <div class="request-results-title">
@@ -215,16 +257,20 @@
                 </div>
             }
 
-            <div class="mb-2">
-                <label class="form-label">Herramienta / activo</label>
-                <InputSelect class="form-select form-select-sm" @bind-Value="requestForm.ToolId">
-                    <option value="">Seleccione activo</option>
-                    @foreach (var tool in RequestTools)
-                    {
-                        <option value="@tool.Id">@tool.InternalCode - @tool.Name</option>
-                    }
-                </InputSelect>
-            </div>
+            @if (SelectedRequestTool is not null)
+            {
+                <div class="selected-request-tool">
+                    <div>
+                        <span>Herramienta seleccionada</span>
+                        <strong>@SelectedRequestTool.InternalCode - @SelectedRequestTool.Name</strong>
+                        <small>@Show(SelectedRequestTool.BranchCode) · @Show(SelectedRequestTool.LocationName)</small>
+                    </div>
+
+                    <button type="button" @onclick="ClearRequestToolSelection">
+                        Cambiar
+                    </button>
+                </div>
+            }
 
             <div class="mb-2">
                 <label class="form-label">Fecha estimada de devolución</label>
@@ -236,10 +282,18 @@
                 <InputTextArea class="form-control form-control-sm" rows="2" @bind-Value="requestForm.Notes" />
             </div>
 
-            <button class="btn-request-assignment"
+            @if (!CanRequestAssignment)
+            {
+                <div class="assignment-permission-note">
+                    Solicitud bloqueada por permiso AssetAssignment.Request.
+                </div>
+            }
+
+            <button type="button"
+                    class="btn-request-assignment"
                     @onclick="SubmitSelfAssignmentRequestAsync"
-                    disabled="@(isSaving || AuthSession.ResponsiblePersonId is null)">
-                Solicitud de asignación
+                    disabled="@(isSaving || !CanRequestAssignment || CurrentRequesterPersonId is null || !requestForm.ToolId.HasValue)">
+                @(isSaving ? "Registrando..." : "Solicitud de asignación")
             </button>
         </div>
 
@@ -272,7 +326,7 @@
                                 </button>
 
                                 <button class="deny" @onclick="() => RejectRequestAsync(request)"
-                                        disabled="@(isSaving || !CanApproveAssignmentRequest)">
+                                        disabled="@(isSaving || !CanDenyAssignmentRequest)">
                                     Denegar
                                 </button>
                             </div>
@@ -290,17 +344,47 @@
                 <p>Consulta el estado actual, filtra por usuario y registra asignaciones, regresos o aprobaciones.</p>
             </div>
 
-            <div class="af-filters">
-                <input class="form-control form-control-sm" placeholder="Buscar código, nombre..." @bind="search" @bind:event="oninput" />
+            <div class="af-filters af-filters-standard">
+                <input class="form-control form-control-sm"
+                       placeholder="Buscar código, nombre, serial..."
+                       @bind="search"
+                       @bind:event="oninput" />
 
-                <select class="form-select form-select-sm" @bind="selectedResponsibleId">
-                    <option value="">Todos los usuarios</option>
-                    <option value="SIN_RESPONSABLE">Sin responsable</option>
+                <input class="form-control form-control-sm"
+                       list="assignment-table-branches-list"
+                       value="@selectedBranchSearchText"
+                       @oninput="OnTableBranchSearchInput"
+                       placeholder="Todas las sedes" />
+
+                <datalist id="assignment-table-branches-list">
+                    @if (IsAllBranchScope())
+                    {
+                        <option value="Todas las sedes"></option>
+                    }
+
+                    @foreach (var branch in BranchFilterOptions)
+                    {
+                        <option value="@FormatBranchOption(branch)"></option>
+                        <option value="@branch.Code"></option>
+                        <option value="@branch.Name"></option>
+                    }
+                </datalist>
+
+                <input class="form-control form-control-sm"
+                       list="table-responsibles-list"
+                       value="@selectedResponsibleSearchText"
+                       @oninput="OnTableResponsibleSearchInput"
+                       placeholder="Todos los usuarios" />
+
+                <datalist id="table-responsibles-list">
+                    <option value="Todos los usuarios"></option>
+                    <option value="Sin responsable"></option>
                     @foreach (var responsible in responsibles.OrderBy(x => x.FullName))
                     {
-                        <option value="@responsible.Id">@responsible.FullName</option>
+                        <option value="@FormatResponsibleOption(responsible)"></option>
+                        <option value="@responsible.FullName"></option>
                     }
-                </select>
+                </datalist>
             </div>
         </div>
 
@@ -361,7 +445,7 @@
                             <td>@ShowDate(tool.LastReturnDate)</td>
                             <td class="text-end">
                                 <div class="assignment-actions">
-                                    <button class="assign-action assign-action-primary" @onclick="() => SelectForAssignment(tool)">
+                                    <button class="assign-action assign-action-primary" @onclick="() => SelectForAssignment(tool)" disabled="@(!CanDirectAssign)">
                                         Asignar
                                     </button>
 
@@ -373,11 +457,11 @@
 
                                     <button class="assign-action assign-action-danger"
                                             @onclick="() => RejectRequestAsync(pending)"
-                                            disabled="@(pending is null || !CanApproveAssignmentRequest || isSaving)">
+                                            disabled="@(pending is null || !CanDenyAssignmentRequest || isSaving)">
                                         Denegar
                                     </button>
 
-                                    <button class="assign-action assign-action-warning" @onclick="() => SelectForReturn(tool)">
+                                    <button class="assign-action assign-action-warning" @onclick="() => SelectForReturn(tool)" disabled="@(!CanReturnAssignment)">
                                         Regresar
                                     </button>
                                 </div>
@@ -921,23 +1005,437 @@
             flex-direction: column;
         }
     }
+
+    /* ============================================================
+       NAVI - Buscadores escribibles y selección de solicitud
+       ============================================================ */
+
+    .navi-search-field {
+        position: relative;
+    }
+
+    .navi-search-field input[list] {
+        min-height: 36px;
+        border-radius: .48rem;
+        border: 1px solid #cfd7e3;
+        font-size: .82rem;
+    }
+
+    .navi-search-hint {
+        display: block;
+        margin-top: .16rem;
+        color: #8a5d1e;
+        font-size: .58rem;
+        font-weight: 850;
+        line-height: 1.15;
+    }
+
+    .navi-search-hint.ok {
+        color: #047857;
+    }
+
+    .selected-request-tool {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: .45rem;
+        align-items: center;
+        border: 1px solid #bfdbfe;
+        background: #eff6ff;
+        border-radius: .68rem;
+        padding: .52rem .58rem;
+        margin: .15rem 0 .65rem;
+    }
+
+    .selected-request-tool span,
+    .selected-request-tool strong,
+    .selected-request-tool small {
+        display: block;
+        line-height: 1.12;
+    }
+
+    .selected-request-tool span {
+        color: #1d4ed8;
+        font-size: .58rem;
+        font-weight: 950;
+        text-transform: uppercase;
+    }
+
+    .selected-request-tool strong {
+        color: #0f172a;
+        font-size: .74rem;
+        font-weight: 950;
+        margin-top: .08rem;
+    }
+
+    .selected-request-tool small {
+        color: #475569;
+        font-size: .62rem;
+        margin-top: .08rem;
+        font-weight: 750;
+    }
+
+    .selected-request-tool button {
+        min-height: 28px;
+        border-radius: .45rem;
+        border: 1px solid #2563eb;
+        background: #fff;
+        color: #1d4ed8;
+        font-size: .62rem;
+        font-weight: 950;
+        padding: .22rem .5rem;
+        white-space: nowrap;
+    }
+
+
+    
+
+    .af-filters {
+        min-width: 720px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .af-filters input[list] {
+        min-width: 180px;
+    }
+
+    @@media (max-width: 1350px) {
+        .af-filters {
+            min-width: 0;
+        }
+
+        .af-filters input,
+        .af-filters input[list] {
+            width: 100%;
+            min-width: 0;
+        }
+    }
+
+
+    /* ============================================================
+       NAVI - Filtros Asignar Herramientas y AF igual a Disponible
+       ============================================================ */
+
+    .af-table-header {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: flex-start !important;
+        gap: 1rem !important;
+        margin-bottom: .75rem !important;
+    }
+
+    .af-filters,
+    .af-filters-standard {
+        display: grid !important;
+        grid-template-columns: minmax(230px, 1.35fr) minmax(150px, .8fr) minmax(190px, 1fr) !important;
+        gap: .45rem !important;
+        min-width: 650px !important;
+        align-items: center !important;
+    }
+
+    .af-filters input,
+    .af-filters select,
+    .af-filters .form-control-sm,
+    .af-filters .form-select-sm {
+        height: 32px !important;
+        min-height: 32px !important;
+        border-radius: .45rem !important;
+        border: 1px solid #cfd7e3 !important;
+        font-size: .76rem !important;
+        font-weight: 750 !important;
+        padding: .28rem .55rem !important;
+        width: 100% !important;
+    }
+
+    .af-filters input::placeholder {
+        color: #8a94a6 !important;
+        font-weight: 700 !important;
+    }
+
+    .af-filters datalist {
+        display: none !important;
+    }
+
+    @@media (max-width: 1350px) {
+        .af-table-header {
+            flex-direction: column !important;
+            align-items: stretch !important;
+        }
+
+        .af-filters,
+        .af-filters-standard {
+            grid-template-columns: 1fr !important;
+            min-width: 0 !important;
+            width: 100% !important;
+        }
+    }
+
+    /* ============================================================
+       FIN NAVI - Filtros Asignar Herramientas y AF igual a Disponible
+       ============================================================ */
+
+
+    .assignment-permission-note {
+        border: 1px solid #fed7aa;
+        background: #fff7ed;
+        color: #9a3412;
+        border-radius: .55rem;
+        padding: .35rem .5rem;
+        margin-bottom: .45rem;
+        font-size: .66rem;
+        font-weight: 900;
+        line-height: 1.25;
+    }
+
+
+    .assignment-request-warning {
+        border: 1px solid #fed7aa;
+        background: #fff7ed;
+        color: #9a3412;
+        border-radius: .55rem;
+        padding: .42rem .55rem;
+        margin-bottom: .55rem;
+        font-size: .68rem;
+        font-weight: 900;
+        line-height: 1.25;
+    }
+
+
+    .assignment-request-info {
+        border: 1px solid #bfdbfe;
+        background: #eff6ff;
+        color: #1d4ed8;
+        border-radius: .55rem;
+        padding: .42rem .55rem;
+        margin-bottom: .55rem;
+        font-size: .68rem;
+        font-weight: 900;
+        line-height: 1.25;
+    }
+
 </style>
 
 @code {
-    private bool CanAssignAsset => AuthSession.HasPermission("AssetAssignment.Assign");
-    private bool CanReturnAsset => AuthSession.HasPermission("AssetAssignment.Return");
-    private bool CanApproveAssignmentRequest => AuthSession.HasPermission("AssetAssignment.Assign");
 
-    private HttpClient Api => HttpClientFactory.CreateClient("NaviApi");
+    private static string FormatNullableLocalDateTime(DateTime? value, string format)
+    {
+        return value.HasValue
+            ? value.Value.ToLocalTime().ToString(format)
+            : "—";
+    }
+
+    private static string FormatNullableLocalDateTime(DateTime value, string format)
+    {
+        return value.ToLocalTime().ToString(format);
+    }
+
+    private static DateTime? GetNullableLocalDateTime(DateTime? value)
+    {
+        return value.HasValue
+            ? value.Value.ToLocalTime()
+            : null;
+    }
+
+    private static DateTime GetNullableLocalDateTime(DateTime value)
+    {
+        return value.ToLocalTime();
+    }
+
+
+
+    private Guid? ReadGuidProperty(object? item, string propertyName)
+    {
+        if (item is null || string.IsNullOrWhiteSpace(propertyName))
+        {
+            return null;
+        }
+
+        var flags = System.Reflection.BindingFlags.Instance
+            | System.Reflection.BindingFlags.Public
+            | System.Reflection.BindingFlags.NonPublic
+            | System.Reflection.BindingFlags.IgnoreCase;
+
+        var property = item.GetType().GetProperty(propertyName, flags);
+        var value = property?.GetValue(item);
+
+        if (value is Guid guidValue && guidValue != Guid.Empty)
+        {
+            return guidValue;
+        }
+
+        if (value is string stringValue && Guid.TryParse(stringValue, out var parsedGuid) && parsedGuid != Guid.Empty)
+        {
+            return parsedGuid;
+        }
+
+        return null;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    private Guid? CurrentRequesterResponsibleId =>
+        ReadGuidProperty(CurrentRequesterResponsible, "Id")
+        ?? ReadGuidProperty(CurrentSessionUser?.ResponsiblePerson, "Id")
+        ?? ReadGuidProperty(CurrentSessionUser, "ResponsiblePersonId")
+        ?? ReadGuidProperty(CurrentSessionUser, "ResponsibleId")
+        ?? ReadGuidProperty(CurrentSessionUser, "AssociatedResponsiblePersonId");
+
+    private string CurrentRequesterResponsibleName =>
+        ReadTextProperty(CurrentRequesterResponsible, "Name")
+        ?? ReadTextProperty(CurrentRequesterResponsible, "FullName")
+        ?? ReadTextProperty(CurrentRequesterResponsible, "DisplayName")
+        ?? ReadTextProperty(CurrentRequesterResponsible, "Description")
+        ?? ReadTextProperty(CurrentSessionUser?.ResponsiblePerson, "Name")
+        ?? ReadTextProperty(CurrentSessionUser?.ResponsiblePerson, "FullName")
+        ?? ReadTextProperty(CurrentSessionUser?.ResponsiblePerson, "DisplayName")
+        ?? ReadTextProperty(CurrentSessionUser, "ResponsiblePersonName")
+        ?? ReadTextProperty(CurrentSessionUser, "ResponsibleName")
+        ?? ReadTextProperty(CurrentSessionUser, "AssociatedResponsiblePersonName")
+        ?? ReadTextProperty(CurrentSessionUser, "FullName")
+        ?? ReadTextProperty(CurrentSessionUser, "Name")
+        ?? AuthSession.DisplayName
+        ?? AuthSession.UserName
+        ?? string.Empty;
+
+
+
+
+    private string GetRequesterDisplayName(object? item)
+    {
+        var value =
+            ReadTextProperty(item, "RequestedByResponsiblePersonName") ??
+            ReadTextProperty(item, "RequestedByPersonName") ??
+            ReadTextProperty(item, "RequesterResponsibleName") ??
+            ReadTextProperty(item, "ResponsiblePersonName") ??
+            ReadTextProperty(item, "RequestedByUserName") ??
+            ReadTextProperty(item, "RequesterName") ??
+            ReadTextProperty(item, "CreatedByName") ??
+            ReadTextProperty(item, "CreatedBy");
+
+        if (string.IsNullOrWhiteSpace(value) || value == "-")
+        {
+            value =
+                ReadTextProperty(CurrentRequesterResponsible, "Name") ??
+                ReadTextProperty(CurrentSessionUser?.ResponsiblePerson, "Name") ??
+                AuthSession.DisplayName ??
+                AuthSession.UserName ??
+                "—";
+        }
+
+        return value;
+    }
+
+    private string? ReadTextProperty(object? item, string propertyName)
+    {
+        if (item is null)
+        {
+            return null;
+        }
+
+        var property = item.GetType().GetProperty(propertyName);
+        if (property is null)
+        {
+            return null;
+        }
+
+        var value = property.GetValue(item)?.ToString();
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+private bool CanAssignAsset =>
+        AuthSession.HasPermission("AssetAssignment.Assign");
+
+    private bool CanReturnAsset =>
+        AuthSession.HasPermission("AssetAssignment.Return");
+
+    private bool CanRequestAssignment =>
+        AuthSession.HasPermission("AssetAssignment.Request");
+
+    private bool CanApproveAssignmentRequest =>
+        AuthSession.HasPermission("AssetAssignment.Approve");
+
+    private bool CanDenyAssignmentRequest =>
+        AuthSession.HasPermission("AssetAssignment.Deny");
+
+    private bool CanViewAssignmentHistory =>
+        AuthSession.HasPermission("AssetAssignment.History");
+
+    private bool CanDirectAssign => CanAssignAsset;
+
+    private bool CanReturnAssignment => CanReturnAsset;
+
+    private UserItem? CurrentSessionUser =>
+        users.FirstOrDefault(x =>
+            string.Equals(x.UserName, AuthSession.UserName, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.DisplayName, AuthSession.DisplayName, StringComparison.OrdinalIgnoreCase));
+
+    private ResponsibleItem? CurrentRequesterResponsible
+    {
+        get
+        {
+            if (AuthSession.ResponsiblePersonId.HasValue)
+            {
+                var sessionResponsible = responsibles.FirstOrDefault(x => x.Id == AuthSession.ResponsiblePersonId);
+
+                if (sessionResponsible is not null)
+                {
+                    return sessionResponsible;
+                }
+            }
+
+            if (CurrentSessionUser?.ResponsiblePerson is not null)
+            {
+                return CurrentSessionUser.ResponsiblePerson;
+            }
+
+            return responsibles.FirstOrDefault(x =>
+                string.Equals(x.FullName, AuthSession.ResponsiblePersonName, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(x.FullName, AuthSession.DisplayName, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(x.DocumentNumber, AuthSession.UserName, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(x.EmployeeCode, AuthSession.UserName, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private Guid? CurrentRequesterPersonId =>
+        AuthSession.ResponsiblePersonId ??
+        CurrentSessionUser?.ResponsiblePerson?.Id ??
+        CurrentRequesterResponsible?.Id;
+
+private HttpClient Api => HttpClientFactory.CreateClient("NaviApi");
 
     private List<ToolItem> tools = new();
     private List<ResponsibleItem> responsibles = new();
     private List<BranchItem> branches = new();
     private List<LocationItem> locations = new();
     private List<LoanRequestItem> loanRequests = new();
+    private List<UserItem> users = new();
 
     private AssignmentForm form = new();
     private AssignmentRequestForm requestForm = new();
+
+    private string assignmentToolSearchText = string.Empty;
+    private string assignmentResponsibleSearchText = string.Empty;
+    private string assignmentBranchSearchText = string.Empty;
+    private string assignmentLocationSearchText = string.Empty;
+    private string historyResponsibleSearchText = string.Empty;
+    private string selectedResponsibleSearchText = string.Empty;
+    private string selectedBranchSearchText = string.Empty;
+    private string selectedBranchCode = string.Empty;
+    private bool branchFilterInitialized;
 
     private bool isLoading;
     private bool isSaving;
@@ -954,21 +1452,29 @@
             ? locations
             : locations.Where(x => x.BranchId == form.BranchId);
 
-    private IEnumerable<ToolItem> FilteredTools =>
-        tools
-            .Where(x => string.IsNullOrWhiteSpace(search) ||
-                        x.InternalCode.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                        x.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                        (x.SerialNumber ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase))
-            .Where(x =>
-                string.IsNullOrWhiteSpace(selectedResponsibleId) ||
-                (selectedResponsibleId == "SIN_RESPONSABLE" && x.ResponsiblePersonId is null) ||
-                (x.ResponsiblePersonId.HasValue && x.ResponsiblePersonId.Value.ToString() == selectedResponsibleId))
+    private IEnumerable<BranchItem> BranchFilterOptions =>
+        IsAllBranchScope()
+            ? branches.OrderBy(x => x.Code)
+            : branches
+                .Where(x => string.Equals(x.Code, AuthSession.BranchCode, StringComparison.OrdinalIgnoreCase) ||
+                            (AuthSession.BranchId.HasValue && x.Id == AuthSession.BranchId))
+                .OrderBy(x => x.Code);
+
+    private IEnumerable<ToolItem> ScopedTools =>
+        AccessScope.FilterTools(
+            tools,
+            x => x.BranchCode,
+            x => x.ResponsiblePersonName);
+private IEnumerable<ToolItem> FilteredTools =>
+        ScopedTools
+            .Where(MatchesSearchFilter)
+            .Where(MatchesBranchFilter)
+            .Where(MatchesResponsibleFilter)
             .OrderByDescending(x => FindPendingRequestForTool(x.Id) is not null)
             .ThenBy(x => x.InternalCode);
 
     private IEnumerable<ToolItem> RequestTools =>
-        tools
+        ScopedTools
             .Where(x => string.IsNullOrWhiteSpace(requestSearch) ||
                         x.InternalCode.Contains(requestSearch, StringComparison.OrdinalIgnoreCase) ||
                         x.Name.Contains(requestSearch, StringComparison.OrdinalIgnoreCase) ||
@@ -979,6 +1485,11 @@
             .ThenBy(x => FindPendingRequestForTool(x.Id) is not null)
             .ThenBy(x => x.InternalCode)
             .Take(80);
+
+    private ToolItem? SelectedRequestTool =>
+        requestForm.ToolId.HasValue
+            ? tools.FirstOrDefault(x => x.Id == requestForm.ToolId)
+            : null;
 
     private IEnumerable<LoanRequestItem> PendingLoanRequests =>
         loanRequests
@@ -1002,6 +1513,13 @@
             branches = await Api.GetFromJsonAsync<List<BranchItem>>("api/settings/branches") ?? new();
             locations = await Api.GetFromJsonAsync<List<LocationItem>>("api/settings/warehouses") ?? new();
             loanRequests = await Api.GetFromJsonAsync<List<LoanRequestItem>>("api/loans") ?? new();
+            users = await Api.GetFromJsonAsync<List<UserItem>>("api/settings/users") ?? new();
+
+            if (!branchFilterInitialized)
+            {
+                ApplyDefaultBranchFilter();
+                branchFilterInitialized = true;
+            }
         }
         catch (Exception ex)
         {
@@ -1013,6 +1531,196 @@
         }
     }
 
+    
+    private bool MatchesSearchFilter(ToolItem tool)
+    {
+        return string.IsNullOrWhiteSpace(search) ||
+               Contains(tool.InternalCode, search) ||
+               Contains(tool.Name, search) ||
+               Contains(tool.SerialNumber, search) ||
+               Contains(tool.BranchCode, search) ||
+               Contains(tool.LocationName, search) ||
+               Contains(tool.ResponsiblePersonName, search);
+    }
+
+    private bool IsAllBranchScope()
+    {
+        return string.IsNullOrWhiteSpace(AuthSession.BranchCode) ||
+               AuthSession.BranchCode.Equals("TODAS", StringComparison.OrdinalIgnoreCase) ||
+               AuthSession.BranchCode.Equals("ALL", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void ApplyDefaultBranchFilter()
+    {
+        if (IsAllBranchScope())
+        {
+            selectedBranchCode = string.Empty;
+            selectedBranchSearchText = "Todas las sedes";
+            return;
+        }
+
+        var branch = branches.FirstOrDefault(x =>
+            string.Equals(x.Code, AuthSession.BranchCode, StringComparison.OrdinalIgnoreCase) ||
+            (AuthSession.BranchId.HasValue && x.Id == AuthSession.BranchId));
+
+        selectedBranchCode = branch?.Code ?? AuthSession.BranchCode;
+        selectedBranchSearchText = branch is null
+            ? AuthSession.BranchCode
+            : FormatBranchOption(branch);
+    }
+
+    private void OnTableBranchSearchInput(ChangeEventArgs args)
+    {
+        selectedBranchSearchText = args?.ToString() ?? string.Empty;
+
+        if (IsAllBranchScope() &&
+            (string.IsNullOrWhiteSpace(selectedBranchSearchText) ||
+             selectedBranchSearchText.Equals("Todas las sedes", StringComparison.OrdinalIgnoreCase)))
+        {
+            selectedBranchCode = string.Empty;
+            selectedBranchSearchText = "Todas las sedes";
+            return;
+        }
+
+        if (!IsAllBranchScope() && string.IsNullOrWhiteSpace(selectedBranchSearchText))
+        {
+            ApplyDefaultBranchFilter();
+            return;
+        }
+
+        var branch = ResolveBranchFilterOption(selectedBranchSearchText);
+
+        if (branch is not null)
+        {
+            selectedBranchCode = branch.Code;
+            selectedBranchSearchText = FormatBranchOption(branch);
+            return;
+        }
+
+        selectedBranchCode = selectedBranchSearchText;
+    }
+
+    private void OnTableResponsibleSearchInput(ChangeEventArgs args)
+    {
+        selectedResponsibleSearchText = args?.ToString() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(selectedResponsibleSearchText) ||
+            selectedResponsibleSearchText.Equals("Todos los usuarios", StringComparison.OrdinalIgnoreCase))
+        {
+            selectedResponsibleId = string.Empty;
+            selectedResponsibleSearchText = "Todos los usuarios";
+            return;
+        }
+
+        if (selectedResponsibleSearchText.Equals("Sin responsable", StringComparison.OrdinalIgnoreCase))
+        {
+            selectedResponsibleId = "SIN_RESPONSABLE";
+            return;
+        }
+
+        var responsible = ResolveResponsible(selectedResponsibleSearchText);
+
+        if (responsible is not null)
+        {
+            selectedResponsibleId = responsible.Id.ToString();
+            selectedResponsibleSearchText = FormatResponsibleOption(responsible);
+            return;
+        }
+
+        selectedResponsibleId = string.Empty;
+    }
+
+    private BranchItem? ResolveBranchFilterOption(string value)
+    {
+        return BranchFilterOptions.FirstOrDefault(x =>
+            string.Equals(FormatBranchOption(x), value, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.Code, value, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.Name, value, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private ResponsibleItem? ResolveResponsible(string value)
+    {
+        return responsibles.FirstOrDefault(x =>
+            string.Equals(FormatResponsibleOption(x), value, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.FullName, value, StringComparison.OrdinalIgnoreCase) ||
+            Contains(x.FullName, value) ||
+            Contains(x.Position, value));
+    }
+
+    private bool MatchesBranchFilter(ToolItem tool)
+    {
+        if (!IsAllBranchScope() &&
+            !string.Equals(tool.BranchCode, AuthSession.BranchCode, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var value = selectedBranchCode;
+
+        if (string.IsNullOrWhiteSpace(value) &&
+            !selectedBranchSearchText.Equals("Todas las sedes", StringComparison.OrdinalIgnoreCase))
+        {
+            value = selectedBranchSearchText;
+        }
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return true;
+        }
+
+        var branch = branches.FirstOrDefault(x =>
+            string.Equals(x.Code, tool.BranchCode, StringComparison.OrdinalIgnoreCase));
+
+        return Contains(tool.BranchCode, value) ||
+               Contains(branch?.Name, value) ||
+               Contains(branch is null ? null : FormatBranchOption(branch), value);
+    }
+
+    private bool MatchesResponsibleFilter(ToolItem tool)
+    {
+        if (string.IsNullOrWhiteSpace(selectedResponsibleId) &&
+            (string.IsNullOrWhiteSpace(selectedResponsibleSearchText) ||
+             selectedResponsibleSearchText.Equals("Todos los usuarios", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        if (selectedResponsibleId == "SIN_RESPONSABLE" ||
+            selectedResponsibleSearchText.Contains("sin responsable", StringComparison.OrdinalIgnoreCase))
+        {
+            return tool.ResponsiblePersonId is null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(selectedResponsibleId) &&
+            tool.ResponsiblePersonId.HasValue &&
+            tool.ResponsiblePersonId.ToString() == selectedResponsibleId)
+        {
+            return true;
+        }
+
+        return Contains(tool.ResponsiblePersonName, selectedResponsibleSearchText) ||
+               Contains(tool.ResponsiblePosition, selectedResponsibleSearchText);
+    }
+
+    private static string FormatBranchOption(BranchItem branch)
+    {
+        return $"{branch.Code} - {branch.Name}";
+    }
+
+    private static string FormatResponsibleOption(ResponsibleItem responsible)
+    {
+        return string.IsNullOrWhiteSpace(responsible.Position)
+            ? responsible.FullName
+            : $"{responsible.FullName} - {responsible.Position}";
+    }
+
+    private static bool Contains(string? source, string value)
+    {
+        return !string.IsNullOrWhiteSpace(source)
+            && source.Contains(value, StringComparison.OrdinalIgnoreCase);
+    }
+
+
     private string GetMovementTitle()
     {
         return form.AssignmentType == "Warehouse" ? "Regresar activo fijo" : "Nueva asignación";
@@ -1020,6 +1728,13 @@
 
     private void OpenHistory()
     {
+
+        if (!CanViewAssignmentHistory)
+        {
+            ShowError("No tienes permiso para ver historial de asignaciones.");
+            return;
+        }
+
         var query = new List<string>();
 
         if (!string.IsNullOrWhiteSpace(historyResponsibleId))
@@ -1048,11 +1763,41 @@
             form.BranchId = tool.BranchId;
             form.LocationId = tool.LocationId;
             form.ResponsiblePersonId = tool.ResponsiblePersonId;
+
+            assignmentToolSearchText = FormatToolOption(tool);
+
+            var responsible = responsibles.FirstOrDefault(x => x.Id == tool.ResponsiblePersonId);
+            assignmentResponsibleSearchText = responsible is null
+                ? tool.ResponsiblePersonName ?? string.Empty
+                : FormatResponsibleOption(responsible);
+
+            var branch = branches.FirstOrDefault(x => x.Id == tool.BranchId);
+            assignmentBranchSearchText = branch is null
+                ? tool.BranchCode ?? string.Empty
+                : FormatBranchOption(branch);
+
+            var location = locations.FirstOrDefault(x => x.Id == tool.LocationId);
+            assignmentLocationSearchText = location is null
+                ? tool.LocationName ?? string.Empty
+                : FormatLocationOption(location);
         }
     }
 
     private void SelectForAssignment(ToolItem tool)
     {
+
+        if (!CanAssignAsset)
+        {
+            ShowError("No tienes permiso para realizar asignación directa.");
+            return;
+        }
+
+        if (!CanDirectAssign)
+        {
+            ShowError("No tienes permiso para realizar asignación directa.");
+            return;
+        }
+
         form.ToolId = tool.Id;
         form.AssignmentType = "Responsible";
         form.BranchId = tool.BranchId;
@@ -1060,10 +1805,25 @@
         form.ResponsiblePersonId = tool.ResponsiblePersonId;
         form.AssignmentDate = DateTime.Today;
         form.Observation = $"Asignación del activo {tool.InternalCode}.";
+
+        LoadSelectedTool();
     }
 
     private void SelectForReturn(ToolItem tool)
     {
+
+        if (!CanReturnAsset)
+        {
+            ShowError("No tienes permiso para regresar activos al taller o almacén.");
+            return;
+        }
+
+        if (!CanReturnAssignment)
+        {
+            ShowError("No tienes permiso para regresar activos al taller o almacén.");
+            return;
+        }
+
         form.ToolId = tool.Id;
         form.AssignmentType = "Warehouse";
         form.BranchId = tool.BranchId;
@@ -1071,6 +1831,9 @@
         form.ResponsiblePersonId = null;
         form.AssignmentDate = DateTime.Today;
         form.Observation = $"Regreso de activo fijo {tool.InternalCode} a almacén/taller.";
+
+        LoadSelectedTool();
+        assignmentResponsibleSearchText = string.Empty;
     }
 
     private void OnBranchChanged()
@@ -1084,6 +1847,19 @@
 
     private async Task SaveAsync()
     {
+
+        if (form.AssignmentType == "Responsible" && !CanAssignAsset)
+        {
+            ShowError("No tienes permiso para confirmar asignaciones directas.");
+            return;
+        }
+
+        if (form.AssignmentType == "Warehouse" && !CanReturnAsset)
+        {
+            ShowError("No tienes permiso para regresar activos al taller o almacén.");
+            return;
+        }
+
         if (form.ToolId is null)
         {
             ShowError("Debe seleccionar un activo fijo.");
@@ -1148,6 +1924,12 @@
         requestSearch = $"{tool.InternalCode} - {tool.Name}";
     }
 
+    private void ClearRequestToolSelection()
+    {
+        requestForm.ToolId = null;
+        requestSearch = string.Empty;
+    }
+
     private static string GetRequestAvailabilityClass(ToolItem tool, LoanRequestItem? pending)
     {
         if (pending is not null)
@@ -1169,17 +1951,19 @@
     }
     private async Task SubmitSelfAssignmentRequestAsync()
     {
+        if (!CanRequestAssignment)
+        {
+            ShowError("No tienes permiso para solicitar asignación de herramientas.");
+            return;
+        }
+
         if (requestForm.ToolId is null)
         {
             ShowError("Debe seleccionar una herramienta para solicitar asignación.");
             return;
         }
 
-        if (AuthSession.ResponsiblePersonId is null)
-        {
-            ShowError("Tu usuario no tiene responsable asociado. No se puede crear una solicitud automática para ti.");
-            return;
-        }
+        var requesterId = CurrentRequesterPersonId;
 
         var tool = tools.FirstOrDefault(x => x.Id == requestForm.ToolId);
 
@@ -1195,17 +1979,38 @@
             return;
         }
 
+        var pending = FindPendingRequestForTool(tool.Id);
+
+        if (pending is not null)
+        {
+            ShowError($"La herramienta ya tiene una solicitud pendiente: {pending.LoanNumber}.");
+            return;
+        }
+
         isSaving = true;
+        ShowSuccess("Registrando solicitud de asignación...");
+
+        var requesterName = AuthSession.ResponsiblePersonName;
+
+        if (string.IsNullOrWhiteSpace(requesterName))
+        {
+            requesterName = AuthSession.DisplayName;
+        }
+
+        if (string.IsNullOrWhiteSpace(requesterName))
+        {
+            requesterName = AuthSession.UserName;
+        }
 
         var request = new
         {
             branchCode = tool.BranchCode,
-            requestedByPersonId = AuthSession.ResponsiblePersonId,
+            requestedByPersonId = requesterId,
             toolInternalCodes = new[] { tool.InternalCode },
             expectedReturnAt = requestForm.ExpectedReturnAt,
-            deliveryCondition = "Solicitud de asignación desde Asignar AF web.",
+            deliveryCondition = "Solicitud de asignación desde Asignar Herramientas y AF web.",
             notes = string.IsNullOrWhiteSpace(requestForm.Notes)
-                ? $"Solicitud de asignación del activo {tool.InternalCode} para {AuthSession.ResponsiblePersonName ?? AuthSession.DisplayName}."
+                ? $"Solicitud de asignación del activo {tool.InternalCode} para {requesterName}."
                 : requestForm.Notes,
             requestedBy = AuthSession.AuditUser
         };
@@ -1216,11 +2021,18 @@
 
             if (!response.IsSuccessStatusCode)
             {
-                ShowError(await response.Content.ReadAsStringAsync());
+                var apiError = await response.Content.ReadAsStringAsync();
+                ShowError(string.IsNullOrWhiteSpace(apiError)
+                    ? "No se pudo crear la solicitud de asignación."
+                    : apiError);
                 return;
             }
 
-            ShowSuccess("Solicitud de asignación creada correctamente. Queda pendiente de aprobación del herramentero.");
+            var created = await response.Content.ReadFromJsonAsync<LoanRequestItem>();
+
+            ShowSuccess(created is null
+                ? "Solicitud de asignación creada correctamente. Queda pendiente de aprobación."
+                : $"Solicitud {created.LoanNumber} creada correctamente. Queda pendiente de aprobación.");
 
             requestForm = new AssignmentRequestForm();
             requestSearch = string.Empty;
@@ -1239,6 +2051,13 @@
 
     private async Task RejectRequestAsync(LoanRequestItem? request)
     {
+
+        if (!CanDenyAssignmentRequest)
+        {
+            ShowError("No tienes permiso para denegar solicitudes de asignación.");
+            return;
+        }
+
         if (request is null)
         {
             ShowError("La herramienta no tiene solicitud pendiente para denegar.");
@@ -1250,7 +2069,7 @@
         var body = new
         {
             actionBy = AuthSession.AuditUser,
-            notes = $"Solicitud {request.LoanNumber} denegada desde Asignar AF web.",
+            notes = $"Solicitud {request.LoanNumber} denegada desde Asignar Herramientas y AF web.",
             condition = "Solicitud denegada por herramentero."
         };
 
@@ -1279,6 +2098,13 @@
     }
     private async Task ApproveRequestAsync(LoanRequestItem? request)
     {
+
+        if (!CanApproveAssignmentRequest)
+        {
+            ShowError("No tienes permiso para aprobar solicitudes de asignación.");
+            return;
+        }
+
         if (request is null)
         {
             ShowError("La herramienta no tiene solicitud pendiente para aprobar.");
@@ -1290,7 +2116,7 @@
         var body = new
         {
             actionBy = AuthSession.AuditUser,
-            notes = $"Solicitud {request.LoanNumber} aprobada desde Asignar AF web.",
+            notes = $"Solicitud {request.LoanNumber} aprobada desde Asignar Herramientas y AF web.",
             condition = "Aprobado y asignado por herramentero."
         };
 
@@ -1327,10 +2153,212 @@
     private void ClearForm()
     {
         form = new AssignmentForm();
+        assignmentToolSearchText = string.Empty;
+        assignmentResponsibleSearchText = string.Empty;
+        assignmentBranchSearchText = string.Empty;
+        assignmentLocationSearchText = string.Empty;
     }
+
+    
+    private void OnAssignmentToolSearchInput(ChangeEventArgs args)
+    {
+        assignmentToolSearchText = args?.ToString() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(assignmentToolSearchText))
+        {
+            form.ToolId = null;
+            return;
+        }
+
+        var tool = ResolveTool(assignmentToolSearchText);
+
+        if (tool is not null)
+        {
+            form.ToolId = tool.Id;
+            LoadSelectedTool();
+        }
+    }
+
+    private void OnAssignmentResponsibleSearchInput(ChangeEventArgs args)
+    {
+        assignmentResponsibleSearchText = args?.ToString() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(assignmentResponsibleSearchText))
+        {
+            form.ResponsiblePersonId = null;
+            return;
+        }
+
+        var responsible = ResolveResponsible(assignmentResponsibleSearchText);
+
+        if (responsible is not null)
+        {
+            form.ResponsiblePersonId = responsible.Id;
+            assignmentResponsibleSearchText = FormatResponsibleOption(responsible);
+        }
+    }
+
+    private void OnAssignmentBranchSearchInput(ChangeEventArgs args)
+    {
+        assignmentBranchSearchText = args?.ToString() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(assignmentBranchSearchText))
+        {
+            form.BranchId = null;
+            form.LocationId = null;
+            assignmentLocationSearchText = string.Empty;
+            return;
+        }
+
+        var branch = ResolveBranch(assignmentBranchSearchText);
+
+        if (branch is not null)
+        {
+            form.BranchId = branch.Id;
+            assignmentBranchSearchText = FormatBranchOption(branch);
+            OnBranchChanged();
+        }
+    }
+
+    private void OnAssignmentLocationSearchInput(ChangeEventArgs args)
+    {
+        assignmentLocationSearchText = args?.ToString() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(assignmentLocationSearchText))
+        {
+            form.LocationId = null;
+            return;
+        }
+
+        var location = ResolveLocation(assignmentLocationSearchText);
+
+        if (location is not null)
+        {
+            form.LocationId = location.Id;
+            assignmentLocationSearchText = FormatLocationOption(location);
+        }
+    }
+
+    private void OnHistoryResponsibleSearchInput(ChangeEventArgs args)
+    {
+        historyResponsibleSearchText = args?.ToString() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(historyResponsibleSearchText) ||
+            historyResponsibleSearchText.Equals("Todos los usuarios", StringComparison.OrdinalIgnoreCase))
+        {
+            historyResponsibleId = string.Empty;
+            return;
+        }
+
+        var responsible = ResolveResponsible(historyResponsibleSearchText);
+
+        if (responsible is not null)
+        {
+            historyResponsibleId = responsible.Id.ToString();
+            historyResponsibleSearchText = FormatResponsibleOption(responsible);
+        }
+    }
+
+    
+    private ToolItem? ResolveTool(string value)
+    {
+        return tools.FirstOrDefault(x =>
+            string.Equals(FormatToolOption(x), value, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals($"{x.InternalCode} - {x.Name}", value, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.InternalCode, value, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.Name, value, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private BranchItem? ResolveBranch(string value)
+    {
+        return branches.FirstOrDefault(x =>
+            string.Equals(FormatBranchOption(x), value, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.Code, value, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.Name, value, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private LocationItem? ResolveLocation(string value)
+    {
+        return AvailableLocations.FirstOrDefault(x =>
+            string.Equals(FormatLocationOption(x), value, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.Code, value, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.Name, value, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string FormatToolOption(ToolItem tool)
+    {
+        var serial = string.IsNullOrWhiteSpace(tool.SerialNumber) ? "Sin serial" : tool.SerialNumber;
+        var branch = string.IsNullOrWhiteSpace(tool.BranchCode) ? "Sin sede" : tool.BranchCode;
+        return $"{tool.InternalCode} - {tool.Name} · {branch} · {serial}";
+    }
+
+    private static string FormatLocationOption(LocationItem location)
+    {
+        return $"{location.Code} - {location.Name}";
+    }
+
+    private string GetAssignmentToolHint()
+    {
+        if (string.IsNullOrWhiteSpace(assignmentToolSearchText))
+        {
+            return "Escriba y seleccione un activo fijo.";
+        }
+
+        return form.ToolId.HasValue
+            ? "Activo seleccionado correctamente."
+            : "Seleccione un activo de las coincidencias.";
+    }
+
+    private string GetAssignmentResponsibleHint()
+    {
+        if (string.IsNullOrWhiteSpace(assignmentResponsibleSearchText))
+        {
+            return "Escriba y seleccione un responsable.";
+        }
+
+        return form.ResponsiblePersonId.HasValue
+            ? "Responsable seleccionado correctamente."
+            : "Seleccione un responsable de las coincidencias.";
+    }
+
+    private string GetAssignmentBranchHint()
+    {
+        if (string.IsNullOrWhiteSpace(assignmentBranchSearchText))
+        {
+            return "Escriba y seleccione una sede.";
+        }
+
+        return form.BranchId.HasValue
+            ? "Sede seleccionada correctamente."
+            : "Seleccione una sede de las coincidencias.";
+    }
+
+    private string GetAssignmentLocationHint()
+    {
+        if (string.IsNullOrWhiteSpace(assignmentLocationSearchText))
+        {
+            return "Escriba y seleccione almacén o taller.";
+        }
+
+        return form.LocationId.HasValue
+            ? "Ubicación seleccionada correctamente."
+            : "Seleccione una ubicación de las coincidencias.";
+    }
+
+    private string GetAssignmentToolHintClass() => form.ToolId.HasValue ? "navi-search-hint ok" : "navi-search-hint";
+    private string GetAssignmentResponsibleHintClass() => form.ResponsiblePersonId.HasValue ? "navi-search-hint ok" : "navi-search-hint";
+    private string GetAssignmentBranchHintClass() => form.BranchId.HasValue ? "navi-search-hint ok" : "navi-search-hint";
+    private string GetAssignmentLocationHintClass() => form.LocationId.HasValue ? "navi-search-hint ok" : "navi-search-hint";
 
     private string GetCurrentResponsibleLabel()
     {
+        var responsible = CurrentRequesterResponsible ?? CurrentSessionUser?.ResponsiblePerson;
+
+        if (responsible is not null && !string.IsNullOrWhiteSpace(responsible.FullName))
+        {
+            return responsible.FullName;
+        }
+
         if (!string.IsNullOrWhiteSpace(AuthSession.ResponsiblePersonName))
         {
             return AuthSession.ResponsiblePersonName!;
@@ -1356,7 +2384,7 @@
 
     private static string ShowDate(DateTime? value)
     {
-        return value.HasValue ? value.Value.ToLocalTime().ToString("dd/MM/yyyy") : "—";
+        return value.HasValue ? FormatNullableLocalDateTime(value, "dd/MM/yyyy") : "—";
     }
 
     private static string GetStatusLabel(string status) => status switch
@@ -1435,9 +2463,20 @@
         public DateTime? UpdatedAt { get; set; }
     }
 
+    private sealed class UserItem
+    {
+        public Guid Id { get; set; }
+        public string UserName { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+        public ResponsibleItem? ResponsiblePerson { get; set; }
+        public BranchItem? Branch { get; set; }
+    }
+
     private sealed class ResponsibleItem
     {
         public Guid Id { get; set; }
+        public string? EmployeeCode { get; set; }
+        public string? DocumentNumber { get; set; }
         public string FullName { get; set; } = string.Empty;
         public string? Position { get; set; }
     }
@@ -1463,6 +2502,8 @@
         public string LoanNumber { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         public Guid? RequestedByPersonId { get; set; }
+        public string? RequestedByPersonName { get; set; }
+        public string? RequestedByResponsiblePersonName { get; set; }
         public DateTime? RequestedAt { get; set; }
         public DateTime? ApprovedAt { get; set; }
         public DateTime? DeliveredAt { get; set; }

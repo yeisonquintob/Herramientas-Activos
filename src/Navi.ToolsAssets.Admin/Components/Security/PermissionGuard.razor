@@ -1,4 +1,4 @@
-﻿@using System.Text.Json
+@using System.Text.Json
 @using Microsoft.JSInterop
 @using Navi.ToolsAssets.Admin.Services.Auth
 @inject WebAuthSessionService AuthSession
@@ -44,8 +44,8 @@ else if (!HasAccess)
                 Permiso requerido: <strong>@Permission</strong>
             </div>
 
-            <button class="btn btn-outline-secondary" @onclick="@(() => Navigation.NavigateTo("/dashboard"))">
-                Volver al dashboard
+            <button class="btn btn-outline-secondary" @onclick="GoToAllowedStart">
+                @NaviPermissionRouteService.GetStartLabel(AuthSession)
             </button>
         </div>
     </section>
@@ -131,6 +131,11 @@ else
     private bool HasAccess =>
         AuthSession.IsAuthenticated &&
         AuthSession.HasPermission(Permission);
+
+    private void GoToAllowedStart()
+    {
+        Navigation.NavigateTo(NaviPermissionRouteService.GetStartRoute(AuthSession), forceLoad: true);
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
