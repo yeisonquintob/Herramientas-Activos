@@ -1,0 +1,99 @@
+@using Microsoft.AspNetCore.Components
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+
+@if (isReady && Auth.IsAuthenticated && Auth.CanAccessMobile())
+{
+    <nav class="mobile-bottom-nav">
+        <NavLink href="/" Match="NavLinkMatch.All">
+            <span>INI</span>
+            <strong>Inicio</strong>
+        </NavLink>
+
+        @if (CanViewOwnTools)
+        {
+            <NavLink href="/my-tools">
+                <span>MIS</span>
+                <strong>Mis AF</strong>
+            </NavLink>
+        }
+
+        @if (CanViewInventory)
+        {
+            <NavLink href="/all-tools">
+                <span>INV</span>
+                <strong>Inventario</strong>
+            </NavLink>
+        }
+
+        @if (CanViewAvailability)
+        {
+            <NavLink href="/mobile/availability">
+                <span>UBI</span>
+                <strong>Ubicación</strong>
+            </NavLink>
+        }
+
+        @if (CanUseAssignmentModule)
+        {
+            <NavLink href="/mobile/assignment">
+                <span>PRE</span>
+                <strong>Préstamos</strong>
+            </NavLink>
+        }
+
+        @if (CanViewLifeRecord)
+        {
+            <NavLink href="/mobile/life-records">
+                <span>HV</span>
+                <strong>Hoja vida</strong>
+            </NavLink>
+        }
+
+        @if (CanReportDamage)
+        {
+            <NavLink href="/report-damage">
+                <span>NOV</span>
+                <strong>Novedad</strong>
+            </NavLink>
+        }
+
+        <button type="button" @onclick="LogoutAsync">
+            <span>SAL</span>
+            <strong>Salir</strong>
+        </button>
+    </nav>
+}
+
+@code {
+    private bool isReady;
+
+    private bool CanViewOwnTools => Auth.HasAnyPermission("Mobile.Tools.View", "Tools.View");
+    private bool CanViewInventory => Auth.HasPermission("Tools.View");
+    private bool CanViewAvailability => Auth.HasAnyPermission("AssetAvailability.View", "AssetAvailability.Update", "AssetAvailability.Manage");
+    private bool CanViewLifeRecord => Auth.HasAnyPermission("TechnicalLifeRecord.View", "ToolDetail.LifeRecord.Open");
+    private bool CanReportDamage => Auth.HasAnyPermission("Mobile.Damage.Report", "Damages.Create");
+
+    private bool CanUseAssignmentModule => Auth.HasAnyPermission(
+        "AssetAssignment.View",
+        "AssetAssignment.Request",
+        "Mobile.Loans.Request",
+        "AssetAssignment.Assign",
+        "AssetAssignment.Return",
+        "AssetAssignment.Approve",
+        "AssetAssignment.Deny",
+        "AssetAssignment.History");
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+        isReady = true;
+        StateHasChanged();
+    }
+
+    private async Task LogoutAsync()
+    {
+        await Auth.LogoutAsync();
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+}

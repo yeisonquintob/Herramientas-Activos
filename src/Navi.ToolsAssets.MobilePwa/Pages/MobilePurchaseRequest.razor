@@ -1,0 +1,1902 @@
+@page "/mobile/purchases"
+
+@using System.Text.Json
+@using System.Net.Http
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
+@using Navi.ToolsAssets.MobilePwa.Models
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Solicitud de compra móvil - NAVI Herramientas y AF</PageTitle>
+
+<section class="mobile-page navi-mobile-purchase-request-v1">
+    @if (isLoading && !initialized)
+    {
+        <div class="mobile-loading">Cargando solicitud de compra...</div>
+    }
+    else if (!Auth.IsAuthenticated)
+    {
+        <div class="mobile-empty">
+            <strong>Sesión requerida</strong>
+            <span>Debes iniciar sesión para continuar.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+        </div>
+    }
+    else if (!CanAccessModule)
+    {
+        <div class="mobile-empty">
+            <strong>Sin permiso</strong>
+            <span>No tienes permisos para visualizar solicitud de compra.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoHome">Volver al inicio</button>
+        </div>
+    }
+    else
+    {
+        <header class="mpur-hero">
+            <div>
+                <span>COMPRA AF</span>
+                <h1>Solicitud de compra</h1>
+                <p>@Display(Auth.CurrentUser?.DisplayName) · @ScopeLabel</p>
+            </div>
+
+            <div class="mpur-hero-actions">
+                <button type="button" @onclick="GoHome">Inicio</button>
+                <button type="button" @onclick="RefreshAsync" disabled="@isLoading">
+                    @(isLoading ? "Cargando..." : "Actualizar")
+                </button>
+            </div>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(successMessage))
+        {
+            <div class="mobile-alert success">@successMessage</div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="mobile-alert error">@errorMessage</div>
+        }
+
+        <section class="mpur-kpis">
+            <article>
+                <span>Locales</span>
+                <strong>@LocalVisibleRequests.Count()</strong>
+                <small>Borrador / cotización</small>
+            </article>
+
+            <article>
+                <span>Generadas</span>
+                <strong>@FilteredRegistered.Count()</strong>
+                <small>API</small>
+            </article>
+
+            <article>
+                <span>Pendientes</span>
+                <strong>@FilteredRegistered.Count(x => IsOpenStatus(x.Status))</strong>
+                <small>Proceso</small>
+            </article>
+
+            <article>
+                <span>Permiso</span>
+                <strong>@PermissionMode</strong>
+                <small>Matriz</small>
+            </article>
+        </section>
+
+        <section class="mpur-filter-card">
+            <label>
+                <span>Buscar</span>
+                <input value="@searchText"
+                       @oninput="OnSearchChanged"
+                       placeholder="Número, activo, herramienta, solicitante, sede..." />
+            </label>
+
+            @if (UserCanSeeAllBranches())
+            {
+                <label>
+                    <span>Sede</span>
+                    <select value="@selectedBranchCode" @onchange="OnBranchFilterChanged">
+                        <option value="">Todas las sedes</option>
+                        @foreach (var branch in VisibleBranches)
+                        {
+                            <option value="@branch.Code">@branch.Code - @branch.Name</option>
+                        }
+                    </select>
+                </label>
+            }
+            else
+            {
+                <label>
+                    <span>Sede</span>
+                    <input value="@ScopeLabel" disabled />
+                </label>
+            }
+
+            <div class="mpur-filter-actions">
+                <button type="button" @onclick="ClearTopFilters">Limpiar búsqueda</button>
+            </div>
+        </section>
+
+        @if (CanCreateOrConfirmRequest)
+        {
+            <details class="mpur-card" open>
+                <summary>
+                    <span>Nueva solicitud y activos solicitados</span>
+                    <em>@RequestVisualState</em>
+                </summary>
+
+                @if (!CanEditRequest)
+                {
+                    <div class="mpur-locked">
+                        La solicitud solo se puede modificar cuando está nueva o en borrador.
+                    </div>
+                }
+
+                <div class="mpur-form-grid">
+                    <label>
+                        <span>Nombre de la solicitud</span>
+                        <InputText @bind-Value="header.RequestName" disabled="@(!CanEditRequest)" />
+                    </label>
+
+                    <label>
+                        <span>Sede</span>
+                        <InputSelect @bind-Value="header.BranchIdText" disabled="@(!CanEditRequest)">
+                            <option value="">Seleccione sede</option>
+                            @foreach (var branch in VisibleBranches)
+                            {
+                                <option value="@branch.Id">@branch.Code - @branch.Name</option>
+                            }
+                        </InputSelect>
+                    </label>
+
+                    <label>
+                        <span>Solicitante</span>
+                        <InputText @bind-Value="header.RequestedBy" disabled />
+                    </label>
+
+                    <label>
+                        <span>Responsable que aprueba</span>
+                        <InputText @bind-Value="header.Approver" disabled="@(!CanEditRequest)" />
+                    </label>
+
+                    <label>
+                        <span>Tipo de compra</span>
+                        <InputSelect @bind-Value="header.PurchasePurpose" disabled="@(!CanEditRequest)">
+                            <option value="SPC">SPC</option>
+                            <option value="Activo fijo">Activo fijo</option>
+                            <option value="Herramienta">Herramienta</option>
+                            <option value="Equipo">Equipo</option>
+                            <option value="Kit de herramientas">Kit de herramientas</option>
+                            <option value="Reposición">Reposición</option>
+                            <option value="Dotación">Dotación</option>
+                            <option value="Emergencia">Emergencia</option>
+                        </InputSelect>
+                    </label>
+
+                    <label>
+                        <span>Prioridad</span>
+                        <InputSelect @bind-Value="header.Priority" disabled="@(!CanEditRequest)">
+                            <option value="Baja">Baja</option>
+                            <option value="Media">Media</option>
+                            <option value="Alta">Alta</option>
+                            <option value="Crítica">Crítica</option>
+                        </InputSelect>
+                    </label>
+
+                    <label>
+                        <span>Fecha requerida</span>
+                        <InputDate @bind-Value="header.RequiredAt" disabled="@(!CanEditRequest)" />
+                    </label>
+
+                    <label>
+                        <span>Área / centro de costo</span>
+                        <InputText @bind-Value="header.AreaOrCostCenter" disabled="@(!CanEditRequest)" />
+                    </label>
+                </div>
+
+                <label class="mpur-full">
+                    <span>Justificación general de la compra</span>
+                    <InputTextArea @bind-Value="header.Justification" disabled="@(!CanEditRequest)" />
+                </label>
+
+                <div class="mpur-subsection-title">
+                    <strong>Activos / herramientas solicitadas</strong>
+                    <span>Agrega los activos, cantidades y especificaciones requeridas.</span>
+                </div>
+
+                <div class="mpur-form-grid">
+                    <label>
+                        <span>Imagen / referencia visual</span>
+                        <InputFile OnChange="OnImageSelected" accept="image/*" disabled="@(!CanEditRequest)" />
+                    </label>
+
+                    <label>
+                        <span>Código / referencia</span>
+                        <InputText @bind-Value="lineForm.ItemCode" disabled="@(!CanEditRequest)" />
+                    </label>
+
+                    <label>
+                        <span>Nombre del activo / herramienta</span>
+                        <InputText @bind-Value="lineForm.ItemName" disabled="@(!CanEditRequest)" />
+                    </label>
+
+                    <label>
+                        <span>Cantidad</span>
+                        <InputNumber @bind-Value="lineForm.Quantity" disabled="@(!CanEditRequest)" />
+                    </label>
+
+                    <label>
+                        <span>Unidad</span>
+                        <InputText @bind-Value="lineForm.Unit" disabled="@(!CanEditRequest)" />
+                    </label>
+
+                    <label>
+                        <span>Tipo / categoría</span>
+                        <InputSelect @bind-Value="lineForm.Category" disabled="@(!CanEditRequest)">
+                            <option value="Herramienta">Herramienta</option>
+                            <option value="Activo fijo">Activo fijo</option>
+                            <option value="Equipo">Equipo</option>
+                            <option value="Repuesto">Repuesto</option>
+                            <option value="Accesorio">Accesorio</option>
+                            <option value="Consumible">Consumible</option>
+                        </InputSelect>
+                    </label>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(lineForm.ImagePreview))
+                {
+                    <img class="mpur-photo-preview" src="@lineForm.ImagePreview" alt="Referencia visual" />
+                }
+
+                <label class="mpur-full">
+                    <span>Descripción técnica</span>
+                    <InputTextArea @bind-Value="lineForm.ItemDescription" disabled="@(!CanEditRequest)" />
+                </label>
+
+                <label class="mpur-full">
+                    <span>Observación / necesidad</span>
+                    <InputTextArea @bind-Value="lineForm.NeedDetail" disabled="@(!CanEditRequest)" />
+                </label>
+
+                <div class="mpur-action-row">
+                    <button type="button" class="primary" @onclick="AddLine" disabled="@(!CanEditRequest)">
+                        @(editingLineId.HasValue ? "Actualizar activo" : "Agregar activo")
+                    </button>
+
+                    <button type="button" @onclick="ClearLine">
+                        Limpiar línea
+                    </button>
+                </div>
+
+                @if (!currentLines.Any())
+                {
+                    <div class="mobile-empty compact">No hay activos agregados.</div>
+                }
+                else
+                {
+                    <div class="mpur-list">
+                        @foreach (var item in currentLines)
+                        {
+                            <article>
+                                <div>
+                                    <strong>@item.ItemName</strong>
+                                    <span>@Display(item.ItemCode)</span>
+                                    <small>Cantidad: @item.Quantity @Display(item.Unit) · @item.Category</small>
+                                    <small>@Display(item.ItemDescription)</small>
+                                    <small>@Display(item.NeedDetail)</small>
+
+                                    @if (!string.IsNullOrWhiteSpace(item.ImagePreview))
+                                    {
+                                        <img class="mpur-thumb" src="@item.ImagePreview" alt="Referencia" />
+                                    }
+                                </div>
+
+                                <div class="mpur-row-actions">
+                                    <label>
+                                        <InputCheckbox @bind-Value="item.Selected" disabled="@(!CanEditRequest)" />
+                                        Usar
+                                    </label>
+
+                                    <button type="button" @onclick="() => EditLine(item.Id)" disabled="@(!CanEditRequest)">Editar</button>
+                                    <button type="button" class="danger" @onclick="() => RemoveLine(item.Id)" disabled="@(!CanEditRequest)">Quitar</button>
+                                </div>
+                            </article>
+                        }
+                    </div>
+                }
+            </details>
+
+            <details class="mpur-card" open>
+                <summary>
+                    <span>Estado y confirmación de la solicitud</span>
+                    <em>@RequestVisualState</em>
+                </summary>
+
+                <div class="mpur-state-box">
+                    <span>Condiciones</span>
+                    <strong>@RequestConditionText</strong>
+                </div>
+
+                <div class="mpur-action-row">
+                    <button type="button" @onclick="SaveDraftAsync" disabled="@(!CanSaveAsDraft)">
+                        Guardar borrador
+                    </button>
+
+                    <button type="button" class="primary" @onclick="ConfirmRequestAsync" disabled="@(!CanConfirmRequest)">
+                        Confirmar solicitud
+                    </button>
+
+                    <button type="button" class="danger" @onclick="NewRequest">
+                        Nueva
+                    </button>
+                </div>
+            </details>
+        }
+
+        @if (CanRegisterQuotation)
+        {
+            <details class="mpur-card" open="@CanQuote">
+                <summary>
+                    <span>Cotización de compra</span>
+                    <em>@(CanQuote ? "Habilitada" : "Bloqueada")</em>
+                </summary>
+
+                @if (!CanQuote)
+                {
+                    <div class="mpur-locked">
+                        Selecciona abajo una solicitud confirmada y presiona <strong>Realizar cotización</strong>.
+                    </div>
+                }
+
+                <div class="mpur-quote-head">
+                    <div>
+                        <span>Solicitud</span>
+                        <strong>@Display(header.RequestName)</strong>
+                    </div>
+
+                    <div>
+                        <span>Sede</span>
+                        <strong>@SelectedBranchLabel</strong>
+                    </div>
+
+                    <div>
+                        <span>Estado</span>
+                        <strong>@RequestVisualState</strong>
+                    </div>
+                </div>
+
+                <div class="mpur-form-grid">
+                    <label>
+                        <span>Proveedor</span>
+                        <InputText @bind-Value="quoteForm.Provider" disabled="@(!CanQuote)" />
+                    </label>
+
+                    <label>
+                        <span>Activo cotizado</span>
+                        <InputSelect @bind-Value="quoteForm.LineIdText" disabled="@(!CanQuote)">
+                            <option value="">Toda la solicitud / kit</option>
+                            @foreach (var line in currentLines)
+                            {
+                                <option value="@line.Id">@line.ItemName</option>
+                            }
+                        </InputSelect>
+                    </label>
+
+                    <label>
+                        <span>Fecha cotización</span>
+                        <InputDate @bind-Value="quoteForm.QuotationDate" disabled="@(!CanQuote)" />
+                    </label>
+
+                    <label>
+                        <span>Tiempo entrega</span>
+                        <InputText @bind-Value="quoteForm.DeliveryTime" disabled="@(!CanQuote)" />
+                    </label>
+
+                    <label>
+                        <span>Precio antes de IVA</span>
+                        <InputNumber @bind-Value="quoteForm.PriceBeforeVat" disabled="@(!CanQuote)" />
+                    </label>
+                </div>
+
+                <label class="mpur-full">
+                    <span>Detalles adicionales de cotización</span>
+                    <InputTextArea @bind-Value="quoteForm.AdditionalDetails" disabled="@(!CanQuote)" />
+                </label>
+
+                <div class="mpur-action-row">
+                    <button type="button" class="primary" @onclick="AddQuotationAsync" disabled="@(!CanQuote)">
+                        @(editingQuoteId.HasValue ? "Actualizar cotización" : "Agregar cotización")
+                    </button>
+
+                    <button type="button" @onclick="ClearQuotation">
+                        Limpiar cotización
+                    </button>
+                </div>
+
+                @if (!currentQuotes.Any())
+                {
+                    <div class="mobile-empty compact">No hay cotizaciones agregadas.</div>
+                }
+                else
+                {
+                    <div class="mpur-list">
+                        @foreach (var quote in currentQuotes)
+                        {
+                            <article>
+                                <div>
+                                    <strong>@quote.Provider</strong>
+                                    <span>@GetLineName(quote.LineId)</span>
+                                    <small>@DateLabel(quote.QuotationDate) · @Display(quote.DeliveryTime)</small>
+                                    <small>@MoneyLabel(quote.PriceBeforeVat)</small>
+                                    <small>@Display(quote.AdditionalDetails)</small>
+                                </div>
+
+                                <div class="mpur-row-actions">
+                                    <label>
+                                        <InputCheckbox @bind-Value="quote.Selected" disabled="@(!CanQuote)" />
+                                        Usar
+                                    </label>
+
+                                    <button type="button" @onclick="() => EditQuotation(quote.Id)" disabled="@(!CanQuote)">Editar</button>
+                                    <button type="button" class="danger" @onclick="() => RemoveQuotationAsync(quote.Id)" disabled="@(!CanQuote)">Quitar</button>
+                                </div>
+                            </article>
+                        }
+                    </div>
+                }
+            </details>
+        }
+
+        @if (CanGenerateFinalRequest)
+        {
+            <details class="mpur-card" open>
+                <summary>
+                    <span>Generar compra</span>
+                    <em>@SelectedQuotes.Count() cotización(es)</em>
+                </summary>
+
+                <div class="mpur-summary-grid">
+                    <article>
+                        <span>Activos seleccionados</span>
+                        <strong>@SelectedLines.Count()</strong>
+                    </article>
+
+                    <article>
+                        <span>Cotizaciones seleccionadas</span>
+                        <strong>@SelectedQuotes.Count()</strong>
+                    </article>
+
+                    <article>
+                        <span>Total antes de IVA</span>
+                        <strong>@MoneyLabel(SelectedQuotes.Sum(x => x.PriceBeforeVat ?? 0))</strong>
+                    </article>
+                </div>
+
+                @if (!CanGenerateRequest)
+                {
+                    <div class="mpur-locked">
+                        Para generar debes tener una solicitud en cotización y mínimo una cotización seleccionada.
+                    </div>
+                }
+
+                <button type="button" class="mpur-generate" @onclick="GenerateAsync" disabled="@(!CanGenerateRequest || isSaving)">
+                    @(isSaving ? "Generando..." : "Generar solicitud de compra")
+                </button>
+            </details>
+        }
+
+        <details class="mpur-card" open>
+            <summary>
+                <span>Solicitudes realizadas</span>
+                <em>@(LocalVisibleRequests.Count() + FilteredRegistered.Count())</em>
+            </summary>
+
+            <section class="mpur-bottom-filter">
+                <label>
+                    <span>Estado</span>
+                    <select value="@selectedBottomStatus" @onchange="OnBottomStatusChanged">
+                        <option value="">Todos los estados</option>
+                        @foreach (var status in BottomStatusOptions)
+                        {
+                            <option value="@status.Value">@status.Text</option>
+                        }
+                    </select>
+                </label>
+
+                <button type="button" @onclick="ClearBottomStatus">
+                    Limpiar estado
+                </button>
+            </section>
+
+            @if (!LocalVisibleRequests.Any() && !FilteredRegistered.Any())
+            {
+                <div class="mobile-empty compact">No hay solicitudes realizadas para los filtros actuales.</div>
+            }
+            else
+            {
+                <div class="mpur-list">
+                    @foreach (var item in LocalVisibleRequests)
+                    {
+                        <article class="@GetStoredRowClass(item)">
+                            <div>
+                                <strong>@item.LocalNumber</strong>
+                                <span>@Display(item.Header.RequestName)</span>
+                                <small>@Display(item.Header.PurchasePurpose) · @Display(item.Header.Priority)</small>
+                                <small>@GetStoredStatusLabel(item.Status) · @DateTimeLabel(item.UpdatedAt)</small>
+                                <small>Activos: @item.Lines.Count · Cotizaciones: @item.Quotations.Count</small>
+                            </div>
+
+                            <div class="mpur-row-actions">
+                                @if (item.Status == LocalStatusDraft && CanCreateOrConfirmRequest)
+                                {
+                                    <button type="button" @onclick="() => LoadDraftForEdit(item.Id)">Editar</button>
+                                    <button type="button" class="primary" @onclick="() => ConfirmStoredRequestAsync(item.Id)">Confirmar</button>
+                                }
+                                else if (item.Status == LocalStatusConfirmed && CanRegisterQuotation)
+                                {
+                                    <button type="button" class="warning" @onclick="() => StartQuotationAsync(item.Id)">Realizar cotización</button>
+                                }
+                                else if (item.Status == LocalStatusQuoting && CanRegisterQuotation)
+                                {
+                                    <button type="button" class="warning" @onclick="() => ContinueQuotation(item.Id)">Continuar cotización</button>
+                                }
+
+                                <button type="button" class="danger" @onclick="() => DeleteLocalRequestAsync(item.Id)">Eliminar</button>
+                            </div>
+                        </article>
+                    }
+
+                    @if (CanViewGeneratedRequests)
+                    {
+                        @foreach (var item in FilteredRegistered.Take(80))
+                        {
+                            <article>
+                                <div>
+                                    <strong>@item.RequestNumber</strong>
+                                    <span>@item.Title</span>
+                                    <small>@Display(item.BranchCode) · @Display(item.Priority) · @StatusLabel(item.Status)</small>
+                                    <small>@Display(item.RequestedBy) · @DateTimeLabel(item.CreatedAt)</small>
+                                </div>
+
+                                <div class="mpur-row-actions">
+                                    @if (CanApproveRequest && item.Status == "InReview")
+                                    {
+                                        <button type="button" class="approve" @onclick="() => ApproveAsync(item)">Aprobar</button>
+                                    }
+
+                                    @if (CanRejectRequest && item.Status == "InReview")
+                                    {
+                                        <button type="button" class="danger" @onclick="() => RejectAsync(item)">Rechazar</button>
+                                    }
+
+                                    @if (CanApproveRequest && item.Status == "Approved")
+                                    {
+                                        <button type="button" class="primary" @onclick="() => ClosePurchaseAsync(item)">Cerrar</button>
+                                    }
+                                </div>
+                            </article>
+                        }
+                    }
+                </div>
+            }
+        </details>
+    }
+</section>
+
+@code {
+    private const string LocalStatusDraft = "Draft";
+    private const string LocalStatusConfirmed = "Confirmed";
+    private const string LocalStatusQuoting = "Quoting";
+
+    private readonly JsonSerializerOptions jsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        WriteIndented = false
+    };
+
+    private bool initialized;
+    private bool isLoading = true;
+    private bool isSaving;
+    private string? successMessage;
+    private string? errorMessage;
+
+    private string searchText = string.Empty;
+    private string selectedBranchCode = string.Empty;
+    private string selectedBottomStatus = string.Empty;
+
+    private readonly PurchaseHeader header = new();
+    private readonly PurchaseLineForm lineForm = new();
+    private readonly QuotationForm quoteForm = new();
+
+    private List<PurchaseLineItem> currentLines = new();
+    private List<QuotationItem> currentQuotes = new();
+    private List<StoredPurchaseRequest> storedRequests = new();
+    private List<ApiPurchaseItem> registeredItems = new();
+    private List<MobileBranchDto> branches = new();
+
+    private Guid? activeStoredRequestId;
+    private Guid? editingLineId;
+    private Guid? editingQuoteId;
+
+    private string currentStatus = "New";
+
+    private bool CanViewGeneratedRequests =>
+        HasAny("Purchases.View", "Purchases.Request", "Purchases.Quote", "Purchases.Generate", "Purchases.Approve", "Purchases.Reject");
+
+    private bool CanCreateOrConfirmRequest => Has("Purchases.Request");
+    private bool CanRegisterQuotation => Has("Purchases.Quote");
+    private bool CanGenerateFinalRequest => Has("Purchases.Generate");
+    private bool CanApproveRequest => Has("Purchases.Approve");
+    private bool CanRejectRequest => Has("Purchases.Reject");
+
+    private bool CanAccessModule =>
+        HasAny("Purchases.View", "Purchases.Request", "Purchases.Quote", "Purchases.Generate", "Purchases.Approve", "Purchases.Reject");
+
+    private bool CanEditRequest => CanCreateOrConfirmRequest && (currentStatus == "New" || currentStatus == LocalStatusDraft);
+    private bool CanSaveAsDraft => CanEditRequest && SelectedLines.Any();
+    private bool CanConfirmRequest => CanEditRequest && SelectedLines.Any();
+    private bool CanQuote => CanRegisterQuotation && currentStatus == LocalStatusQuoting && activeStoredRequestId.HasValue;
+    private bool CanGenerateRequest => CanGenerateFinalRequest && CanQuote && SelectedLines.Any() && SelectedQuotes.Any();
+
+    private IEnumerable<PurchaseLineItem> SelectedLines => currentLines.Where(x => x.Selected);
+    private IEnumerable<QuotationItem> SelectedQuotes => currentQuotes.Where(x => x.Selected);
+
+    private IEnumerable<MobileBranchDto> VisibleBranches =>
+        branches
+            .Where(IsVisibleBranch)
+            .OrderBy(x => x.Code);
+
+    private IEnumerable<StoredPurchaseRequest> LocalVisibleRequests =>
+        storedRequests
+            .Where(MatchesLocalScope)
+            .Where(MatchesLocalSearch)
+            .Where(MatchesBottomStatus)
+            .OrderByDescending(x => x.UpdatedAt);
+
+    private IEnumerable<ApiPurchaseItem> FilteredRegistered =>
+        registeredItems
+            .Where(MatchesApiScope)
+            .Where(MatchesApiSearch)
+            .Where(MatchesApiBottomStatus)
+            .OrderByDescending(x => x.CreatedAt);
+
+    private string ScopeLabel =>
+        UserCanSeeAllBranches()
+            ? "Todas las sedes"
+            : Display(Auth.CurrentUser?.BranchName ?? Auth.CurrentUser?.BranchCode);
+
+    private string PermissionMode
+    {
+        get
+        {
+            if (CanGenerateFinalRequest)
+            {
+                return "Genera";
+            }
+
+            if (CanRegisterQuotation)
+            {
+                return "Cotiza";
+            }
+
+            if (CanCreateOrConfirmRequest)
+            {
+                return "Solicita";
+            }
+
+            if (CanViewGeneratedRequests)
+            {
+                return "Consulta";
+            }
+
+            return "Sin permiso";
+        }
+    }
+
+    private string RequestVisualState => currentStatus switch
+    {
+        LocalStatusDraft => "Borrador",
+        LocalStatusConfirmed => "Confirmada",
+        LocalStatusQuoting => "Cotizando",
+        _ => "Nueva"
+    };
+
+    private string RequestConditionText
+    {
+        get
+        {
+            if (!SelectedLines.Any())
+            {
+                return "Agrega y selecciona mínimo un activo o herramienta.";
+            }
+
+            if (string.IsNullOrWhiteSpace(header.BranchIdText))
+            {
+                return "Selecciona la sede.";
+            }
+
+            return "Lista para guardar o confirmar.";
+        }
+    }
+
+    private string SelectedBranchLabel
+    {
+        get
+        {
+            var branch = BranchByIdText(header.BranchIdText);
+            return branch is null ? "Sin sede" : $"{branch.Code} - {branch.Name}";
+        }
+    }
+
+    private readonly (string Value, string Text)[] BottomStatusOptions =
+    {
+        ("Draft", "Borrador"),
+        ("Confirmed", "Confirmada / pendiente por cotizar"),
+        ("Quoting", "Cotizando"),
+        ("InReview", "En revisión"),
+        ("Approved", "Aprobada"),
+        ("Closed", "Cerrada"),
+        ("Rejected", "Rechazada"),
+        ("Canceled", "Cancelada")
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            isLoading = false;
+            return;
+        }
+
+        var refreshedUser = await Api.RefreshCurrentSessionAsync();
+
+        if (refreshedUser is null || !Auth.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", forceLoad: true);
+            return;
+        }
+
+        ResetHeaderDefaults();
+        await LoadStaticAsync();
+        await RefreshAsync();
+
+        initialized = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await LoadLocalStateAsync();
+        StateHasChanged();
+    }
+
+    private async Task LoadStaticAsync()
+    {
+        try
+        {
+            branches = await Api.GetBranchesAsync();
+        }
+        catch
+        {
+            branches = new();
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            if (CanViewGeneratedRequests)
+            {
+                var data = await Api.GetListJsonAsync<PurchaseRequestItem>("api/purchase-requests");
+
+                registeredItems = data.Select(x => new ApiPurchaseItem
+                {
+                    Id = x.Id,
+                    RequestNumber = x.RequestNumber,
+                    Title = x.ItemName,
+                    Priority = x.Priority,
+                    Status = x.Status,
+                    BranchId = x.BranchId,
+                    BranchCode = x.BranchCode,
+                    BranchName = x.BranchName,
+                    RequestedBy = x.RequestedByResponsiblePersonName ?? x.RequestedByUserName,
+                    CreatedAt = x.CreatedAt
+                }).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudieron cargar las solicitudes de compra: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ResetHeaderDefaults()
+    {
+        header.RequestedBy = Display(Auth.CurrentUser?.DisplayName ?? Auth.CurrentUser?.UserName);
+        header.Priority = "Media";
+        header.PurchasePurpose = "SPC";
+        header.RequiredAt = DateTime.Today.AddDays(7);
+
+        if (Auth.CurrentUser?.BranchId is Guid branchId)
+        {
+            header.BranchIdText = branchId.ToString();
+        }
+    }
+
+    private async Task LoadLocalStateAsync()
+    {
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", "navi-mobile-purchase-request-v1");
+            storedRequests = string.IsNullOrWhiteSpace(json)
+                ? new()
+                : JsonSerializer.Deserialize<List<StoredPurchaseRequest>>(json, jsonOptions) ?? new();
+        }
+        catch
+        {
+            storedRequests = new();
+        }
+    }
+
+    private async Task SaveLocalStateAsync()
+    {
+        var json = JsonSerializer.Serialize(storedRequests, jsonOptions);
+        await JS.InvokeVoidAsync("localStorage.setItem", "navi-mobile-purchase-request-v1", json);
+    }
+
+    private async Task OnImageSelected(InputFileChangeEventArgs args)
+    {
+        errorMessage = null;
+
+        var file = args.File;
+
+        if (file is null)
+        {
+            return;
+        }
+
+        if (!file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        {
+            errorMessage = "Solo se permiten imágenes como referencia visual.";
+            return;
+        }
+
+        const long maxFileSize = 2 * 1024 * 1024;
+
+        if (file.Size > maxFileSize)
+        {
+            errorMessage = "La imagen no puede superar 2 MB.";
+            return;
+        }
+
+        await using var stream = file.OpenReadStream(maxFileSize);
+        using var memory = new MemoryStream();
+        await stream.CopyToAsync(memory);
+
+        lineForm.ImageReference = file.Name;
+        lineForm.ImagePreview = $"data:{file.ContentType};base64,{Convert.ToBase64String(memory.ToArray())}";
+    }
+
+    private void AddLine()
+    {
+        successMessage = null;
+        errorMessage = null;
+
+        if (!CanEditRequest)
+        {
+            errorMessage = "Solo puedes modificar activos cuando la solicitud está nueva o en borrador.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(lineForm.ItemName))
+        {
+            errorMessage = "Debes indicar el nombre del activo o herramienta.";
+            return;
+        }
+
+        if (lineForm.Quantity <= 0)
+        {
+            errorMessage = "La cantidad debe ser mayor a cero.";
+            return;
+        }
+
+        if (editingLineId.HasValue)
+        {
+            var existing = currentLines.FirstOrDefault(x => x.Id == editingLineId.Value);
+
+            if (existing is not null)
+            {
+                existing.ItemName = lineForm.ItemName.Trim();
+                existing.ItemCode = lineForm.ItemCode?.Trim();
+                existing.ItemDescription = lineForm.ItemDescription?.Trim();
+                existing.Quantity = lineForm.Quantity;
+                existing.Unit = string.IsNullOrWhiteSpace(lineForm.Unit) ? "Und" : lineForm.Unit.Trim();
+                existing.Category = string.IsNullOrWhiteSpace(lineForm.Category) ? "Herramienta" : lineForm.Category;
+                existing.NeedDetail = lineForm.NeedDetail?.Trim();
+                existing.ImageReference = lineForm.ImageReference;
+                existing.ImagePreview = lineForm.ImagePreview;
+            }
+        }
+        else
+        {
+            currentLines.Add(new PurchaseLineItem
+            {
+                Id = Guid.NewGuid(),
+                ItemName = lineForm.ItemName.Trim(),
+                ItemCode = lineForm.ItemCode?.Trim(),
+                ItemDescription = lineForm.ItemDescription?.Trim(),
+                Quantity = lineForm.Quantity,
+                Unit = string.IsNullOrWhiteSpace(lineForm.Unit) ? "Und" : lineForm.Unit.Trim(),
+                Category = string.IsNullOrWhiteSpace(lineForm.Category) ? "Herramienta" : lineForm.Category,
+                NeedDetail = lineForm.NeedDetail?.Trim(),
+                ImageReference = lineForm.ImageReference,
+                ImagePreview = lineForm.ImagePreview,
+                Selected = true
+            });
+        }
+
+        ClearLine();
+    }
+
+    private void EditLine(Guid id)
+    {
+        var item = currentLines.FirstOrDefault(x => x.Id == id);
+
+        if (item is null)
+        {
+            return;
+        }
+
+        editingLineId = item.Id;
+        lineForm.ItemName = item.ItemName;
+        lineForm.ItemCode = item.ItemCode;
+        lineForm.ItemDescription = item.ItemDescription;
+        lineForm.Quantity = item.Quantity;
+        lineForm.Unit = item.Unit;
+        lineForm.Category = item.Category;
+        lineForm.NeedDetail = item.NeedDetail;
+        lineForm.ImageReference = item.ImageReference;
+        lineForm.ImagePreview = item.ImagePreview;
+    }
+
+    private void RemoveLine(Guid id)
+    {
+        currentLines.RemoveAll(x => x.Id == id);
+        currentQuotes.RemoveAll(x => x.LineId == id);
+
+        if (editingLineId == id)
+        {
+            ClearLine();
+        }
+    }
+
+    private void ClearLine()
+    {
+        editingLineId = null;
+        lineForm.ItemName = string.Empty;
+        lineForm.ItemCode = string.Empty;
+        lineForm.ItemDescription = string.Empty;
+        lineForm.Quantity = 1;
+        lineForm.Unit = "Und";
+        lineForm.Category = "Herramienta";
+        lineForm.NeedDetail = string.Empty;
+        lineForm.ImageReference = string.Empty;
+        lineForm.ImagePreview = string.Empty;
+    }
+
+    private async Task SaveDraftAsync()
+    {
+        if (!CanSaveAsDraft)
+        {
+            errorMessage = RequestConditionText;
+            return;
+        }
+
+        await SaveCurrentLocalAsync(LocalStatusDraft);
+
+        if (string.IsNullOrWhiteSpace(errorMessage))
+        {
+            successMessage = "Borrador guardado correctamente.";
+        }
+    }
+
+    private async Task ConfirmRequestAsync()
+    {
+        if (!CanConfirmRequest)
+        {
+            errorMessage = RequestConditionText;
+            return;
+        }
+
+        await SaveCurrentLocalAsync(LocalStatusConfirmed);
+
+        if (string.IsNullOrWhiteSpace(errorMessage))
+        {
+            successMessage = "Solicitud confirmada. Ahora puede pasar a cotización.";
+            ClearWorkspace(keepBranchAndRequester: true);
+        }
+    }
+
+    private async Task SaveCurrentLocalAsync(string status)
+    {
+        errorMessage = null;
+
+        if (string.IsNullOrWhiteSpace(header.BranchIdText))
+        {
+            errorMessage = "Debes seleccionar la sede.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(header.RequestName))
+        {
+            header.RequestName = "Solicitud de compra móvil";
+        }
+
+        var now = DateTime.UtcNow;
+        var id = activeStoredRequestId ?? Guid.NewGuid();
+
+        var existing = storedRequests.FirstOrDefault(x => x.Id == id);
+
+        if (existing is null)
+        {
+            existing = new StoredPurchaseRequest
+            {
+                Id = id,
+                LocalNumber = BuildLocalNumber(status, now),
+                CreatedAt = now
+            };
+
+            storedRequests.Add(existing);
+        }
+
+        existing.Header = header.Clone();
+        existing.Lines = currentLines.Select(x => x.Clone()).ToList();
+        existing.Quotations = currentQuotes.Select(x => x.Clone()).ToList();
+        existing.Status = status;
+        existing.UpdatedAt = now;
+
+        activeStoredRequestId = existing.Id;
+        currentStatus = status;
+
+        await SaveLocalStateAsync();
+    }
+
+    private void LoadDraftForEdit(Guid id)
+    {
+        var item = storedRequests.FirstOrDefault(x => x.Id == id && x.Status == LocalStatusDraft);
+
+        if (item is null)
+        {
+            return;
+        }
+
+        LoadStoredRequestToWorkspace(item);
+        currentStatus = LocalStatusDraft;
+        successMessage = "Borrador cargado para edición.";
+    }
+
+    private async Task ConfirmStoredRequestAsync(Guid id)
+    {
+        var item = storedRequests.FirstOrDefault(x => x.Id == id && x.Status == LocalStatusDraft);
+
+        if (item is null)
+        {
+            return;
+        }
+
+        item.Status = LocalStatusConfirmed;
+        item.UpdatedAt = DateTime.UtcNow;
+        await SaveLocalStateAsync();
+
+        if (activeStoredRequestId == id)
+        {
+            ClearWorkspace(keepBranchAndRequester: true);
+        }
+
+        successMessage = "Solicitud confirmada. Ahora puede realizar cotización.";
+    }
+
+    private async Task StartQuotationAsync(Guid id)
+    {
+        if (!CanRegisterQuotation)
+        {
+            errorMessage = "No tienes permiso para registrar cotización.";
+            return;
+        }
+
+        var item = storedRequests.FirstOrDefault(x => x.Id == id && x.Status == LocalStatusConfirmed);
+
+        if (item is null)
+        {
+            errorMessage = "Solo una solicitud confirmada puede pasar a cotización.";
+            return;
+        }
+
+        item.Status = LocalStatusQuoting;
+        item.UpdatedAt = DateTime.UtcNow;
+
+        await SaveLocalStateAsync();
+
+        LoadStoredRequestToWorkspace(item);
+        currentStatus = LocalStatusQuoting;
+        successMessage = "Cotización habilitada. Agrega cotizaciones y luego genera la compra.";
+    }
+
+    private void ContinueQuotation(Guid id)
+    {
+        if (!CanRegisterQuotation)
+        {
+            errorMessage = "No tienes permiso para continuar cotización.";
+            return;
+        }
+
+        var item = storedRequests.FirstOrDefault(x => x.Id == id && x.Status == LocalStatusQuoting);
+
+        if (item is null)
+        {
+            return;
+        }
+
+        LoadStoredRequestToWorkspace(item);
+        currentStatus = LocalStatusQuoting;
+        successMessage = "Cotización cargada para continuar.";
+    }
+
+    private void LoadStoredRequestToWorkspace(StoredPurchaseRequest item)
+    {
+        activeStoredRequestId = item.Id;
+        header.CopyFrom(item.Header);
+        currentLines = item.Lines.Select(x => x.Clone()).ToList();
+        currentQuotes = item.Quotations.Select(x => x.Clone()).ToList();
+        currentStatus = item.Status;
+        ClearLine();
+        ClearQuotation();
+    }
+
+    private async Task AddQuotationAsync()
+    {
+        errorMessage = null;
+
+        if (!CanQuote)
+        {
+            errorMessage = "Primero selecciona una solicitud confirmada y presiona Realizar cotización.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(quoteForm.Provider))
+        {
+            errorMessage = "Debes indicar el proveedor.";
+            return;
+        }
+
+        if (quoteForm.PriceBeforeVat is null || quoteForm.PriceBeforeVat <= 0)
+        {
+            errorMessage = "Debes indicar el precio antes de IVA.";
+            return;
+        }
+
+        Guid? lineId = null;
+
+        if (Guid.TryParse(quoteForm.LineIdText, out var parsed))
+        {
+            lineId = parsed;
+        }
+
+        if (editingQuoteId.HasValue)
+        {
+            var existing = currentQuotes.FirstOrDefault(x => x.Id == editingQuoteId.Value);
+
+            if (existing is not null)
+            {
+                existing.Provider = quoteForm.Provider.Trim();
+                existing.LineId = lineId;
+                existing.QuotationDate = quoteForm.QuotationDate;
+                existing.DeliveryTime = quoteForm.DeliveryTime?.Trim();
+                existing.PriceBeforeVat = quoteForm.PriceBeforeVat;
+                existing.AdditionalDetails = quoteForm.AdditionalDetails?.Trim();
+            }
+        }
+        else
+        {
+            currentQuotes.Add(new QuotationItem
+            {
+                Id = Guid.NewGuid(),
+                Provider = quoteForm.Provider.Trim(),
+                LineId = lineId,
+                QuotationDate = quoteForm.QuotationDate,
+                DeliveryTime = quoteForm.DeliveryTime?.Trim(),
+                PriceBeforeVat = quoteForm.PriceBeforeVat,
+                AdditionalDetails = quoteForm.AdditionalDetails?.Trim(),
+                Selected = true
+            });
+        }
+
+        ClearQuotation();
+        await PersistActiveQuotationStateAsync();
+    }
+
+    private void EditQuotation(Guid id)
+    {
+        if (!CanQuote)
+        {
+            return;
+        }
+
+        var quote = currentQuotes.FirstOrDefault(x => x.Id == id);
+
+        if (quote is null)
+        {
+            return;
+        }
+
+        editingQuoteId = quote.Id;
+        quoteForm.Provider = quote.Provider;
+        quoteForm.LineIdText = quote.LineId?.ToString() ?? string.Empty;
+        quoteForm.QuotationDate = quote.QuotationDate;
+        quoteForm.DeliveryTime = quote.DeliveryTime;
+        quoteForm.PriceBeforeVat = quote.PriceBeforeVat;
+        quoteForm.AdditionalDetails = quote.AdditionalDetails;
+    }
+
+    private async Task RemoveQuotationAsync(Guid id)
+    {
+        if (!CanQuote)
+        {
+            return;
+        }
+
+        currentQuotes.RemoveAll(x => x.Id == id);
+
+        if (editingQuoteId == id)
+        {
+            ClearQuotation();
+        }
+
+        await PersistActiveQuotationStateAsync();
+    }
+
+    private async Task PersistActiveQuotationStateAsync()
+    {
+        if (!activeStoredRequestId.HasValue)
+        {
+            return;
+        }
+
+        var item = storedRequests.FirstOrDefault(x => x.Id == activeStoredRequestId.Value);
+
+        if (item is null)
+        {
+            return;
+        }
+
+        item.Status = LocalStatusQuoting;
+        item.Header = header.Clone();
+        item.Lines = currentLines.Select(x => x.Clone()).ToList();
+        item.Quotations = currentQuotes.Select(x => x.Clone()).ToList();
+        item.UpdatedAt = DateTime.UtcNow;
+
+        currentStatus = LocalStatusQuoting;
+
+        await SaveLocalStateAsync();
+    }
+
+    private void ClearQuotation()
+    {
+        editingQuoteId = null;
+        quoteForm.Provider = string.Empty;
+        quoteForm.LineIdText = string.Empty;
+        quoteForm.QuotationDate = DateTime.Today;
+        quoteForm.DeliveryTime = string.Empty;
+        quoteForm.PriceBeforeVat = null;
+        quoteForm.AdditionalDetails = string.Empty;
+    }
+
+    private async Task GenerateAsync()
+    {
+        if (!CanGenerateRequest)
+        {
+            errorMessage = "Para generar debes tener permiso, la solicitud en cotización y mínimo una cotización seleccionada.";
+            return;
+        }
+
+        if (!Guid.TryParse(header.BranchIdText, out var branchId))
+        {
+            errorMessage = "Debes seleccionar una sede válida.";
+            return;
+        }
+
+        var selectedLines = SelectedLines.ToList();
+        var selectedQuotes = SelectedQuotes.ToList();
+        var firstLine = selectedLines.First();
+        var firstQuote = selectedQuotes.FirstOrDefault();
+        var summary = BuildSummary(selectedLines, selectedQuotes);
+        var total = selectedQuotes.Sum(x => x.PriceBeforeVat ?? 0);
+
+        try
+        {
+            isSaving = true;
+            errorMessage = null;
+            successMessage = null;
+
+            await Api.SendJsonAsync(HttpMethod.Post, "api/purchase-requests", new
+            {
+                itemName = firstLine.ItemName,
+                itemCode = firstLine.ItemCode,
+                itemDescription = summary,
+                quantity = firstLine.Quantity <= 0 ? 1 : firstLine.Quantity,
+                unit = string.IsNullOrWhiteSpace(firstLine.Unit) ? "Und" : firstLine.Unit,
+                purchasePurpose = header.PurchasePurpose,
+                justification = header.Justification,
+                priority = header.Priority,
+                branchId,
+                requiredAt = header.RequiredAt,
+                vendorSuggestion = firstQuote?.Provider,
+                estimatedCostText = total > 0 ? total.ToString("N0") : null,
+                requestChannel = "Mobile",
+                notes = summary,
+                sendToReview = true
+            });
+
+            if (activeStoredRequestId.HasValue)
+            {
+                storedRequests.RemoveAll(x => x.Id == activeStoredRequestId.Value);
+                await SaveLocalStateAsync();
+            }
+
+            successMessage = "Solicitud de compra generada y enviada a revisión.";
+            ClearWorkspace(keepBranchAndRequester: true);
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task DeleteLocalRequestAsync(Guid id)
+    {
+        storedRequests.RemoveAll(x => x.Id == id);
+
+        if (activeStoredRequestId == id)
+        {
+            ClearWorkspace(keepBranchAndRequester: true);
+        }
+
+        await SaveLocalStateAsync();
+        successMessage = "Solicitud local eliminada.";
+    }
+
+    private async Task ApproveAsync(ApiPurchaseItem item)
+    {
+        await ExecuteActionAsync($"api/purchase-requests/{item.Id}/approve", "Solicitud aprobada correctamente.");
+    }
+
+    private async Task RejectAsync(ApiPurchaseItem item)
+    {
+        await ExecuteActionAsync($"api/purchase-requests/{item.Id}/reject", "Solicitud rechazada correctamente.");
+    }
+
+    private async Task ClosePurchaseAsync(ApiPurchaseItem item)
+    {
+        await ExecuteActionAsync($"api/purchase-requests/{item.Id}/close", "Solicitud de compra cerrada correctamente.");
+    }
+
+    private async Task ExecuteActionAsync(string endpoint, string okMessage, object? body = null)
+    {
+        try
+        {
+            errorMessage = null;
+            successMessage = null;
+
+            await Api.SendJsonAsync(HttpMethod.Post, endpoint, body ?? new { comment = "Acción ejecutada desde app móvil." });
+
+            successMessage = okMessage;
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private void NewRequest()
+    {
+        ClearWorkspace(keepBranchAndRequester: true);
+        successMessage = "Formulario listo para una nueva solicitud.";
+    }
+
+    private void ClearWorkspace(bool keepBranchAndRequester)
+    {
+        var currentRequester = header.RequestedBy;
+        var currentBranch = header.BranchIdText;
+
+        activeStoredRequestId = null;
+        editingLineId = null;
+        editingQuoteId = null;
+        currentStatus = "New";
+        currentLines = new();
+        currentQuotes = new();
+        ClearLine();
+        ClearQuotation();
+
+        header.Clear();
+        ResetHeaderDefaults();
+
+        if (keepBranchAndRequester)
+        {
+            if (!string.IsNullOrWhiteSpace(currentRequester))
+            {
+                header.RequestedBy = currentRequester;
+            }
+
+            if (!string.IsNullOrWhiteSpace(currentBranch))
+            {
+                header.BranchIdText = currentBranch;
+            }
+        }
+    }
+
+    private void OnSearchChanged(ChangeEventArgs args) => searchText = args.Value?.ToString() ?? string.Empty;
+    private void OnBranchFilterChanged(ChangeEventArgs args) => selectedBranchCode = args.Value?.ToString() ?? string.Empty;
+    private void OnBottomStatusChanged(ChangeEventArgs args) => selectedBottomStatus = args.Value?.ToString() ?? string.Empty;
+
+    private void ClearTopFilters()
+    {
+        searchText = string.Empty;
+        selectedBranchCode = string.Empty;
+    }
+
+    private void ClearBottomStatus()
+    {
+        selectedBottomStatus = string.Empty;
+    }
+
+    private bool MatchesLocalScope(StoredPurchaseRequest item)
+    {
+        var branch = BranchByIdText(item.Header.BranchIdText);
+
+        if (!string.IsNullOrWhiteSpace(selectedBranchCode))
+        {
+            return branch is not null && SameNormalized(branch.Code, selectedBranchCode);
+        }
+
+        if (branch is null)
+        {
+            return UserCanSeeAllBranches();
+        }
+
+        return UserCanSeeAllBranches() ||
+               SameNormalized(branch.Code, Auth.CurrentUser?.BranchCode) ||
+               SameNormalized(branch.Name, Auth.CurrentUser?.BranchName);
+    }
+
+    private bool MatchesApiScope(ApiPurchaseItem item)
+    {
+        if (!string.IsNullOrWhiteSpace(selectedBranchCode))
+        {
+            return SameNormalized(item.BranchCode, selectedBranchCode);
+        }
+
+        return UserCanSeeAllBranches() ||
+               SameNormalized(item.BranchCode, Auth.CurrentUser?.BranchCode) ||
+               SameNormalized(item.BranchName, Auth.CurrentUser?.BranchName);
+    }
+
+    private bool MatchesLocalSearch(StoredPurchaseRequest item)
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            return true;
+        }
+
+        return ContainsText(item.LocalNumber, searchText) ||
+               ContainsText(item.Status, searchText) ||
+               ContainsText(GetStoredStatusLabel(item.Status), searchText) ||
+               ContainsText(item.Header.RequestName, searchText) ||
+               ContainsText(item.Header.PurchasePurpose, searchText) ||
+               item.Lines.Any(x => ContainsText(x.ItemName, searchText) || ContainsText(x.ItemCode, searchText) || ContainsText(x.NeedDetail, searchText));
+    }
+
+    private bool MatchesApiSearch(ApiPurchaseItem item)
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            return true;
+        }
+
+        return ContainsText(item.RequestNumber, searchText) ||
+               ContainsText(item.Title, searchText) ||
+               ContainsText(item.Status, searchText) ||
+               ContainsText(StatusLabel(item.Status), searchText) ||
+               ContainsText(item.RequestedBy, searchText) ||
+               ContainsText(item.BranchCode, searchText);
+    }
+
+    private bool MatchesBottomStatus(StoredPurchaseRequest item)
+    {
+        return string.IsNullOrWhiteSpace(selectedBottomStatus) ||
+               string.Equals(item.Status, selectedBottomStatus, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool MatchesApiBottomStatus(ApiPurchaseItem item)
+    {
+        return string.IsNullOrWhiteSpace(selectedBottomStatus) ||
+               string.Equals(item.Status, selectedBottomStatus, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private MobileBranchDto? BranchByIdText(string? value)
+    {
+        if (!Guid.TryParse(value, out var branchId))
+        {
+            return null;
+        }
+
+        return branches.FirstOrDefault(x => x.Id == branchId);
+    }
+
+    private bool IsVisibleBranch(MobileBranchDto branch)
+    {
+        if (UserCanSeeAllBranches())
+        {
+            return true;
+        }
+
+        return SameNormalized(branch.Code, Auth.CurrentUser?.BranchCode) ||
+               SameNormalized(branch.Name, Auth.CurrentUser?.BranchName);
+    }
+
+    private bool UserCanSeeAllBranches()
+    {
+        var user = Auth.CurrentUser;
+
+        if (user is null)
+        {
+            return false;
+        }
+
+        return string.IsNullOrWhiteSpace(user.BranchCode) ||
+               SameNormalized(user.BranchCode, "TODAS") ||
+               SameNormalized(user.BranchCode, "ALL") ||
+               SameNormalized(user.BranchName, "TODAS") ||
+               SameNormalized(user.BranchName, "ALL") ||
+               SameNormalized(user.BranchName, "Todas las sedes");
+    }
+
+    private bool Has(string permission) => Auth.HasPermission(permission);
+    private bool HasAny(params string[] permissions) => permissions.Any(Has);
+
+    private bool IsOpenStatus(string? status)
+    {
+        return status is "Draft" or "Confirmed" or "Quoting" or "InReview" or "Approved";
+    }
+
+    private string BuildSummary(List<PurchaseLineItem> lines, List<QuotationItem> quotes)
+    {
+        var sb = new System.Text.StringBuilder();
+
+        sb.AppendLine("ENCABEZADO");
+        sb.AppendLine($"Solicitud: {Display(header.RequestName)}");
+        sb.AppendLine($"Tipo compra: {Display(header.PurchasePurpose)}");
+        sb.AppendLine($"Sede: {SelectedBranchLabel}");
+        sb.AppendLine($"Solicitante: {Display(header.RequestedBy)}");
+        sb.AppendLine($"Responsable aprueba: {Display(header.Approver)}");
+        sb.AppendLine($"Prioridad: {Display(header.Priority)}");
+        sb.AppendLine($"Fecha requerida: {DateLabel(header.RequiredAt)}");
+        sb.AppendLine($"Área/Centro costo: {Display(header.AreaOrCostCenter)}");
+        sb.AppendLine($"Justificación: {Display(header.Justification)}");
+        sb.AppendLine();
+
+        sb.AppendLine("ACTIVOS / HERRAMIENTAS");
+        foreach (var line in lines)
+        {
+            sb.AppendLine($"- {line.ItemName} | Código/ref: {Display(line.ItemCode)} | Cantidad: {line.Quantity} {Display(line.Unit)} | Categoría: {Display(line.Category)}");
+            sb.AppendLine($"  Imagen/referencia: {Display(line.ImageReference)}");
+            sb.AppendLine($"  Descripción técnica: {Display(line.ItemDescription)}");
+            sb.AppendLine($"  Necesidad: {Display(line.NeedDetail)}");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("COTIZACIONES");
+        foreach (var quote in quotes)
+        {
+            sb.AppendLine($"- Proveedor: {quote.Provider} | Activo: {GetLineName(quote.LineId)} | Fecha: {DateLabel(quote.QuotationDate)} | Entrega: {Display(quote.DeliveryTime)} | Precio sin IVA: {MoneyLabel(quote.PriceBeforeVat)}");
+            sb.AppendLine($"  Detalles: {Display(quote.AdditionalDetails)}");
+        }
+
+        return sb.ToString();
+    }
+
+    private string GetLineName(Guid? id)
+    {
+        if (!id.HasValue)
+        {
+            return "Toda la solicitud / kit";
+        }
+
+        return currentLines.FirstOrDefault(x => x.Id == id.Value)?.ItemName ?? "Activo no encontrado";
+    }
+
+    private string BuildLocalNumber(string status, DateTime date)
+    {
+        var suffix = status == LocalStatusConfirmed ? "CONF" : "DRAFT";
+        return $"BOR-COMP-{suffix}-{date:yyyyMMddHHmmss}";
+    }
+
+    private string GetStoredStatusLabel(string status)
+    {
+        return status switch
+        {
+            LocalStatusDraft => "Borrador",
+            LocalStatusConfirmed => "Confirmada / pendiente por cotizar",
+            LocalStatusQuoting => "Cotizando",
+            _ => StatusLabel(status)
+        };
+    }
+
+    private string GetStoredRowClass(StoredPurchaseRequest item)
+    {
+        return item.Status switch
+        {
+            LocalStatusDraft => "draft-row",
+            LocalStatusConfirmed => "confirmed-row",
+            LocalStatusQuoting => "quoting-row",
+            _ => string.Empty
+        };
+    }
+
+    private void GoHome() => Navigation.NavigateTo("/");
+    private void GoLogin() => Navigation.NavigateTo("/login", forceLoad: true);
+
+    private static bool ContainsText(string? value, string expected)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+               Normalize(value).Contains(Normalize(expected), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool SameNormalized(string? left, string? right)
+    {
+        var a = Normalize(left);
+        var b = Normalize(right);
+
+        return !string.IsNullOrWhiteSpace(a) &&
+               !string.IsNullOrWhiteSpace(b) &&
+               string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Normalize(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return value.Trim()
+            .ToUpperInvariant()
+            .Replace("Á", "A")
+            .Replace("É", "E")
+            .Replace("Í", "I")
+            .Replace("Ó", "O")
+            .Replace("Ú", "U")
+            .Replace("Ü", "U")
+            .Replace("Ñ", "N");
+    }
+
+    private static string Display(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+    private static string DateLabel(DateTime? value) => value.HasValue ? value.Value.ToString("dd/MM/yyyy") : "—";
+    private static string DateTimeLabel(DateTime? value) => value.HasValue ? value.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm") : "—";
+    private static string MoneyLabel(decimal? value) => value.HasValue ? $"${value.Value:N0}" : "—";
+
+    private static string StatusLabel(string? status) => status switch
+    {
+        "Draft" => "Borrador",
+        "Confirmed" => "Confirmada",
+        "Quoting" => "Cotizando",
+        "InReview" => "En revisión",
+        "Approved" => "Aprobada",
+        "Closed" => "Cerrada",
+        "Rejected" => "Rechazada",
+        "Canceled" => "Cancelada",
+        "Cancelled" => "Cancelada",
+        _ => Display(status)
+    };
+
+    private sealed class PurchaseHeader
+    {
+        public string RequestName { get; set; } = string.Empty;
+        public string BranchIdText { get; set; } = string.Empty;
+        public string RequestedBy { get; set; } = string.Empty;
+        public string Approver { get; set; } = string.Empty;
+        public string PurchasePurpose { get; set; } = "SPC";
+        public string Priority { get; set; } = "Media";
+        public DateTime? RequiredAt { get; set; } = DateTime.Today.AddDays(7);
+        public string AreaOrCostCenter { get; set; } = string.Empty;
+        public string Justification { get; set; } = string.Empty;
+
+        public PurchaseHeader Clone()
+        {
+            return new PurchaseHeader
+            {
+                RequestName = RequestName,
+                BranchIdText = BranchIdText,
+                RequestedBy = RequestedBy,
+                Approver = Approver,
+                PurchasePurpose = PurchasePurpose,
+                Priority = Priority,
+                RequiredAt = RequiredAt,
+                AreaOrCostCenter = AreaOrCostCenter,
+                Justification = Justification
+            };
+        }
+
+        public void CopyFrom(PurchaseHeader other)
+        {
+            RequestName = other.RequestName;
+            BranchIdText = other.BranchIdText;
+            RequestedBy = other.RequestedBy;
+            Approver = other.Approver;
+            PurchasePurpose = other.PurchasePurpose;
+            Priority = other.Priority;
+            RequiredAt = other.RequiredAt;
+            AreaOrCostCenter = other.AreaOrCostCenter;
+            Justification = other.Justification;
+        }
+
+        public void Clear()
+        {
+            RequestName = string.Empty;
+            BranchIdText = string.Empty;
+            RequestedBy = string.Empty;
+            Approver = string.Empty;
+            PurchasePurpose = "SPC";
+            Priority = "Media";
+            RequiredAt = DateTime.Today.AddDays(7);
+            AreaOrCostCenter = string.Empty;
+            Justification = string.Empty;
+        }
+    }
+
+    private sealed class PurchaseLineForm
+    {
+        public string ItemName { get; set; } = string.Empty;
+        public string? ItemCode { get; set; }
+        public string? ItemDescription { get; set; }
+        public int Quantity { get; set; } = 1;
+        public string Unit { get; set; } = "Und";
+        public string Category { get; set; } = "Herramienta";
+        public string? NeedDetail { get; set; }
+        public string? ImageReference { get; set; }
+        public string? ImagePreview { get; set; }
+    }
+
+    private sealed class PurchaseLineItem
+    {
+        public Guid Id { get; set; }
+        public string ItemName { get; set; } = string.Empty;
+        public string? ItemCode { get; set; }
+        public string? ItemDescription { get; set; }
+        public int Quantity { get; set; } = 1;
+        public string Unit { get; set; } = "Und";
+        public string Category { get; set; } = "Herramienta";
+        public string? NeedDetail { get; set; }
+        public string? ImageReference { get; set; }
+        public string? ImagePreview { get; set; }
+        public bool Selected { get; set; } = true;
+
+        public PurchaseLineItem Clone()
+        {
+            return new PurchaseLineItem
+            {
+                Id = Id,
+                ItemName = ItemName,
+                ItemCode = ItemCode,
+                ItemDescription = ItemDescription,
+                Quantity = Quantity,
+                Unit = Unit,
+                Category = Category,
+                NeedDetail = NeedDetail,
+                ImageReference = ImageReference,
+                ImagePreview = ImagePreview,
+                Selected = Selected
+            };
+        }
+    }
+
+    private sealed class QuotationForm
+    {
+        public string Provider { get; set; } = string.Empty;
+        public string LineIdText { get; set; } = string.Empty;
+        public DateTime? QuotationDate { get; set; } = DateTime.Today;
+        public string? DeliveryTime { get; set; }
+        public decimal? PriceBeforeVat { get; set; }
+        public string? AdditionalDetails { get; set; }
+    }
+
+    private sealed class QuotationItem
+    {
+        public Guid Id { get; set; }
+        public string Provider { get; set; } = string.Empty;
+        public Guid? LineId { get; set; }
+        public DateTime? QuotationDate { get; set; } = DateTime.Today;
+        public string? DeliveryTime { get; set; }
+        public decimal? PriceBeforeVat { get; set; }
+        public string? AdditionalDetails { get; set; }
+        public bool Selected { get; set; } = true;
+
+        public QuotationItem Clone()
+        {
+            return new QuotationItem
+            {
+                Id = Id,
+                Provider = Provider,
+                LineId = LineId,
+                QuotationDate = QuotationDate,
+                DeliveryTime = DeliveryTime,
+                PriceBeforeVat = PriceBeforeVat,
+                AdditionalDetails = AdditionalDetails,
+                Selected = Selected
+            };
+        }
+    }
+
+    private sealed class StoredPurchaseRequest
+    {
+        public Guid Id { get; set; }
+        public string LocalNumber { get; set; } = string.Empty;
+        public PurchaseHeader Header { get; set; } = new();
+        public List<PurchaseLineItem> Lines { get; set; } = new();
+        public List<QuotationItem> Quotations { get; set; } = new();
+        public string Status { get; set; } = LocalStatusDraft;
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
+    }
+
+    private sealed class ApiPurchaseItem
+    {
+        public Guid Id { get; set; }
+        public string RequestNumber { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public string Priority { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public Guid? BranchId { get; set; }
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string? RequestedBy { get; set; }
+        public DateTime? CreatedAt { get; set; }
+    }
+
+    private sealed class PurchaseRequestItem
+    {
+        public Guid Id { get; set; }
+        public string RequestNumber { get; set; } = string.Empty;
+        public string ItemName { get; set; } = string.Empty;
+        public string Priority { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public Guid? BranchId { get; set; }
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string? RequestedByUserName { get; set; }
+        public string? RequestedByResponsiblePersonName { get; set; }
+        public DateTime? CreatedAt { get; set; }
+    }
+}

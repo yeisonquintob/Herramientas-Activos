@@ -5,60 +5,142 @@
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager NavigationManager
 @inject NaviAccessScopeService AccessScope
+@inject WebAuthSessionService AuthSession
 
 <PageTitle>Historial de asignaciones - NAVI</PageTitle>
 
 <PermissionGuard Permission="AssetAssignment.History" ModuleName="Historial de asignaciones">
 
-<section class="history-hero">
+<section class="history-hero history-hero-v2">
     <div>
         <span class="history-pill">HISTORIAL</span>
         <h2>Historial de asignaciones</h2>
-        <p>Consulta herramientas asignadas por usuario, fecha de entrega, fecha de regreso y detalle del movimiento.</p>
+        <p>Consulta herramientas asignadas por usuario, sede, estado, fecha de entrega, fecha de regreso y detalle del movimiento.</p>
     </div>
 
-    <div class="history-hero-side"><button class="btn btn-sm btn-outline-light" @onclick="LoadHistoryAsync">
+    <div class="history-hero-side history-hero-side-v2">
+        <button class="btn btn-sm btn-outline-light" @onclick="LoadHistoryAsync">
             Actualizar
         </button>
+
+        <button type="button" class="btn-history-back" @onclick="GoBackToAssignment">
+            ← Regresar
+        </button>
     </div>
 </section>
 
-<section class="history-filter-panel">
-    <div>
-        <label class="form-label">Usuario / Responsable</label>
-        <select class="form-select form-select-sm" @bind="selectedResponsibleId">
-            <option value="">Todos los usuarios</option>
-            @foreach (var responsible in responsibles.OrderBy(x => x.FullName))
+<section class="history-kpis-v2">
+    <article>
+        <span>Mostrando</span>
+        <strong>@FilteredHistory.Count()</strong>
+        <small>Con filtros</small>
+    </article>
+
+    <article>
+        <span>Total visible</span>
+        <strong>@VisibleHistory.Count()</strong>
+        <small>@ScopeLabel</small>
+    </article>
+
+    <article>
+        <span>Sedes</span>
+        <strong>@VisibleBranchCount</strong>
+        <small>Alcance</small>
+    </article>
+
+    <article>
+        <span>Usuario</span>
+        <strong>@SelectedResponsibleLabel</strong>
+        <small>Filtro actual</small>
+    </article>
+</section>
+
+<section class="history-filter-panel history-filter-panel-v2">
+    <div class="history-filter-grid-v2">
+        <div>
+            <label class="form-label">Usuario / Responsable</label>
+            <select class="form-select form-select-sm" @bind="selectedResponsibleId">
+                <option value="">Todos los usuarios</option>
+                @foreach (var responsible in VisibleResponsibles)
+                {
+                    <option value="@responsible.Id">@responsible.FullName</option>
+                }
+            </select>
+        </div>
+
+        <div>
+            <label class="form-label">Buscar</label>
+            <input class="form-control form-control-sm"
+                   placeholder="Código, herramienta, serial, detalle, usuario..."
+                   @bind="search"
+                   @bind:event="oninput" />
+        </div>
+
+        <div>
+            <label class="form-label">Sede</label>
+            @if (AccessScope.IsAllBranchScope() || AccessScope.IsAdminRole())
             {
-                <option value="@responsible.Id">@responsible.FullName</option>
+                <select class="form-select form-select-sm" @bind="selectedBranchCode">
+                    <option value="">Todas las sedes</option>
+                    @foreach (var branch in BranchOptions)
+                    {
+                        <option value="@branch">@branch</option>
+                    }
+                </select>
             }
-        </select>
+            else
+            {
+                <input class="form-control form-control-sm" value="@ScopeLabel" disabled />
+            }
+        </div>
+
+        <div class="history-filter-actions">
+            <button class="btn btn-primary btn-sm" @onclick="LoadHistoryAsync">
+                Filtrar
+            </button>
+
+            <button class="btn btn-outline-secondary btn-sm" @onclick="ClearFilters">
+                Limpiar
+            </button>
+        </div>
     </div>
 
-    <div>
-        <label class="form-label">Buscar</label>
-        <input class="form-control form-control-sm"
-               placeholder="Código, herramienta, serial, detalle o usuario..."
-               @bind="search"
-               @bind:event="oninput" />
-    </div>
+    <div class="history-status-filter-v2">
+        <div class="history-status-head-v2">
+            <div>
+                <strong>Estado</strong>
+                <span>@SelectedStatusLabel</span>
+            </div>
 
-    <div class="history-filter-actions">
-        <button class="btn btn-primary btn-sm" @onclick="LoadHistoryAsync">
-            Filtrar
-        </button>
+            <button type="button" @onclick="ClearStatusFilter">
+                Limpiar estados
+            </button>
+        </div>
 
-        <button class="btn btn-outline-secondary btn-sm" @onclick="ClearFilters">
-            Limpiar
-        </button>
+        <div class="history-status-chips-v2">
+            @foreach (var status in StatusOptions)
+            {
+                var selected = selectedStatuses.Contains(status.Value);
+
+                <button type="button"
+                        class="@(selected ? "selected" : "")"
+                        @onclick="() => ToggleStatus(status.Value)">
+                    @status.Text
+                </button>
+            }
+        </div>
     </div>
 </section>
 
-<section class="history-card">
-    <div class="history-table-header">
+<section class="history-card history-card-v2">
+    <div class="history-table-header history-table-header-v2">
         <div>
             <h3>Resultado del historial</h3>
-            <p>Se muestran las asignaciones y regresos encontrados según los filtros aplicados.</p>
+            <p>Se muestran las asignaciones y regresos encontrados según usuario, sede, estado y texto de búsqueda.</p>
+        </div>
+
+        <div class="history-summary-pill-v2">
+            @FilteredHistory.Count() de @VisibleHistory.Count()
         </div>
     </div>
 
@@ -68,7 +150,7 @@
     }
     else if (!FilteredHistory.Any())
     {
-        <div class="alert alert-info">No hay movimientos para mostrar.</div>
+        <div class="alert alert-info">No hay movimientos para mostrar con los filtros actuales.</div>
     }
     else
     {
@@ -132,7 +214,7 @@
 </PermissionGuard>
 
 <style>
-    .history-hero {
+    .history-hero-v2 {
         background: linear-gradient(135deg, #050008 0%, #280032 45%, #5c006b 100%);
         color: #ffffff;
         border-radius: .85rem;
@@ -142,26 +224,6 @@
         justify-content: space-between;
         gap: 1rem;
         box-shadow: 0 .65rem 1.35rem rgba(75,0,92,.22);
-    }
-
-    .btn-history-back {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        height: 30px;
-        border-radius: 999px;
-        padding: 0 .75rem;
-        border: 1px solid rgba(255,255,255,.42);
-        background: rgba(255,255,255,.10);
-        color: #ffffff;
-        font-size: .76rem;
-        font-weight: 850;
-        margin-bottom: .55rem;
-    }
-
-    .btn-history-back:hover {
-        background: #ffffff;
-        color: #4b005c;
     }
 
     .history-pill {
@@ -175,56 +237,106 @@
         margin-bottom: .55rem;
     }
 
-    .history-hero h2 {
+    .history-hero-v2 h2 {
         color: #ffffff;
         font-size: 1.7rem;
         font-weight: 950;
         margin: 0;
     }
 
-    .history-hero p {
+    .history-hero-v2 p {
         color: rgba(255,255,255,.78);
         margin: .35rem 0 0;
         font-size: .9rem;
     }
 
-    .history-hero-side {
+    .history-hero-side-v2 {
         min-width: 190px;
         display: grid;
-        gap: .65rem;
+        align-content: start;
+        gap: .55rem;
     }
 
-    .history-status-box {
-        background: rgba(255,255,255,.12);
-        border-radius: .65rem;
-        padding: .55rem .75rem;
-        text-align: right;
-    }
-
-    .history-status-box span {
-        display: block;
-        color: #ffdd57;
-        font-size: .75rem;
+    .history-hero-side-v2 .btn,
+    .btn-history-back {
+        width: 100%;
+        min-height: 34px;
+        border-radius: .55rem;
+        font-size: .78rem;
         font-weight: 900;
     }
 
-    .history-status-box strong {
+    .btn-history-back {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(255,255,255,.42);
+        background: rgba(255,255,255,.10);
         color: #ffffff;
-        font-size: .86rem;
-        font-weight: 950;
     }
 
-    .history-filter-panel {
+    .btn-history-back:hover {
+        background: #ffffff;
+        color: #4b005c;
+    }
+
+    .history-kpis-v2 {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: .65rem;
+        margin-bottom: 1rem;
+    }
+
+    .history-kpis-v2 article {
+        border: 1px solid #e8d9ef;
+        border-left: 4px solid #7b0d8e;
+        border-radius: .8rem;
+        background: #ffffff;
+        padding: .75rem .85rem;
+        box-shadow: 0 .25rem .65rem rgba(75,0,92,.05);
+    }
+
+    .history-kpis-v2 span {
+        display: block;
+        color: #6f5279;
+        font-size: .68rem;
+        font-weight: 850;
+    }
+
+    .history-kpis-v2 strong {
+        display: block;
+        color: #26002f;
+        font-size: 1.15rem;
+        font-weight: 1000;
+        line-height: 1.05;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .history-kpis-v2 small {
+        display: block;
+        color: #657083;
+        font-size: .66rem;
+        font-weight: 760;
+    }
+
+    .history-filter-panel-v2 {
         background: #ffffff;
         border: 1px solid #dfe3e8;
         border-radius: .85rem;
         padding: .85rem;
         display: grid;
-        grid-template-columns: 280px minmax(320px, 1fr) auto;
         gap: .75rem;
-        align-items: end;
         margin-bottom: 1rem;
         box-shadow: 0 .25rem .65rem rgba(0,0,0,.04);
+    }
+
+    .history-filter-grid-v2 {
+        display: grid;
+        grid-template-columns: 280px minmax(320px, 1fr) 220px auto;
+        gap: .75rem;
+        align-items: end;
     }
 
     .history-filter-actions {
@@ -232,7 +344,72 @@
         gap: .35rem;
     }
 
-    .history-card {
+    .history-status-filter-v2 {
+        border: 1px solid rgba(126, 0, 143, .14);
+        border-radius: .75rem;
+        background: linear-gradient(180deg, #ffffff 0%, #fbf7fd 100%);
+        padding: .65rem;
+        display: grid;
+        gap: .5rem;
+    }
+
+    .history-status-head-v2 {
+        display: flex;
+        justify-content: space-between;
+        gap: .75rem;
+        align-items: center;
+    }
+
+    .history-status-head-v2 strong {
+        display: block;
+        color: #26002f;
+        font-size: .76rem;
+        font-weight: 950;
+    }
+
+    .history-status-head-v2 span {
+        display: block;
+        color: #7b0d8e;
+        font-size: .66rem;
+        font-weight: 850;
+    }
+
+    .history-status-head-v2 button {
+        border: 1px solid #eadff0;
+        border-radius: 999px;
+        background: #ffffff;
+        color: #7b0d8e;
+        padding: .18rem .62rem;
+        font-size: .62rem;
+        font-weight: 950;
+    }
+
+    .history-status-chips-v2 {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .35rem;
+    }
+
+    .history-status-chips-v2 button {
+        min-height: 26px;
+        border: 1px solid #eadff0;
+        border-radius: 999px;
+        background: #ffffff;
+        color: #4b005c;
+        padding: .2rem .6rem;
+        font-size: .64rem;
+        font-weight: 900;
+        line-height: 1;
+    }
+
+    .history-status-chips-v2 button.selected {
+        border-color: #8c119f;
+        background: linear-gradient(135deg, #4b005c 0%, #9d00b3 100%);
+        color: #ffffff;
+        box-shadow: 0 .2rem .55rem rgba(75,0,92,.14);
+    }
+
+    .history-card-v2 {
         background: #ffffff;
         border: 1px solid #dfe3e8;
         border-radius: .85rem;
@@ -240,16 +417,34 @@
         box-shadow: 0 .3rem .75rem rgba(0,0,0,.045);
     }
 
-    .history-table-header h3 {
+    .history-table-header-v2 {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        gap: 1rem;
+    }
+
+    .history-table-header-v2 h3 {
         font-size: 1.05rem;
         font-weight: 900;
         margin: 0;
     }
 
-    .history-table-header p {
+    .history-table-header-v2 p {
         margin: .2rem 0 .75rem;
         color: #657083;
         font-size: .8rem;
+    }
+
+    .history-summary-pill-v2 {
+        border: 1px solid #eadff0;
+        border-radius: 999px;
+        background: #fbf7fd;
+        color: #7b0d8e;
+        padding: .32rem .75rem;
+        font-size: .72rem;
+        font-weight: 950;
+        white-space: nowrap;
     }
 
     .history-table {
@@ -262,12 +457,16 @@
         vertical-align: middle;
     }
 
-    @@media (max-width: 1100px) {
-        .history-hero {
+    @@media (max-width: 1200px) {
+        .history-hero-v2 {
             flex-direction: column;
         }
 
-        .history-filter-panel {
+        .history-kpis-v2 {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .history-filter-grid-v2 {
             grid-template-columns: 1fr;
         }
 
@@ -295,23 +494,82 @@
 
     private bool isLoading;
     private string selectedResponsibleId = string.Empty;
+    private string selectedBranchCode = string.Empty;
     private string search = string.Empty;
+    private HashSet<string> selectedStatuses = new(StringComparer.OrdinalIgnoreCase);
 
-    private IEnumerable<AssignmentHistoryItem> FilteredHistory =>
+    private readonly (string Value, string Text)[] StatusOptions =
+    {
+        ("Available", "Disponible"),
+        ("Assigned", "Asignada"),
+        ("Loaned", "Prestada"),
+        ("InMaintenance", "Mantenimiento"),
+        ("Damaged", "Dañada"),
+        ("NotSuitable", "No apta"),
+        ("PendingValidation", "Pendiente validación"),
+        ("NotLocated", "No localizada"),
+        ("Disposed", "Baja")
+    };
+
+    private IEnumerable<ResponsibleItem> VisibleResponsibles =>
+        responsibles.OrderBy(x => x.FullName);
+
+    private IEnumerable<string> BranchOptions =>
         historyItems
             .Where(x => AccessScope.CanSeeBranch(x.CurrentBranchCode))
-            .Where(x => string.IsNullOrWhiteSpace(search) ||
-                        x.ToolInternalCode.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                        x.ToolName.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                        (x.ToolSerialNumber ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                        (x.Detail ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                        (x.ReturnDetail ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                        (x.CurrentResponsibleName ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase))
+            .Select(x => x.CurrentBranchCode)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x);
+
+    private IEnumerable<AssignmentHistoryItem> VisibleHistory =>
+        historyItems
+            .Where(x => AccessScope.CanSeeBranch(x.CurrentBranchCode));
+
+    private IEnumerable<AssignmentHistoryItem> FilteredHistory =>
+        VisibleHistory
+            .Where(MatchesResponsibleFilter)
+            .Where(MatchesBranchFilter)
+            .Where(MatchesStatusFilter)
+            .Where(MatchesSearchFilter)
             .OrderByDescending(x => x.AssignedAt);
+
+    private int VisibleBranchCount =>
+        VisibleHistory
+            .Select(x => x.CurrentBranchCode)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+
+    private string ScopeLabel =>
+        AccessScope.IsAllBranchScope() || AccessScope.IsAdminRole()
+            ? "Todas las sedes"
+            : AuthSession.BranchCode;
+
+    private string SelectedResponsibleLabel
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(selectedResponsibleId))
+            {
+                return "Todos";
+            }
+
+            var selected = responsibles.FirstOrDefault(x => x.Id.ToString() == selectedResponsibleId);
+            return selected?.FullName ?? "Seleccionado";
+        }
+    }
+
+    private string SelectedStatusLabel =>
+        selectedStatuses.Count == 0
+            ? "Todos"
+            : selectedStatuses.Count == 1
+                ? StatusOptions.FirstOrDefault(x => selectedStatuses.Contains(x.Value)).Text ?? "1"
+                : $"{selectedStatuses.Count} seleccionados";
 
     protected override async Task OnInitializedAsync()
     {
-        selectedResponsibleId = ResponsiblePersonId?.ToString() ?? string.Empty;
         search = Query ?? string.Empty;
 
         await LoadAsync();
@@ -320,6 +578,16 @@
     private async Task LoadAsync()
     {
         responsibles = await Api.GetFromJsonAsync<List<ResponsibleItem>>("api/settings/responsibles") ?? new();
+
+        if (ResponsiblePersonId.HasValue)
+        {
+            selectedResponsibleId = ResponsiblePersonId.Value.ToString();
+        }
+        else if (string.IsNullOrWhiteSpace(selectedResponsibleId) && AuthSession.ResponsiblePersonId.HasValue)
+        {
+            selectedResponsibleId = AuthSession.ResponsiblePersonId.Value.ToString();
+        }
+
         await LoadHistoryAsync();
     }
 
@@ -331,7 +599,7 @@
         {
             var endpoint = string.IsNullOrWhiteSpace(selectedResponsibleId)
                 ? "api/tools/assignment-history"
-                : $"api/tools/assignment-history?responsiblePersonId={selectedResponsibleId}";
+                : $"api/tools/assignment-history?responsiblePersonId={Uri.EscapeDataString(selectedResponsibleId)}";
 
             historyItems = await Api.GetFromJsonAsync<List<AssignmentHistoryItem>>(endpoint) ?? new();
         }
@@ -343,9 +611,119 @@
 
     private async Task ClearFilters()
     {
-        selectedResponsibleId = string.Empty;
         search = string.Empty;
+        selectedBranchCode = string.Empty;
+        selectedStatuses.Clear();
+
+        selectedResponsibleId = AuthSession.ResponsiblePersonId.HasValue
+            ? AuthSession.ResponsiblePersonId.Value.ToString()
+            : string.Empty;
+
         await LoadHistoryAsync();
+    }
+
+    private void ToggleStatus(string status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return;
+        }
+
+        if (!selectedStatuses.Add(status))
+        {
+            selectedStatuses.Remove(status);
+        }
+    }
+
+    private void ClearStatusFilter()
+    {
+        selectedStatuses.Clear();
+    }
+
+    private bool MatchesResponsibleFilter(AssignmentHistoryItem item)
+    {
+        if (string.IsNullOrWhiteSpace(selectedResponsibleId))
+        {
+            return true;
+        }
+
+        return item.CurrentResponsiblePersonId.HasValue &&
+               item.CurrentResponsiblePersonId.Value.ToString().Equals(selectedResponsibleId, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool MatchesBranchFilter(AssignmentHistoryItem item)
+    {
+        if (string.IsNullOrWhiteSpace(selectedBranchCode))
+        {
+            return true;
+        }
+
+        return SameNormalized(item.CurrentBranchCode, selectedBranchCode);
+    }
+
+    private bool MatchesStatusFilter(AssignmentHistoryItem item)
+    {
+        return selectedStatuses.Count == 0 ||
+               selectedStatuses.Contains(item.CurrentStatus ?? string.Empty);
+    }
+
+    private bool MatchesSearchFilter(AssignmentHistoryItem item)
+    {
+        if (string.IsNullOrWhiteSpace(search))
+        {
+            return true;
+        }
+
+        return ContainsText(item.ToolInternalCode, search) ||
+               ContainsText(item.ToolName, search) ||
+               ContainsText(item.ToolSerialNumber, search) ||
+               ContainsText(item.Detail, search) ||
+               ContainsText(item.ReturnDetail, search) ||
+               ContainsText(item.CurrentResponsibleName, search) ||
+               ContainsText(item.CurrentBranchCode, search) ||
+               ContainsText(item.CurrentLocationName, search) ||
+               ContainsText(GetStatusLabel(item.CurrentStatus ?? string.Empty), search);
+    }
+
+    private void GoBackToAssignment()
+    {
+        NavigationManager.NavigateTo("/asset-assignment");
+    }
+
+    private static bool ContainsText(string? value, string expected)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+               !string.IsNullOrWhiteSpace(expected) &&
+               Normalize(value).Contains(Normalize(expected), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool SameNormalized(string? left, string? right)
+    {
+        var a = Normalize(left);
+        var b = Normalize(right);
+
+        return !string.IsNullOrWhiteSpace(a)
+            && !string.IsNullOrWhiteSpace(b)
+            && string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Normalize(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return value
+            .Trim()
+            .ToUpperInvariant()
+            .Replace("Á", "A")
+            .Replace("É", "E")
+            .Replace("Í", "I")
+            .Replace("Ó", "O")
+            .Replace("Ú", "U")
+            .Replace("Ü", "U")
+            .Replace("Ñ", "N");
     }
 
     private static string Show(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
@@ -362,9 +740,11 @@
         "Loaned" => "Prestada",
         "InMaintenance" => "En mantenimiento",
         "Damaged" => "Dañada",
+        "NotSuitable" => "No apta",
         "NotLocated" => "No localizada",
         "PendingValidation" => "Pendiente validación",
-        _ => status
+        "Disposed" => "Baja",
+        _ => Show(status)
     };
 
     private static string GetStatusBadge(string status) => status switch
@@ -374,8 +754,10 @@
         "Loaned" => "badge bg-info text-dark",
         "InMaintenance" => "badge bg-primary",
         "Damaged" => "badge bg-danger",
+        "NotSuitable" => "badge bg-danger",
         "NotLocated" => "badge bg-dark",
         "PendingValidation" => "badge bg-secondary",
+        "Disposed" => "badge bg-dark",
         _ => "badge bg-secondary"
     };
 
@@ -403,4 +785,3 @@
         public string? Detail { get; set; }
     }
 }
-

@@ -1,4 +1,4 @@
-﻿using Navi.ToolsAssets.Domain.Entities.Documents;
+using Navi.ToolsAssets.Domain.Entities.Documents;
 using Navi.ToolsAssets.Application.Documents;
 using Microsoft.AspNetCore.Mvc;
 using Navi.ToolsAssets.Api.Security;
@@ -577,6 +577,14 @@ public class ToolsController : ControllerBase
             }
 
             var previousValue = $"Responsable={tool.ResponsiblePerson?.FullName}; Ubicación={tool.Location?.Code}; Estado={tool.OperationalStatus}; Custodia={tool.CustodyStatus}";
+
+            if (tool.OperationalStatus != ToolOperationalStatus.Available)
+            {
+                return BadRequest(new
+                {
+                    Message = $"Solo se pueden asignar activos disponibles. Estado actual: {tool.OperationalStatus}."
+                });
+            }
 
             tool.ResponsiblePersonId = responsible.Id;
             tool.OperationalStatus = ToolOperationalStatus.Assigned;

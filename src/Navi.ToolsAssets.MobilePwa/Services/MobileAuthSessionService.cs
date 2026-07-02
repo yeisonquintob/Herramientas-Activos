@@ -85,10 +85,16 @@ public sealed class MobileAuthSessionService
 
 
 
+
+
+
     public bool HasAnyPermission(params string[] permissions)
     {
         return permissions.Any(HasPermission);
     }
+
+
+
 
 
 

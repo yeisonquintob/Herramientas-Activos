@@ -453,7 +453,7 @@ else
                 yield return new MobileMenuItem("location", "Disponible y ubicación", "/mobile/availability", "Ubicación");
             }
 
-            if (HasAny("AssetAssignment.View", "AssetAssignment.Request", "Mobile.Loans.Request", "AssetAssignment.Assign", "AssetAssignment.Return", "AssetAssignment.Approve", "AssetAssignment.Deny"))
+            if (HasAny("AssetAssignment.View", "AssetAssignment.Request", "Mobile.Loans.Request", "AssetAssignment.Assign", "AssetAssignment.Return", "AssetAssignment.Approve", "AssetAssignment.Deny", "AssetAssignment.History"))
             {
                 yield return new MobileMenuItem("assign", "Asignación y préstamos", "/mobile/assignment", "Préstamos");
             }
@@ -468,52 +468,55 @@ else
                 yield return new MobileMenuItem("life", "Hoja de vida AF", "/mobile/life-records", "Técnica");
             }
 
-            if (HasAny("Purchases.View", "Purchases.Request"))
+            if (HasAny("Purchases.View", "Purchases.Request", "Purchases.Quote", "Purchases.Generate", "Purchases.Approve", "Purchases.Reject"))
             {
                 yield return new MobileMenuItem("purchase", "Solicitar compra", "/mobile/purchases", "Solicitud");
             }
 
-            if (HasAny("Maintenance.View", "Maintenance.Request"))
+            if (HasAny("Maintenance.View", "Maintenance.Request", "Maintenance.Quote", "Maintenance.Generate", "Maintenance.Execute", "Maintenance.Close", "Maintenance.Reject"))
             {
                 yield return new MobileMenuItem("maintenance", "Solicitar mantenimiento", "/mobile/maintenance-request", "Servicio");
             }
 
             if (HasAny("Purchases.View", "Maintenance.View"))
             {
-                yield return new MobileMenuItem("consult", "Consulta Compras y Mtto.", "/mobile/purchases", "Consulta");
+                yield return new MobileMenuItem("consult", "Consulta Compras y Mtto.", "/mobile/maintenance", "Consulta");
             }
 
-            if (HasPermission("MaintenancePlans.View"))
+            if (HasAny("MaintenancePlans.View", "MaintenancePlans.Create", "MaintenancePlans.Edit", "MaintenancePlans.Delete"))
             {
                 yield return new MobileMenuItem("calendar", "Planes mantenimiento", "/mobile/maintenance-plans", "Planes");
             }
 
-            if (HasAny("PhysicalCounts.View", "PhysicalCounts.Report"))
+            if (HasAny("PhysicalCounts.View", "PhysicalCounts.Create", "PhysicalCounts.Start", "PhysicalCounts.Close", "PhysicalCounts.Report", "PhysicalCounts.Evidence.Upload"))
             {
                 yield return new MobileMenuItem("physical", "Tomas físicas", "/mobile/physical-counts", "Conteos");
             }
 
-            if (HasPermission("Reconciliation.View"))
+            if (HasAny("Reconciliation.View", "Reconciliation.Clarify", "Reconciliation.ApproveCreation", "Reconciliation.Manage"))
             {
                 yield return new MobileMenuItem("reconcile", "Conciliación", "/mobile/reconciliation", "Validación");
             }
 
-            if (HasAny("Documents.View", "Documents.Upload"))
+            if (HasAny("Documents.View", "Documents.Upload", "Documents.Download", "Documents.Delete"))
             {
                 yield return new MobileMenuItem("document", "Documentos", "/mobile/documents", "Evidencias");
             }
 
-            if (HasPermission("Reports.View"))
+            if (HasAny("Reports.View", "Reports.Export"))
             {
                 yield return new MobileMenuItem("reports", "Reportes", "/mobile/reports", "Indicadores");
             }
 
-            if (HasAny("Settings.View", "Settings.Manage", "Security.Users", "Security.Roles"))
+            if (HasAny("Mobile.Access", "Settings.View", "Settings.Manage", "Security.Users", "Security.Roles"))
             {
                 yield return new MobileMenuItem("settings", "Configuración", "/mobile/settings", "Parámetros");
             }
         }
     }
+
+
+
 
 
     protected override async Task OnInitializedAsync()
@@ -826,10 +829,16 @@ else
 
 
 
+
+
+
     private bool HasAny(params string[] permissions)
     {
         return permissions.Any(HasPermission);
     }
+
+
+
 
 
 

@@ -1,0 +1,609 @@
+@page "/mobile/settings"
+
+@using System.Net.Http
+@using Navi.ToolsAssets.MobilePwa.Models
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Configuración móvil - NAVI</PageTitle>
+
+<section class="mobile-page mobile-settings-web">
+    @if (isLoading && !initialized)
+    {
+        <div class="mobile-loading">Cargando configuración...</div>
+    }
+    else if (!Auth.IsAuthenticated)
+    {
+        <div class="mobile-empty">
+            <strong>Sesión requerida</strong>
+            <span>Debes iniciar sesión para consultar configuración y seguridad personal.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+        </div>
+    }
+    else
+    {
+        <header class="mset-hero">
+            <div>
+                <span>CONFIGURACIÓN · SEGURIDAD · PERFIL</span>
+                <h1>Configuración</h1>
+                <p>Administra parámetros permitidos por tu rol y actualiza tu información personal de forma segura.</p>
+            </div>
+
+            <div class="mset-hero-actions">
+                <button type="button" @onclick="GoHome">Inicio</button>
+                <button type="button" @onclick="RefreshAsync" disabled="@isLoading">
+                    @(isLoading ? "Actualizando..." : "Actualizar")
+                </button>
+            </div>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(message))
+        {
+            <div class="@messageClass">@message</div>
+        }
+
+        <section class="mset-kpis">
+            <article>
+                <strong>@VisibleOptions.Count()</strong>
+                <span>Opciones</span>
+                <small>Disponibles</small>
+            </article>
+
+            <article>
+                <strong>@(CanManageSettings ? "Sí" : "No")</strong>
+                <span>Configurar</span>
+                <small>Settings.Manage</small>
+            </article>
+
+            <article>
+                <strong>@(CanManageUsers ? "Sí" : "No")</strong>
+                <span>Usuarios</span>
+                <small>Security.Users</small>
+            </article>
+
+            <article>
+                <strong>@(HasProtectedDocument ? "Sí" : "No")</strong>
+                <span>Cédula</span>
+                <small>@(HasProtectedDocument ? "Protegida" : "Pendiente")</small>
+            </article>
+        </section>
+
+        <section class="mset-layout">
+            <aside class="mset-left">
+                <details class="mset-card" open>
+                    <summary>
+                        <div>
+                            <h2>Mi información</h2>
+                            <p>Datos personales asociados a tu usuario y responsable operativo.</p>
+                        </div>
+                    </summary>
+
+                    <div class="mset-form-grid">
+                        <label>
+                            <span>Cédula / documento</span>
+                            <input value="@profile.DocumentNumber"
+                                   @oninput="OnDocumentInput"
+                                   disabled="@HasProtectedDocument"
+                                   placeholder="Ingrese documento" />
+                            <small>
+                                @(HasProtectedDocument
+                                    ? "La cédula ya está registrada y no se puede borrar ni cambiar."
+                                    : "Puedes registrarla una sola vez. Después quedará protegida.")
+                            </small>
+                        </label>
+
+                        <label>
+                            <span>Código empleado</span>
+                            <input @bind="profile.EmployeeCode" placeholder="Código interno" />
+                        </label>
+
+                        <label>
+                            <span>Nombre completo</span>
+                            <input @bind="profile.DisplayName" placeholder="Nombre completo" />
+                        </label>
+
+                        <label>
+                            <span>Correo</span>
+                            <input @bind="profile.Email" placeholder="correo@empresa.com" />
+                        </label>
+
+                        <label>
+                            <span>Cargo</span>
+                            <input @bind="profile.Position" placeholder="Cargo" />
+                        </label>
+
+                        <label>
+                            <span>Área</span>
+                            <input @bind="profile.Area" placeholder="Área" />
+                        </label>
+
+                        <label>
+                            <span>Sede</span>
+                            <input value="@Display(CurrentUser?.BranchCode) - @Display(CurrentUser?.BranchName)" disabled />
+                        </label>
+
+                        <label>
+                            <span>Rol</span>
+                            <input value="@Display(CurrentUser?.RoleName)" disabled />
+                        </label>
+                    </div>
+
+                    <div class="mset-actions">
+                        <button type="button" class="primary" @onclick="SaveProfileAsync" disabled="@isSaving">
+                            @(isSaving ? "Guardando..." : "Guardar mi información")
+                        </button>
+
+                        <button type="button" @onclick="LoadProfile">
+                            Deshacer
+                        </button>
+                    </div>
+                </details>
+
+                <details class="mset-card">
+                    <summary>
+                        <div>
+                            <h2>Seguridad personal</h2>
+                            <p>Cambia tu contraseña de acceso móvil de forma segura.</p>
+                        </div>
+                    </summary>
+
+                    <div class="mset-form-grid one">
+                        <label>
+                            <span>Contraseña actual</span>
+                            <input type="password" @bind="passwordForm.CurrentPassword" />
+                        </label>
+
+                        <label>
+                            <span>Nueva contraseña</span>
+                            <input type="password" @bind="passwordForm.NewPassword" />
+                        </label>
+
+                        <label>
+                            <span>Confirmar nueva contraseña</span>
+                            <input type="password" @bind="passwordForm.ConfirmPassword" />
+                        </label>
+                    </div>
+
+                    <div class="mset-actions">
+                        <button type="button" class="primary" @onclick="ChangePasswordAsync" disabled="@isSaving">
+                            Cambiar contraseña
+                        </button>
+
+                        <button type="button" @onclick="ClearPasswordForm">
+                            Limpiar
+                        </button>
+                    </div>
+                </details>
+            </aside>
+
+            <main class="mset-main">
+                <section class="mset-card">
+                    <div class="mset-card-title">
+                        <div>
+                            <h2>Menú de configuración</h2>
+                            <p>Opciones visibles según matriz de permisos. Consulta con Settings.View; gestión con Settings.Manage; usuarios y roles con seguridad.</p>
+                        </div>
+
+                        <span>@VisibleOptions.Count()</span>
+                    </div>
+
+                    @if (!VisibleOptions.Any())
+                    {
+                        <div class="mobile-empty compact">
+                            No tienes permisos administrativos de configuración. Puedes actualizar tu información personal desde esta pantalla.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="mset-options-grid">
+                            @foreach (var option in VisibleOptions)
+                            {
+                                <article class="mset-option-card">
+                                    <span>@option.Group</span>
+                                    <h3>@option.Title</h3>
+                                    <p>@option.Description</p>
+
+                                    @if (CanOpenOption(option))
+                                    {
+                                        <button type="button" @onclick="() => OpenOption(option)">
+                                            @(CanManageOption(option) ? "Gestionar" : "Consultar")
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button type="button" disabled>Sin permiso</button>
+                                    }
+                                </article>
+                            }
+                        </div>
+                    }
+                </section>
+
+                @if (selectedOption is not null)
+                {
+                    <section class="mset-card">
+                        <div class="mset-card-title">
+                            <div>
+                                <h2>@selectedOption.Title</h2>
+                                <p>@selectedOption.Description</p>
+                            </div>
+
+                            <span>@selectedOption.Group</span>
+                        </div>
+
+                        <div class="mset-option-detail">
+                            <strong>Función disponible en aplicativo web</strong>
+                            <p>
+                                Esta opción mantiene la seguridad del módulo web. En móvil queda como acceso controlado
+                                para consulta operativa y navegación futura de catálogos.
+                            </p>
+
+                            <ul>
+                                <li>Consulta: @(CanOpenOption(selectedOption) ? "Permitida" : "No permitida")</li>
+                                <li>Gestión: @(CanManageOption(selectedOption) ? "Permitida" : "No permitida")</li>
+                                <li>Permiso base: @selectedOption.RequiredPermission</li>
+                            </ul>
+                        </div>
+                    </section>
+                }
+            </main>
+        </section>
+    }
+</section>
+
+@code {
+    private bool initialized;
+    private bool isLoading = true;
+    private bool isSaving;
+
+    private string? message;
+    private string messageClass = "mobile-alert success";
+
+    private ProfileForm profile = new();
+    private PasswordForm passwordForm = new();
+    private SettingsOption? selectedOption;
+
+    private MobileUser? CurrentUser => Auth.CurrentUser;
+
+    private bool IsAdmin =>
+        Same(CurrentUser?.RoleCode, "ADMIN") ||
+        Same(CurrentUser?.RoleCode, "SUPERADMIN") ||
+        Same(CurrentUser?.RoleName, "Administrador") ||
+        Same(CurrentUser?.RoleName, "Administrador NAVI");
+
+    private bool CanViewSettings =>
+        IsAdmin ||
+        Auth.HasPermission("Settings.View");
+
+    private bool CanManageSettings =>
+        IsAdmin ||
+        Auth.HasPermission("Settings.Manage");
+
+    private bool CanManageUsers =>
+        IsAdmin ||
+        Auth.HasPermission("Security.Users");
+
+    private bool CanManageRoles =>
+        IsAdmin ||
+        Auth.HasPermission("Security.Roles");
+
+    private bool HasProtectedDocument =>
+        !string.IsNullOrWhiteSpace(CurrentUser?.DocumentNumber) ||
+        !string.IsNullOrWhiteSpace(CurrentUser?.UserName);
+
+    private IEnumerable<SettingsOption> VisibleOptions =>
+        Options.Where(CanSeeOption);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            initialized = true;
+            isLoading = false;
+            return;
+        }
+
+        await RefreshAsync();
+
+        initialized = true;
+    }
+
+    private async Task RefreshAsync()
+    {
+        isLoading = true;
+        message = null;
+
+        try
+        {
+            var refreshed = await Api.RefreshCurrentSessionAsync();
+
+            if (refreshed is null || !Auth.IsAuthenticated)
+            {
+                Navigation.NavigateTo("/login", forceLoad: true);
+                return;
+            }
+
+            LoadProfile();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"No se pudo cargar configuración: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void LoadProfile()
+    {
+        var user = CurrentUser;
+
+        profile = new ProfileForm
+        {
+            DocumentNumber = user?.DocumentNumber ?? user?.UserName,
+            OriginalDocumentNumber = user?.DocumentNumber ?? user?.UserName,
+            EmployeeCode = user?.EmployeeCode,
+            DisplayName = user?.DisplayName,
+            Email = user?.Email,
+            Position = user?.Position,
+            Area = user?.Area
+        };
+    }
+
+    private void OnDocumentInput(ChangeEventArgs args)
+    {
+        var value = args.Value?.ToString();
+
+        if (HasProtectedDocument)
+        {
+            profile.DocumentNumber = profile.OriginalDocumentNumber;
+            return;
+        }
+
+        profile.DocumentNumber = value;
+    }
+
+    private async Task SaveProfileAsync()
+    {
+        if (CurrentUser is null)
+        {
+            ShowError("No hay sesión activa.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(profile.DisplayName))
+        {
+            ShowError("El nombre completo es obligatorio.");
+            return;
+        }
+
+        if (HasProtectedDocument)
+        {
+            var current = Normalize(profile.OriginalDocumentNumber);
+            var requested = Normalize(profile.DocumentNumber);
+
+            if (string.IsNullOrWhiteSpace(requested) || current != requested)
+            {
+                profile.DocumentNumber = profile.OriginalDocumentNumber;
+                ShowError("La cédula/documento ya existe y no se puede borrar ni cambiar.");
+                return;
+            }
+        }
+
+        isSaving = true;
+        message = null;
+
+        try
+        {
+            await Api.SendJsonAsync(HttpMethod.Put, "api/auth/mobile-profile", new
+            {
+                documentNumber = profile.DocumentNumber,
+                employeeCode = profile.EmployeeCode,
+                displayName = profile.DisplayName,
+                email = profile.Email,
+                position = profile.Position,
+                area = profile.Area
+            });
+
+            await Api.RefreshCurrentSessionAsync();
+            LoadProfile();
+
+            ShowSuccess("Tu información fue actualizada correctamente.");
+        }
+        catch (Exception ex)
+        {
+            ShowError($"No se pudo guardar tu información: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task ChangePasswordAsync()
+    {
+        if (string.IsNullOrWhiteSpace(passwordForm.NewPassword) ||
+            passwordForm.NewPassword.Trim().Length < 4)
+        {
+            ShowError("La nueva contraseña debe tener mínimo 4 caracteres.");
+            return;
+        }
+
+        if (!string.Equals(passwordForm.NewPassword, passwordForm.ConfirmPassword, StringComparison.Ordinal))
+        {
+            ShowError("La confirmación de contraseña no coincide.");
+            return;
+        }
+
+        isSaving = true;
+        message = null;
+
+        try
+        {
+            await Api.SendJsonAsync(HttpMethod.Put, "api/auth/mobile-password", new
+            {
+                currentPassword = passwordForm.CurrentPassword,
+                newPassword = passwordForm.NewPassword,
+                confirmPassword = passwordForm.ConfirmPassword
+            });
+
+            ClearPasswordForm();
+            ShowSuccess("Contraseña actualizada correctamente.");
+        }
+        catch (Exception ex)
+        {
+            ShowError($"No se pudo cambiar la contraseña: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void ClearPasswordForm()
+    {
+        passwordForm = new PasswordForm();
+    }
+
+    private bool CanSeeOption(SettingsOption option)
+    {
+        if (option.Code == "users")
+        {
+            return CanManageUsers;
+        }
+
+        if (option.Code == "roles")
+        {
+            return CanManageRoles;
+        }
+
+        return CanViewSettings;
+    }
+
+    private bool CanOpenOption(SettingsOption option)
+    {
+        if (option.Code == "users")
+        {
+            return CanManageUsers;
+        }
+
+        if (option.Code == "roles")
+        {
+            return CanManageRoles;
+        }
+
+        return CanViewSettings;
+    }
+
+    private bool CanManageOption(SettingsOption option)
+    {
+        if (option.Code == "users")
+        {
+            return CanManageUsers;
+        }
+
+        if (option.Code == "roles")
+        {
+            return CanManageRoles;
+        }
+
+        return CanManageSettings;
+    }
+
+    private void OpenOption(SettingsOption option)
+    {
+        selectedOption = option;
+    }
+
+    private void GoHome() => Navigation.NavigateTo("/");
+    private void GoLogin() => Navigation.NavigateTo("/login", forceLoad: true);
+
+    private void ShowSuccess(string text)
+    {
+        message = text;
+        messageClass = "mobile-alert success";
+    }
+
+    private void ShowError(string text)
+    {
+        message = text;
+        messageClass = "mobile-alert error";
+    }
+
+    private static bool Same(string? left, string? right)
+    {
+        return string.Equals(Normalize(left), Normalize(right), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Normalize(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return value.Trim()
+            .ToUpperInvariant()
+            .Replace("Á", "A")
+            .Replace("É", "E")
+            .Replace("Í", "I")
+            .Replace("Ó", "O")
+            .Replace("Ú", "U")
+            .Replace("Ü", "U")
+            .Replace("Ñ", "N");
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "—" : value;
+    }
+
+    private static List<SettingsOption> Options { get; } = new()
+    {
+        new("users", "SEGURIDAD", "Usuarios", "Crear, editar, activar o bloquear usuarios del sistema.", "Security.Users"),
+        new("roles", "SEGURIDAD", "Roles y permisos", "Configurar perfiles y permisos por módulo, acción, sede y zona.", "Security.Roles"),
+        new("branches", "ORGANIZACIÓN", "Sedes", "Administrar sedes como AGU, Medellín, Bogotá u otras operaciones.", "Settings.View"),
+        new("zones", "ORGANIZACIÓN", "Zonas", "Agrupar sedes por regional, operación o zona administrativa.", "Settings.View"),
+        new("warehouses", "ORGANIZACIÓN", "Almacenes / Talleres", "Crear almacenes, talleres, bodegas, patios, oficinas y áreas técnicas.", "Settings.View"),
+        new("locations", "ORGANIZACIÓN", "Ubicaciones", "Definir estantes, bahías, puestos, zonas internas o ubicaciones físicas.", "Settings.View"),
+        new("responsibles", "RESPONSABLES", "Responsables", "Gestionar técnicos, herramienteros, jefes, coordinadores y responsables.", "Settings.View"),
+        new("asset-types", "ACTIVOS FIJOS", "Tipos de activo", "Herramientas, equipos de diagnóstico, computadores, medición y otros activos.", "Settings.View"),
+        new("categories", "ACTIVOS FIJOS", "Categorías", "Gato pluma, escáner, computador, herramienta manual, eléctrica o especial.", "Settings.View"),
+        new("statuses", "ACTIVOS FIJOS", "Estados", "Disponible, asignado, prestado, mantenimiento, dañado, baja o pendiente.", "Settings.View"),
+        new("document-types", "DOCUMENTOS", "Tipos de documento", "Ficha técnica, garantía, foto, acta, factura, evidencia y soporte.", "Settings.View"),
+        new("maintenance-types", "MANTENIMIENTO", "Tipos de mantenimiento", "Preventivo, correctivo, calibración, inspección y certificación.", "Settings.View"),
+        new("maintenance-plans", "MANTENIMIENTO", "Planes de mantenimiento", "Frecuencias, alertas, cronogramas y reglas por tipo de activo.", "Settings.View"),
+        new("causes", "OPERACIÓN", "Causales", "Causales de daño, novedad, pérdida, baja, traslado o mantenimiento.", "Settings.View"),
+        new("system-parameters", "SISTEMA", "Parámetros", "Reglas globales, días de alerta, límites de archivo y parámetros generales.", "Settings.View")
+    };
+
+    private sealed class ProfileForm
+    {
+        public string? DocumentNumber { get; set; }
+        public string? OriginalDocumentNumber { get; set; }
+        public string? EmployeeCode { get; set; }
+        public string? DisplayName { get; set; }
+        public string? Email { get; set; }
+        public string? Position { get; set; }
+        public string? Area { get; set; }
+    }
+
+    private sealed class PasswordForm
+    {
+        public string? CurrentPassword { get; set; }
+        public string? NewPassword { get; set; }
+        public string? ConfirmPassword { get; set; }
+    }
+
+    private sealed record SettingsOption(
+        string Code,
+        string Group,
+        string Title,
+        string Description,
+        string RequiredPermission);
+}

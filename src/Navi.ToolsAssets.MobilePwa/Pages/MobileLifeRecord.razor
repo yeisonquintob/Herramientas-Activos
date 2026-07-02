@@ -1,18 +1,18 @@
-﻿@page "/tools/{ToolId:guid}/life-record"
+@page "/tools/{ToolId:guid}/life-record"
 @page "/tools/{ToolId:guid}/technical-life-record"
 
 @using Navi.ToolsAssets.MobilePwa.Models
 @using Microsoft.AspNetCore.Components
-@using Microsoft.JSInterop
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Net.Http
 
 @inject NaviMobileApiClient Api
 @inject MobileAuthSessionService Auth
 @inject NavigationManager Navigation
-@inject IJSRuntime Js
 
 <PageTitle>Hoja de vida AF - NAVI Herramientas y AF</PageTitle>
 
-<section class="mobile-page mobile-compact-page">
+<section class="mobile-page mobile-compact-page navi-life-manage-v3">
     @if (isLoading)
     {
         <div class="mobile-loading">Cargando hoja de vida...</div>
@@ -25,267 +25,710 @@
             <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
         </div>
     }
-    else if (!string.IsNullOrWhiteSpace(message))
+    else if (!CanViewLifeRecord)
+    {
+        <div class="mobile-empty">
+            <strong>Sin permiso</strong>
+            <span>Tu usuario no tiene permiso para consultar hoja de vida.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoBack">Regresar</button>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(message) && life is null)
     {
         <div class="mobile-alert">@message</div>
-        <button class="mobile-detail-back" type="button" @onclick="GoBack">Regresar</button>
+        <button class="mobile-primary-button" type="button" @onclick="GoBack">Regresar</button>
     }
     else if (life is not null)
     {
-        <header class="mobile-compact-hero life">
-            <div class="mobile-compact-top">
+        <header class="mlife-hero">
+            <div>
                 <span>HOJA DE VIDA AF</span>
-                <button type="button" @onclick="GoBack">Regresar</button>
+                <h1>@Show(life.EquipmentInformation.Name ?? life.Summary.Name)</h1>
+                <p>@Show(life.EquipmentInformation.InternalCode ?? life.Summary.InternalCode) · @StatusLabel(life.Summary.OperationalStatus)</p>
             </div>
 
-            <h1>@Show(life.EquipmentInformation.Name ?? life.Summary.Name)</h1>
-            <p>@Show(life.EquipmentInformation.InternalCode ?? life.Summary.InternalCode) · @StatusLabel(life.Summary.OperationalStatus)</p>
+            <div class="mlife-hero-actions">
+                <button type="button" @onclick="GoBack">Regresar</button>
+                <button type="button" @onclick="LoadAsync" disabled="@isLoading">Actualizar</button>
+            </div>
         </header>
 
-        <section class="mobile-compact-kpis">
+        @if (!string.IsNullOrWhiteSpace(message))
+        {
+            <div class="mobile-alert">@message</div>
+        }
+
+        <section class="mlife-kpis">
             <article>
                 <span>Vida útil</span>
                 <strong>@PercentLabel(life.UsefulLife.UsedPercentage)</strong>
-            </article>
-
-            <article>
-                <span>Mantenimientos</span>
-                <strong>@life.MaintenancePlan.TotalMaintenanceRecords</strong>
+                <small>Uso</small>
             </article>
 
             <article>
                 <span>Documentos</span>
                 <strong>@life.Documents.AllDocuments.Count</strong>
+                <small>Archivos</small>
+            </article>
+
+            <article>
+                <span>Accesorios</span>
+                <strong>@life.Accessories.Count</strong>
+                <small>Componentes</small>
+            </article>
+
+            <article>
+                <span>Permiso</span>
+                <strong>@PermissionMode</strong>
+                <small>Matriz</small>
             </article>
         </section>
 
-        <details class="mobile-fold" open>
-            <summary>Información del equipo</summary>
+        @if (!CanManageThisTool && HasAnyManagementPermission)
+        {
+            <section class="mobile-empty compact">
+                Tienes permisos de gestión, pero este activo no está dentro de tu sede o alcance operativo.
+            </section>
+        }
 
-            <div class="mobile-info-grid compact">
-                <div><span>Código interno</span><strong>@Show(life.EquipmentInformation.InternalCode)</strong></div>
-                <div><span>Nombre</span><strong>@Show(life.EquipmentInformation.Name)</strong></div>
-                <div><span>Activo fijo</span><strong>@Show(life.EquipmentInformation.FixedAssetCode)</strong></div>
-                <div><span>Código Fenix365</span><strong>@Show(life.EquipmentInformation.FenixCode)</strong></div>
-                <div><span>Marca</span><strong>@Show(life.EquipmentInformation.Brand)</strong></div>
-                <div><span>Modelo</span><strong>@Show(life.EquipmentInformation.Model)</strong></div>
-                <div><span>Serial</span><strong>@Show(life.EquipmentInformation.SerialNumber)</strong></div>
-                <div><span>Fecha adquisición</span><strong>@DateLabel(life.EquipmentInformation.AcquisitionDate)</strong></div>
-                <div><span>Sede</span><strong>@JoinCodeName(life.EquipmentInformation.BranchCode, life.EquipmentInformation.BranchName)</strong></div>
-                <div><span>Ubicación</span><strong>@JoinCodeName(life.EquipmentInformation.LocationCode, life.EquipmentInformation.LocationName)</strong></div>
-                <div><span>Responsable</span><strong>@Show(life.EquipmentInformation.ResponsibleName)</strong></div>
-                <div><span>Tipo / Categoría</span><strong>@Show(life.EquipmentInformation.ToolTypeName) / @Show(life.EquipmentInformation.ToolCategoryName)</strong></div>
-            </div>
-        </details>
+        <details id="info" class="mobile-fold mlife-section" open>
+            <summary>
+                <span>Información del equipo</span>
 
-        <details class="mobile-fold" open>
-            <summary>Especificaciones técnicas</summary>
-
-            <div class="mobile-info-grid compact">
-                <div><span>Voltaje</span><strong>@Show(life.TechnicalSpecifications.Voltage)</strong></div>
-                <div><span>Capacidad de carga</span><strong>@Show(life.TechnicalSpecifications.LoadCapacity)</strong></div>
-                <div><span>Proveedor</span><strong>@Show(life.TechnicalSpecifications.Provider)</strong></div>
-                <div><span>Garantía</span><strong>@BoolLabel(life.Warranty.HasWarranty)</strong></div>
-                <div><span>Tipo garantía</span><strong>@Show(life.Warranty.WarrantyType)</strong></div>
-                <div><span>Vence certificación</span><strong>@DateLabel(life.TechnicalSpecifications.CertificationExpirationDate)</strong></div>
-            </div>
-        </details>
-
-        <details class="mobile-fold" open>
-            <summary>Vida útil</summary>
-
-            <div class="mobile-life-progress">
-                <div>
-                    <span style="@($"width:{ClampPercent(life.UsefulLife.UsedPercentage)}%")"></span>
-                </div>
-
-                <strong>@PercentLabel(life.UsefulLife.UsedPercentage) usado</strong>
-            </div>
-
-            <div class="mobile-info-grid compact">
-                <div><span>Inicio</span><strong>@DateLabel(life.UsefulLife.StartDate)</strong></div>
-                <div><span>Fin estimado</span><strong>@DateLabel(life.UsefulLife.EndDate)</strong></div>
-                <div><span>Meses</span><strong>@ValueLabel(life.UsefulLife.UsefulLifeMonths)</strong></div>
-                <div><span>Días útiles</span><strong>@ValueLabel(life.UsefulLife.UsefulLifeDays)</strong></div>
-                <div><span>Días transcurridos</span><strong>@ValueLabel(life.UsefulLife.ElapsedDays)</strong></div>
-                <div><span>Días restantes</span><strong>@ValueLabel(life.UsefulLife.RemainingDays)</strong></div>
-            </div>
-        </details>
-
-        <details class="mobile-fold" open>
-            <summary>Plan de mantenimiento</summary>
-
-            <div class="mobile-info-grid compact">
-                <div><span>Último mantenimiento</span><strong>@DateLabel(life.MaintenancePlan.LastMaintenanceDate)</strong></div>
-                <div><span>Próximo mantenimiento</span><strong>@DateLabel(life.MaintenancePlan.NextMaintenanceDate)</strong></div>
-                <div><span>Periodo meses</span><strong>@ValueLabel(life.MaintenancePlan.MaintenancePeriodMonths)</strong></div>
-                <div><span>Requiere mantenimiento</span><strong>@BoolLabel(life.MaintenancePlan.RequiresMaintenance)</strong></div>
-                <div><span>Realizados</span><strong>@life.MaintenancePlan.CompletedMaintenanceRecords</strong></div>
-                <div><span>Pendientes</span><strong>@life.MaintenancePlan.PendingMaintenanceRecords</strong></div>
-            </div>
-        </details>
-
-        <details class="mobile-fold">
-            <summary>Accesorios (@life.Accessories.Count)</summary>
-
-            @if (!life.Accessories.Any())
-            {
-                <div class="mobile-empty compact">Sin accesorios registrados.</div>
-            }
-            else
-            {
-                <div class="mobile-mini-list">
-                    @foreach (var item in life.Accessories)
+                <div class="mlife-summary-actions">
+                    @if (CanEditTechnical)
                     {
-                        <article>
-                            <strong>@Show(item.Name)</strong>
-                            <span>Cantidad: @item.Quantity · Mant.: @BoolLabel(item.RequiresMaintenance) · Medición: @BoolLabel(item.IsMeasurementEquipment)</span>
-                            <small>@Show(item.Observation)</small>
-                        </article>
+                        @if (editInfoMode)
+                        {
+                            <button type="button" class="cancel" @onclick="CancelInfoEdit" @onclick:stopPropagation="true">Cancelar</button>
+                            <button type="button" class="save" @onclick="SaveTechnicalAsync" @onclick:stopPropagation="true" disabled="@isSaving">
+                                @(isSaving ? "Guardando..." : "Guardar")
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="button" @onclick="BeginInfoEdit" @onclick:stopPropagation="true">Editar</button>
+                        }
                     }
                 </div>
-            }
-        </details>
+            </summary>
 
-        <details class="mobile-fold">
-            <summary>Cronograma de mantenimiento (@life.MaintenanceSchedule.Count)</summary>
-
-            @if (!life.MaintenanceSchedule.Any())
+            @if (!editInfoMode)
             {
-                <div class="mobile-empty compact">Sin cronograma de mantenimiento.</div>
-            }
-            else
-            {
-                <div class="mobile-mini-list">
-                    @foreach (var item in life.MaintenanceSchedule.Take(12))
-                    {
-                        <article>
-                            <strong>@Show(item.MaintenanceNumber) · @Show(item.Status)</strong>
-                            <span>@DateLabel(item.ScheduledAt) · @Show(item.Provider) · @Show(item.Technician)</span>
-                            <small>@Show(item.Description ?? item.MaintenanceActivities ?? item.Result)</small>
-
-                            @if (!string.IsNullOrWhiteSpace(item.EvidenceDownloadUrl))
-                            {
-                                <a class="mobile-download-link" href="@Api.ToApiUrl(item.EvidenceDownloadUrl)" target="_blank">Descargar evidencia</a>
-                            }
-                        </article>
-                    }
+                <div class="mobile-info-grid compact">
+                    <div><span>Código interno</span><strong>@Show(life.EquipmentInformation.InternalCode)</strong></div>
+                    <div><span>Nombre</span><strong>@Show(life.EquipmentInformation.Name)</strong></div>
+                    <div><span>Activo fijo</span><strong>@Show(life.EquipmentInformation.FixedAssetCode)</strong></div>
+                    <div><span>Código Fenix365</span><strong>@Show(life.EquipmentInformation.FenixCode)</strong></div>
+                    <div><span>Marca</span><strong>@Show(life.EquipmentInformation.Brand)</strong></div>
+                    <div><span>Modelo</span><strong>@Show(life.EquipmentInformation.Model)</strong></div>
+                    <div><span>Serial</span><strong>@Show(life.EquipmentInformation.SerialNumber)</strong></div>
+                    <div><span>Sede</span><strong>@JoinCodeName(life.EquipmentInformation.BranchCode, life.EquipmentInformation.BranchName)</strong></div>
+                    <div><span>Ubicación</span><strong>@JoinCodeName(life.EquipmentInformation.LocationCode, life.EquipmentInformation.LocationName)</strong></div>
+                    <div><span>Responsable</span><strong>@Show(life.EquipmentInformation.ResponsibleName)</strong></div>
                 </div>
             }
-        </details>
-
-        <details class="mobile-fold">
-            <summary>Prácticas seguras (@life.SafePractices.Count)</summary>
-
-            @if (!life.SafePractices.Any())
-            {
-                <div class="mobile-empty compact">Sin prácticas seguras registradas.</div>
-            }
             else
             {
-                <div class="mobile-mini-list">
-                    @foreach (var item in life.SafePractices)
+                <EditForm Model="technicalForm" OnValidSubmit="SaveTechnicalAsync">
+                    <div class="mlife-form-grid">
+                        <label><span>Marca</span><InputText @bind-Value="technicalForm.Brand" /></label>
+                        <label><span>Modelo</span><InputText @bind-Value="technicalForm.Model" /></label>
+                        <label><span>Serial</span><InputText @bind-Value="technicalForm.SerialNumber" /></label>
+                        <label><span>Activo fijo</span><InputText @bind-Value="technicalForm.FixedAssetCode" /></label>
+                        <label><span>Código Fenix365</span><InputText @bind-Value="technicalForm.FenixCode" /></label>
+                        <label><span>Fecha adquisición</span><InputDate @bind-Value="technicalForm.AcquisitionDate" /></label>
+                    </div>
+
+                    <label class="mlife-full">
+                        <span>Observación</span>
+                        <InputTextArea @bind-Value="technicalForm.Observation" />
+                    </label>
+                </EditForm>
+            }
+        </details>
+
+        
+        <details id="technical" class="mobile-fold mlife-section" open>
+            <summary>
+                <span>Datos técnicos, garantía y vida útil</span>
+
+                <div class="mlife-summary-actions">
+                    @if (CanEditTechnical)
                     {
-                        <article>
-                            <strong>@Show(item.PracticeName)</strong>
-                            <span>@Show(item.Description)</span>
-                            <small>Orden: @item.SortOrder</small>
-                        </article>
+                        @if (editTechnicalMode)
+                        {
+                            <button type="button" class="cancel" @onclick="CancelTechnicalEdit" @onclick:stopPropagation="true">
+                                Cancelar
+                            </button>
+
+                            <button type="button" class="save" @onclick="SaveTechnicalAsync" @onclick:stopPropagation="true" disabled="@isSaving">
+                                @(isSaving ? "Guardando..." : "Guardar")
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="button" @onclick="BeginTechnicalEdit" @onclick:stopPropagation="true">
+                                Editar
+                            </button>
+                        }
                     }
                 </div>
-            }
-        </details>
+            </summary>
 
-        <details class="mobile-fold" open>
-            <summary>Documentos descargables (@life.Documents.AllDocuments.Count)</summary>
-
-            @if (!life.Documents.AllDocuments.Any())
+            @if (!editTechnicalMode)
             {
-                <div class="mobile-empty compact">Sin documentos registrados.</div>
+                <div class="mobile-info-grid compact">
+                    <div>
+                        <span>Voltaje</span>
+                        <strong>@Show(life.TechnicalSpecifications.Voltage)</strong>
+                    </div>
+
+                    <div>
+                        <span>Capacidad</span>
+                        <strong>@Show(life.TechnicalSpecifications.LoadCapacity)</strong>
+                    </div>
+
+                    <div>
+                        <span>Proveedor</span>
+                        <strong>@Show(life.TechnicalSpecifications.Provider)</strong>
+                    </div>
+
+                    <div>
+                        <span>Garantía</span>
+                        <strong>@BoolLabel(life.Warranty.HasWarranty)</strong>
+                    </div>
+
+                    <div>
+                        <span>Tipo garantía</span>
+                        <strong>@Show(life.Warranty.WarrantyType)</strong>
+                    </div>
+
+                    <div>
+                        <span>Vence certificación</span>
+                        <strong>@DateLabel(life.TechnicalSpecifications.CertificationExpirationDate)</strong>
+                    </div>
+
+                    <div>
+                        <span>Inicio vida útil</span>
+                        <strong>@DateLabel(life.UsefulLife.StartDate)</strong>
+                    </div>
+
+                    <div>
+                        <span>Fin estimado</span>
+                        <strong>@DateLabel(life.UsefulLife.EndDate)</strong>
+                    </div>
+
+                    <div>
+                        <span>Vida útil meses</span>
+                        <strong>@ValueLabel(life.UsefulLife.UsefulLifeMonths)</strong>
+                    </div>
+
+                    <div>
+                        <span>Vida útil días</span>
+                        <strong>@ValueLabel(life.UsefulLife.UsefulLifeDays)</strong>
+                    </div>
+
+                    <div>
+                        <span>Último mantenimiento</span>
+                        <strong>@DateLabel(life.MaintenancePlan.LastMaintenanceDate)</strong>
+                    </div>
+
+                    <div>
+                        <span>Próximo mantenimiento</span>
+                        <strong>@DateLabel(life.MaintenancePlan.NextMaintenanceDate)</strong>
+                    </div>
+
+                    <div>
+                        <span>Periodicidad mantenimiento</span>
+                        <strong>@ValueLabel(life.MaintenancePlan.MaintenancePeriodMonths)</strong>
+                    </div>
+
+                    <div>
+                        <span>Requiere mantenimiento</span>
+                        <strong>@BoolLabel(life.TechnicalSpecifications.RequiresMaintenance)</strong>
+                    </div>
+
+                    <div>
+                        <span>Requiere preoperacional</span>
+                        <strong>@BoolLabel(life.TechnicalSpecifications.RequiresPreOperationalCheck)</strong>
+                    </div>
+
+                    <div>
+                        <span>Requiere certificación</span>
+                        <strong>@BoolLabel(life.TechnicalSpecifications.RequiresCertification)</strong>
+                    </div>
+                </div>
             }
             else
             {
-                <div class="mobile-doc-list">
-                    @foreach (var item in life.Documents.AllDocuments.Take(12))
+                <EditForm Model="technicalForm" OnValidSubmit="SaveTechnicalAsync">
+                    <div class="mlife-form-grid">
+                        <label>
+                            <span>Voltaje</span>
+                            <InputText @bind-Value="technicalForm.Voltage" />
+                        </label>
+
+                        <label>
+                            <span>Capacidad carga</span>
+                            <InputText @bind-Value="technicalForm.LoadCapacity" />
+                        </label>
+
+                        <label>
+                            <span>Proveedor</span>
+                            <InputText @bind-Value="technicalForm.Provider" />
+                        </label>
+
+                        <label>
+                            <span>Tipo garantía</span>
+                            <InputText @bind-Value="technicalForm.WarrantyType" />
+                        </label>
+
+                        <label>
+                            <span>Inicio vida útil</span>
+                            <InputDate @bind-Value="technicalForm.UsefulLifeStartDate" />
+                        </label>
+
+                        <label>
+                            <span>Vida útil meses</span>
+                            <InputNumber @bind-Value="technicalForm.UsefulLifeMonths" />
+                        </label>
+
+                        <label>
+                            <span>Vida útil días</span>
+                            <InputNumber @bind-Value="technicalForm.UsefulLifeDays" />
+                        </label>
+
+                        <label>
+                            <span>Último mantenimiento</span>
+                            <InputDate @bind-Value="technicalForm.LastMaintenanceDate" />
+                        </label>
+
+                        <label>
+                            <span>Próximo mantenimiento</span>
+                            <InputDate @bind-Value="technicalForm.NextMaintenanceDate" />
+                        </label>
+
+                        <label>
+                            <span>Periodicidad meses</span>
+                            <InputNumber @bind-Value="technicalForm.MaintenancePeriodMonths" />
+                        </label>
+
+                        <label>
+                            <span>Vence certificación</span>
+                            <InputDate @bind-Value="technicalForm.CertificationExpirationDate" />
+                        </label>
+                    </div>
+
+                    <div class="mlife-check-grid">
+                        <label>
+                            <InputCheckbox @bind-Value="technicalForm.HasWarranty" />
+                            Garantía
+                        </label>
+
+                        <label>
+                            <InputCheckbox @bind-Value="technicalForm.RequiresMaintenance" />
+                            Requiere mantenimiento
+                        </label>
+
+                        <label>
+                            <InputCheckbox @bind-Value="technicalForm.RequiresPreOperationalCheck" />
+                            Requiere preoperacional
+                        </label>
+
+                        <label>
+                            <InputCheckbox @bind-Value="technicalForm.RequiresCertification" />
+                            Requiere certificación
+                        </label>
+                    </div>
+
+                    <label class="mlife-full">
+                        <span>Observación</span>
+                        <InputTextArea @bind-Value="technicalForm.Observation" />
+                    </label>
+                </EditForm>
+            }
+        </details>
+
+
+        <details id="accessories" class="mobile-fold mlife-section">
+            <summary>
+                <span>Accesorios (@accessories.Count)</span>
+
+                <div class="mlife-summary-actions">
+                    @if (CanManageAccessories)
                     {
+                        @if (editAccessoriesMode)
+                        {
+                            <button type="button" class="cancel" @onclick="CancelAccessoriesSection" @onclick:stopPropagation="true">Cancelar</button>
+                            <button type="button" class="save" @onclick="SaveAccessoryAsync" @onclick:stopPropagation="true" disabled="@isSaving">
+                                @(isSaving ? "Guardando..." : "Guardar")
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="button" @onclick="BeginAccessoriesEdit" @onclick:stopPropagation="true">Editar</button>
+                        }
+                    }
+                </div>
+            </summary>
+
+            @if (editAccessoriesMode)
+            {
+                <EditForm Model="accessoryForm" OnValidSubmit="SaveAccessoryAsync">
+                    <div class="mlife-form-grid">
+                        <label><span>Nombre</span><InputText @bind-Value="accessoryForm.Name" /></label>
+                        <label><span>Cantidad</span><InputNumber @bind-Value="accessoryForm.Quantity" /></label>
+                    </div>
+
+                    <div class="mlife-check-grid">
+                        <label><InputCheckbox @bind-Value="accessoryForm.RequiresMaintenance" /> Requiere mantenimiento</label>
+                        <label><InputCheckbox @bind-Value="accessoryForm.IsMeasurementEquipment" /> Equipo medición</label>
+                    </div>
+
+                    <label class="mlife-full">
+                        <span>Observación</span>
+                        <InputTextArea @bind-Value="accessoryForm.Observation" />
+                    </label>
+                </EditForm>
+            }
+
+            <div class="mobile-mini-list">
+                @foreach (var item in accessories)
+                {
+                    <article>
+                        <strong>@Show(item.Name)</strong>
+                        <span>Cantidad: @item.Quantity · Mant.: @BoolLabel(item.RequiresMaintenance) · Medición: @BoolLabel(item.IsMeasurementEquipment)</span>
+                        <small>@Show(item.Observation)</small>
+
+                        @if (editAccessoriesMode && CanManageAccessories)
+                        {
+                            <div class="mlife-row-actions">
+                                <button type="button" @onclick="() => StartAccessoryEdit(item)">Editar este</button>
+                                <button class="danger" type="button" @onclick="() => DeleteAccessoryAsync(item)">Desactivar</button>
+                            </div>
+                        }
+                    </article>
+                }
+            </div>
+        </details>
+
+        <details id="documents" class="mobile-fold mlife-section">
+            <summary>
+                <span>Documentos (@documents.Count)</span>
+
+                <div class="mlife-summary-actions">
+                    @if (CanManageDocuments)
+                    {
+                        @if (editDocumentsMode)
+                        {
+                            <button type="button" class="cancel" @onclick="CancelDocumentsSection" @onclick:stopPropagation="true">Cancelar</button>
+                            <button type="button" class="save" @onclick="UploadDocumentAsync" @onclick:stopPropagation="true" disabled="@isSaving">
+                                @(isSaving ? "Cargando..." : "Guardar")
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="button" @onclick="BeginDocumentsEdit" @onclick:stopPropagation="true">Editar</button>
+                        }
+                    }
+                </div>
+            </summary>
+
+            @if (editDocumentsMode)
+            {
+                <div class="mlife-form-grid">
+                    <label>
+                        <span>Tipo documento</span>
+                        <InputSelect @bind-Value="documentForm.DocumentType">
+                            <option value="TechnicalDocument">Ficha técnica</option>
+                            <option value="PhotographicRecord">Registro fotográfico</option>
+                            <option value="MaintenanceEvidence">Evidencia mantenimiento</option>
+                            <option value="Other">Otro</option>
+                        </InputSelect>
+                    </label>
+
+                    <label>
+                        <span>Archivo</span>
+                        <InputFile OnChange="OnFileSelected" />
+                    </label>
+                </div>
+
+                <label class="mlife-full">
+                    <span>Descripción</span>
+                    <InputTextArea @bind-Value="documentForm.Description" />
+                </label>
+
+                @if (selectedFile is not null)
+                {
+                    <div class="mobile-empty compact">Archivo seleccionado: @selectedFile.Name</div>
+                }
+            }
+
+            <div class="mobile-doc-list">
+                @foreach (var item in documents)
+                {
+                    <article class="mlife-doc-card">
                         <a href="@Api.ToApiUrl(item.DownloadUrl)" target="_blank">
                             <strong>@Show(item.FileName)</strong>
                             <span>@Show(item.DocumentType) · @SizeLabel(item.SizeBytes)</span>
                             <small>@DateLabel(item.UploadedAt) · @Show(item.UploadedBy)</small>
                         </a>
-                    }
-                </div>
-            }
+
+                        @if (editDocumentsMode && CanManageDocuments)
+                        {
+                            <button class="danger" type="button" @onclick="() => DeleteDocumentAsync(item)">Desactivar</button>
+                        }
+                    </article>
+                }
+            </div>
         </details>
 
-        <details class="mobile-fold" open>
-            <summary>Registro fotográfico (@life.Documents.PhotoRecords.Count)</summary>
+        <details id="maintenance" class="mobile-fold mlife-section" open="@forceOpenMaintenanceSection">
+            <summary>
+                <span>Cronograma mantenimiento (@maintenance.Count)</span>
 
-            @if (!life.Documents.PhotoRecords.Any())
-            {
-                <div class="mobile-empty compact">Sin fotografías registradas.</div>
-            }
-            else
-            {
-                <div class="mobile-photo-grid">
-                    @foreach (var photo in life.Documents.PhotoRecords.Take(9))
+                <div class="mlife-summary-actions">
+                    @if (CanManageMaintenance)
                     {
-                        <a href="@Api.ToApiUrl(photo.DownloadUrl)" target="_blank">
-                            <img src="@Api.ToApiUrl(photo.DownloadUrl)" alt="@Show(photo.FileName)" />
-                            <span>@Show(photo.FileName)</span>
-                        </a>
+                        @if (editMaintenanceMode)
+                        {
+                            <button type="button" class="cancel" @onclick="CancelMaintenanceSection" @onclick:stopPropagation="true">Cancelar</button>
+                            <button type="button" class="save" @onclick="SaveMaintenanceAsync" @onclick:stopPropagation="true" disabled="@isSaving">
+                                @(isSaving ? "Guardando..." : "Guardar")
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="button" @onclick="BeginMaintenanceEdit" @onclick:stopPropagation="true">Editar</button>
+                        }
                     }
                 </div>
+            </summary>
+
+            @if (editMaintenanceMode)
+            {
+                <EditForm Model="maintenanceForm" OnValidSubmit="SaveMaintenanceAsync">
+                    <div class="mlife-form-grid">
+                        <label><span>Número</span><InputText @bind-Value="maintenanceForm.MaintenanceNumber" /></label>
+                        <label><span>Fecha programada</span><InputDate @bind-Value="maintenanceForm.ScheduledAt" /></label>
+                        <label>
+                            <span>Tipo</span>
+                            <InputSelect @bind-Value="maintenanceForm.Type">
+                                <option value="Preventive">Preventivo</option>
+                                <option value="Corrective">Correctivo</option>
+                                <option value="Calibration">Calibración</option>
+                                <option value="Inspection">Inspección</option>
+                            </InputSelect>
+                        </label>
+                        <label>
+                            <span>Estado</span>
+                            <InputSelect @bind-Value="maintenanceForm.Status">
+                                <option value="Scheduled">Programado</option>
+                                <option value="InProgress">En proceso</option>
+                                <option value="Completed">Completado</option>
+                                <option value="Cancelled">Cancelado</option>
+                            </InputSelect>
+                        </label>
+                        <label><span>Proveedor</span><InputText @bind-Value="maintenanceForm.Provider" /></label>
+                        <label><span>Técnico</span><InputText @bind-Value="maintenanceForm.Technician" /></label>
+                        <label><span>Factura</span><InputText @bind-Value="maintenanceForm.InvoiceNumber" /></label>
+                        <label><span>Costo</span><InputNumber @bind-Value="maintenanceForm.Cost" /></label>
+                    </div>
+
+                    <label class="mlife-full"><span>Descripción</span><InputTextArea @bind-Value="maintenanceForm.Description" /></label>
+                    <label class="mlife-full"><span>Actividades</span><InputTextArea @bind-Value="maintenanceForm.MaintenanceActivities" /></label>
+                    <label class="mlife-full"><span>Resultado</span><InputTextArea @bind-Value="maintenanceForm.Result" /></label>
+                </EditForm>
             }
+
+            <div class="mobile-mini-list">
+                @foreach (var item in maintenance)
+                {
+                    <article>
+                        <strong>@Show(item.MaintenanceNumber) · @Show(item.Status)</strong>
+                        <span>@DateLabel(item.ScheduledAt) · @Show(item.Provider) · @Show(item.Technician)</span>
+                        <small>@Show(item.Description ?? item.MaintenanceActivities ?? item.Result)</small>
+
+                        @if (editMaintenanceMode && CanManageMaintenance)
+                        {
+                            <div class="mlife-row-actions">
+                                <button type="button" @onclick="() => StartMaintenanceEdit(item)">Editar este</button>
+                                <button class="danger" type="button" @onclick="() => DeleteMaintenanceAsync(item)">Desactivar</button>
+                            </div>
+                        }
+                    </article>
+                }
+            </div>
         </details>
 
-        <details class="mobile-fold" open>
-            <summary>Eventos de hoja de vida (@life.LifeCycleEvents.Count)</summary>
+        <details id="safe" class="mobile-fold mlife-section">
+            <summary>
+                <span>Prácticas seguras (@safePractices.Count)</span>
 
-            @if (!life.LifeCycleEvents.Any())
-            {
-                <div class="mobile-empty compact">Sin eventos registrados.</div>
-            }
-            else
-            {
-                <div class="mobile-timeline compact">
-                    @foreach (var item in life.LifeCycleEvents.Take(12))
+                <div class="mlife-summary-actions">
+                    @if (CanManageSafePractices)
                     {
-                        <article>
-                            <strong>@Show(item.Title)</strong>
-                            <span>@Show(item.Description)</span>
-                            <small>@DateTimeLabel(item.EventDate) · @Show(item.PerformedBy ?? item.CreatedBy)</small>
-                        </article>
+                        @if (editSafePracticesMode)
+                        {
+                            <button type="button" class="cancel" @onclick="CancelSafePracticesSection" @onclick:stopPropagation="true">Cancelar</button>
+                            <button type="button" class="save" @onclick="SaveSafePracticeAsync" @onclick:stopPropagation="true" disabled="@isSaving">
+                                @(isSaving ? "Guardando..." : "Guardar")
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="button" @onclick="BeginSafePracticesEdit" @onclick:stopPropagation="true">Editar</button>
+                        }
                     }
                 </div>
+            </summary>
+
+            @if (editSafePracticesMode)
+            {
+                <EditForm Model="safePracticeForm" OnValidSubmit="SaveSafePracticeAsync">
+                    <div class="mlife-form-grid">
+                        <label><span>Orden</span><InputNumber @bind-Value="safePracticeForm.SortOrder" /></label>
+                        <label><span>Práctica</span><InputText @bind-Value="safePracticeForm.PracticeName" /></label>
+                    </div>
+
+                    <label class="mlife-full">
+                        <span>Descripción</span>
+                        <InputTextArea @bind-Value="safePracticeForm.Description" />
+                    </label>
+
+                    <button class="mlife-secondary inline" type="button" @onclick="CreateDefaultSafePracticesAsync" disabled="@isSaving">
+                        Cargar predeterminadas
+                    </button>
+                </EditForm>
             }
+
+            <div class="mobile-mini-list">
+                @foreach (var item in safePractices)
+                {
+                    <article>
+                        <strong>@item.SortOrder. @Show(item.PracticeName)</strong>
+                        <span>@Show(item.Description)</span>
+
+                        @if (editSafePracticesMode && CanManageSafePractices)
+                        {
+                            <div class="mlife-row-actions">
+                                <button type="button" @onclick="() => StartSafePracticeEdit(item)">Editar este</button>
+                                <button class="danger" type="button" @onclick="() => DeleteSafePracticeAsync(item)">Desactivar</button>
+                            </div>
+                        }
+                    </article>
+                }
+            </div>
         </details>
 
-        <section class="mobile-fixed-actions two">
-            <a href="@GetDetailUrl()">Detalle</a>
-            <a class="danger" href="@GetReportUrl()">Reportar</a>
-        </section>
+        <details class="mobile-fold mlife-section">
+            <summary>
+                <span>Eventos de hoja de vida (@life.LifeCycleEvents.Count)</span>
+            </summary>
+
+            <div class="mobile-timeline compact">
+                @foreach (var item in life.LifeCycleEvents.Take(20))
+                {
+                    <article>
+                        <strong>@Show(item.Title)</strong>
+                        <span>@Show(item.Description)</span>
+                        <small>@DateTimeLabel(item.EventDate) · @Show(item.PerformedBy ?? item.CreatedBy)</small>
+                    </article>
+                }
+            </div>
+        </details>
     }
 </section>
 
 @code {
+    private const long MaxFileSize = 50 * 1024 * 1024;
+
     [Parameter]
     public Guid ToolId { get; set; }
 
-    [SupplyParameterFromQuery(Name = "returnUrl")]
-    public string? ReturnUrl { get; set; }
     [SupplyParameterFromQuery(Name = "from")]
     public string? From { get; set; }
 
     private bool isLoading = true;
+    private bool isSaving;
     private string? message;
+
+    private bool editInfoMode;
+    private bool editTechnicalMode;
+    private bool editAccessoriesMode;
+    private bool editDocumentsMode;
+    private bool editMaintenanceMode;
+    private bool forceOpenMaintenanceSection;
+    private bool editSafePracticesMode;
+
     private MobileTechnicalLifeRecordDto? life;
+    private MobileToolDto? tool;
+
+    private TechnicalEditModel technicalForm = new();
+    private AccessoryForm accessoryForm = new();
+    private DocumentForm documentForm = new() { DocumentType = "TechnicalDocument" };
+    private MaintenanceForm maintenanceForm = new()
+    {
+        Type = "Preventive",
+        Status = "Scheduled",
+        ScheduledAt = DateTime.Today.AddDays(30),
+        IsToolOperational = true
+    };
+    private SafePracticeForm safePracticeForm = new() { SortOrder = 1 };
+
+    private Guid? editingAccessoryId;
+    private Guid? editingMaintenanceId;
+    private Guid? editingSafePracticeId;
+    private IBrowserFile? selectedFile;
+
+    private List<MobileAccessoryDto> accessories = new();
+    private List<MobileDocumentDto> documents = new();
+    private List<MobileMaintenanceScheduleDto> maintenance = new();
+    private List<MobileSafePracticeDto> safePractices = new();
+
+    private bool CanViewLifeRecord => Auth.HasAnyPermission("TechnicalLifeRecord.View", "ToolDetail.LifeRecord.Open");
+    private bool CanEditTechnical => Auth.HasPermission("TechnicalLifeRecord.Edit") && CanManageThisTool;
+    private bool CanManageAccessories => Auth.HasAnyPermission("TechnicalLifeRecord.Accessories", "TechnicalLifeRecord.Edit") && CanManageThisTool;
+    private bool CanManageDocuments => Auth.HasAnyPermission("TechnicalLifeRecord.Documents", "Documents.Upload", "Documents.View") && CanManageThisTool;
+    private bool CanManageMaintenance => Auth.HasAnyPermission("TechnicalLifeRecord.Maintenance", "Maintenance.Execute", "Maintenance.View") && CanManageThisTool;
+    private bool CanManageSafePractices => Auth.HasAnyPermission("TechnicalLifeRecord.SafePractices", "SafePractices.Manage", "SafePractices.View") && CanManageThisTool;
+
+    private bool HasAnyManagementPermission =>
+        Auth.HasAnyPermission(
+            "TechnicalLifeRecord.Edit",
+            "TechnicalLifeRecord.Accessories",
+            "TechnicalLifeRecord.Documents",
+            "TechnicalLifeRecord.Maintenance",
+            "TechnicalLifeRecord.SafePractices",
+            "Documents.Upload",
+            "Maintenance.Execute",
+            "SafePractices.Manage");
+
+    private bool CanSeeThisTool => tool is not null && IsToolVisible(tool);
+    private bool CanManageThisTool => tool is not null && HasAnyManagementPermission && IsToolVisibleByScopeOnly(tool);
+
+    private string PermissionMode => CanManageThisTool ? "Gestiona" : "Consulta";
 
     protected override async Task OnInitializedAsync()
     {
         await Auth.InitializeAsync();
 
         if (!Auth.IsAuthenticated)
+        {
+            isLoading = false;
+            return;
+        }
+
+        var refreshedUser = await Api.RefreshCurrentSessionAsync();
+
+        if (refreshedUser is null || !Auth.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", forceLoad: true);
+            return;
+        }
+
+        if (!CanViewLifeRecord)
         {
             isLoading = false;
             return;
@@ -298,8 +741,616 @@
     {
         try
         {
+            isLoading = true;
             message = null;
+
+            tool = await Api.GetToolByIdAsync(ToolId);
             life = await Api.GetTechnicalLifeRecordAsync(ToolId);
+
+            if (!CanSeeThisTool)
+            {
+                message = "No tienes permiso para consultar esta hoja de vida por sede, responsable o alcance.";
+                life = null;
+                return;
+            }
+
+            accessories = await Api.GetListJsonAsync<MobileAccessoryDto>($"api/tools/{ToolId}/accessories");
+            documents = await Api.GetListJsonAsync<MobileDocumentDto>($"api/tools/{ToolId}/documents");
+            maintenance = await Api.GetListJsonAsync<MobileMaintenanceScheduleDto>($"api/tools/{ToolId}/maintenance-schedule");
+            safePractices = await Api.GetListJsonAsync<MobileSafePracticeDto>($"api/tools/{ToolId}/safe-practices");
+
+            LoadTechnicalForm();
+
+            if (!safePractices.Any())
+            {
+                safePracticeForm.SortOrder = 1;
+            }
+            else if (!editingSafePracticeId.HasValue)
+            {
+                safePracticeForm.SortOrder = safePractices.Max(x => x.SortOrder) + 1;
+            }
+
+            ApplyMaintenanceQueryMode();
+        }
+        catch (Exception ex)
+        {
+            message = $"No se pudo cargar la hoja de vida: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+
+    private void ApplyMaintenanceQueryMode()
+    {
+        var query = Navigation.ToAbsoluteUri(Navigation.Uri).Query;
+
+        var shouldOpenMaintenance =
+            QueryHas(query, "section", "maintenance") ||
+            QueryHas(query, "section", "cronograma") ||
+            QueryHas(query, "from", "maintenance-plans");
+
+        var shouldEditMaintenance =
+            QueryHas(query, "edit", "maintenance") ||
+            QueryHas(query, "mode", "edit") ||
+            QueryHas(query, "open", "maintenance-edit");
+
+        if (!shouldOpenMaintenance && !shouldEditMaintenance)
+        {
+            return;
+        }
+
+        forceOpenMaintenanceSection = true;
+
+        if (shouldEditMaintenance && CanManageMaintenance)
+        {
+            CloseAllEditModes();
+            editMaintenanceMode = true;
+            CancelMaintenanceEdit(false);
+            message = "Cronograma de mantenimiento abierto para edición.";
+        }
+        else if (shouldEditMaintenance && !CanManageMaintenance)
+        {
+            message = "Puedes consultar el cronograma, pero no tienes permiso para editarlo.";
+        }
+    }
+
+    private static bool QueryHas(string? query, string key, string expected)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return false;
+        }
+
+        var clean = query.TrimStart('?');
+
+        foreach (var part in clean.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var pair = part.Split('=', 2);
+            var currentKey = Uri.UnescapeDataString(pair[0] ?? string.Empty);
+            var currentValue = pair.Length > 1 ? Uri.UnescapeDataString(pair[1]) : string.Empty;
+
+            if (string.Equals(currentKey, key, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(currentValue, expected, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+
+    private void BeginInfoEdit()
+    {
+        CloseAllEditModes();
+        LoadTechnicalForm();
+        editInfoMode = true;
+    }
+
+    private void BeginTechnicalEdit()
+    {
+        CloseAllEditModes();
+        LoadTechnicalForm();
+        editTechnicalMode = true;
+    }
+
+    private void BeginAccessoriesEdit()
+    {
+        CloseAllEditModes();
+        editAccessoriesMode = true;
+        CancelAccessoryEdit(false);
+    }
+
+    private void BeginDocumentsEdit()
+    {
+        CloseAllEditModes();
+        editDocumentsMode = true;
+        selectedFile = null;
+        documentForm = new DocumentForm { DocumentType = "TechnicalDocument" };
+    }
+
+    private void BeginMaintenanceEdit()
+    {
+        forceOpenMaintenanceSection = true;
+        CloseAllEditModes();
+        editMaintenanceMode = true;
+        CancelMaintenanceEdit(false);
+    }
+
+    private void BeginSafePracticesEdit()
+    {
+        CloseAllEditModes();
+        editSafePracticesMode = true;
+        CancelSafePracticeEdit(false);
+    }
+
+    private void CloseAllEditModes()
+    {
+        editInfoMode = false;
+        editTechnicalMode = false;
+        editAccessoriesMode = false;
+        editDocumentsMode = false;
+        editMaintenanceMode = false;
+        editSafePracticesMode = false;
+    }
+
+    private void CancelInfoEdit()
+    {
+        LoadTechnicalForm();
+        editInfoMode = false;
+        message = null;
+    }
+
+    private void CancelTechnicalEdit()
+    {
+        LoadTechnicalForm();
+        editTechnicalMode = false;
+        message = null;
+    }
+
+    private void CancelAccessoriesSection()
+    {
+        editAccessoriesMode = false;
+        CancelAccessoryEdit(false);
+        message = null;
+    }
+
+    private void CancelDocumentsSection()
+    {
+        editDocumentsMode = false;
+        selectedFile = null;
+        documentForm = new DocumentForm { DocumentType = "TechnicalDocument" };
+        message = null;
+    }
+
+    private void CancelMaintenanceSection()
+    {
+        editMaintenanceMode = false;
+        forceOpenMaintenanceSection = true;
+        CancelMaintenanceEdit(false);
+        message = null;
+    }
+
+    private void CancelSafePracticesSection()
+    {
+        editSafePracticesMode = false;
+        CancelSafePracticeEdit(false);
+        message = null;
+    }
+
+    private void LoadTechnicalForm()
+    {
+        if (life is null)
+        {
+            return;
+        }
+
+        technicalForm = new TechnicalEditModel
+        {
+            Brand = life.EquipmentInformation.Brand,
+            Model = life.EquipmentInformation.Model,
+            SerialNumber = life.EquipmentInformation.SerialNumber,
+            FixedAssetCode = life.EquipmentInformation.FixedAssetCode,
+            FenixCode = life.EquipmentInformation.FenixCode,
+            AcquisitionDate = life.EquipmentInformation.AcquisitionDate?.Date,
+
+            Voltage = life.TechnicalSpecifications.Voltage,
+            LoadCapacity = life.TechnicalSpecifications.LoadCapacity,
+            Provider = life.TechnicalSpecifications.Provider,
+            HasWarranty = life.Warranty.HasWarranty,
+            WarrantyType = life.Warranty.WarrantyType,
+
+            UsefulLifeStartDate = life.UsefulLife.StartDate?.Date,
+            UsefulLifeMonths = life.UsefulLife.UsefulLifeMonths,
+            UsefulLifeDays = life.UsefulLife.UsefulLifeDays,
+
+            LastMaintenanceDate = life.MaintenancePlan.LastMaintenanceDate?.Date,
+            NextMaintenanceDate = life.MaintenancePlan.NextMaintenanceDate?.Date,
+            MaintenancePeriodMonths = life.MaintenancePlan.MaintenancePeriodMonths,
+
+            RequiresMaintenance = life.TechnicalSpecifications.RequiresMaintenance,
+            RequiresPreOperationalCheck = life.TechnicalSpecifications.RequiresPreOperationalCheck,
+            RequiresCertification = life.TechnicalSpecifications.RequiresCertification,
+            CertificationExpirationDate = life.TechnicalSpecifications.CertificationExpirationDate?.Date,
+
+            UpdatedBy = Auth.CurrentUser?.UserName,
+            Observation = "Actualización desde app móvil."
+        };
+    }
+
+    private async Task SaveTechnicalAsync()
+    {
+        if (!CanEditTechnical)
+        {
+            message = "No tienes permiso para editar datos técnicos.";
+            return;
+        }
+
+        await RunSaveAsync(async () =>
+        {
+            technicalForm.UpdatedBy = Auth.CurrentUser?.UserName;
+            await Api.SendJsonAsync(HttpMethod.Patch, $"api/tools/{ToolId}/technical-data", technicalForm);
+            editInfoMode = false;
+            editTechnicalMode = false;
+            message = "Datos técnicos actualizados correctamente.";
+        });
+    }
+
+    private async Task SaveAccessoryAsync()
+    {
+        if (!CanManageAccessories)
+        {
+            message = "No tienes permiso para gestionar accesorios.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(accessoryForm.Name))
+        {
+            message = "El nombre del accesorio es obligatorio.";
+            return;
+        }
+
+        await RunSaveAsync(async () =>
+        {
+            if (editingAccessoryId.HasValue)
+            {
+                await Api.SendJsonAsync(HttpMethod.Put, $"api/tools/accessories/{editingAccessoryId.Value}", new
+                {
+                    name = accessoryForm.Name,
+                    quantity = accessoryForm.Quantity <= 0 ? 1 : accessoryForm.Quantity,
+                    requiresMaintenance = accessoryForm.RequiresMaintenance,
+                    isMeasurementEquipment = accessoryForm.IsMeasurementEquipment,
+                    observation = accessoryForm.Observation,
+                    updatedBy = Auth.CurrentUser?.UserName
+                });
+
+                message = "Accesorio actualizado correctamente.";
+            }
+            else
+            {
+                await Api.SendJsonAsync(HttpMethod.Post, $"api/tools/{ToolId}/accessories", new
+                {
+                    name = accessoryForm.Name,
+                    quantity = accessoryForm.Quantity <= 0 ? 1 : accessoryForm.Quantity,
+                    requiresMaintenance = accessoryForm.RequiresMaintenance,
+                    isMeasurementEquipment = accessoryForm.IsMeasurementEquipment,
+                    observation = accessoryForm.Observation,
+                    createdBy = Auth.CurrentUser?.UserName
+                });
+
+                message = "Accesorio creado correctamente.";
+            }
+
+            CancelAccessoryEdit(false);
+        });
+    }
+
+    private void StartAccessoryEdit(MobileAccessoryDto item)
+    {
+        editAccessoriesMode = true;
+        editingAccessoryId = item.Id;
+
+        accessoryForm = new AccessoryForm
+        {
+            Name = item.Name,
+            Quantity = item.Quantity <= 0 ? 1 : item.Quantity,
+            RequiresMaintenance = item.RequiresMaintenance,
+            IsMeasurementEquipment = item.IsMeasurementEquipment,
+            Observation = item.Observation
+        };
+    }
+
+    private void CancelAccessoryEdit(bool clearMessage = true)
+    {
+        editingAccessoryId = null;
+        accessoryForm = new AccessoryForm { Quantity = 1 };
+
+        if (clearMessage)
+        {
+            message = null;
+        }
+    }
+
+    private async Task DeleteAccessoryAsync(MobileAccessoryDto item)
+    {
+        if (!CanManageAccessories)
+        {
+            return;
+        }
+
+        await RunSaveAsync(async () =>
+        {
+            await Api.SendJsonAsync(HttpMethod.Delete, $"api/tools/accessories/{item.Id}?deletedBy={Uri.EscapeDataString(Auth.CurrentUser?.UserName ?? "mobile")}");
+            message = "Accesorio desactivado correctamente.";
+        });
+    }
+
+    private void OnFileSelected(InputFileChangeEventArgs args)
+    {
+        selectedFile = args.File;
+        message = null;
+    }
+
+    private async Task UploadDocumentAsync()
+    {
+        if (!CanManageDocuments)
+        {
+            message = "No tienes permiso para gestionar documentos.";
+            return;
+        }
+
+        if (selectedFile is null)
+        {
+            message = "Debe seleccionar un archivo para guardar.";
+            return;
+        }
+
+        await RunSaveAsync(async () =>
+        {
+            await Api.UploadToolDocumentAsync(
+                ToolId,
+                selectedFile,
+                documentForm.DocumentType ?? "Other",
+                documentForm.Description,
+                Auth.CurrentUser?.UserName,
+                MaxFileSize);
+
+            selectedFile = null;
+            documentForm = new DocumentForm { DocumentType = "TechnicalDocument" };
+            editDocumentsMode = false;
+            message = "Documento cargado correctamente.";
+        });
+    }
+
+    private async Task DeleteDocumentAsync(MobileDocumentDto item)
+    {
+        if (!CanManageDocuments)
+        {
+            return;
+        }
+
+        await RunSaveAsync(async () =>
+        {
+            await Api.SendJsonAsync(HttpMethod.Delete, $"api/tools/documents/{item.Id}?deletedBy={Uri.EscapeDataString(Auth.CurrentUser?.UserName ?? "mobile")}");
+            message = "Documento desactivado correctamente.";
+        });
+    }
+
+    private async Task SaveMaintenanceAsync()
+    {
+        if (!CanManageMaintenance)
+        {
+            message = "No tienes permiso para gestionar mantenimiento.";
+            return;
+        }
+
+        await RunSaveAsync(async () =>
+        {
+            var payload = new
+            {
+                maintenanceNumber = maintenanceForm.MaintenanceNumber,
+                type = maintenanceForm.Type,
+                status = maintenanceForm.Status,
+                scheduledAt = maintenanceForm.ScheduledAt,
+                startedAt = maintenanceForm.StartedAt,
+                finishedAt = maintenanceForm.FinishedAt,
+                provider = maintenanceForm.Provider,
+                technician = maintenanceForm.Technician,
+                description = maintenanceForm.Description,
+                maintenanceActivities = maintenanceForm.MaintenanceActivities,
+                executionNotes = maintenanceForm.ExecutionNotes,
+                invoiceNumber = maintenanceForm.InvoiceNumber,
+                responsibleName = maintenanceForm.ResponsibleName,
+                responsiblePosition = maintenanceForm.ResponsiblePosition,
+                isToolOperational = maintenanceForm.IsToolOperational,
+                cost = maintenanceForm.Cost,
+                result = maintenanceForm.Result,
+                createdBy = Auth.CurrentUser?.UserName,
+                updatedBy = Auth.CurrentUser?.UserName
+            };
+
+            if (editingMaintenanceId.HasValue)
+            {
+                await Api.SendJsonAsync(HttpMethod.Put, $"api/tools/maintenance-schedule/{editingMaintenanceId.Value}", payload);
+                message = "Mantenimiento actualizado correctamente.";
+            }
+            else
+            {
+                await Api.SendJsonAsync(HttpMethod.Post, $"api/tools/{ToolId}/maintenance-schedule", payload);
+                message = "Mantenimiento creado correctamente.";
+            }
+
+            CancelMaintenanceEdit(false);
+        });
+    }
+
+    private void StartMaintenanceEdit(MobileMaintenanceScheduleDto item)
+    {
+        editMaintenanceMode = true;
+        editingMaintenanceId = item.Id;
+
+        maintenanceForm = new MaintenanceForm
+        {
+            MaintenanceNumber = item.MaintenanceNumber,
+            Type = item.Type ?? "Preventive",
+            Status = item.Status ?? "Scheduled",
+            ScheduledAt = item.ScheduledAt?.Date ?? DateTime.Today,
+            StartedAt = item.StartedAt?.Date,
+            FinishedAt = item.FinishedAt?.Date,
+            Provider = item.Provider,
+            Technician = item.Technician,
+            Description = item.Description,
+            MaintenanceActivities = item.MaintenanceActivities,
+            ExecutionNotes = item.ExecutionNotes,
+            InvoiceNumber = item.InvoiceNumber,
+            ResponsibleName = item.ResponsibleName,
+            ResponsiblePosition = item.ResponsiblePosition,
+            IsToolOperational = item.IsToolOperational,
+            Cost = item.Cost,
+            Result = item.Result
+        };
+    }
+
+    private void CancelMaintenanceEdit(bool clearMessage = true)
+    {
+        editingMaintenanceId = null;
+
+        maintenanceForm = new MaintenanceForm
+        {
+            Type = "Preventive",
+            Status = "Scheduled",
+            ScheduledAt = DateTime.Today.AddDays(30),
+            IsToolOperational = true
+        };
+
+        if (clearMessage)
+        {
+            message = null;
+        }
+    }
+
+    private async Task DeleteMaintenanceAsync(MobileMaintenanceScheduleDto item)
+    {
+        if (!CanManageMaintenance)
+        {
+            return;
+        }
+
+        await RunSaveAsync(async () =>
+        {
+            await Api.SendJsonAsync(HttpMethod.Delete, $"api/tools/maintenance-schedule/{item.Id}?deletedBy={Uri.EscapeDataString(Auth.CurrentUser?.UserName ?? "mobile")}");
+            message = "Mantenimiento desactivado correctamente.";
+        });
+    }
+
+    private async Task SaveSafePracticeAsync()
+    {
+        if (!CanManageSafePractices)
+        {
+            message = "No tienes permiso para gestionar prácticas seguras.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(safePracticeForm.PracticeName))
+        {
+            message = "El nombre de la práctica es obligatorio.";
+            return;
+        }
+
+        await RunSaveAsync(async () =>
+        {
+            var payload = new
+            {
+                practiceName = safePracticeForm.PracticeName,
+                description = safePracticeForm.Description,
+                sortOrder = safePracticeForm.SortOrder,
+                createdBy = Auth.CurrentUser?.UserName,
+                updatedBy = Auth.CurrentUser?.UserName
+            };
+
+            if (editingSafePracticeId.HasValue)
+            {
+                await Api.SendJsonAsync(HttpMethod.Put, $"api/tools/safe-practices/{editingSafePracticeId.Value}", payload);
+                message = "Práctica segura actualizada correctamente.";
+            }
+            else
+            {
+                await Api.SendJsonAsync(HttpMethod.Post, $"api/tools/{ToolId}/safe-practices", payload);
+                message = "Práctica segura creada correctamente.";
+            }
+
+            CancelSafePracticeEdit(false);
+        });
+    }
+
+    private async Task CreateDefaultSafePracticesAsync()
+    {
+        if (!CanManageSafePractices)
+        {
+            return;
+        }
+
+        await RunSaveAsync(async () =>
+        {
+            await Api.SendJsonAsync(HttpMethod.Post, $"api/tools/{ToolId}/safe-practices/defaults");
+            message = "Prácticas predeterminadas cargadas correctamente.";
+        });
+    }
+
+    private void StartSafePracticeEdit(MobileSafePracticeDto item)
+    {
+        editSafePracticesMode = true;
+        editingSafePracticeId = item.Id;
+
+        safePracticeForm = new SafePracticeForm
+        {
+            PracticeName = item.PracticeName,
+            Description = item.Description,
+            SortOrder = item.SortOrder
+        };
+    }
+
+    private void CancelSafePracticeEdit(bool clearMessage = true)
+    {
+        editingSafePracticeId = null;
+
+        safePracticeForm = new SafePracticeForm
+        {
+            SortOrder = safePractices.Count == 0 ? 1 : safePractices.Max(x => x.SortOrder) + 1
+        };
+
+        if (clearMessage)
+        {
+            message = null;
+        }
+    }
+
+    private async Task DeleteSafePracticeAsync(MobileSafePracticeDto item)
+    {
+        if (!CanManageSafePractices)
+        {
+            return;
+        }
+
+        await RunSaveAsync(async () =>
+        {
+            await Api.SendJsonAsync(HttpMethod.Delete, $"api/tools/safe-practices/{item.Id}?deletedBy={Uri.EscapeDataString(Auth.CurrentUser?.UserName ?? "mobile")}");
+            message = "Práctica segura desactivada correctamente.";
+        });
+    }
+
+    private async Task RunSaveAsync(Func<Task> action)
+    {
+        try
+        {
+            isSaving = true;
+            message = null;
+
+            await action();
+            await LoadAsync();
         }
         catch (Exception ex)
         {
@@ -307,9 +1358,68 @@
         }
         finally
         {
-            isLoading = false;
+            isSaving = false;
         }
     }
+
+    private bool IsToolVisibleByScopeOnly(MobileToolDto item)
+    {
+        if (UserCanSeeAllBranches())
+        {
+            return true;
+        }
+
+        var user = Auth.CurrentUser;
+
+        if (user is null)
+        {
+            return false;
+        }
+
+        return SameNormalized(item.BranchCode, user.BranchCode)
+            || SameNormalized(item.BranchName, user.BranchName);
+    }
+
+    private bool IsToolVisible(MobileToolDto item)
+    {
+        if (!IsToolVisibleByScopeOnly(item))
+        {
+            return false;
+        }
+
+        if (IsOwnDataOnly())
+        {
+            return Auth.CurrentUser?.ResponsiblePersonId == item.ResponsiblePersonId ||
+                   SameNormalized(item.ResponsiblePersonName, Auth.CurrentUser?.ResponsiblePersonName) ||
+                   SameNormalized(item.ResponsiblePersonName, Auth.CurrentUser?.DisplayName);
+        }
+
+        return true;
+    }
+
+    private bool IsOwnDataOnly()
+    {
+        var role = $"{Auth.CurrentUser?.RoleCode} {Auth.CurrentUser?.RoleName}";
+        return Normalize(role).Contains("TECNICO") && !HasAnyManagementPermission;
+    }
+
+    private bool UserCanSeeAllBranches()
+    {
+        var user = Auth.CurrentUser;
+
+        if (user is null)
+        {
+            return false;
+        }
+
+        return string.IsNullOrWhiteSpace(user.BranchCode)
+            || SameNormalized(user.BranchCode, "TODAS")
+            || SameNormalized(user.BranchCode, "ALL")
+            || SameNormalized(user.BranchName, "Todas las sedes")
+            || SameNormalized(user.BranchName, "TODAS")
+            || SameNormalized(user.BranchName, "ALL");
+    }
+
     private void GoBack()
     {
         if (string.Equals(From, "life-records", StringComparison.OrdinalIgnoreCase))
@@ -320,11 +1430,36 @@
 
         Navigation.NavigateTo("/");
     }
-private void GoLogin() => Navigation.NavigateTo("/login", forceLoad: true);
 
-    private string GetDetailUrl() => "/tools/" + ToolId;
+    private void GoLogin() => Navigation.NavigateTo("/login", forceLoad: true);
 
-    private string GetReportUrl() => "/report-damage/" + ToolId;
+    private static bool SameNormalized(string? left, string? right)
+    {
+        var a = Normalize(left);
+        var b = Normalize(right);
+
+        return !string.IsNullOrWhiteSpace(a) &&
+               !string.IsNullOrWhiteSpace(b) &&
+               string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Normalize(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return value.Trim()
+            .ToUpperInvariant()
+            .Replace("Á", "A")
+            .Replace("É", "E")
+            .Replace("Í", "I")
+            .Replace("Ó", "O")
+            .Replace("Ú", "U")
+            .Replace("Ü", "U")
+            .Replace("Ñ", "N");
+    }
 
     private static string Show(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value;
 
@@ -334,11 +1469,9 @@ private void GoLogin() => Navigation.NavigateTo("/login", forceLoad: true);
 
     private static string DateTimeLabel(DateTime value) => value == default ? "-" : value.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
 
-    private static string ValueLabel(int? value) => value.HasValue ? value.Value.ToString() : "-";
-
     private static string PercentLabel(int? value) => value.HasValue ? $"{value.Value}%" : "0%";
 
-    private static int ClampPercent(int? value) => Math.Clamp(value ?? 0, 0, 100);
+    private static string ValueLabel(int? value) => value.HasValue ? value.Value.ToString() : "-";
 
     private static string JoinCodeName(string? code, string? name)
     {
@@ -370,26 +1503,88 @@ private void GoLogin() => Navigation.NavigateTo("/login", forceLoad: true);
         return $"{Math.Round(sizeBytes / 1024m / 1024m, 1)} MB";
     }
 
-    private static string StatusLabel(string? status)
+    private static string StatusLabel(string? status) => status switch
     {
-        return status switch
-        {
-            "Available" => "Disponible",
-            "Assigned" => "Asignada",
-            "Loaned" => "Prestada",
-            "InMaintenance" => "En mantenimiento",
-            "Damaged" => "Dañada",
-            "NotSuitable" => "No apta",
-            "PendingValidation" => "Pendiente validación",
-            "Inconsistent" => "Inconsistente",
-            "NotLocated" => "No localizada",
-            "PendingDisposal" => "Pendiente baja",
-            "Disposed" => "Dada de baja",
-            _ => Show(status)
-        };
+        "Available" => "Disponible",
+        "Assigned" => "Asignada",
+        "Loaned" => "Prestada",
+        "InMaintenance" => "En mantenimiento",
+        "Damaged" => "Dañada",
+        "NotSuitable" => "No apta",
+        "PendingValidation" => "Pendiente validación",
+        "NotLocated" => "No localizada",
+        "PendingDisposal" => "Pendiente baja",
+        "Disposed" => "Dada de baja",
+        _ => Show(status)
+    };
+
+    private sealed class TechnicalEditModel
+    {
+        public string? Brand { get; set; }
+        public string? Model { get; set; }
+        public string? SerialNumber { get; set; }
+        public string? FixedAssetCode { get; set; }
+        public string? FenixCode { get; set; }
+        public DateTime? AcquisitionDate { get; set; }
+        public string? Voltage { get; set; }
+        public string? LoadCapacity { get; set; }
+        public string? Provider { get; set; }
+        public bool HasWarranty { get; set; }
+        public string? WarrantyType { get; set; }
+        public DateTime? UsefulLifeStartDate { get; set; }
+        public int? UsefulLifeMonths { get; set; }
+        public int? UsefulLifeDays { get; set; }
+        public DateTime? LastMaintenanceDate { get; set; }
+        public DateTime? NextMaintenanceDate { get; set; }
+        public int? MaintenancePeriodMonths { get; set; }
+        public bool RequiresMaintenance { get; set; }
+        public bool RequiresPreOperationalCheck { get; set; }
+        public bool RequiresCertification { get; set; }
+        public DateTime? CertificationExpirationDate { get; set; }
+        public string? UpdatedBy { get; set; }
+        public string? Observation { get; set; }
+    }
+
+    private sealed class AccessoryForm
+    {
+        public string? Name { get; set; }
+        public decimal Quantity { get; set; } = 1;
+        public bool RequiresMaintenance { get; set; }
+        public bool IsMeasurementEquipment { get; set; }
+        public string? Observation { get; set; }
+    }
+
+    private sealed class DocumentForm
+    {
+        public string? DocumentType { get; set; }
+        public string? Description { get; set; }
+    }
+
+    private sealed class MaintenanceForm
+    {
+        public string? MaintenanceNumber { get; set; }
+        public string? Type { get; set; }
+        public string? Status { get; set; }
+        public DateTime? ScheduledAt { get; set; }
+        public DateTime? StartedAt { get; set; }
+        public DateTime? FinishedAt { get; set; }
+        public string? Provider { get; set; }
+        public string? Technician { get; set; }
+        public string? Description { get; set; }
+        public string? MaintenanceActivities { get; set; }
+        public string? ExecutionNotes { get; set; }
+        public string? InvoiceNumber { get; set; }
+        public string? ResponsibleName { get; set; }
+        public string? ResponsiblePosition { get; set; }
+        public bool IsToolOperational { get; set; }
+        public decimal? Cost { get; set; }
+        public string? Result { get; set; }
+    }
+
+    private sealed class SafePracticeForm
+    {
+        public string? PracticeName { get; set; }
+        public string? Description { get; set; }
+        public int SortOrder { get; set; } = 1;
     }
 }
-
-
-
-

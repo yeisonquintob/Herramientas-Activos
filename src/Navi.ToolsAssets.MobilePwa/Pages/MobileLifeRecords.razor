@@ -1,4 +1,4 @@
-﻿@page "/mobile/life-records"
+@page "/mobile/life-records"
 
 @using Navi.ToolsAssets.MobilePwa.Models
 
@@ -8,7 +8,7 @@
 
 <PageTitle>Hojas de vida AF - NAVI Herramientas y AF</PageTitle>
 
-<section class="mobile-page mobile-life-list-page">
+<section class="mobile-page mobile-life-list-page navi-life-mobile-v2">
     @if (isLoading)
     {
         <div class="mobile-loading">Cargando hojas de vida...</div>
@@ -21,118 +21,222 @@
             <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
         </div>
     }
+    else if (!CanViewLifeRecord)
+    {
+        <div class="mobile-empty">
+            <strong>Sin permiso</strong>
+            <span>Tu usuario no tiene permiso para consultar Hoja de vida.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoHome">Volver al inicio</button>
+        </div>
+    }
     else
     {
-        <header class="mobile-life-list-hero">
-            <div class="mobile-life-list-top">
+        <header class="mlife-hero">
+            <div>
                 <span>HOJA DE VIDA AF</span>
-                <button type="button" @onclick="GoHome">Regresar</button>
+                <h1>Hojas de vida</h1>
+                <p>@Display(Auth.CurrentUser?.DisplayName) · @ScopeLabel</p>
             </div>
 
-            <h1>Hojas de vida</h1>
-            <p>Consulta las hojas de vida de activos fijos y herramientas.</p>
+            <div class="mlife-hero-actions">
+                <button type="button" @onclick="GoHome">Inicio</button>
+                <button type="button" @onclick="LoadAsync" disabled="@isLoading">Actualizar</button>
+            </div>
         </header>
 
-        <section class="mobile-life-list-kpis">
-            <article>
-                <strong>@tools.Count</strong>
-                <span>Total AF</span>
-            </article>
+        @if (!string.IsNullOrWhiteSpace(message))
+        {
+            <div class="mobile-alert">@message</div>
+        }
 
+        <section class="mlife-kpis">
             <article>
-                <strong>@tools.Count(x => x.RequiresMaintenance)</strong>
-                <span>Mantenimiento</span>
-            </article>
-
-            <article>
+                <span>Mostrando</span>
                 <strong>@FilteredTools.Count()</strong>
-                <span>Visibles</span>
+                <small>Con filtros</small>
+            </article>
+
+            <article>
+                <span>Total visible</span>
+                <strong>@ScopedTools.Count()</strong>
+                <small>@ScopeLabel</small>
+            </article>
+
+            <article>
+                <span>Mantenimiento</span>
+                <strong>@FilteredTools.Count(x => x.RequiresMaintenance)</strong>
+                <small>Requieren control</small>
+            </article>
+
+            <article>
+                <span>Editables</span>
+                <strong>@FilteredTools.Count(x => CanManageTool(x))</strong>
+                <small>Según rol</small>
             </article>
         </section>
 
-        <section class="mobile-life-list-card">
-            <div class="mobile-life-list-card-head">
-                <div>
-                    <strong>Buscar hoja de vida</strong>
-                    <span>Código, nombre, serial, sede o responsable</span>
-                </div>
-            </div>
+        <section class="mlife-filter-card">
+            <label>
+                <span>Buscar</span>
+                <input value="@search"
+                       @oninput="OnSearchChanged"
+                       placeholder="Código, nombre, serial, sede, ubicación, responsable..." />
+            </label>
 
-            <input class="mobile-tool-search-input"
-                   value="@search"
-                   @oninput="OnSearchChanged"
-                   placeholder="Buscar hoja de vida..." />
-
-            @if (!FilteredTools.Any())
+            @if (UserCanSeeAllBranches())
             {
-                <div class="mobile-empty compact">No hay hojas de vida para mostrar.</div>
+                <label>
+                    <span>Sede</span>
+                    <select value="@selectedBranchCode" @onchange="OnBranchChanged">
+                        <option value="">Todas las sedes</option>
+                        @foreach (var branch in BranchOptions)
+                        {
+                            <option value="@branch">@branch</option>
+                        }
+                    </select>
+                </label>
             }
             else
             {
-                <div class="mobile-life-list-items">
-                    @foreach (var tool in FilteredTools.Take(120))
-                    {
-                        <article>
-                            <div class="mobile-life-list-item-head">
-                                <div>
-                                    <span>@tool.InternalCode</span>
-                                    <strong>@tool.Name</strong>
-                                    <small>@Display(tool.BranchCode) · @Display(tool.LocationName)</small>
-                                </div>
-
-                                <em class="@GetStatusClass(tool.OperationalStatus)">
-                                    @GetStatusLabel(tool.OperationalStatus)
-                                </em>
-                            </div>
-
-                            <div class="mobile-life-list-grid">
-                                <div>
-                                    <span>Serial</span>
-                                    <strong>@Display(tool.SerialNumber)</strong>
-                                </div>
-
-                                <div>
-                                    <span>Responsable</span>
-                                    <strong>@Display(tool.ResponsiblePersonName)</strong>
-                                </div>
-
-                                <div>
-                                    <span>Tipo</span>
-                                    <strong>@Display(tool.ToolTypeName)</strong>
-                                </div>
-
-                                <div>
-                                    <span>Físico</span>
-                                    <strong>@Display(tool.PhysicalStatus)</strong>
-                                </div>
-                            </div>
-
-                            <div class="mobile-life-list-actions">
-                                <a href="@GetLifeRecordUrl(tool.Id)">Abrir hoja de vida</a>
-                                <a class="secondary" href="@GetDetailUrl(tool.Id)">Detalle</a>
-                            </div>
-                        </article>
-                    }
-                </div>
+                <label>
+                    <span>Sede</span>
+                    <input value="@ScopeLabel" disabled />
+                </label>
             }
+
+            <div class="mlife-status-head">
+                <strong>Estado</strong>
+                <button type="button" @onclick="ClearFilters">Limpiar filtros</button>
+            </div>
+
+            <div class="mlife-status-chips">
+                @foreach (var status in StatusOptions)
+                {
+                    var selected = selectedStatuses.Contains(status.Value);
+
+                    <button type="button"
+                            class="@(selected ? "selected" : "")"
+                            @onclick="() => ToggleStatus(status.Value)">
+                        @status.Text
+                    </button>
+                }
+            </div>
         </section>
+
+        @if (!FilteredTools.Any())
+        {
+            <div class="mobile-empty compact">No hay hojas de vida visibles para tu rol, sede o filtros actuales.</div>
+        }
+        else
+        {
+            <section class="mobile-life-list-items">
+                @foreach (var tool in FilteredTools.Take(150))
+                {
+                    <article class="mlife-card">
+                        <div class="mobile-life-list-item-head">
+                            <div>
+                                <span>@tool.InternalCode</span>
+                                <strong>@tool.Name</strong>
+                                <small>@Display(tool.BranchCode) · @Display(tool.LocationName)</small>
+                            </div>
+
+                            <em class="@GetStatusClass(tool.OperationalStatus)">
+                                @GetStatusLabel(tool.OperationalStatus)
+                            </em>
+                        </div>
+
+                        <div class="mobile-life-list-grid">
+                            <div><span>Serial</span><strong>@Display(tool.SerialNumber)</strong></div>
+                            <div><span>Responsable</span><strong>@Display(tool.ResponsiblePersonName)</strong></div>
+                            <div><span>Tipo</span><strong>@Display(tool.ToolTypeName)</strong></div>
+                            <div><span>Físico</span><strong>@Display(tool.PhysicalStatus)</strong></div>
+                        </div>
+
+                        <div class="mlife-actions">
+                            <a href="@GetLifeRecordUrl(tool.Id)">Abrir hoja de vida</a>
+
+                            @if (CanManageTool(tool))
+                            {
+                                <a class="edit" href="@GetLifeRecordUrl(tool.Id)">Gestionar</a>
+                            }
+
+                            @if (CanExportLifeRecord)
+                            {
+                                <a class="secondary" href="@Api.ToApiUrl($"/api/tools/{tool.Id}/technical-life-record/export-excel")" target="_blank">
+                                    Excel
+                                </a>
+                            }
+                        </div>
+                    </article>
+                }
+            </section>
+        }
     }
 </section>
 
 @code {
     private bool isLoading = true;
     private string search = string.Empty;
+    private string selectedBranchCode = string.Empty;
+    private string? message;
+
+    private HashSet<string> selectedStatuses = new(StringComparer.OrdinalIgnoreCase);
     private List<MobileToolDto> tools = new();
 
-    private IEnumerable<MobileToolDto> FilteredTools =>
+    private bool CanViewLifeRecord => Auth.HasPermission("TechnicalLifeRecord.View") || Auth.HasPermission("ToolDetail.LifeRecord.Open");
+    private bool CanEditLifeRecord => Auth.HasPermission("TechnicalLifeRecord.Edit");
+    private bool CanManageAccessories => Auth.HasAnyPermission("TechnicalLifeRecord.Accessories", "TechnicalLifeRecord.Edit");
+    private bool CanManageDocuments => Auth.HasAnyPermission("TechnicalLifeRecord.Documents", "Documents.Upload", "Documents.View");
+    private bool CanManageMaintenance => Auth.HasAnyPermission("TechnicalLifeRecord.Maintenance", "Maintenance.Execute", "Maintenance.View");
+    private bool CanManageSafePractices => Auth.HasAnyPermission("TechnicalLifeRecord.SafePractices", "SafePractices.Manage", "SafePractices.View");
+    private bool CanExportLifeRecord => Auth.HasPermission("TechnicalLifeRecord.Export");
+
+    private bool HasAnyManagementPermission =>
+        CanEditLifeRecord ||
+        CanManageAccessories ||
+        CanManageDocuments ||
+        CanManageMaintenance ||
+        CanManageSafePractices ||
+        CanExportLifeRecord;
+
+    private string ScopeLabel =>
+        UserCanSeeAllBranches()
+            ? "Todas las sedes"
+            : Display(Auth.CurrentUser?.BranchName ?? Auth.CurrentUser?.BranchCode);
+
+    private readonly (string Value, string Text)[] StatusOptions =
+    {
+        ("Available", "Disponible"),
+        ("Assigned", "Asignada"),
+        ("Loaned", "Prestada"),
+        ("InMaintenance", "Mantenimiento"),
+        ("Damaged", "Dañada"),
+        ("NotSuitable", "No apta"),
+        ("PendingValidation", "Pendiente"),
+        ("NotLocated", "No localizada"),
+        ("Disposed", "Baja")
+    };
+
+    private IEnumerable<string> BranchOptions =>
         tools
-            .Where(x => string.IsNullOrWhiteSpace(search) ||
-                        ContainsText(x.InternalCode, search) ||
-                        ContainsText(x.Name, search) ||
-                        ContainsText(x.SerialNumber, search) ||
-                        ContainsText(x.BranchCode, search) ||
-                        ContainsText(x.LocationName, search) ||
-                        ContainsText(x.ResponsiblePersonName, search))
+            .Where(IsToolVisibleByScopeOnly)
+            .Select(x => x.BranchCode)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x);
+
+    private IEnumerable<MobileToolDto> ScopedTools =>
+        tools
+            .Where(IsToolVisible)
+            .OrderBy(x => x.BranchCode)
+            .ThenBy(x => x.InternalCode);
+
+    private IEnumerable<MobileToolDto> FilteredTools =>
+        ScopedTools
+            .Where(MatchesBranchFilter)
+            .Where(MatchesStatusFilter)
+            .Where(MatchesSearchFilter)
             .OrderBy(x => x.BranchCode)
             .ThenBy(x => x.InternalCode);
 
@@ -146,6 +250,20 @@
             return;
         }
 
+        var refreshedUser = await Api.RefreshCurrentSessionAsync();
+
+        if (refreshedUser is null || !Auth.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", forceLoad: true);
+            return;
+        }
+
+        if (!CanViewLifeRecord)
+        {
+            isLoading = false;
+            return;
+        }
+
         await LoadAsync();
     }
 
@@ -153,7 +271,13 @@
     {
         try
         {
+            isLoading = true;
+            message = null;
             tools = await Api.GetToolsAsync(true);
+        }
+        catch (Exception ex)
+        {
+            message = $"No se pudieron cargar las hojas de vida: {ex.Message}";
         }
         finally
         {
@@ -161,42 +285,147 @@
         }
     }
 
-    private void OnSearchChanged(ChangeEventArgs args)
+    private void OnSearchChanged(ChangeEventArgs args) => search = args.Value?.ToString() ?? string.Empty;
+
+    private void OnBranchChanged(ChangeEventArgs args) => selectedBranchCode = args.Value?.ToString() ?? string.Empty;
+
+    private void ToggleStatus(string status)
     {
-        search = args.Value?.ToString() ?? string.Empty;
+        if (!selectedStatuses.Add(status))
+        {
+            selectedStatuses.Remove(status);
+        }
     }
 
-    private void GoHome()
+    private void ClearFilters()
     {
-        Navigation.NavigateTo("/");
+        search = string.Empty;
+        selectedBranchCode = string.Empty;
+        selectedStatuses.Clear();
     }
 
-    private void GoLogin()
+    private bool MatchesBranchFilter(MobileToolDto tool)
     {
-        Navigation.NavigateTo("/login", forceLoad: true);
+        return string.IsNullOrWhiteSpace(selectedBranchCode) ||
+               SameNormalized(tool.BranchCode, selectedBranchCode);
     }
 
-    private static string GetLifeRecordUrl(Guid id)
+    private bool MatchesStatusFilter(MobileToolDto tool)
     {
-        return "/tools/" + id + "/life-record?from=life-records";
+        return selectedStatuses.Count == 0 ||
+               selectedStatuses.Contains(tool.OperationalStatus ?? string.Empty);
     }
 
-    private static string GetDetailUrl(Guid id)
+    private bool MatchesSearchFilter(MobileToolDto tool)
     {
-        return "/tools/" + id;
+        if (string.IsNullOrWhiteSpace(search))
+        {
+            return true;
+        }
+
+        return ContainsText(tool.InternalCode, search) ||
+               ContainsText(tool.Name, search) ||
+               ContainsText(tool.SerialNumber, search) ||
+               ContainsText(tool.BranchCode, search) ||
+               ContainsText(tool.LocationName, search) ||
+               ContainsText(tool.ResponsiblePersonName, search) ||
+               ContainsText(tool.ToolTypeName, search) ||
+               ContainsText(tool.ToolCategoryName, search);
     }
+
+    private bool IsToolVisibleByScopeOnly(MobileToolDto tool)
+    {
+        if (UserCanSeeAllBranches())
+        {
+            return true;
+        }
+
+        var user = Auth.CurrentUser;
+
+        if (user is null)
+        {
+            return false;
+        }
+
+        return SameNormalized(tool.BranchCode, user.BranchCode)
+            || SameNormalized(tool.BranchName, user.BranchName);
+    }
+
+    private bool IsToolVisible(MobileToolDto tool)
+    {
+        if (!IsToolVisibleByScopeOnly(tool))
+        {
+            return false;
+        }
+
+        if (IsOwnDataOnly())
+        {
+            return Auth.CurrentUser?.ResponsiblePersonId == tool.ResponsiblePersonId ||
+                   SameNormalized(tool.ResponsiblePersonName, Auth.CurrentUser?.ResponsiblePersonName) ||
+                   SameNormalized(tool.ResponsiblePersonName, Auth.CurrentUser?.DisplayName);
+        }
+
+        return true;
+    }
+
+    private bool CanManageTool(MobileToolDto tool)
+    {
+        return HasAnyManagementPermission && IsToolVisibleByScopeOnly(tool);
+    }
+
+    private bool IsOwnDataOnly()
+    {
+        var role = $"{Auth.CurrentUser?.RoleCode} {Auth.CurrentUser?.RoleName}";
+        return Normalize(role).Contains("TECNICO") && !HasAnyManagementPermission;
+    }
+
+    private bool UserCanSeeAllBranches()
+    {
+        var user = Auth.CurrentUser;
+
+        if (user is null)
+        {
+            return false;
+        }
+
+        return string.IsNullOrWhiteSpace(user.BranchCode)
+            || SameNormalized(user.BranchCode, "TODAS")
+            || SameNormalized(user.BranchCode, "ALL")
+            || SameNormalized(user.BranchName, "Todas las sedes")
+            || SameNormalized(user.BranchName, "TODAS")
+            || SameNormalized(user.BranchName, "ALL");
+    }
+
+    private void GoHome() => Navigation.NavigateTo("/");
+
+    private void GoLogin() => Navigation.NavigateTo("/login", forceLoad: true);
+
+    private static string GetLifeRecordUrl(Guid id) => "/tools/" + id + "/life-record?from=life-records";
 
     private static bool ContainsText(string? value, string expected)
     {
         return !string.IsNullOrWhiteSpace(value) &&
-               !string.IsNullOrWhiteSpace(expected) &&
                Normalize(value).Contains(Normalize(expected), StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string Normalize(string value)
+    private static bool SameNormalized(string? left, string? right)
     {
-        return value
-            .Trim()
+        var a = Normalize(left);
+        var b = Normalize(right);
+
+        return !string.IsNullOrWhiteSpace(a) &&
+               !string.IsNullOrWhiteSpace(b) &&
+               string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Normalize(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return value.Trim()
             .ToUpperInvariant()
             .Replace("Á", "A")
             .Replace("É", "E")
@@ -207,40 +436,31 @@
             .Replace("Ñ", "N");
     }
 
-    private static string Display(string? value)
-    {
-        return string.IsNullOrWhiteSpace(value) ? "Sin dato" : value;
-    }
+    private static string Display(string? value) => string.IsNullOrWhiteSpace(value) ? "Sin dato" : value;
 
-    private static string GetStatusLabel(string? status)
+    private static string GetStatusLabel(string? status) => status switch
     {
-        return status switch
-        {
-            "Available" => "Disponible",
-            "Assigned" => "Asignada",
-            "Loaned" => "Prestada",
-            "InMaintenance" => "En mantenimiento",
-            "Damaged" => "Dañada",
-            "NotSuitable" => "No apta",
-            "PendingValidation" => "Pendiente validación",
-            "NotLocated" => "No localizada",
-            "Disposed" => "Baja",
-            _ => Display(status)
-        };
-    }
+        "Available" => "Disponible",
+        "Assigned" => "Asignada",
+        "Loaned" => "Prestada",
+        "InMaintenance" => "En mantenimiento",
+        "Damaged" => "Dañada",
+        "NotSuitable" => "No apta",
+        "PendingValidation" => "Pendiente validación",
+        "NotLocated" => "No localizada",
+        "Disposed" => "Baja",
+        _ => Display(status)
+    };
 
-    private static string GetStatusClass(string? status)
+    private static string GetStatusClass(string? status) => status switch
     {
-        return status switch
-        {
-            "Available" => "mobile-state ok",
-            "Assigned" => "mobile-state assigned",
-            "Loaned" => "mobile-state assigned",
-            "InMaintenance" => "mobile-state warning",
-            "Damaged" => "mobile-state danger",
-            "NotSuitable" => "mobile-state danger",
-            "NotLocated" => "mobile-state dark",
-            _ => "mobile-state neutral"
-        };
-    }
+        "Available" => "mobile-state ok",
+        "Assigned" => "mobile-state assigned",
+        "Loaned" => "mobile-state assigned",
+        "InMaintenance" => "mobile-state warning",
+        "Damaged" => "mobile-state danger",
+        "NotSuitable" => "mobile-state danger",
+        "NotLocated" => "mobile-state dark",
+        _ => "mobile-state neutral"
+    };
 }

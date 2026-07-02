@@ -370,7 +370,7 @@ public class LoansController : ControllerBase
 
         var actionText = isCancel ? "cancelada" : "denegada";
         var note = string.IsNullOrWhiteSpace(request.Notes)
-            ? $"La solicitud {loan.LoanNumber} fue {actionText}."
+            ? $"La solicitud {loan.LoanNumber} fue {actionText}. La herramienta queda disponible en almacén/taller."
             : request.Notes.Trim();
 
         loan.Notes = string.IsNullOrWhiteSpace(loan.Notes)
@@ -379,13 +379,31 @@ public class LoansController : ControllerBase
 
         foreach (var item in loan.Items)
         {
+            var previousToolValue = item.ToolAsset is null
+                ? previousStatus
+                : $"Responsable={item.ToolAsset.ResponsiblePersonId}; Estado={item.ToolAsset.OperationalStatus}; Custodia={item.ToolAsset.CustodyStatus}; Prestamo={previousStatus}";
+
+            if (item.ToolAsset is not null)
+            {
+                item.ToolAsset.ResponsiblePersonId = null;
+                item.ToolAsset.OperationalStatus = ToolOperationalStatus.Available;
+                item.ToolAsset.CustodyStatus = ToolCustodyStatus.InWarehouse;
+                item.ToolAsset.UpdatedAt = DateTime.UtcNow;
+                item.ToolAsset.UpdatedBy = changedBy;
+
+                item.UpdatedAt = DateTime.UtcNow;
+                item.UpdatedBy = changedBy;
+            }
+
             AddToolLifeCycleEvent(
                 item.ToolAssetId,
-                isCancel ? "LoanCancelled" : "LoanRejected",
-                isCancel ? "Solicitud de asignación cancelada" : "Solicitud de asignación denegada",
+                isCancel ? "LoanCancelledToolAvailable" : "LoanRejectedToolAvailable",
+                isCancel ? "Solicitud cancelada y activo disponible" : "Solicitud denegada y activo disponible",
                 note,
-                previousStatus,
-                loan.Status.ToString(),
+                previousToolValue,
+                item.ToolAsset is null
+                    ? loan.Status.ToString()
+                    : $"Responsable=; Estado={item.ToolAsset.OperationalStatus}; Custodia={item.ToolAsset.CustodyStatus}; Prestamo={loan.Status}",
                 changedBy);
         }
 
@@ -399,9 +417,10 @@ public class LoansController : ControllerBase
             Status = loan.Status.ToString(),
             loan.UpdatedAt,
             loan.UpdatedBy,
-            Message = $"Solicitud {actionText} correctamente."
+            Message = $"Solicitud {actionText} correctamente. Las herramientas quedan disponibles en almacén/taller."
         });
     }
+
     [RequirePermission("AssetAssignment.Assign")]
     [HttpPatch("{id:guid}/approve-assign")]
     public async Task<IActionResult> ApproveAndAssignLoan(Guid id, [FromBody] LoanActionRequest request)
@@ -695,9 +714,9 @@ public class LoansController : ControllerBase
             return NotFound(new { Message = $"No se encontró el préstamo con Id {id}." });
         }
 
-        if (!LoanStatusIs(loan, "Delivered"))
+        if (!LoanStatusIs(loan, "Delivered", "Approved", "Returned"))
         {
-            return BadRequest(new { Message = $"El préstamo debe estar entregado para poder devolverlo. Estado actual: {loan.Status}." });
+            return BadRequest(new { Message = $"El préstamo no se puede regresar porque está en estado {loan.Status}." });
         }
 
         var changedBy = GetActionUser(request);
@@ -715,26 +734,33 @@ public class LoansController : ControllerBase
                 continue;
             }
 
-            var previousToolStatus = item.ToolAsset.OperationalStatus;
+            var tool = item.ToolAsset;
+
+            var previousToolValue =
+                $"Responsable={tool.ResponsiblePersonId}; Estado={tool.OperationalStatus}; Custodia={tool.CustodyStatus}; Prestamo={previousLoanStatus}";
 
             item.Returned = true;
             item.ReturnCondition = string.IsNullOrWhiteSpace(request.Condition)
                 ? item.ReturnCondition
                 : request.Condition.Trim();
+            item.UpdatedAt = DateTime.UtcNow;
+            item.UpdatedBy = changedBy;
 
-            item.ToolAsset.OperationalStatus = ToolOperationalStatus.Available;
-            item.ToolAsset.UpdatedAt = DateTime.UtcNow;
-            item.ToolAsset.UpdatedBy = changedBy;
+            tool.ResponsiblePersonId = null;
+            tool.OperationalStatus = ToolOperationalStatus.Available;
+            tool.CustodyStatus = ToolCustodyStatus.InWarehouse;
+            tool.UpdatedAt = DateTime.UtcNow;
+            tool.UpdatedBy = changedBy;
 
             AddToolLifeCycleEvent(
                 item.ToolAssetId,
-                "LoanReturned",
-                "Herramienta devuelta",
+                "LoanReturnedToWarehouse",
+                "Herramienta regresada a almacén/taller",
                 string.IsNullOrWhiteSpace(request.Notes)
-                    ? $"Se devolvió la herramienta del préstamo {loan.LoanNumber}."
+                    ? $"Se regresó la herramienta del préstamo {loan.LoanNumber}. Queda disponible en almacén/taller."
                     : request.Notes.Trim(),
-                previousToolStatus.ToString(),
-                ToolOperationalStatus.Available.ToString(),
+                previousToolValue,
+                $"Responsable=; Estado={tool.OperationalStatus}; Custodia={tool.CustodyStatus}; Prestamo={loan.Status}",
                 changedBy);
         }
 
@@ -747,9 +773,11 @@ public class LoansController : ControllerBase
             PreviousStatus = previousLoanStatus,
             Status = loan.Status.ToString(),
             loan.ReturnedAt,
-            loan.UpdatedBy
+            loan.UpdatedBy,
+            Message = "Herramienta regresada correctamente. Queda disponible en almacén/taller."
         });
     }
+
 
     private static bool LoanStatusIs(ToolLoan loan, params string[] statusNames)
     {
@@ -775,14 +803,12 @@ public class LoansController : ControllerBase
 
     private static bool IsBlockedForLoan(ToolOperationalStatus status)
     {
-        return status is ToolOperationalStatus.Damaged
-            or ToolOperationalStatus.NotSuitable
-            or ToolOperationalStatus.InMaintenance
-            or ToolOperationalStatus.PendingDisposal
-            or ToolOperationalStatus.Disposed
-            or ToolOperationalStatus.NotLocated
-            or ToolOperationalStatus.Inconsistent;
+        // Regla NAVI:
+        // Solo las herramientas disponibles pueden ser solicitadas, aprobadas o entregadas.
+        // Todo estado diferente de Available queda bloqueado.
+        return status is not ToolOperationalStatus.Available;
     }
+
 
     private static string GetOperationalStatusLabel(ToolOperationalStatus status)
     {

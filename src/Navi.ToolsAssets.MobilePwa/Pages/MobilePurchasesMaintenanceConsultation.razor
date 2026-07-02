@@ -1,0 +1,1390 @@
+@page "/mobile/maintenance"
+@page "/mobile/purchases-maintenance"
+@page "/mobile/consultation"
+
+@using System.Globalization
+@using System.Net.Http
+@using System.Text.Json
+@using Microsoft.JSInterop
+@using Microsoft.AspNetCore.Components.Rendering
+@using Navi.ToolsAssets.MobilePwa.Models
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Consulta Compras y Mtto. móvil - NAVI Herramientas y AF</PageTitle>
+
+<section class="mobile-page navi-mobile-consult-v1">
+    @if (isLoading && !initialized)
+    {
+        <div class="mobile-loading">Cargando consulta...</div>
+    }
+    else if (!Auth.IsAuthenticated)
+    {
+        <div class="mobile-empty">
+            <strong>Sesión requerida</strong>
+            <span>Debes iniciar sesión para consultar compras y mantenimientos.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+        </div>
+    }
+    else if (!CanAccessModule)
+    {
+        <div class="mobile-empty">
+            <strong>Sin permiso</strong>
+            <span>No tienes permisos para visualizar consulta de compras y mantenimiento.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoHome">Volver al inicio</button>
+        </div>
+    }
+    else
+    {
+        <header class="mcon-hero">
+            <div>
+                <span>CONSULTA · COMPRAS · MTTO</span>
+                <h1>Consulta Compras y Mtto.</h1>
+                <p>@Display(Auth.CurrentUser?.DisplayName) · @ScopeLabel</p>
+            </div>
+
+            <div class="mcon-hero-actions">
+                <button type="button" @onclick="GoHome">Inicio</button>
+                <button type="button" @onclick="RefreshAsync" disabled="@isLoading">
+                    @(isLoading ? "Actualizando..." : "Actualizar")
+                </button>
+            </div>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(successMessage))
+        {
+            <div class="mobile-alert success">@successMessage</div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="mobile-alert error">@errorMessage</div>
+        }
+
+        <section class="mcon-kpis">
+            <article>
+                <span>Total</span>
+                <strong>@FilteredItems.Count()</strong>
+                <small>Solicitudes</small>
+            </article>
+
+            <article>
+                <span>Compras</span>
+                <strong>@FilteredPurchases.Count()</strong>
+                <small>Herramientas y AF</small>
+            </article>
+
+            <article>
+                <span>Mtto.</span>
+                <strong>@FilteredMaintenances.Count()</strong>
+                <small>Mantenimiento</small>
+            </article>
+
+            <article>
+                <span>En revisión</span>
+                <strong>@FilteredItems.Count(x => IsStatus(x, "InReview"))</strong>
+                <small>Por aprobar</small>
+            </article>
+
+            <article>
+                <span>Con costo</span>
+                <strong>@CostedItemsCount</strong>
+                <small>Aprobadas/cerradas</small>
+            </article>
+
+            <article>
+                <span>Rechazadas</span>
+                <strong>@FilteredItems.Count(x => IsRejectedOrCanceled(x.Status))</strong>
+                <small>No suman</small>
+            </article>
+
+            <article>
+                <span>Costo</span>
+                <strong>@FormatMoney(TotalEstimatedCost)</strong>
+                <small>Estimado</small>
+            </article>
+        </section>
+
+        <section class="mcon-filter-card">
+            <label>
+                <span>Tipo</span>
+                <select @bind="typeFilter">
+                    <option value="all">Compra y mantenimiento</option>
+                    <option value="purchase">Solo compras</option>
+                    <option value="maintenance">Solo mantenimiento</option>
+                </select>
+            </label>
+
+            <label>
+                <span>Estado</span>
+                <select @bind="statusFilter">
+                    <option value="all">Todos los estados</option>
+                    <option value="Draft">Borrador</option>
+                    <option value="InReview">En revisión</option>
+                    <option value="Approved">Aprobadas</option>
+                    <option value="Scheduled">Programadas</option>
+                    <option value="InExecution">En ejecución</option>
+                    <option value="Closed">Cerradas</option>
+                    <option value="Rejected">Rechazadas</option>
+                    <option value="Canceled">Canceladas</option>
+                </select>
+            </label>
+
+            <label>
+                <span>Sede</span>
+                <select @bind="selectedBranchCode">
+                    <option value="">Todas las sedes</option>
+                    @foreach (var branch in branches.OrderBy(x => x.Code))
+                    {
+                        <option value="@branch.Code">@branch.Code - @branch.Name</option>
+                    }
+                </select>
+            </label>
+
+            <label>
+                <span>Buscar</span>
+                <input @bind="searchText"
+                       @bind:event="oninput"
+                       placeholder="Solicitud, activo, proveedor, técnico, sede..." />
+            </label>
+
+            <div class="mcon-filter-actions">
+                <button type="button" @onclick="ClearFilters">Limpiar</button>
+            </div>
+        </section>
+
+        <details class="mcon-card" open>
+            <summary>
+                <span>Resumen de costos</span>
+                <em>@FormatMoney(TotalEstimatedCost)</em>
+            </summary>
+
+            <section class="mcon-cost-grid">
+                <article>
+                    <span>Compras</span>
+                    <strong>@FormatMoney(PurchaseCost)</strong>
+                    <small>Promedio: @FormatMoney(PurchaseAverage)</small>
+                    <small>Mayor: @FormatMoney(PurchaseMax)</small>
+                    <small>Proveedores: @PurchaseProviders</small>
+                </article>
+
+                <article>
+                    <span>Mantenimiento</span>
+                    <strong>@FormatMoney(MaintenanceCost)</strong>
+                    <small>Promedio: @FormatMoney(MaintenanceAverage)</small>
+                    <small>Mayor: @FormatMoney(MaintenanceMax)</small>
+                    <small>Proveedores: @MaintenanceProviders</small>
+                </article>
+            </section>
+        </details>
+
+        @if (ShowPurchases)
+        {
+            <details class="mcon-card" open>
+                <summary>
+                    <span>Compras</span>
+                    <em>@FilteredPurchases.Count()</em>
+                </summary>
+
+                @if (!FilteredPurchases.Any())
+                {
+                    <div class="mobile-empty compact">No hay solicitudes de compra para los filtros seleccionados.</div>
+                }
+                else
+                {
+                    <div class="mcon-list">
+                        @foreach (var item in FilteredPurchases)
+                        {
+                            @RenderCard(item)
+                        }
+                    </div>
+                }
+            </details>
+        }
+
+        @if (ShowMaintenances)
+        {
+            <details class="mcon-card" open>
+                <summary>
+                    <span>Mantenimiento</span>
+                    <em>@FilteredMaintenances.Count()</em>
+                </summary>
+
+                @if (!FilteredMaintenances.Any())
+                {
+                    <div class="mobile-empty compact">No hay solicitudes de mantenimiento para los filtros seleccionados.</div>
+                }
+                else
+                {
+                    <div class="mcon-list">
+                        @foreach (var item in FilteredMaintenances)
+                        {
+                            @RenderCard(item)
+                        }
+                    </div>
+                }
+            </details>
+        }
+
+        @if (selectedItem is not null)
+        {
+            <div class="mcon-modal-backdrop" @onclick="CloseDetails">
+                <div class="mcon-modal" @onclick:stopPropagation="true">
+                    <header class="mcon-modal-header">
+                        <div>
+                            <span>@(selectedItem.Kind == RequestKind.Purchase ? "Compra" : "Mantenimiento")</span>
+                            <h2>@selectedItem.Number</h2>
+                            <p>@ShortText(selectedItem.AssetName, 80)</p>
+                        </div>
+
+                        <button type="button" @onclick="CloseDetails">Cerrar</button>
+                    </header>
+
+                    <section class="mcon-modal-grid">
+                        <div><span>Estado</span><strong>@StatusLabel(selectedItem.Status)</strong></div>
+                        <div><span>Prioridad</span><strong>@Display(selectedItem.Priority)</strong></div>
+                        <div><span>Tipo</span><strong>@Display(selectedItem.Type)</strong></div>
+                        <div><span>Costo</span><strong>@FormatMoney(selectedItem.EstimatedCost)</strong></div>
+                        <div><span>Proveedor</span><strong>@Display(selectedItem.Provider)</strong></div>
+                        <div><span>Sede</span><strong>@Display(selectedItem.Branch)</strong></div>
+                        <div><span>Solicitó</span><strong>@Display(selectedItem.RequestedBy)</strong></div>
+                        <div><span>Preparó</span><strong>@Display(selectedItem.PreparedBy)</strong></div>
+                        <div><span>Técnico</span><strong>@Display(selectedItem.Technician)</strong></div>
+                        <div><span>Creada</span><strong>@FormatDate(selectedItem.CreatedAt)</strong></div>
+                        <div><span>Programada</span><strong>@FormatDate(selectedItem.ScheduledAt)</strong></div>
+                        <div><span>Cerrada</span><strong>@FormatDate(selectedItem.ClosedAt)</strong></div>
+                    </section>
+
+                    <section class="mcon-modal-section">
+                        <h3>Necesidad / activo</h3>
+                        <p>@Display(selectedItem.AssetName)</p>
+                    </section>
+
+                    <section class="mcon-modal-section">
+                        <h3>Detalle de la solicitud</h3>
+                        <p>@Display(selectedItem.Description)</p>
+                    </section>
+
+                    <section class="mcon-modal-section">
+                        <h3>Notas / observaciones</h3>
+                        <p>@Display(selectedItem.Notes)</p>
+                    </section>
+
+                    <section class="mcon-modal-actions">
+                        @RenderActions(selectedItem)
+                    </section>
+                </div>
+            </div>
+        }
+    }
+</section>
+
+@code {
+    private bool initialized;
+    private bool hasRendered;
+    private bool isLoading = true;
+
+    private string typeFilter = "all";
+    private string statusFilter = "all";
+    private string searchText = string.Empty;
+    private string selectedBranchCode = string.Empty;
+    private bool branchFilterInitialized;
+private string? successMessage;
+    private string? errorMessage;
+
+    private List<ConsultationItem> apiItems = new();
+    private List<ConsultationItem> localItems = new();
+    private List<ConsultationItem> items = new();
+    private List<MobileBranchDto> branches = new();
+
+    private ConsultationItem? selectedItem;
+
+    private bool IsAdmin =>
+        string.Equals(Auth.CurrentUser?.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(Auth.CurrentUser?.RoleCode, "SUPERADMIN", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(Auth.CurrentUser?.RoleName, "Administrador", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(Auth.CurrentUser?.RoleName, "Administrador NAVI", StringComparison.OrdinalIgnoreCase);
+
+    private bool CanViewPurchase =>
+        IsAdmin || HasAny("Purchases.View", "Purchases.Request", "Purchases.Quote", "Purchases.Generate", "Purchases.Approve", "Purchases.Reject");
+
+    private bool CanViewMaintenance =>
+        IsAdmin || HasAny("Maintenance.View", "Maintenance.Request", "Maintenance.Quote", "Maintenance.Generate", "Maintenance.Execute", "Maintenance.Close", "Maintenance.Reject");
+
+    private bool CanAccessModule => CanViewPurchase || CanViewMaintenance;
+
+    private bool CanApprovePurchase => IsAdmin || Has("Purchases.Approve");
+    private bool CanRejectPurchase => IsAdmin || Has("Purchases.Reject");
+    private bool CanExecuteMaintenance => IsAdmin || Has("Maintenance.Execute");
+    private bool CanCloseMaintenance => IsAdmin || Has("Maintenance.Close");
+    private bool CanRejectMaintenance => IsAdmin || Has("Maintenance.Reject");
+
+    private string ScopeLabel =>
+        UserCanSeeAllBranches()
+            ? "Todas las sedes"
+            : Display(Auth.CurrentUser?.BranchName ?? Auth.CurrentUser?.BranchCode);
+
+    private IEnumerable<ConsultationItem> FilteredItems =>
+        items
+            .Where(MatchesBranchFilter)
+            .Where(x => typeFilter == "all" ||
+                        (typeFilter == "purchase" && x.Kind == RequestKind.Purchase) ||
+                        (typeFilter == "maintenance" && x.Kind == RequestKind.Maintenance))
+            .Where(x => statusFilter == "all" || IsStatus(x, statusFilter))
+            .Where(MatchesSearch)
+            .OrderByDescending(x => x.UpdatedAt ?? x.CreatedAt ?? DateTime.MinValue);
+
+    private IEnumerable<ConsultationItem> FilteredPurchases => FilteredItems.Where(x => x.Kind == RequestKind.Purchase);
+    private IEnumerable<ConsultationItem> FilteredMaintenances => FilteredItems.Where(x => x.Kind == RequestKind.Maintenance);
+
+    private bool ShowPurchases => typeFilter is "all" or "purchase";
+    private bool ShowMaintenances => typeFilter is "all" or "maintenance";
+
+    private IEnumerable<ConsultationItem> CostItems => FilteredItems.Where(x => IsPositiveCostStatus(x.Status) && x.EstimatedCost > 0);
+    private IEnumerable<ConsultationItem> PurchaseCostItems => CostItems.Where(x => x.Kind == RequestKind.Purchase);
+    private IEnumerable<ConsultationItem> MaintenanceCostItems => CostItems.Where(x => x.Kind == RequestKind.Maintenance);
+
+    private decimal TotalEstimatedCost => CostItems.Sum(x => x.EstimatedCost);
+    private int CostedItemsCount => CostItems.Count();
+
+    private decimal PurchaseCost => PurchaseCostItems.Sum(x => x.EstimatedCost);
+    private decimal PurchaseAverage => PurchaseCostItems.Any() ? PurchaseCostItems.Average(x => x.EstimatedCost) : 0;
+    private decimal PurchaseMax => PurchaseCostItems.Any() ? PurchaseCostItems.Max(x => x.EstimatedCost) : 0;
+    private int PurchaseProviders => PurchaseCostItems.Select(x => x.Provider).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+
+    private decimal MaintenanceCost => MaintenanceCostItems.Sum(x => x.EstimatedCost);
+    private decimal MaintenanceAverage => MaintenanceCostItems.Any() ? MaintenanceCostItems.Average(x => x.EstimatedCost) : 0;
+    private decimal MaintenanceMax => MaintenanceCostItems.Any() ? MaintenanceCostItems.Max(x => x.EstimatedCost) : 0;
+    private int MaintenanceProviders => MaintenanceCostItems.Select(x => x.Provider).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            isLoading = false;
+            initialized = true;
+            return;
+        }
+
+        await LoadBranchesAsync();
+        ApplyDefaultBranchFilterIfNeeded();
+        await RefreshApiOnlyAsync();
+
+        items = Deduplicate(apiItems.Concat(localItems)).ToList();
+
+        isLoading = false;
+        initialized = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        hasRendered = true;
+
+        if (Auth.IsAuthenticated && CanAccessModule)
+        {
+            localItems = await LoadLocalItemsAsync();
+            items = Deduplicate(apiItems.Concat(localItems)).ToList();
+            StateHasChanged();
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        if (!CanAccessModule)
+        {
+            return;
+        }
+
+        isLoading = true;
+        successMessage = null;
+        errorMessage = null;
+
+        try
+        {
+            await LoadBranchesAsync();
+            ApplyDefaultBranchFilterIfNeeded();
+            await RefreshApiOnlyAsync();
+
+            if (hasRendered)
+            {
+                localItems = await LoadLocalItemsAsync();
+            }
+
+            items = Deduplicate(apiItems.Concat(localItems)).ToList();
+            successMessage = $"Consulta actualizada correctamente. Registros cargados: {items.Count}.";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo actualizar la consulta: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadBranchesAsync()
+    {
+        try
+        {
+            branches = await Api.GetBranchesAsync();
+        }
+        catch
+        {
+            branches = new();
+        }
+    }
+
+    private async Task RefreshApiOnlyAsync()
+    {
+        var loaded = new List<ConsultationItem>();
+
+        if (CanViewPurchase)
+        {
+            try
+            {
+                var rows = await Api.GetListJsonAsync<PurchaseRequestItem>("api/purchase-requests");
+                loaded.AddRange(rows.Select(MapPurchaseApiItem));
+            }
+            catch
+            {
+                // No rompe la consulta si el endpoint no está disponible.
+            }
+        }
+
+        if (CanViewMaintenance)
+        {
+            try
+            {
+                var rows = await Api.GetListJsonAsync<MaintenanceRequestItem>("api/maintenance-requests");
+                loaded.AddRange(rows.Select(MapMaintenanceApiItem));
+            }
+            catch
+            {
+                // No rompe la consulta si el endpoint no está disponible.
+            }
+        }
+
+        apiItems = loaded;
+    }
+
+    private async Task<List<ConsultationItem>> LoadLocalItemsAsync()
+    {
+        var result = new List<ConsultationItem>();
+
+        await LoadLocalStorageKeyAsync("navi-mobile-purchase-request-v1", RequestKind.Purchase, result);
+        await LoadLocalStorageKeyAsync("navi-mobile-maintenance-request-v2", RequestKind.Maintenance, result);
+
+        return result;
+    }
+
+    private async Task LoadLocalStorageKeyAsync(string key, RequestKind kind, List<ConsultationItem> result)
+    {
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", key);
+
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return;
+            }
+
+            using var document = JsonDocument.Parse(json);
+
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                return;
+            }
+
+            foreach (var item in document.RootElement.EnumerateArray())
+            {
+                var mapped = kind == RequestKind.Purchase
+                    ? MapPurchaseLocalItem(item, key)
+                    : MapMaintenanceLocalItem(item, key);
+
+                result.Add(mapped);
+            }
+        }
+        catch
+        {
+            // El almacenamiento local es apoyo, no debe romper.
+        }
+    }
+
+    private ConsultationItem MapPurchaseApiItem(PurchaseRequestItem item)
+    {
+        return new ConsultationItem
+        {
+            Id = item.Id.ToString(),
+            Number = Display(item.RequestNumber),
+            Kind = RequestKind.Purchase,
+            SourceKind = SourceKind.Api,
+            Source = "API",
+            Type = item.PurchasePurpose ?? "Compra",
+            Priority = item.Priority ?? "Media",
+            Status = NormalizeStatus(item.Status),
+            AssetName = FirstNonEmpty(item.ItemName, item.ItemCode, item.RequestNumber),
+            Description = string.Join(" · ", new[] { item.ItemDescription, item.Justification, item.Notes }.Where(x => !string.IsNullOrWhiteSpace(x))),
+            Provider = item.VendorSuggestion,
+            EstimatedCostText = item.EstimatedCostText,
+            EstimatedCost = ParseMoney(item.EstimatedCostText),
+            CreatedAt = item.CreatedAt,
+            UpdatedAt = item.UpdatedAt,
+            ScheduledAt = item.RequiredAt,
+            ClosedAt = item.ClosedAt ?? item.RejectedAt ?? item.CanceledAt,
+            RequestedBy = FirstNonEmpty(item.RequestedByResponsiblePersonName, item.RequestedByUserName),
+            PreparedBy = item.PreparedBy,
+            Technician = null,
+            Branch = FirstNonEmpty(item.BranchCode, item.BranchName),
+            Notes = FirstNonEmpty(item.Notes, item.ApprovalComment, item.RejectionReason),
+            RawText = JsonSerializer.Serialize(item)
+        };
+    }
+
+    private ConsultationItem MapMaintenanceApiItem(MaintenanceRequestItem item)
+    {
+        return new ConsultationItem
+        {
+            Id = item.Id.ToString(),
+            Number = Display(item.RequestNumber),
+            Kind = RequestKind.Maintenance,
+            SourceKind = SourceKind.Api,
+            Source = "API",
+            Type = item.RequestType ?? "Mtto.",
+            Priority = item.Priority ?? "Media",
+            Status = NormalizeStatus(item.Status),
+            AssetName = FirstNonEmpty(item.Title, item.ToolName, item.ToolInternalCode, item.RequestNumber),
+            Description = string.Join(" · ", new[] { item.ProblemDescription, item.WorkDescription, item.FailureCause, item.Notes }.Where(x => !string.IsNullOrWhiteSpace(x))),
+            Provider = item.VendorSuggestion,
+            EstimatedCostText = item.EstimatedCostText,
+            EstimatedCost = ParseMoney(item.EstimatedCostText),
+            CreatedAt = item.CreatedAt,
+            UpdatedAt = item.UpdatedAt,
+            ScheduledAt = item.ScheduledAt ?? item.RequiredAt,
+            ClosedAt = item.ClosedAt ?? item.RejectedAt ?? item.CanceledAt,
+            RequestedBy = FirstNonEmpty(item.RequestedByResponsiblePersonName, item.RequestedByUserName),
+            PreparedBy = item.PreparedBy,
+            Technician = FirstNonEmpty(item.AssignedTechnician, item.ExecutionStartedBy),
+            Branch = FirstNonEmpty(item.BranchCode, item.BranchName),
+            Notes = FirstNonEmpty(item.Notes, item.ApprovalComment, item.RejectionReason, item.ClosingComment),
+            RawText = JsonSerializer.Serialize(item)
+        };
+    }
+
+    private ConsultationItem MapPurchaseLocalItem(JsonElement item, string storageKey)
+    {
+        var id = GetString(item, "Id", "id");
+        var number = GetString(item, "LocalNumber", "localNumber", "RequestNumber", "requestNumber", "Number", "number");
+        var status = GetString(item, "Status", "status");
+        var header = item.TryGetProperty("Header", out var headerElement) ? headerElement : default;
+        var lines = item.TryGetProperty("Lines", out var linesElement) ? linesElement : default;
+        var quotes = item.TryGetProperty("Quotations", out var quotesElement) ? quotesElement : default;
+
+        var firstLine = GetFirstArrayObject(lines);
+        var firstQuote = GetFirstArrayObject(quotes);
+
+        var branchId = GetString(header, "BranchIdText", "branchIdText");
+        var branch = ResolveBranchLabel(branchId);
+
+        return new ConsultationItem
+        {
+            Id = id ?? number ?? Guid.NewGuid().ToString(),
+            Number = number ?? "Local compra",
+            Kind = RequestKind.Purchase,
+            SourceKind = SourceKind.BrowserStorage,
+            Source = "Local",
+            StorageKey = storageKey,
+            Type = GetString(header, "PurchasePurpose", "purchasePurpose") ?? "Compra",
+            Priority = GetString(header, "Priority", "priority") ?? "Media",
+            Status = NormalizeStatus(status),
+            AssetName = FirstNonEmpty(GetString(firstLine, "ItemName", "itemName"), GetString(header, "RequestName", "requestName")),
+            Description = string.Join(" · ", new[]
+            {
+                GetString(header, "Justification", "justification"),
+                GetString(firstLine, "ItemDescription", "itemDescription"),
+                GetString(firstLine, "NeedDetail", "needDetail")
+            }.Where(x => !string.IsNullOrWhiteSpace(x))),
+            Provider = GetString(firstQuote, "Provider", "provider"),
+            EstimatedCostText = GetString(firstQuote, "PriceBeforeVat", "priceBeforeVat"),
+            EstimatedCost = ParseMoney(GetString(firstQuote, "PriceBeforeVat", "priceBeforeVat")),
+            CreatedAt = GetDate(item, "CreatedAt", "createdAt"),
+            UpdatedAt = GetDate(item, "UpdatedAt", "updatedAt"),
+            ScheduledAt = GetDate(header, "RequiredAt", "requiredAt"),
+            RequestedBy = GetString(header, "RequestedBy", "requestedBy"),
+            PreparedBy = GetString(header, "Approver", "approver"),
+            Branch = branch,
+            Notes = GetString(header, "AreaOrCostCenter", "areaOrCostCenter"),
+            RawText = item.GetRawText()
+        };
+    }
+
+    private ConsultationItem MapMaintenanceLocalItem(JsonElement item, string storageKey)
+    {
+        var id = GetString(item, "Id", "id");
+        var number = GetString(item, "LocalNumber", "localNumber", "RequestNumber", "requestNumber", "Number", "number");
+        var status = GetString(item, "Status", "status");
+        var header = item.TryGetProperty("Header", out var headerElement) ? headerElement : default;
+        var lines = item.TryGetProperty("Lines", out var linesElement) ? linesElement : default;
+        var quotes = item.TryGetProperty("Quotations", out var quotesElement) ? quotesElement : default;
+
+        var firstLine = GetFirstArrayObject(lines);
+        var firstQuote = GetFirstArrayObject(quotes);
+
+        var branchId = GetString(header, "BranchIdText", "branchIdText");
+        var branch = ResolveBranchLabel(branchId);
+
+        return new ConsultationItem
+        {
+            Id = id ?? number ?? Guid.NewGuid().ToString(),
+            Number = number ?? "Local mtto.",
+            Kind = RequestKind.Maintenance,
+            SourceKind = SourceKind.BrowserStorage,
+            Source = "Local",
+            StorageKey = storageKey,
+            Type = GetString(header, "RequestType", "requestType") ?? "Mtto.",
+            Priority = GetString(header, "Priority", "priority") ?? "Media",
+            Status = NormalizeStatus(status),
+            AssetName = FirstNonEmpty(GetString(firstLine, "ToolName", "toolName"), GetString(header, "RequestName", "requestName")),
+            Description = string.Join(" · ", new[]
+            {
+                GetString(header, "NeedDescription", "needDescription"),
+                GetString(firstLine, "Details", "details"),
+                GetString(firstLine, "Novelty", "novelty")
+            }.Where(x => !string.IsNullOrWhiteSpace(x))),
+            Provider = GetString(firstQuote, "Provider", "provider"),
+            EstimatedCostText = GetString(firstQuote, "PriceBeforeVat", "priceBeforeVat"),
+            EstimatedCost = ParseMoney(GetString(firstQuote, "PriceBeforeVat", "priceBeforeVat")),
+            CreatedAt = GetDate(item, "CreatedAt", "createdAt"),
+            UpdatedAt = GetDate(item, "UpdatedAt", "updatedAt"),
+            ScheduledAt = GetDate(header, "RequiredAt", "requiredAt"),
+            RequestedBy = GetString(header, "RequestedBy", "requestedBy"),
+            PreparedBy = GetString(header, "Approver", "approver"),
+            Technician = GetString(firstLine, "TechnicalOrSerial", "technicalOrSerial"),
+            Branch = branch,
+            Notes = GetString(header, "Location", "location"),
+            RawText = item.GetRawText()
+        };
+    }
+
+    private RenderFragment RenderCard(ConsultationItem item) => builder =>
+    {
+        var seq = 0;
+
+        builder.OpenElement(seq++, "article");
+        builder.AddAttribute(seq++, "class", $"mcon-item {StatusClass(item.Status)}");
+
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "mcon-item-head");
+
+        builder.OpenElement(seq++, "div");
+        builder.OpenElement(seq++, "strong");
+        builder.AddContent(seq++, item.Number);
+        builder.CloseElement();
+        builder.OpenElement(seq++, "span");
+        builder.AddContent(seq++, item.Kind == RequestKind.Purchase ? "Compra" : "Mantenimiento");
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.OpenElement(seq++, "span");
+        builder.AddAttribute(seq++, "class", $"mcon-status {StatusClass(item.Status)}");
+        builder.AddContent(seq++, StatusLabel(item.Status));
+        builder.CloseElement();
+
+        builder.CloseElement();
+
+        builder.OpenElement(seq++, "h3");
+        builder.AddContent(seq++, ShortText(item.AssetName, 56));
+        builder.CloseElement();
+
+        builder.OpenElement(seq++, "p");
+        builder.AddContent(seq++, ShortText(item.Description, 120));
+        builder.CloseElement();
+
+        builder.OpenElement(seq++, "section");
+        builder.AddAttribute(seq++, "class", "mcon-mini-grid");
+        AddMini(builder, ref seq, "Prioridad", item.Priority);
+        AddMini(builder, ref seq, "Costo", FormatMoney(item.EstimatedCost));
+        AddMini(builder, ref seq, "Proveedor", Display(item.Provider));
+        AddMini(builder, ref seq, "Sede", Display(item.Branch));
+        AddMini(builder, ref seq, "Solicitó", Display(item.RequestedBy));
+        AddMini(builder, ref seq, "Fecha", FormatDate(item.CreatedAt));
+        builder.CloseElement();
+
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "mcon-actions");
+
+        builder.OpenElement(seq++, "button");
+        builder.AddAttribute(seq++, "type", "button");
+        builder.AddAttribute(seq++, "class", "view");
+        builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => OpenDetails(item)));
+        builder.AddContent(seq++, "Ver");
+        builder.CloseElement();
+
+        builder.AddContent(seq++, RenderActions(item));
+
+        builder.CloseElement();
+
+        builder.CloseElement();
+    };
+
+    private void AddMini(RenderTreeBuilder builder, ref int seq, string label, string value)
+    {
+        builder.OpenElement(seq++, "div");
+        builder.OpenElement(seq++, "span");
+        builder.AddContent(seq++, label);
+        builder.CloseElement();
+        builder.OpenElement(seq++, "strong");
+        builder.AddContent(seq++, value);
+        builder.CloseElement();
+        builder.CloseElement();
+    }
+
+    private RenderFragment RenderActions(ConsultationItem item) => builder =>
+    {
+        var seq = 0;
+
+        if (item.Kind == RequestKind.Purchase)
+        {
+            if (IsStatus(item, "InReview"))
+            {
+                ActionButton(builder, ref seq, "Aprobar", "approve", !CanApprovePurchase, () => ApprovePurchaseAsync(item));
+                ActionButton(builder, ref seq, "Rechazar", "reject", !CanRejectPurchase, () => RejectPurchaseAsync(item));
+            }
+            else if (IsStatus(item, "Approved"))
+            {
+                ActionButton(builder, ref seq, "Cerrar", "approve", !CanApprovePurchase, () => ClosePurchaseAsync(item));
+            }
+
+            return;
+        }
+
+        if (IsStatus(item, "InReview"))
+        {
+            ActionButton(builder, ref seq, "Aprobar", "approve", !CanCloseMaintenance, () => ApproveMaintenanceAsync(item));
+            ActionButton(builder, ref seq, "Rechazar", "reject", !CanRejectMaintenance, () => RejectMaintenanceAsync(item));
+        }
+        else if (IsStatus(item, "Approved") || IsStatus(item, "Scheduled"))
+        {
+            ActionButton(builder, ref seq, "Ejecutar", "execute", !CanExecuteMaintenance, () => ExecuteMaintenanceAsync(item));
+            ActionButton(builder, ref seq, "Cerrar", "approve", !CanExecuteMaintenance && !CanCloseMaintenance, () => CloseMaintenanceAsync(item));
+        }
+        else if (IsStatus(item, "InExecution"))
+        {
+            ActionButton(builder, ref seq, "Cerrar", "approve", !CanExecuteMaintenance && !CanCloseMaintenance, () => CloseMaintenanceAsync(item));
+        }
+    };
+
+    private void ActionButton(RenderTreeBuilder builder, ref int seq, string text, string css, bool disabled, Func<Task> action)
+    {
+        builder.OpenElement(seq++, "button");
+        builder.AddAttribute(seq++, "type", "button");
+        builder.AddAttribute(seq++, "class", css);
+        builder.AddAttribute(seq++, "disabled", disabled);
+        builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, action));
+        builder.AddContent(seq++, text);
+        builder.CloseElement();
+    }
+
+    private void OpenDetails(ConsultationItem item)
+    {
+        selectedItem = item;
+        successMessage = null;
+        errorMessage = null;
+    }
+
+    private void CloseDetails()
+    {
+        selectedItem = null;
+    }
+
+    private async Task ApprovePurchaseAsync(ConsultationItem item)
+    {
+        await ExecuteItemActionAsync(item, "approve", "Approved", "Compra aprobada correctamente.");
+    }
+
+    private async Task RejectPurchaseAsync(ConsultationItem item)
+    {
+        await ExecuteItemActionAsync(item, "reject", "Rejected", "Compra rechazada correctamente.");
+    }
+
+    private async Task ClosePurchaseAsync(ConsultationItem item)
+    {
+        await ExecuteItemActionAsync(item, "close", "Closed", "Compra cerrada correctamente.");
+    }
+
+    private async Task ApproveMaintenanceAsync(ConsultationItem item)
+    {
+        await ExecuteItemActionAsync(item, "approve", "Approved", "Mantenimiento aprobado correctamente.");
+    }
+
+    private async Task ExecuteMaintenanceAsync(ConsultationItem item)
+    {
+        await ExecuteItemActionAsync(item, "start", "InExecution", "Mantenimiento marcado en ejecución.");
+    }
+
+    private async Task CloseMaintenanceAsync(ConsultationItem item)
+    {
+        await ExecuteItemActionAsync(item, "close", "Closed", "Mantenimiento cerrado correctamente.");
+    }
+
+    private async Task RejectMaintenanceAsync(ConsultationItem item)
+    {
+        await ExecuteItemActionAsync(item, "reject", "Rejected", "Mantenimiento rechazado correctamente.");
+    }
+
+    private async Task ExecuteItemActionAsync(ConsultationItem item, string action, string localStatus, string okMessage)
+    {
+        successMessage = null;
+        errorMessage = null;
+
+        try
+        {
+            if (item.SourceKind == SourceKind.Api)
+            {
+                var baseUrl = item.Kind == RequestKind.Purchase
+                    ? "api/purchase-requests"
+                    : "api/maintenance-requests";
+
+                if (!Guid.TryParse(item.Id, out var id))
+                {
+                    errorMessage = "El registro de API no tiene un Id válido.";
+                    return;
+                }
+
+                await Api.SendJsonAsync(HttpMethod.Post, $"{baseUrl}/{id}/{action}", new
+                {
+                    comment = $"Acción {action} realizada desde app móvil - Consulta Compras y Mtto.",
+                    scheduledAt = DateTime.UtcNow,
+                    assignedTechnician = Auth.CurrentUser?.DisplayName ?? Auth.CurrentUser?.UserName
+                });
+            }
+            else
+            {
+                await UpdateLocalStatusAsync(item, localStatus);
+            }
+
+            selectedItem = null;
+            successMessage = okMessage;
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private async Task UpdateLocalStatusAsync(ConsultationItem item, string newStatus)
+    {
+        if (string.IsNullOrWhiteSpace(item.StorageKey))
+        {
+            return;
+        }
+
+        var script =
+            "(function(storageKey, id, number, newStatus) {" +
+            "  const raw = localStorage.getItem(storageKey);" +
+            "  if (!raw) return false;" +
+            "  let data = JSON.parse(raw);" +
+            "  let updated = false;" +
+            "  function txt(v) { return v === null || v === undefined ? '' : String(v); }" +
+            "  function match(obj) {" +
+            "    if (!obj || typeof obj !== 'object') return false;" +
+            "    const values = [obj.id,obj.Id,obj.localNumber,obj.LocalNumber,obj.requestNumber,obj.RequestNumber,obj.number,obj.Number].filter(Boolean).map(txt);" +
+            "    return values.includes(txt(id)) || values.includes(txt(number));" +
+            "  }" +
+            "  function touch(obj) {" +
+            "    if (!obj || typeof obj !== 'object') return;" +
+            "    if (match(obj)) {" +
+            "      obj.Status = newStatus; obj.status = newStatus;" +
+            "      obj.UpdatedAt = new Date().toISOString(); obj.updatedAt = obj.UpdatedAt;" +
+            "      updated = true;" +
+            "    }" +
+            "    for (const key of Object.keys(obj)) {" +
+            "      if (obj[key] && typeof obj[key] === 'object') {" +
+            "        if (Array.isArray(obj[key])) obj[key].forEach(touch); else touch(obj[key]);" +
+            "      }" +
+            "    }" +
+            "  }" +
+            "  if (Array.isArray(data)) data.forEach(touch); else touch(data);" +
+            "  if (updated) localStorage.setItem(storageKey, JSON.stringify(data));" +
+            "  return updated;" +
+            "})(arguments[0], arguments[1], arguments[2], arguments[3]);";
+
+        await JS.InvokeAsync<bool>("eval", script, item.StorageKey, item.Id, item.Number, newStatus);
+    }
+
+    private IEnumerable<ConsultationItem> Deduplicate(IEnumerable<ConsultationItem> source)
+    {
+        return source
+            .GroupBy(x => $"{x.Kind}:{NormalizeKey(x.Number)}:{NormalizeKey(x.Id)}")
+            .Select(group =>
+                group.OrderByDescending(x => x.SourceKind == SourceKind.Api)
+                     .ThenByDescending(x => x.UpdatedAt ?? x.CreatedAt ?? DateTime.MinValue)
+                     .First())
+            .Where(x => !string.IsNullOrWhiteSpace(x.Number) || !string.IsNullOrWhiteSpace(x.AssetName))
+            .ToList();
+    }
+
+    private bool MatchesSearch(ConsultationItem item)
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            return true;
+        }
+
+        var value = searchText.Trim();
+
+        return Contains(item.Number, value)
+            || Contains(item.AssetName, value)
+            || Contains(item.Description, value)
+            || Contains(item.Provider, value)
+            || Contains(item.RequestedBy, value)
+            || Contains(item.PreparedBy, value)
+            || Contains(item.Technician, value)
+            || Contains(item.Branch, value);
+    }
+
+    private void ClearFilters()
+    {
+        typeFilter = "all";
+        statusFilter = "all";
+        searchText = string.Empty;
+
+        branchFilterInitialized = false;
+        ApplyDefaultBranchFilterIfNeeded();
+    }
+
+
+    private void ApplyDefaultBranchFilterIfNeeded()
+    {
+        if (branchFilterInitialized)
+        {
+            return;
+        }
+
+        branchFilterInitialized = true;
+
+        var userBranchCode = Auth.CurrentUser?.BranchCode;
+
+        if (IsAllBranchValue(userBranchCode))
+        {
+            selectedBranchCode = string.Empty;
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(userBranchCode))
+        {
+            selectedBranchCode = userBranchCode;
+            return;
+        }
+
+        if (Auth.CurrentUser?.BranchId is Guid branchId)
+        {
+            var branch = branches.FirstOrDefault(x => x.Id == branchId);
+
+            if (branch is not null && !IsAllBranchValue(branch.Code))
+            {
+                selectedBranchCode = branch.Code;
+                return;
+            }
+        }
+
+        selectedBranchCode = string.Empty;
+    }
+
+    private bool MatchesBranchFilter(ConsultationItem item)
+    {
+        if (string.IsNullOrWhiteSpace(selectedBranchCode))
+        {
+            return true;
+        }
+
+        var selectedBranch = branches.FirstOrDefault(x =>
+            Same(x.Code, selectedBranchCode) ||
+            Same(x.Name, selectedBranchCode));
+
+        if (selectedBranch is not null)
+        {
+            return Same(item.Branch, selectedBranch.Code) ||
+                   Same(item.Branch, selectedBranch.Name) ||
+                   Contains(item.Branch, selectedBranch.Code) ||
+                   Contains(item.Branch, selectedBranch.Name);
+        }
+
+        return Same(item.Branch, selectedBranchCode) ||
+               Contains(item.Branch, selectedBranchCode);
+    }
+
+    private bool UserCanSeeAllBranches()
+    {
+        var user = Auth.CurrentUser;
+
+        if (user is null)
+        {
+            return false;
+        }
+
+        return string.IsNullOrWhiteSpace(user.BranchCode) ||
+               Same(user.BranchCode, "TODAS") ||
+               Same(user.BranchCode, "ALL") ||
+               Same(user.BranchName, "TODAS") ||
+               Same(user.BranchName, "ALL") ||
+               Same(user.BranchName, "Todas las sedes");
+    }
+
+    private string ResolveBranchLabel(string? branchIdText)
+    {
+        if (Guid.TryParse(branchIdText, out var branchId))
+        {
+            var branch = branches.FirstOrDefault(x => x.Id == branchId);
+
+            if (branch is not null)
+            {
+                return $"{branch.Code} - {branch.Name}";
+            }
+        }
+
+        return Display(Auth.CurrentUser?.BranchName ?? Auth.CurrentUser?.BranchCode);
+    }
+
+    private bool Has(string permission) => Auth.HasPermission(permission);
+    private bool HasAny(params string[] permissions) => permissions.Any(Has);
+
+    private bool IsStatus(ConsultationItem item, string status)
+    {
+        return string.Equals(NormalizeStatus(item.Status), NormalizeStatus(status), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeStatus(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return "Draft";
+        }
+
+        var value = status.Trim();
+
+        return value.ToLowerInvariant() switch
+        {
+            "draft" or "borrador" or "nueva" or "nueva solicitud" => "Draft",
+            "confirmed" or "confirmada" or "confirmada / pendiente por cotizar" or "quoting" or "cotizando" or "cotización" or "cotizacion" or "inreview" or "in review" or "en revision" or "en revisión" or "review" => "InReview",
+            "approved" or "aprobada" or "aprobado" => "Approved",
+            "scheduled" or "programada" or "programado" => "Scheduled",
+            "inexecution" or "in execution" or "en ejecucion" or "en ejecución" or "ejecucion" or "ejecución" => "InExecution",
+            "closed" or "cerrada" or "cerrado" or "finalizada" or "generada" or "generated" => "Closed",
+            "rejected" or "rechazada" or "rechazado" => "Rejected",
+            "canceled" or "cancelled" or "cancelada" or "cancelado" => "Canceled",
+            _ => value
+        };
+    }
+
+    private static string StatusLabel(string? status)
+    {
+        return NormalizeStatus(status) switch
+        {
+            "Draft" => "Borrador",
+            "InReview" => "En revisión",
+            "Approved" => "Aprobada",
+            "Scheduled" => "Programada",
+            "InExecution" => "En ejecución",
+            "Closed" => "Cerrada",
+            "Rejected" => "Rechazada",
+            "Canceled" => "Cancelada",
+            _ => status ?? "—"
+        };
+    }
+
+    private static string StatusClass(string? status)
+    {
+        return NormalizeStatus(status) switch
+        {
+            "InReview" => "review",
+            "Approved" => "approved",
+            "Scheduled" => "scheduled",
+            "InExecution" => "execution",
+            "Closed" => "closed",
+            "Rejected" => "rejected",
+            "Canceled" => "canceled",
+            _ => "draft"
+        };
+    }
+
+    private static bool IsPositiveCostStatus(string? status)
+    {
+        return NormalizeStatus(status) is "Approved" or "Scheduled" or "InExecution" or "Closed";
+    }
+
+    private static bool IsRejectedOrCanceled(string? status)
+    {
+        return NormalizeStatus(status) is "Rejected" or "Canceled";
+    }
+
+    private static JsonElement GetFirstArrayObject(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.Object)
+                {
+                    return item;
+                }
+            }
+        }
+
+        return default;
+    }
+
+    private static string? GetString(JsonElement element, params string[] names)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        foreach (var name in names)
+        {
+            if (element.TryGetProperty(name, out var property))
+            {
+                if (property.ValueKind == JsonValueKind.String)
+                {
+                    return property.GetString();
+                }
+
+                if (property.ValueKind is JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False)
+                {
+                    return property.ToString();
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static DateTime? GetDate(JsonElement element, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            var value = GetString(element, name);
+
+            if (DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var date))
+            {
+                return date;
+            }
+        }
+
+        return null;
+    }
+
+    private static decimal ParseMoney(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return 0;
+        }
+
+        var clean = new string(value.Where(x => char.IsDigit(x) || x == ',' || x == '.' || x == '-').ToArray());
+
+        if (string.IsNullOrWhiteSpace(clean))
+        {
+            return 0;
+        }
+
+        if (clean.Contains('.') && clean.Contains(','))
+        {
+            clean = clean.Replace(".", "").Replace(",", ".");
+        }
+        else if (clean.Count(x => x == '.') > 1)
+        {
+            clean = clean.Replace(".", "");
+        }
+        else if (clean.Contains(','))
+        {
+            clean = clean.Replace(",", ".");
+        }
+
+        return decimal.TryParse(clean, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : 0;
+    }
+
+    private static string FormatMoney(decimal value)
+    {
+        return value <= 0
+            ? "$0"
+            : value.ToString("'$' #,0", CultureInfo.GetCultureInfo("es-CO"));
+    }
+
+    private static string FormatDate(DateTime? value)
+    {
+        return value.HasValue
+            ? value.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+            : "—";
+    }
+
+    private static string Display(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+
+    private static string FirstNonEmpty(params string?[] values)
+    {
+        return values.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "—";
+    }
+
+    private static bool Contains(string? source, string value)
+    {
+        return !string.IsNullOrWhiteSpace(source)
+            && source.Contains(value, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool Same(string? left, string? right)
+    {
+        return string.Equals(NormalizeKey(left), NormalizeKey(right), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ShortText(string? value, int max)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "—";
+        }
+
+        return value.Length <= max
+            ? value
+            : value[..max] + "…";
+    }
+
+    private static bool IsAllBranchValue(string? value)
+    {
+        return Same(value, "TODAS") ||
+               Same(value, "ALL") ||
+               Same(value, "Todas las sedes");
+    }
+
+    private static string NormalizeKey(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return new string(value.Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
+    }
+
+    private void GoHome() => Navigation.NavigateTo("/");
+    private void GoLogin() => Navigation.NavigateTo("/login", forceLoad: true);
+
+    private enum RequestKind
+    {
+        Purchase,
+        Maintenance
+    }
+
+    private enum SourceKind
+    {
+        Api,
+        BrowserStorage
+    }
+
+    private sealed class ConsultationItem
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Number { get; set; } = string.Empty;
+        public RequestKind Kind { get; set; }
+        public SourceKind SourceKind { get; set; }
+        public string Source { get; set; } = "API";
+        public string? StorageKey { get; set; }
+        public string Type { get; set; } = string.Empty;
+        public string Priority { get; set; } = "Media";
+        public string Status { get; set; } = "Draft";
+        public string? AssetName { get; set; }
+        public string? Description { get; set; }
+        public string? Provider { get; set; }
+        public string? EstimatedCostText { get; set; }
+        public decimal EstimatedCost { get; set; }
+        public DateTime? CreatedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
+        public DateTime? ScheduledAt { get; set; }
+        public DateTime? ClosedAt { get; set; }
+        public string? RequestedBy { get; set; }
+        public string? PreparedBy { get; set; }
+        public string? Technician { get; set; }
+        public string? Branch { get; set; }
+        public string? Notes { get; set; }
+        public string? RawText { get; set; }
+    }
+
+    private sealed class PurchaseRequestItem
+    {
+        public Guid Id { get; set; }
+        public string? RequestNumber { get; set; }
+        public string? ItemName { get; set; }
+        public string? ItemCode { get; set; }
+        public string? ItemDescription { get; set; }
+        public string? PurchasePurpose { get; set; }
+        public string? Justification { get; set; }
+        public string? Priority { get; set; }
+        public string? Status { get; set; }
+        public Guid? BranchId { get; set; }
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string? RequestedByUserName { get; set; }
+        public string? RequestedByResponsiblePersonName { get; set; }
+        public string? PreparedBy { get; set; }
+        public string? VendorSuggestion { get; set; }
+        public string? EstimatedCostText { get; set; }
+        public string? Notes { get; set; }
+        public string? ApprovalComment { get; set; }
+        public string? RejectionReason { get; set; }
+        public DateTime? RequiredAt { get; set; }
+        public DateTime? CreatedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
+        public DateTime? ClosedAt { get; set; }
+        public DateTime? RejectedAt { get; set; }
+        public DateTime? CanceledAt { get; set; }
+    }
+
+    private sealed class MaintenanceRequestItem
+    {
+        public Guid Id { get; set; }
+        public string? RequestNumber { get; set; }
+        public string? RequestType { get; set; }
+        public string? Priority { get; set; }
+        public string? Status { get; set; }
+        public string? Title { get; set; }
+        public string? ToolName { get; set; }
+        public string? ToolInternalCode { get; set; }
+        public string? ProblemDescription { get; set; }
+        public string? WorkDescription { get; set; }
+        public string? FailureCause { get; set; }
+        public string? VendorSuggestion { get; set; }
+        public string? EstimatedCostText { get; set; }
+        public Guid? BranchId { get; set; }
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string? RequestedByUserName { get; set; }
+        public string? RequestedByResponsiblePersonName { get; set; }
+        public string? PreparedBy { get; set; }
+        public string? AssignedTechnician { get; set; }
+        public string? ExecutionStartedBy { get; set; }
+        public string? Notes { get; set; }
+        public string? ApprovalComment { get; set; }
+        public string? RejectionReason { get; set; }
+        public string? ClosingComment { get; set; }
+        public DateTime? RequiredAt { get; set; }
+        public DateTime? ScheduledAt { get; set; }
+        public DateTime? CreatedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
+        public DateTime? ClosedAt { get; set; }
+        public DateTime? RejectedAt { get; set; }
+        public DateTime? CanceledAt { get; set; }
+    }
+}

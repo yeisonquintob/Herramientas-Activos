@@ -20,6 +20,14 @@
             <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
         </div>
     }
+    else if (!CanViewInventoryPage)
+    {
+        <div class="mobile-empty">
+            <strong>Sin permiso</strong>
+            <span>Tu usuario no tiene permiso para visualizar el inventario móvil.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoHome">Volver al inicio</button>
+        </div>
+    }
     else
     {
         <header class="mobile-inv-hero">
@@ -136,6 +144,8 @@
 
 @code {
     private bool isLoading = true;
+
+    private bool CanViewInventoryPage => IsMyToolsPage || Auth.HasPermission("Tools.View");
     private string? message;
     private string searchTerm = string.Empty;
 
@@ -169,8 +179,15 @@
             return;
         }
 
+        if (!CanViewInventoryPage)
+        {
+            isLoading = false;
+            return;
+        }
+
         await LoadAsync(false);
     }
+
 
     private async Task LoadAsync(bool forceRefresh)
     {
@@ -302,7 +319,7 @@
     {
         var user = Auth.CurrentUser;
 
-        if (user is null || !Auth.IsAdmin())
+        if (user is null)
         {
             return false;
         }
@@ -317,6 +334,7 @@
 
 
 
+
     private bool HasAny(params string[] permissions)
     {
         return permissions.Any(HasPermission);
@@ -324,12 +342,9 @@
 
     private bool HasPermission(string permission)
     {
-        var permissions = Auth.CurrentUser?.Permissions ?? new();
-
-        return permissions.Any(x => string.Equals(x, "ALL", StringComparison.OrdinalIgnoreCase))
-            || permissions.Any(x => string.Equals(x, permission, StringComparison.OrdinalIgnoreCase))
-            || Auth.HasPermission(permission);
+        return Auth.HasPermission(permission);
     }
+
 
     private void GoHome()
     {

@@ -78,6 +78,8 @@ public sealed class AuthController : ControllerBase
             UserName = user.UserName,
             DisplayName = user.DisplayName,
             Email = user.Email,
+            DocumentNumber = user.ResponsiblePerson?.DocumentNumber ?? user.UserName,
+            EmployeeCode = user.ResponsiblePerson?.EmployeeCode,
             Position = user.Position,
             Area = user.Area,
             RoleId = user.AppRole.Id,
@@ -142,6 +144,8 @@ public sealed class AuthController : ControllerBase
             UserName = user.UserName,
             DisplayName = user.DisplayName,
             Email = user.Email,
+            DocumentNumber = user.ResponsiblePerson?.DocumentNumber ?? user.UserName,
+            EmployeeCode = user.ResponsiblePerson?.EmployeeCode,
             Position = user.Position,
             Area = user.Area,
             RoleId = user.AppRole.Id,
@@ -155,6 +159,190 @@ public sealed class AuthController : ControllerBase
             Permissions = permissions,
             LastLoginAt = user.LastLoginAt
         });
+    }
+
+
+    [HttpPut("mobile-profile")]
+    public async Task<IActionResult> UpdateMobileProfile([FromBody] MobileProfileUpdateRequest request, CancellationToken cancellationToken)
+    {
+        var currentUserName = GetCurrentMobileUserName();
+
+        if (string.IsNullOrWhiteSpace(currentUserName))
+        {
+            return Unauthorized(new { Message = "No se recibió usuario de sesión móvil." });
+        }
+
+        var user = await _context.AppUsers
+            .Include(x => x.AppRole)
+            .Include(x => x.Branch)
+            .Include(x => x.ResponsiblePerson)
+            .FirstOrDefaultAsync(x =>
+                !x.IsDeleted &&
+                x.UserName.ToLower() == currentUserName.ToLower(),
+                cancellationToken);
+
+        if (user is null)
+        {
+            return Unauthorized(new { Message = "La sesión móvil no corresponde a un usuario activo." });
+        }
+
+        if (!user.IsActive)
+        {
+            return Unauthorized(new { Message = "El usuario está inactivo o bloqueado." });
+        }
+
+        if (user.AppRole is null || !user.AppRole.IsActive)
+        {
+            return Unauthorized(new { Message = "El usuario no tiene un rol activo asignado." });
+        }
+
+        var currentDocument = user.ResponsiblePerson?.DocumentNumber;
+
+        if (string.IsNullOrWhiteSpace(currentDocument))
+        {
+            currentDocument = user.UserName;
+        }
+
+        var requestedDocument = request.DocumentNumber?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(currentDocument))
+        {
+            if (string.IsNullOrWhiteSpace(requestedDocument))
+            {
+                return BadRequest(new { Message = "La cédula/documento ya existe y no se puede borrar." });
+            }
+
+            if (!string.Equals(currentDocument.Trim(), requestedDocument, StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { Message = "La cédula/documento ya existe y no se puede cambiar desde el perfil móvil." });
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(requestedDocument))
+        {
+            var duplicatedUser = await _context.AppUsers
+                .AnyAsync(x =>
+                    !x.IsDeleted &&
+                    x.Id != user.Id &&
+                    x.UserName.ToLower() == requestedDocument.ToLower(),
+                    cancellationToken);
+
+            if (duplicatedUser)
+            {
+                return Conflict(new { Message = "Ya existe un usuario con esa cédula/documento." });
+            }
+
+            user.UserName = requestedDocument.Trim().ToLowerInvariant();
+        }
+
+        if (string.IsNullOrWhiteSpace(request.DisplayName))
+        {
+            return BadRequest(new { Message = "El nombre completo es obligatorio." });
+        }
+
+        user.DisplayName = request.DisplayName.Trim();
+        user.Email = request.Email?.Trim();
+        user.Position = request.Position?.Trim();
+        user.Area = request.Area?.Trim();
+        user.UpdatedAt = DateTime.UtcNow;
+        user.UpdatedBy = currentUserName;
+
+        if (user.ResponsiblePerson is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(request.EmployeeCode))
+            {
+                user.ResponsiblePerson.EmployeeCode = request.EmployeeCode.Trim();
+            }
+
+            if (string.IsNullOrWhiteSpace(user.ResponsiblePerson.DocumentNumber) &&
+                !string.IsNullOrWhiteSpace(requestedDocument))
+            {
+                user.ResponsiblePerson.DocumentNumber = requestedDocument;
+            }
+
+            user.ResponsiblePerson.FullName = request.DisplayName.Trim();
+            user.ResponsiblePerson.Email = request.Email?.Trim();
+            user.ResponsiblePerson.Position = request.Position?.Trim();
+            user.ResponsiblePerson.Area = request.Area?.Trim();
+            user.ResponsiblePerson.UpdatedAt = DateTime.UtcNow;
+            user.ResponsiblePerson.UpdatedBy = currentUserName;
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var permissions = BuildPermissions(user.AppRole.Code, user.AppRole.Permissions);
+
+        return Ok(new LoginResponse
+        {
+            UserId = user.Id,
+            UserName = user.UserName,
+            DisplayName = user.DisplayName,
+            Email = user.Email,
+            DocumentNumber = user.ResponsiblePerson?.DocumentNumber ?? user.UserName,
+            EmployeeCode = user.ResponsiblePerson?.EmployeeCode,
+            Position = user.Position,
+            Area = user.Area,
+            RoleId = user.AppRole.Id,
+            RoleCode = user.AppRole.Code,
+            RoleName = user.AppRole.Name,
+            BranchId = user.BranchId,
+            BranchCode = user.Branch?.Code ?? "TODAS",
+            BranchName = user.Branch?.Name ?? "Todas las sedes",
+            ResponsiblePersonId = user.ResponsiblePersonId,
+            ResponsiblePersonName = user.ResponsiblePerson?.FullName,
+            Permissions = permissions,
+            LastLoginAt = user.LastLoginAt
+        });
+    }
+
+    [HttpPut("mobile-password")]
+    public async Task<IActionResult> ChangeMobilePassword([FromBody] MobilePasswordChangeRequest request, CancellationToken cancellationToken)
+    {
+        await EnsureAppUserPasswordHashColumnAsync(cancellationToken);
+
+        var currentUserName = GetCurrentMobileUserName();
+
+        if (string.IsNullOrWhiteSpace(currentUserName))
+        {
+            return Unauthorized(new { Message = "No se recibió usuario de sesión móvil." });
+        }
+
+        var user = await _context.AppUsers
+            .FirstOrDefaultAsync(x =>
+                !x.IsDeleted &&
+                x.UserName.ToLower() == currentUserName.ToLower(),
+                cancellationToken);
+
+        if (user is null)
+        {
+            return Unauthorized(new { Message = "La sesión móvil no corresponde a un usuario activo." });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Trim().Length < 4)
+        {
+            return BadRequest(new { Message = "La nueva contraseña debe tener mínimo 4 caracteres." });
+        }
+
+        if (string.Equals(request.NewPassword, request.ConfirmPassword) is false)
+        {
+            return BadRequest(new { Message = "La confirmación de contraseña no coincide." });
+        }
+
+        if (!string.IsNullOrWhiteSpace(user.PasswordHash))
+        {
+            if (string.IsNullOrWhiteSpace(request.CurrentPassword) ||
+                !VerifyUserPassword(request.CurrentPassword, user.PasswordHash))
+            {
+                return BadRequest(new { Message = "La contraseña actual no es correcta." });
+            }
+        }
+
+        user.PasswordHash = HashUserPassword(request.NewPassword);
+        user.UpdatedAt = DateTime.UtcNow;
+        user.UpdatedBy = currentUserName;
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return Ok(new { Message = "Contraseña actualizada correctamente." });
     }
 
     [HttpGet("permissions")]
@@ -485,6 +673,24 @@ END
         }
     }
 
+
+    private string? GetCurrentMobileUserName()
+    {
+        if (Request.Headers.TryGetValue("X-Navi-UserName", out var userName) &&
+            !string.IsNullOrWhiteSpace(userName.FirstOrDefault()))
+        {
+            return userName.FirstOrDefault()?.Trim();
+        }
+
+        if (Request.Headers.TryGetValue("X-Navi-User", out var legacyUserName) &&
+            !string.IsNullOrWhiteSpace(legacyUserName.FirstOrDefault()))
+        {
+            return legacyUserName.FirstOrDefault()?.Trim();
+        }
+
+        return null;
+    }
+
     private static List<string> GetDefaultPermissionsByRole(string roleCode)
     {
         var code = roleCode.Trim().ToUpperInvariant();
@@ -659,6 +865,24 @@ public sealed class LoginRequest
     public string? Password { get; set; }
 }
 
+
+public sealed class MobileProfileUpdateRequest
+{
+    public string? DocumentNumber { get; set; }
+    public string? EmployeeCode { get; set; }
+    public string? DisplayName { get; set; }
+    public string? Email { get; set; }
+    public string? Position { get; set; }
+    public string? Area { get; set; }
+}
+
+public sealed class MobilePasswordChangeRequest
+{
+    public string? CurrentPassword { get; set; }
+    public string? NewPassword { get; set; }
+    public string? ConfirmPassword { get; set; }
+}
+
 public sealed class LoginResponse
 {
     public Guid UserId { get; set; }
@@ -668,6 +892,10 @@ public sealed class LoginResponse
     public string DisplayName { get; set; } = string.Empty;
 
     public string? Email { get; set; }
+
+    public string? DocumentNumber { get; set; }
+
+    public string? EmployeeCode { get; set; }
 
     public string? Position { get; set; }
 

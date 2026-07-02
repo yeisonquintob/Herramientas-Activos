@@ -1,6 +1,7 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Navi.ToolsAssets.Domain.Entities.Maintenance;
+using Navi.ToolsAssets.Domain.Entities.Inventory;
 using Navi.ToolsAssets.Domain.Enums;
 using Navi.ToolsAssets.Infrastructure.Persistence.Context;
 
@@ -18,7 +19,7 @@ public class ExecutiveDashboardController : ControllerBase
     }
 
     [HttpGet("executive")]
-    public async Task<IActionResult> GetExecutiveDashboard(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetExecutiveDashboard([FromQuery] string? branchCode, [FromQuery] string? operationalStatus, [FromQuery] string? q, CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
         var startMonth = new DateTime(now.Year, now.Month, 1).AddMonths(-5);
@@ -33,6 +34,9 @@ public class ExecutiveDashboardController : ControllerBase
             .Include(x => x.ToolCategory)
             .Where(x => !x.IsDeleted)
             .ToListAsync(cancellationToken);
+
+        var dashboardFilterOptions = BuildDashboardFilterOptions(tools);
+        tools = ApplyDashboardFilters(tools, branchCode, operationalStatus, q).ToList();
 
         var branches = await _context.Branches
             .AsNoTracking()
@@ -64,6 +68,28 @@ public class ExecutiveDashboardController : ControllerBase
             .ThenByDescending(x => x.CreatedAt)
             .Take(20)
             .ToListAsync(cancellationToken);
+
+        var visibleToolIds = tools.Select(x => x.Id).ToHashSet();
+
+        branches = branches
+            .Where(x => tools.Any(tool => tool.BranchId == x.Id))
+            .ToList();
+
+        responsibles = responsibles
+            .Where(x => tools.Any(tool => tool.ResponsiblePersonId == x.Id))
+            .ToList();
+
+        maintenanceRecords = maintenanceRecords
+            .Where(x => visibleToolIds.Contains(x.ToolAssetId))
+            .ToList();
+
+        documents = documents
+            .Where(x => visibleToolIds.Contains(x.ToolAssetId))
+            .ToList();
+
+        events = events
+            .Where(x => visibleToolIds.Contains(x.ToolAssetId))
+            .ToList();
 
         static DateTime GetMaintenanceDate(MaintenanceRecord item)
         {
@@ -286,6 +312,13 @@ public class ExecutiveDashboardController : ControllerBase
         var response = new
         {
             GeneratedAt = now,
+            Filters = new
+            {
+                BranchCode = CleanDashboardFilter(branchCode),
+                OperationalStatus = CleanDashboardFilter(operationalStatus),
+                Query = CleanDashboardFilter(q),
+                Options = dashboardFilterOptions
+            },
             Summary = new
             {
                 TotalTools = totalTools,
@@ -330,4 +363,147 @@ public class ExecutiveDashboardController : ControllerBase
 
         return Ok(response);
     }
+
+
+
+    // NAVI DASHBOARD FILTERS START
+    private static IEnumerable<ToolAsset> ApplyDashboardFilters(
+        IEnumerable<ToolAsset> source,
+        string? branchCode,
+        string? operationalStatus,
+        string? query)
+    {
+        var result = source;
+
+        if (!IsEmptyDashboardFilter(branchCode))
+        {
+            var branch = NormalizeDashboardText(branchCode);
+
+            result = result.Where(x =>
+                NormalizeDashboardText(x.Branch?.Code) == branch ||
+                NormalizeDashboardText(x.Branch?.Name) == branch);
+        }
+
+        if (!IsEmptyDashboardFilter(operationalStatus))
+        {
+            var status = NormalizeDashboardText(operationalStatus);
+
+            result = result.Where(x =>
+                NormalizeDashboardText(x.OperationalStatus.ToString()) == status ||
+                NormalizeDashboardText(GetDashboardStatusLabel(x.OperationalStatus)) == status);
+        }
+
+        if (!IsEmptyDashboardFilter(query))
+        {
+            var text = NormalizeDashboardText(query);
+
+            result = result.Where(x =>
+                ContainsDashboardText(x.InternalCode, text) ||
+                ContainsDashboardText(x.FixedAssetCode, text) ||
+                ContainsDashboardText(x.Name, text) ||
+                ContainsDashboardText(x.Description, text) ||
+                ContainsDashboardText(x.SerialNumber, text) ||
+                ContainsDashboardText(x.Brand, text) ||
+                ContainsDashboardText(x.Model, text) ||
+                ContainsDashboardText(x.Branch?.Code, text) ||
+                ContainsDashboardText(x.Branch?.Name, text) ||
+                ContainsDashboardText(x.Location?.Name, text) ||
+                ContainsDashboardText(x.ResponsiblePerson?.FullName, text) ||
+                ContainsDashboardText(x.ToolType?.Name, text) ||
+                ContainsDashboardText(x.ToolType?.Code, text) ||
+                ContainsDashboardText(x.ToolCategory?.Name, text) ||
+                ContainsDashboardText(x.ToolCategory?.Code, text) ||
+                ContainsDashboardText(x.OperationalStatus.ToString(), text));
+        }
+
+        return result;
+    }
+
+    private static object BuildDashboardFilterOptions(IEnumerable<ToolAsset> tools)
+    {
+        return new
+        {
+            Branches = tools
+                .Where(x => x.Branch != null)
+                .GroupBy(x => new
+                {
+                    x.Branch!.Code,
+                    x.Branch.Name
+                })
+                .OrderBy(x => x.Key.Code)
+                .Select(x => new
+                {
+                    BranchCode = x.Key.Code,
+                    BranchName = x.Key.Name,
+                    Total = x.Count()
+                })
+                .ToList(),
+
+            Statuses = Enum.GetValues<ToolOperationalStatus>()
+                .Select(x => new
+                {
+                    Value = x.ToString(),
+                    Label = GetDashboardStatusLabel(x)
+                })
+                .ToList()
+        };
+    }
+
+    private static bool IsEmptyDashboardFilter(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ||
+               value.Equals("TODAS", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("ALL", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("TODOS", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? CleanDashboardFilter(string? value)
+    {
+        return IsEmptyDashboardFilter(value) ? null : value?.Trim();
+    }
+
+    private static bool ContainsDashboardText(string? value, string normalizedExpected)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+               NormalizeDashboardText(value).Contains(normalizedExpected, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeDashboardText(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return value.Trim()
+            .ToUpperInvariant()
+            .Replace("Á", "A")
+            .Replace("É", "E")
+            .Replace("Í", "I")
+            .Replace("Ó", "O")
+            .Replace("Ú", "U")
+            .Replace("Ü", "U")
+            .Replace("Ñ", "N");
+    }
+
+    private static string GetDashboardStatusLabel(ToolOperationalStatus status)
+    {
+        return status switch
+        {
+            ToolOperationalStatus.Available => "Disponible",
+            ToolOperationalStatus.Assigned => "Asignada",
+            ToolOperationalStatus.Loaned => "Prestada",
+            ToolOperationalStatus.InMaintenance => "En mantenimiento",
+            ToolOperationalStatus.Damaged => "Dañada",
+            ToolOperationalStatus.NotSuitable => "No apta",
+            ToolOperationalStatus.PendingValidation => "Pendiente de validación",
+            ToolOperationalStatus.Inconsistent => "Inconsistente",
+            ToolOperationalStatus.NotLocated => "No localizada",
+            ToolOperationalStatus.PendingDisposal => "Pendiente de baja",
+            ToolOperationalStatus.Disposed => "Dada de baja",
+            _ => status.ToString()
+        };
+    }
+    // NAVI DASHBOARD FILTERS END
+
 }

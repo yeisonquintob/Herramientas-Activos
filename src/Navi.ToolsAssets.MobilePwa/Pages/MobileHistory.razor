@@ -1,0 +1,687 @@
+@page "/mobile/history"
+
+@using Navi.ToolsAssets.MobilePwa.Models
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Historial móvil - NAVI Herramientas y AF</PageTitle>
+
+<section class="mobile-page mobile-page-compact navi-mobile-history-v1">
+    @if (isLoading)
+    {
+        <div class="mobile-loading">Cargando historial móvil...</div>
+    }
+    else if (!Auth.IsAuthenticated)
+    {
+        <div class="mobile-empty">
+            <strong>Sesión requerida</strong>
+            <span>Debes iniciar sesión para consultar el historial.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+        </div>
+    }
+    else if (!CanViewHistory)
+    {
+        <div class="mobile-empty">
+            <strong>Sin permiso</strong>
+            <span>Tu usuario no tiene permiso para consultar el historial de asignaciones.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoHome">Volver al inicio</button>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="mobile-alert error">@errorMessage</div>
+
+        <button class="mobile-primary-button" type="button" @onclick="LoadAsync">
+            Reintentar
+        </button>
+    }
+    else
+    {
+        <section class="mhist-board">
+            <header class="mhist-hero">
+                <div class="mhist-hero-copy">
+                    <span>HISTORIAL</span>
+                    <h1>Historial móvil</h1>
+                    <p>@Display(Auth.CurrentUser?.DisplayName) · @ScopeLabel</p>
+                </div>
+
+                <div class="mhist-hero-actions">
+                    <button type="button" @onclick="GoHome">Inicio</button>
+                    <button type="button" @onclick="LoadAsync" disabled="@isRefreshing">
+                        @(isRefreshing ? "Actualizando..." : "Actualizar")
+                    </button>
+                </div>
+            </header>
+
+            <section class="mhist-kpis">
+                <article>
+                    <span>Mostrando</span>
+                    <strong>@FilteredHistory.Count()</strong>
+                    <small>Con filtros</small>
+                </article>
+
+                <article>
+                    <span>Total visible</span>
+                    <strong>@VisibleHistory.Count()</strong>
+                    <small>@ScopeLabel</small>
+                </article>
+
+                <article>
+                    <span>Sedes</span>
+                    <strong>@VisibleBranchCount</strong>
+                    <small>Alcance</small>
+                </article>
+
+                <article>
+                    <span>Usuario</span>
+                    <strong>@SelectedResponsibleLabel</strong>
+                    <small>Filtro actual</small>
+                </article>
+            </section>
+
+            <section class="mhist-filter-card">
+                <div class="mhist-filter-grid">
+                    <label>
+                        <span>Buscar</span>
+                        <input value="@searchText"
+                               @oninput="OnSearchChanged"
+                               placeholder="Préstamo, activo, usuario, código..." />
+                    </label>
+
+                    <label>
+                        <span>Usuario / Responsable</span>
+                        <select value="@selectedResponsibleId" @onchange="OnResponsibleChanged">
+                            <option value="">Todos los usuarios</option>
+                            @foreach (var responsible in VisibleResponsibles)
+                            {
+                                <option value="@responsible.Id">@responsible.FullName</option>
+                            }
+                        </select>
+                    </label>
+
+                    @if (UserCanSeeAllBranches())
+                    {
+                        <label>
+                            <span>Sede</span>
+                            <select value="@selectedBranchCode" @onchange="OnBranchChanged">
+                                <option value="">Todas las sedes</option>
+                                @foreach (var branch in BranchOptions)
+                                {
+                                    <option value="@branch.Code">@branch.Code - @branch.Name</option>
+                                }
+                            </select>
+                        </label>
+                    }
+                    else
+                    {
+                        <label>
+                            <span>Sede</span>
+                            <input value="@ScopeLabel" disabled />
+                        </label>
+                    }
+                </div>
+
+                <div class="mhist-status-head">
+                    <strong>Estado</strong>
+                    <button type="button" @onclick="ClearStatusFilter">Limpiar estados</button>
+                </div>
+
+                <div class="mhist-status-chips">
+                    @foreach (var status in StatusOptions)
+                    {
+                        var selected = selectedStatuses.Contains(status.Value);
+
+                        <button type="button"
+                                class="@(selected ? "selected" : "")"
+                                @onclick="() => ToggleStatus(status.Value)">
+                            @status.Text
+                        </button>
+                    }
+                </div>
+            </section>
+
+            @if (!FilteredHistory.Any())
+            {
+                <section class="mobile-empty compact">
+                    <strong>Sin movimientos</strong>
+                    <span>No hay historial visible para tu sede, permisos o filtros actuales.</span>
+                </section>
+            }
+            else
+            {
+                <section class="mhist-list">
+                    @foreach (var item in FilteredHistory.Take(60))
+                    {
+                        var firstItem = item.Items.FirstOrDefault();
+                        var firstTool = GetFirstVisibleTool(item);
+                        var branchText = GetRequestBranchText(item);
+
+                        <article class="mhist-card">
+                            <div class="mhist-card-head">
+                                <div>
+                                    <span>@item.LoanNumber</span>
+                                    <strong>@Display(firstItem?.ToolInternalCode) - @Display(firstItem?.ToolName)</strong>
+                                </div>
+
+                                <em class="@GetStatusClass(item.Status)">
+                                    @GetStatusText(item.Status)
+                                </em>
+                            </div>
+
+                            <div class="mhist-info-grid">
+                                <div>
+                                    <span>Sede</span>
+                                    <strong>@branchText</strong>
+                                </div>
+
+                                <div>
+                                    <span>Solicitante</span>
+                                    <strong>@Display(GetRequesterName(item))</strong>
+                                </div>
+
+                                <div>
+                                    <span>Ubicación</span>
+                                    <strong>@Display(firstTool?.LocationName)</strong>
+                                </div>
+
+                                <div>
+                                    <span>Fecha</span>
+                                    <strong>@ShowDate(GetMovementDate(item))</strong>
+                                </div>
+                            </div>
+
+                            @if (item.Items.Count > 1)
+                            {
+                                <div class="mhist-items-count">
+                                    @item.Items.Count activos relacionados
+                                </div>
+                            }
+
+                            @if (!string.IsNullOrWhiteSpace(item.Notes))
+                            {
+                                <p class="mhist-notes">@item.Notes</p>
+                            }
+                        </article>
+                    }
+                </section>
+            }
+        </section>
+    }
+</section>
+
+@code {
+    private bool isLoading = true;
+    private bool isRefreshing;
+    private string? errorMessage;
+
+    private string searchText = string.Empty;
+    private string selectedResponsibleId = string.Empty;
+    private string selectedBranchCode = string.Empty;
+    private HashSet<string> selectedStatuses = new(StringComparer.OrdinalIgnoreCase);
+
+    private List<MobileAvailabilityToolDto> tools = new();
+    private List<MobileLoanRequestDto> loanRequests = new();
+    private List<MobileResponsibleDto> responsibles = new();
+    private List<MobileBranchDto> branches = new();
+
+    private bool CanViewHistory => Auth.HasPermission("AssetAssignment.History");
+
+    private string ScopeLabel =>
+        UserCanSeeAllBranches()
+            ? "Todas las sedes"
+            : Display(Auth.CurrentUser?.BranchName ?? Auth.CurrentUser?.BranchCode);
+
+    private string SelectedResponsibleLabel
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(selectedResponsibleId))
+            {
+                return "Todos";
+            }
+
+            var selected = responsibles.FirstOrDefault(x =>
+                x.Id.ToString().Equals(selectedResponsibleId, StringComparison.OrdinalIgnoreCase));
+
+            return selected?.FullName ?? "Seleccionado";
+        }
+    }
+
+    private readonly (string Value, string Text)[] StatusOptions =
+    {
+        ("Requested", "Solicitada"),
+        ("PendingApproval", "Pendiente"),
+        ("Approved", "Aprobada"),
+        ("Delivered", "Asignada"),
+        ("Returned", "Devuelta"),
+        ("Rejected", "Denegada"),
+        ("Denied", "Denegada"),
+        ("Cancelled", "Cancelada")
+    };
+
+    private IEnumerable<MobileResponsibleDto> VisibleResponsibles =>
+        responsibles
+            .Where(IsVisibleResponsible)
+            .OrderBy(x => x.FullName);
+
+    private IEnumerable<MobileBranchDto> BranchOptions =>
+        branches
+            .Where(IsVisibleBranch)
+            .OrderBy(x => x.Code);
+
+    private IEnumerable<MobileAvailabilityToolDto> ScopedTools =>
+        tools
+            .Where(IsSameBranch)
+            .OrderBy(x => x.BranchCode)
+            .ThenBy(x => x.InternalCode);
+
+    private IEnumerable<MobileLoanRequestDto> VisibleHistory =>
+        loanRequests
+            .Where(RequestInVisibleScope)
+            .Where(MatchesBranchFilter)
+            .OrderByDescending(GetMovementDate);
+
+    private IEnumerable<MobileLoanRequestDto> FilteredHistory =>
+        VisibleHistory
+            .Where(MatchesResponsibleFilter)
+            .Where(MatchesStatusFilter)
+            .Where(MatchesSearchFilter)
+            .OrderByDescending(GetMovementDate);
+
+    private int VisibleBranchCount =>
+        ScopedTools
+            .Where(x => !string.IsNullOrWhiteSpace(x.BranchCode))
+            .Select(x => Normalize(x.BranchCode))
+            .Distinct()
+            .Count();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            isLoading = false;
+            return;
+        }
+
+        var refreshedUser = await Api.RefreshCurrentSessionAsync();
+
+        if (refreshedUser is null || !Auth.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", forceLoad: true);
+            return;
+        }
+
+        if (!CanViewHistory)
+        {
+            isLoading = false;
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            isRefreshing = true;
+            errorMessage = null;
+
+            tools = await Api.GetAvailabilityToolsAsync();
+            loanRequests = await Api.GetLoanRequestsAsync();
+            responsibles = (await Api.GetResponsiblesAsync())
+                .OrderBy(x => x.FullName)
+                .ToList();
+
+            ApplyDefaultResponsibleFilter();
+
+            branches = (await Api.GetBranchesAsync())
+                .OrderBy(x => x.Code)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo cargar el historial móvil: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+            isRefreshing = false;
+        }
+    }
+
+    private void OnSearchChanged(ChangeEventArgs args)
+    {
+        searchText = args.Value?.ToString() ?? string.Empty;
+    }
+
+    private void OnBranchChanged(ChangeEventArgs args)
+    {
+        selectedBranchCode = args.Value?.ToString() ?? string.Empty;
+    }
+
+
+    private void OnResponsibleChanged(ChangeEventArgs args)
+    {
+        selectedResponsibleId = args.Value?.ToString() ?? string.Empty;
+    }
+
+    private void ApplyDefaultResponsibleFilter()
+    {
+        if (!string.IsNullOrWhiteSpace(selectedResponsibleId))
+        {
+            return;
+        }
+
+        if (Auth.CurrentUser?.ResponsiblePersonId is Guid responsibleId)
+        {
+            selectedResponsibleId = responsibleId.ToString();
+        }
+    }
+
+    private bool MatchesResponsibleFilter(MobileLoanRequestDto request)
+    {
+        if (string.IsNullOrWhiteSpace(selectedResponsibleId))
+        {
+            return true;
+        }
+
+        return request.RequestedByPersonId.HasValue &&
+               request.RequestedByPersonId.Value.ToString().Equals(selectedResponsibleId, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool IsVisibleResponsible(MobileResponsibleDto responsible)
+    {
+        if (UserCanSeeAllBranches())
+        {
+            return true;
+        }
+
+        var visibleResponsibleNames = ScopedTools
+            .Select(x => Normalize(x.ResponsiblePersonName))
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return visibleResponsibleNames.Count == 0 ||
+               visibleResponsibleNames.Contains(Normalize(responsible.FullName)) ||
+               Auth.CurrentUser?.ResponsiblePersonId == responsible.Id;
+    }
+
+
+    private void ToggleStatus(string status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return;
+        }
+
+        if (!selectedStatuses.Add(status))
+        {
+            selectedStatuses.Remove(status);
+        }
+    }
+
+    private void ClearStatusFilter()
+    {
+        selectedStatuses.Clear();
+    }
+
+
+    private void ClearHistoryFilters()
+    {
+        searchText = string.Empty;
+        selectedBranchCode = string.Empty;
+        selectedResponsibleId = string.Empty;
+        selectedStatuses.Clear();
+
+        ApplyDefaultResponsibleFilter();
+    }
+
+
+    private bool MatchesStatusFilter(MobileLoanRequestDto request)
+    {
+        return selectedStatuses.Count == 0 ||
+               selectedStatuses.Contains(request.Status ?? string.Empty);
+    }
+
+    private bool MatchesSearchFilter(MobileLoanRequestDto request)
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            return true;
+        }
+
+        return ContainsText(request.LoanNumber, searchText) ||
+               ContainsText(request.Status, searchText) ||
+               ContainsText(GetStatusText(request.Status), searchText) ||
+               ContainsText(request.CreatedBy, searchText) ||
+               ContainsText(GetRequesterName(request), searchText) ||
+               ContainsText(GetRequestBranchText(request), searchText) ||
+               request.Items.Any(item =>
+                   ContainsText(item.ToolInternalCode, searchText) ||
+                   ContainsText(item.ToolName, searchText));
+    }
+
+    private bool MatchesBranchFilter(MobileLoanRequestDto request)
+    {
+        if (!UserCanSeeAllBranches())
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(selectedBranchCode))
+        {
+            return true;
+        }
+
+        return request.Items.Any(item =>
+        {
+            var tool = tools.FirstOrDefault(x => x.Id == item.ToolAssetId);
+
+            return tool is not null &&
+                   SameNormalized(tool.BranchCode, selectedBranchCode);
+        });
+    }
+
+    private bool RequestInVisibleScope(MobileLoanRequestDto request)
+    {
+        var visibleIds = ScopedTools.Select(x => x.Id).ToHashSet();
+
+        return request.Items.Any(item => visibleIds.Contains(item.ToolAssetId));
+    }
+
+    private MobileAvailabilityToolDto? GetFirstVisibleTool(MobileLoanRequestDto request)
+    {
+        var visibleIds = ScopedTools.Select(x => x.Id).ToHashSet();
+        var firstItem = request.Items.FirstOrDefault(x => visibleIds.Contains(x.ToolAssetId));
+
+        if (firstItem is null)
+        {
+            return null;
+        }
+
+        return tools.FirstOrDefault(x => x.Id == firstItem.ToolAssetId);
+    }
+
+    private string GetRequestBranchText(MobileLoanRequestDto request)
+    {
+        var branchesForRequest = request.Items
+            .Select(item => tools.FirstOrDefault(tool => tool.Id == item.ToolAssetId))
+            .Where(tool => tool is not null)
+            .Select(tool => $"{Display(tool!.BranchCode)} - {Display(tool.BranchName)}")
+            .Distinct()
+            .ToList();
+
+        return branchesForRequest.Count == 0
+            ? ScopeLabel
+            : string.Join(", ", branchesForRequest);
+    }
+
+    private string GetRequesterName(MobileLoanRequestDto request)
+    {
+        var responsible = request.RequestedByPersonId.HasValue
+            ? responsibles.FirstOrDefault(x => x.Id == request.RequestedByPersonId.Value)
+            : null;
+
+        return responsible?.FullName ?? request.CreatedBy ?? "Sin solicitante";
+    }
+
+    private DateTime? GetMovementDate(MobileLoanRequestDto request)
+    {
+        return request.ReturnedAt
+            ?? request.DeliveredAt
+            ?? request.ApprovedAt
+            ?? request.RequestedAt
+            ?? request.CreatedAt;
+    }
+
+    private bool IsSameBranch(MobileAvailabilityToolDto tool)
+    {
+        var user = Auth.CurrentUser;
+
+        if (user is null)
+        {
+            return false;
+        }
+
+        if (UserCanSeeAllBranches())
+        {
+            return true;
+        }
+
+        return SameNormalized(tool.BranchCode, user.BranchCode)
+            || SameNormalized(tool.BranchName, user.BranchName)
+            || SameNormalized(tool.BranchCode, user.BranchName)
+            || SameNormalized(tool.BranchName, user.BranchCode);
+    }
+
+    private bool IsVisibleBranch(MobileBranchDto branch)
+    {
+        var user = Auth.CurrentUser;
+
+        if (user is null)
+        {
+            return false;
+        }
+
+        if (UserCanSeeAllBranches())
+        {
+            return true;
+        }
+
+        return SameNormalized(branch.Code, user.BranchCode)
+            || SameNormalized(branch.Name, user.BranchName);
+    }
+
+    private bool UserCanSeeAllBranches()
+    {
+        var user = Auth.CurrentUser;
+
+        if (user is null)
+        {
+            return false;
+        }
+
+        return string.IsNullOrWhiteSpace(user.BranchCode)
+            || SameNormalized(user.BranchCode, "TODAS")
+            || SameNormalized(user.BranchCode, "ALL")
+            || SameNormalized(user.BranchName, "Todas las sedes")
+            || SameNormalized(user.BranchName, "TODAS")
+            || SameNormalized(user.BranchName, "ALL");
+    }
+
+    private void GoHome()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private void GoLogin()
+    {
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    private static string GetStatusText(string? status)
+    {
+        return status switch
+        {
+            "Draft" => "Borrador",
+            "Requested" => "Solicitada",
+            "PendingApproval" => "Pendiente",
+            "Approved" => "Aprobada",
+            "Delivered" => "Asignada",
+            "Returned" => "Devuelta",
+            "Rejected" => "Denegada",
+            "Denied" => "Denegada",
+            "Cancelled" => "Cancelada",
+            "Canceled" => "Cancelada",
+            _ => Display(status)
+        };
+    }
+
+    private static string GetStatusClass(string? status)
+    {
+        return status switch
+        {
+            "Requested" => "mhist-status pending",
+            "PendingApproval" => "mhist-status pending",
+            "Approved" => "mhist-status approved",
+            "Delivered" => "mhist-status delivered",
+            "Returned" => "mhist-status returned",
+            "Rejected" => "mhist-status denied",
+            "Denied" => "mhist-status denied",
+            "Cancelled" => "mhist-status denied",
+            "Canceled" => "mhist-status denied",
+            _ => "mhist-status neutral"
+        };
+    }
+
+    private static bool ContainsText(string? value, string expected)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+               !string.IsNullOrWhiteSpace(expected) &&
+               Normalize(value).Contains(Normalize(expected), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool SameNormalized(string? left, string? right)
+    {
+        var a = Normalize(left);
+        var b = Normalize(right);
+
+        return !string.IsNullOrWhiteSpace(a)
+            && !string.IsNullOrWhiteSpace(b)
+            && string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Normalize(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return value
+            .Trim()
+            .ToUpperInvariant()
+            .Replace("Á", "A")
+            .Replace("É", "E")
+            .Replace("Í", "I")
+            .Replace("Ó", "O")
+            .Replace("Ú", "U")
+            .Replace("Ü", "U")
+            .Replace("Ñ", "N");
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "Sin dato" : value;
+    }
+
+    private static string ShowDate(DateTime? value)
+    {
+        return value.HasValue ? value.Value.ToLocalTime().ToString("dd/MM/yyyy") : "Sin fecha";
+    }
+}

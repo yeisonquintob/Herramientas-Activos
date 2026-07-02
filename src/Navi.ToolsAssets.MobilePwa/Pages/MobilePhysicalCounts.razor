@@ -1,0 +1,553 @@
+@page "/mobile/physical-counts"
+
+@using System.Net.Http
+@using Microsoft.AspNetCore.Components.Forms
+@using Navi.ToolsAssets.MobilePwa.Models
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Toma física móvil - NAVI Herramientas y AF</PageTitle>
+
+<section class="mobile-page navi-mobile-physical-v3 mobile-physical-standard-page">
+    @if (isLoading && !initialized)
+    {
+        <div class="mobile-loading">Cargando toma física...</div>
+    }
+    else if (!Auth.IsAuthenticated)
+    {
+        <div class="mobile-empty">
+            <strong>Sesión requerida</strong>
+            <span>Debes iniciar sesión para consultar toma física.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+        </div>
+    }
+    else if (!CanAccessPhysicalCounts)
+    {
+        <div class="mobile-empty">
+            <strong>Sin permiso</strong>
+            <span>No tienes permisos para consultar toma física.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoHome">Volver al inicio</button>
+        </div>
+    }
+    else
+    {
+        <header class="mph-hero mobile-physical-hero">
+            <div>
+                <span>TOMA FÍSICA · CONTROL</span>
+                <h1>Toma física</h1>
+                <p>@Display(Auth.CurrentUser?.DisplayName) · @ScopeLabel</p>
+            </div>
+
+            <div class="mph-hero-actions">
+                <button type="button" @onclick="GoHome">Inicio</button>
+                <button type="button" @onclick="LoadAsync" disabled="@isLoading">
+                    @(isLoading ? "Cargando..." : "Actualizar")
+                </button>
+            </div>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="mobile-alert error">@errorMessage</div>
+        }
+
+        <section class="mph-kpis mobile-physical-kpis">
+            <article>
+                <span>Total</span>
+                <strong>@FilteredCounts.Count()</strong>
+                <small>Tomas visibles</small>
+            </article>
+
+            <article class="info">
+                <span>En proceso</span>
+                <strong>@FilteredCounts.Count(x => Same(x.Status, "InProgress"))</strong>
+                <small>Activas</small>
+            </article>
+
+            <article class="success">
+                <span>Cerradas</span>
+                <strong>@FilteredCounts.Count(x => Same(x.Status, "Completed") || Same(x.Status, "Reconciled"))</strong>
+                <small>Finalizadas</small>
+            </article>
+
+            <article class="warning">
+                <span>Encontradas</span>
+                <strong>@FilteredCounts.Sum(x => x.FoundItems)</strong>
+                <small>Validadas</small>
+            </article>
+
+            <article class="danger">
+                <span>Faltantes</span>
+                <strong>@FilteredCounts.Sum(x => x.MissingItems)</strong>
+                <small>Diferencias</small>
+            </article>
+
+            <article class="purple">
+                <span>Avance</span>
+                <strong>@OverallProgress%</strong>
+                <small>@FilteredCounts.Sum(x => x.FoundItems) de @FilteredCounts.Sum(x => x.TotalItems)</small>
+            </article>
+        </section>
+
+        <section class="mph-filter-card mobile-physical-filter">
+            <label>
+                <span>Estado</span>
+                <select @bind="selectedStatus">
+                    <option value="">Todos los estados</option>
+                    <option value="Draft">Borrador</option>
+                    <option value="InProgress">En proceso</option>
+                    <option value="Completed">Completada</option>
+                    <option value="Reconciled">Conciliada</option>
+                    <option value="Cancelled">Cancelada</option>
+                </select>
+            </label>
+
+            <label>
+                <span>Sede</span>
+                @if (UserCanSeeAllBranches)
+                {
+                    <select @bind="selectedBranchCode">
+                        <option value="">Todas las sedes</option>
+                        @foreach (var branch in VisibleBranches)
+                        {
+                            <option value="@branch.Code">@branch.Code - @branch.Name</option>
+                        }
+                    </select>
+                }
+                else
+                {
+                    <input value="@ScopeLabel" disabled />
+                }
+            </label>
+
+            <label>
+                <span>Desde</span>
+                <InputDate TValue="DateTime?" @bind-Value="fromDate" />
+            </label>
+
+            <label>
+                <span>Hasta</span>
+                <InputDate TValue="DateTime?" @bind-Value="toDate" />
+            </label>
+
+            <label class="mph-full">
+                <span>Buscar</span>
+                <input @bind="searchText"
+                       @bind:event="oninput"
+                       placeholder="Toma, sede, responsable, observación..." />
+            </label>
+
+            <div class="mph-filter-actions">
+                <button type="button" @onclick="ClearFilters">Limpiar</button>
+            </div>
+        </section>
+
+        <article class="mph-card mph-campaigns-card mobile-physical-card">
+            <section class="mph-static-head">
+                <div>
+                    <strong>Tomas físicas creadas</strong>
+                    <span>Solo consulta. Ingresa al detalle para reportar o cargar evidencias según permisos.</span>
+                </div>
+
+                <em>@FilteredCounts.Count()</em>
+            </section>
+
+            @if (isLoading)
+            {
+                <div class="mobile-empty compact">Cargando tomas físicas...</div>
+            }
+            else if (!FilteredCounts.Any())
+            {
+                <div class="mobile-empty compact">No hay tomas físicas para los filtros seleccionados.</div>
+            }
+            else
+            {
+                <div class="mph-list mph-count-list mobile-physical-list">
+                    @foreach (var item in FilteredCounts)
+                    {
+                        <article class="@GetCountRowClass(item.Status) mobile-physical-list-card">
+                            <div class="mph-item-head">
+                                <div>
+                                    <strong>@Display(item.CountNumber)</strong>
+                                    <span>@Display(item.BranchCode) · @Display(item.BranchName)</span>
+                                </div>
+
+                                <span class="@GetCountBadgeClass(item.Status)">
+                                    @StatusLabel(item.Status, item.StatusLabel)
+                                </span>
+                            </div>
+
+                            <section class="mph-mini-grid mph-count-grid">
+                                <div><span>Responsable</span><strong>@Display(item.ResponsibleBy)</strong></div>
+                                <div><span>Inicio</span><strong>@FormatDateTime(item.StartedAt)</strong></div>
+                                <div><span>Cierre</span><strong>@FormatDateTime(item.FinishedAt)</strong></div>
+                                <div><span>Total</span><strong>@item.TotalItems</strong><small>Herramientas</small></div>
+                                <div><span>Encontradas</span><strong>@item.FoundItems</strong><small>Validadas</small></div>
+                                <div><span>Faltantes</span><strong>@item.MissingItems</strong><small>Diferencias</small></div>
+                            </section>
+
+                            @if (!string.IsNullOrWhiteSpace(item.Notes))
+                            {
+                                <p class="mph-notes">@item.Notes</p>
+                            }
+
+                            <div class="mph-actions one">
+                                <button type="button" class="view" @onclick="() => GoDetail(item.Id)">
+                                    Detalle
+                                </button>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </article>
+    }
+</section>
+
+@code {
+    private bool initialized;
+    private bool isLoading;
+    private bool branchFilterInitialized;
+
+    private string selectedStatus = string.Empty;
+    private string selectedBranchCode = string.Empty;
+    private string searchText = string.Empty;
+    private DateTime? fromDate;
+    private DateTime? toDate;
+    private string? errorMessage;
+
+    private List<PhysicalCountItem> counts = new();
+    private List<MobileBranchDto> branches = new();
+
+    private bool IsAdmin =>
+        Same(Auth.CurrentUser?.RoleCode, "ADMIN") ||
+        Same(Auth.CurrentUser?.RoleCode, "SUPERADMIN") ||
+        Same(Auth.CurrentUser?.RoleName, "Administrador") ||
+        Same(Auth.CurrentUser?.RoleName, "Administrador NAVI");
+
+    private bool CanConsultPhysicalCounts =>
+        IsAdmin ||
+        Has("PhysicalCounts.View");
+
+    private bool CanReportPhysicalCounts =>
+        IsAdmin ||
+        Has("PhysicalCounts.Report");
+
+    private bool CanUploadPhysicalEvidence =>
+        IsAdmin ||
+        Has("PhysicalCounts.Evidence.Upload");
+
+    private bool CanAccessPhysicalCounts =>
+        CanConsultPhysicalCounts ||
+        CanReportPhysicalCounts ||
+        CanUploadPhysicalEvidence;
+
+    private bool UserCanSeeAllBranches =>
+        IsAdmin ||
+        IsAllBranchValue(Auth.CurrentUser?.BranchCode) ||
+        Same(Auth.CurrentUser?.BranchName, "Todas las sedes");
+
+    private IEnumerable<MobileBranchDto> VisibleBranches =>
+        branches
+            .Where(x => x.IsActive)
+            .Where(x => UserCanSeeAllBranches || Same(x.Code, Auth.CurrentUser?.BranchCode) || x.Id == Auth.CurrentUser?.BranchId)
+            .OrderBy(x => x.Code);
+
+    private IEnumerable<PhysicalCountItem> FilteredCounts =>
+        counts
+            .Where(MatchesBranchFilter)
+            .Where(x => string.IsNullOrWhiteSpace(selectedStatus) || Same(x.Status, selectedStatus))
+            .Where(MatchesDateFilter)
+            .Where(MatchesSearch)
+            .OrderByDescending(x => x.CreatedAt ?? x.StartedAt ?? DateTime.MinValue);
+
+    private int OverallProgress
+    {
+        get
+        {
+            var total = FilteredCounts.Sum(x => x.TotalItems);
+            var found = FilteredCounts.Sum(x => x.FoundItems);
+            return total <= 0 ? 0 : (int)Math.Round((decimal)found * 100 / total, 0);
+        }
+    }
+
+    private string ScopeLabel =>
+        UserCanSeeAllBranches && string.IsNullOrWhiteSpace(selectedBranchCode)
+            ? "Todas las sedes"
+            : Display(selectedBranchCode);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            initialized = true;
+            return;
+        }
+
+        var refreshedUser = await Api.RefreshCurrentSessionAsync();
+
+        if (refreshedUser is null || !Auth.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", forceLoad: true);
+            return;
+        }
+
+        await LoadBranchesAsync();
+        ApplyDefaultBranchFilterIfNeeded();
+        await LoadAsync();
+
+        initialized = true;
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            await LoadBranchesAsync();
+            ApplyDefaultBranchFilterIfNeeded();
+            counts = await Api.GetListJsonAsync<PhysicalCountItem>("api/physical-counts");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudieron cargar las tomas físicas: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadBranchesAsync()
+    {
+        try
+        {
+            branches = await Api.GetBranchesAsync();
+        }
+        catch
+        {
+            branches = new();
+        }
+    }
+
+    private void ApplyDefaultBranchFilterIfNeeded()
+    {
+        if (branchFilterInitialized)
+        {
+            return;
+        }
+
+        branchFilterInitialized = true;
+
+        if (UserCanSeeAllBranches)
+        {
+            selectedBranchCode = string.Empty;
+            return;
+        }
+
+        var userBranchCode = Auth.CurrentUser?.BranchCode;
+
+        if (!string.IsNullOrWhiteSpace(userBranchCode) && !IsAllBranchValue(userBranchCode))
+        {
+            selectedBranchCode = userBranchCode;
+            return;
+        }
+
+        if (Auth.CurrentUser?.BranchId is Guid branchId)
+        {
+            var branch = branches.FirstOrDefault(x => x.Id == branchId);
+
+            if (branch is not null)
+            {
+                selectedBranchCode = branch.Code;
+            }
+        }
+    }
+
+    private bool MatchesBranchFilter(PhysicalCountItem item)
+    {
+        if (UserCanSeeAllBranches && string.IsNullOrWhiteSpace(selectedBranchCode))
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(selectedBranchCode))
+        {
+            return false;
+        }
+
+        return Same(item.BranchCode, selectedBranchCode) ||
+               Contains(item.BranchCode, selectedBranchCode) ||
+               Contains(item.BranchName, selectedBranchCode);
+    }
+
+    private bool MatchesDateFilter(PhysicalCountItem item)
+    {
+        var date = item.CreatedAt ?? item.StartedAt;
+
+        if (!date.HasValue)
+        {
+            return !fromDate.HasValue && !toDate.HasValue;
+        }
+
+        if (fromDate.HasValue && date.Value.Date < fromDate.Value.Date)
+        {
+            return false;
+        }
+
+        if (toDate.HasValue && date.Value.Date > toDate.Value.Date)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool MatchesSearch(PhysicalCountItem item)
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            return true;
+        }
+
+        return Contains(item.CountNumber, searchText) ||
+               Contains(item.BranchCode, searchText) ||
+               Contains(item.BranchName, searchText) ||
+               Contains(item.ResponsibleBy, searchText) ||
+               Contains(item.Notes, searchText) ||
+               Contains(item.StatusLabel, searchText);
+    }
+
+    private void ClearFilters()
+    {
+        selectedStatus = string.Empty;
+        searchText = string.Empty;
+        fromDate = null;
+        toDate = null;
+        branchFilterInitialized = false;
+        ApplyDefaultBranchFilterIfNeeded();
+    }
+
+    private bool Has(string permission) => Auth.HasPermission(permission);
+
+    private void GoDetail(Guid id) => Navigation.NavigateTo($"/mobile/physical-counts/{id}");
+    private void GoHome() => Navigation.NavigateTo("/");
+    private void GoLogin() => Navigation.NavigateTo("/login", forceLoad: true);
+
+    private static string StatusLabel(string? status, string? label)
+    {
+        if (!string.IsNullOrWhiteSpace(label))
+        {
+            return label;
+        }
+
+        return status switch
+        {
+            "Draft" => "Borrador",
+            "InProgress" => "En proceso",
+            "Completed" => "Completada",
+            "Reconciled" => "Conciliada",
+            "Cancelled" => "Cancelada",
+            _ => Display(status)
+        };
+    }
+
+    private static string GetCountBadgeClass(string? status)
+    {
+        return status switch
+        {
+            "InProgress" => "mph-status progress",
+            "Completed" or "Reconciled" => "mph-status completed",
+            "Cancelled" => "mph-status cancelled",
+            _ => "mph-status draft"
+        };
+    }
+
+    private static string GetCountRowClass(string? status)
+    {
+        return status switch
+        {
+            "InProgress" => "mph-item mph-count-card progress",
+            "Completed" or "Reconciled" => "mph-item mph-count-card completed",
+            "Cancelled" => "mph-item mph-count-card cancelled",
+            _ => "mph-item mph-count-card draft"
+        };
+    }
+
+    private static bool Contains(string? source, string? value)
+    {
+        return !string.IsNullOrWhiteSpace(source) &&
+               !string.IsNullOrWhiteSpace(value) &&
+               Normalize(source).Contains(Normalize(value), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool Same(string? left, string? right)
+    {
+        return string.Equals(Normalize(left), Normalize(right), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsAllBranchValue(string? value)
+    {
+        return Same(value, "TODAS") ||
+               Same(value, "ALL") ||
+               Same(value, "Todas las sedes");
+    }
+
+    private static string Normalize(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return value.Trim()
+            .ToUpperInvariant()
+            .Replace("Á", "A")
+            .Replace("É", "E")
+            .Replace("Í", "I")
+            .Replace("Ó", "O")
+            .Replace("Ú", "U")
+            .Replace("Ü", "U")
+            .Replace("Ñ", "N");
+    }
+
+    private static string FormatDateTime(DateTime? value)
+    {
+        return value.HasValue
+            ? value.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+            : "—";
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "—" : value;
+    }
+
+    private sealed class PhysicalCountItem
+    {
+        public Guid Id { get; set; }
+        public string CountNumber { get; set; } = string.Empty;
+        public Guid BranchId { get; set; }
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public string? StatusLabel { get; set; }
+        public DateTime? StartedAt { get; set; }
+        public DateTime? FinishedAt { get; set; }
+        public string? ResponsibleBy { get; set; }
+        public string? Notes { get; set; }
+        public int TotalItems { get; set; }
+        public int FoundItems { get; set; }
+        public int MissingItems { get; set; }
+        public DateTime? CreatedAt { get; set; }
+        public string? CreatedBy { get; set; }
+        public DateTime? UpdatedAt { get; set; }
+        public string? UpdatedBy { get; set; }
+    }
+}

@@ -344,7 +344,7 @@
                 <p>Consulta el estado actual, filtra por usuario y registra asignaciones, regresos o aprobaciones.</p>
             </div>
 
-            <div class="af-filters af-filters-standard">
+            <div class="af-filters af-filters-standard navi-assignment-filter-grid">
                 <input class="form-control form-control-sm"
                        placeholder="Buscar código, nombre, serial..."
                        @bind="search"
@@ -385,6 +385,33 @@
                         <option value="@responsible.FullName"></option>
                     }
                 </datalist>
+
+                
+                <div class="navi-assignment-status-filter navi-assignment-status-inline">
+                    <div class="navi-assignment-status-inline-head">
+                        <div>
+                            <strong>Estado</strong>
+                            <span>@GetSelectedStatusLabel()</span>
+                        </div>
+
+                        <button type="button" @onclick="ClearToolStatusFilter">
+                            Limpiar
+                        </button>
+                    </div>
+
+                    <div class="navi-assignment-status-chips">
+                        @foreach (var status in ToolStatusFilterOptions)
+                        {
+                            var selected = selectedToolStatuses.Contains(status.Value);
+
+                            <button type="button"
+                                    class="@(selected ? "selected" : "")"
+                                    @onclick="() => ToggleToolStatusFilter(status.Value)">
+                                @status.Text
+                            </button>
+                        }
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1213,9 +1240,234 @@
         line-height: 1.25;
     }
 
+
+    /* NAVI ASSIGNMENT MULTISTATUS FILTER */
+    .navi-assignment-filter-grid {
+        display: grid !important;
+        grid-template-columns: minmax(220px, 1.2fr) minmax(160px, .8fr) minmax(170px, .9fr) minmax(160px, .75fr);
+        align-items: start;
+        gap: .45rem;
+        min-width: 820px;
+    }
+
+    .navi-assignment-status-filter {
+        position: relative;
+        min-width: 160px;
+    }
+
+    .navi-assignment-status-toggle {
+        width: 100%;
+        min-height: 31px;
+        border: 1px solid #cfd7e3;
+        border-radius: .38rem;
+        background: #ffffff;
+        color: #4b005c;
+        font-size: .76rem;
+        font-weight: 850;
+        padding: .25rem .5rem;
+        text-align: left;
+    }
+
+    .navi-assignment-status-menu {
+        position: absolute;
+        z-index: 25;
+        top: calc(100% + 6px);
+        right: 0;
+        width: 230px;
+        border: 1px solid #eadff0;
+        border-radius: .72rem;
+        background: #ffffff;
+        box-shadow: 0 .65rem 1.35rem rgba(75, 0, 92, .16);
+        padding: .55rem;
+        display: grid;
+        gap: .35rem;
+    }
+
+    .navi-assignment-status-menu-head {
+        display: flex;
+        justify-content: space-between;
+        gap: .4rem;
+        align-items: center;
+        margin-bottom: .2rem;
+    }
+
+    .navi-assignment-status-menu-head strong {
+        color: #26002f;
+        font-size: .72rem;
+        font-weight: 950;
+    }
+
+    .navi-assignment-status-menu-head button {
+        border: 1px solid #eadff0;
+        border-radius: 999px;
+        background: #fbf7fd;
+        color: #7b0d8e;
+        font-size: .62rem;
+        font-weight: 900;
+        padding: .1rem .45rem;
+    }
+
+    .navi-assignment-status-menu label {
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        margin: 0;
+        color: #32103d;
+        font-size: .72rem;
+        font-weight: 850;
+    }
+
+    .navi-assignment-status-menu input {
+        width: 14px;
+        height: 14px;
+    }
+
+    @@media (max-width: 1200px) {
+        .navi-assignment-filter-grid {
+            grid-template-columns: 1fr !important;
+            min-width: 0;
+        }
+
+        .navi-assignment-status-menu {
+            left: 0;
+            right: auto;
+            width: min(260px, 92vw);
+        }
+    }
+
+
+    /* NAVI ASSIGNMENT FILTER VISUAL CLEANUP */
+    .af-table-header {
+        align-items: flex-start;
+    }
+
+    .af-filters-standard.navi-assignment-filter-grid {
+        display: grid !important;
+        grid-template-columns: minmax(260px, 1.5fr) minmax(180px, .85fr) minmax(190px, .95fr);
+        gap: .45rem;
+        align-items: start;
+        width: min(760px, 100%);
+        min-width: 0 !important;
+    }
+
+    .af-filters-standard.navi-assignment-filter-grid > input,
+    .af-filters-standard.navi-assignment-filter-grid > select {
+        min-height: 35px;
+        border-radius: .48rem;
+        font-size: .76rem;
+        font-weight: 800;
+    }
+
+    .navi-assignment-status-inline {
+        grid-column: 1 / -1;
+        border: 1px solid #eadff0;
+        border-radius: .72rem;
+        background: linear-gradient(180deg, #ffffff 0%, #fbf7fd 100%);
+        padding: .55rem;
+        box-shadow: 0 .35rem .9rem rgba(75,0,92,.06);
+    }
+
+    .navi-assignment-status-inline-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .6rem;
+        margin-bottom: .45rem;
+    }
+
+    .navi-assignment-status-inline-head strong,
+    .navi-assignment-status-inline-head span {
+        display: block;
+        line-height: 1.1;
+    }
+
+    .navi-assignment-status-inline-head strong {
+        color: #26002f;
+        font-size: .72rem;
+        font-weight: 950;
+    }
+
+    .navi-assignment-status-inline-head span {
+        color: #7b0d8e;
+        font-size: .64rem;
+        font-weight: 850;
+        margin-top: .12rem;
+    }
+
+    .navi-assignment-status-inline-head button {
+        border: 1px solid #eadff0;
+        border-radius: 999px;
+        background: #ffffff;
+        color: #7b0d8e;
+        padding: .18rem .62rem;
+        font-size: .62rem;
+        font-weight: 950;
+    }
+
+    .navi-assignment-status-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .35rem;
+    }
+
+    .navi-assignment-status-chips button {
+        min-height: 26px;
+        border: 1px solid #eadff0;
+        border-radius: 999px;
+        background: #ffffff;
+        color: #4b005c;
+        padding: .2rem .6rem;
+        font-size: .64rem;
+        font-weight: 900;
+        line-height: 1;
+    }
+
+    .navi-assignment-status-chips button.selected {
+        border-color: #8c119f;
+        background: linear-gradient(135deg, #4b005c 0%, #9d00b3 100%);
+        color: #ffffff;
+        box-shadow: 0 .25rem .65rem rgba(75,0,92,.16);
+    }
+
+    .navi-assignment-status-filter input[type="checkbox"],
+    .navi-assignment-status-filter .form-check-input {
+        width: 14px !important;
+        height: 14px !important;
+        min-width: 14px !important;
+        min-height: 14px !important;
+        max-width: 14px !important;
+        max-height: 14px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    @@media (max-width: 1200px) {
+        .af-filters-standard.navi-assignment-filter-grid {
+            grid-template-columns: 1fr !important;
+            width: 100%;
+        }
+    }
+
 </style>
 
 @code {
+    private bool showStatusFilterPanel;
+    private HashSet<string> selectedToolStatuses = new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly (string Value, string Text)[] ToolStatusFilterOptions =
+    {
+        ("Available", "Disponible"),
+        ("Assigned", "Asignada"),
+        ("Loaned", "Prestada"),
+        ("InMaintenance", "Mantenimiento"),
+        ("Damaged", "Dañada"),
+        ("NotSuitable", "No apta"),
+        ("PendingValidation", "Pendiente validación"),
+        ("NotLocated", "No localizada"),
+        ("Disposed", "Baja")
+    };
+
+
 
     private static string FormatNullableLocalDateTime(DateTime? value, string format)
     {
@@ -1470,6 +1722,7 @@ private IEnumerable<ToolItem> FilteredTools =>
             .Where(MatchesSearchFilter)
             .Where(MatchesBranchFilter)
             .Where(MatchesResponsibleFilter)
+            .Where(MatchesStatusFilter)
             .OrderByDescending(x => FindPendingRequestForTool(x.Id) is not null)
             .ThenBy(x => x.InternalCode);
 
@@ -1532,6 +1785,52 @@ private IEnumerable<ToolItem> FilteredTools =>
     }
 
     
+    private void ToggleStatusFilterPanel()
+    {
+        showStatusFilterPanel = !showStatusFilterPanel;
+    }
+
+    private void ToggleToolStatusFilter(string status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return;
+        }
+
+        if (!selectedToolStatuses.Add(status))
+        {
+            selectedToolStatuses.Remove(status);
+        }
+    }
+
+    private void ClearToolStatusFilter()
+    {
+        selectedToolStatuses.Clear();
+        showStatusFilterPanel = false;
+    }
+
+    private string GetSelectedStatusLabel()
+    {
+        if (selectedToolStatuses.Count == 0)
+        {
+            return "Todos";
+        }
+
+        if (selectedToolStatuses.Count == 1)
+        {
+            var selected = ToolStatusFilterOptions.FirstOrDefault(x => selectedToolStatuses.Contains(x.Value));
+            return string.IsNullOrWhiteSpace(selected.Text) ? "1 seleccionado" : selected.Text;
+        }
+
+        return $"{selectedToolStatuses.Count} seleccionados";
+    }
+
+    private bool MatchesStatusFilter(ToolItem tool)
+    {
+        return selectedToolStatuses.Count == 0 ||
+               selectedToolStatuses.Contains(tool.OperationalStatus ?? string.Empty);
+    }
+
     private bool MatchesSearchFilter(ToolItem tool)
     {
         return string.IsNullOrWhiteSpace(search) ||

@@ -1,0 +1,530 @@
+@page "/settings/sync-export"
+@rendermode InteractiveServer
+@using System.Net.Http.Headers
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.Components.Forms
+@using Navi.ToolsAssets.Admin.Services.Auth
+@inject IHttpClientFactory HttpClientFactory
+@inject WebAuthSessionService AuthSession
+
+<PageTitle>Sincronización y exportación - Configuración</PageTitle>
+
+<PermissionGuard Permission="Settings.Manage" ModuleName="Sincronización y exportación">
+    <section class="settings-entity-banner sync-export-hero">
+        <div>
+            <span class="settings-entity-pill">SISTEMA · BACKUP · EXPORTACIÓN</span>
+            <h2>Sincronización y exportación</h2>
+            <p>Carga backups de base de datos para procesos controlados de sincronización. La exportación de backup queda preparada para la siguiente fase.</p>
+        </div>
+
+        <div class="settings-entity-side">
+            <div class="settings-entity-status">
+                <span>Backups</span>
+                <strong>@backups.Count cargados</strong>
+            </div>
+
+            <a class="btn btn-sm btn-outline-light settings-entity-back" href="/settings">
+                Volver a Configuración
+            </a>
+        </div>
+    </section>
+
+    <section class="sync-export-layout">
+        <article class="sync-export-card upload">
+            <div class="sync-export-card-head">
+                <div>
+                    <h3>Cargar backup</h3>
+                    <p>Seleccione un archivo de backup de base de datos. Se almacenará de forma controlada; no se restaura automáticamente.</p>
+                </div>
+
+                <span>Settings.Manage</span>
+            </div>
+
+            <div class="sync-export-warning">
+                Esta fase solo carga el archivo. La restauración, sincronización real y exportación de backup quedan pendientes para cuando confirmes el flujo final.
+            </div>
+
+            <label class="sync-export-file-box">
+                <span>Archivo backup</span>
+                <InputFile OnChange="OnBackupSelected" accept=".bak,.bacpac,.zip,.7z" />
+                <small>Formatos permitidos: .bak, .bacpac, .zip, .7z. Tamaño máximo: 5 GB.</small>
+            </label>
+
+            @if (selectedBackup is not null)
+            {
+                <div class="sync-export-selected">
+                    <strong>@selectedBackup.Name</strong>
+                    <span>@FormatBytes(selectedBackup.Size)</span>
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(message))
+            {
+                <div class="@messageClass">@message</div>
+            }
+
+            <div class="sync-export-actions">
+                <button class="btn btn-primary" type="button" @onclick="UploadBackupAsync" disabled="@(selectedBackup is null || isUploading)">
+                    @(isUploading ? "Cargando..." : "Cargar backup")
+                </button>
+
+                <button class="btn btn-outline-secondary" type="button" @onclick="ClearSelection" disabled="@isUploading">
+                    Limpiar
+                </button>
+            </div>
+        </article>
+
+        <article class="sync-export-card">
+            <div class="sync-export-card-head">
+                <div>
+                    <h3>Backups cargados</h3>
+                    <p>Histórico local de archivos recibidos por el módulo.</p>
+                </div>
+
+                <button class="btn btn-sm btn-outline-primary" type="button" @onclick="LoadAsync" disabled="@isLoading">
+                    Actualizar
+                </button>
+            </div>
+
+            @if (isLoading)
+            {
+                <div class="alert alert-info">Cargando backups...</div>
+            }
+            else if (backups.Count == 0)
+            {
+                <div class="alert alert-info">No hay backups cargados.</div>
+            }
+            else
+            {
+                <div class="sync-export-table-wrapper">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Archivo</th>
+                                <th>Tipo</th>
+                                <th>Tamaño</th>
+                                <th>Fecha</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var item in backups)
+                            {
+                                <tr>
+                                    <td>
+                                        <strong>@item.FileName</strong>
+                                        <small>@item.StoragePath</small>
+                                    </td>
+                                    <td>@item.Extension</td>
+                                    <td>@FormatBytes(item.SizeBytes)</td>
+                                    <td>@item.UploadedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                                    <td><span class="badge bg-success">Cargado</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </article>
+
+        <article class="sync-export-card export-pending">
+            <div class="sync-export-card-head">
+                <div>
+                    <h3>Exportar backup</h3>
+                    <p>Función reservada para la siguiente fase.</p>
+                </div>
+
+                <span>Pendiente</span>
+            </div>
+
+            <div class="sync-export-export-box">
+                <strong>Exportación de base de datos</strong>
+                <p>Queda visible para mantener el flujo funcional, pero todavía no ejecuta generación ni descarga del backup.</p>
+
+                <button class="btn btn-outline-secondary" type="button" disabled>
+                    Exportar backup próximamente
+                </button>
+            </div>
+        </article>
+    </section>
+</PermissionGuard>
+
+<style>
+    .sync-export-hero {
+        background: linear-gradient(135deg, #050008 0%, #280032 45%, #5c006b 100%);
+    }
+
+    .sync-export-layout {
+        display: grid;
+        grid-template-columns: 380px minmax(0, 1fr);
+        gap: .85rem;
+        align-items: start;
+    }
+
+    .sync-export-card {
+        background: #ffffff;
+        border: 1px solid #dfe3e8;
+        border-radius: .85rem;
+        padding: .95rem;
+        box-shadow: 0 .35rem .85rem rgba(0, 0, 0, .055);
+    }
+
+    .sync-export-card.upload {
+        border-left: 4px solid #4b005c;
+    }
+
+    .sync-export-card.export-pending {
+        grid-column: 1 / -1;
+        border-left: 4px solid #64748b;
+    }
+
+    .sync-export-card-head {
+        display: flex;
+        justify-content: space-between;
+        gap: .85rem;
+        align-items: flex-start;
+        margin-bottom: .8rem;
+    }
+
+    .sync-export-card-head h3 {
+        margin: 0;
+        color: #111827;
+        font-size: 1rem;
+        font-weight: 950;
+    }
+
+    .sync-export-card-head p {
+        margin: .25rem 0 0;
+        color: #5f5963;
+        font-size: .78rem;
+        line-height: 1.3;
+    }
+
+    .sync-export-card-head > span {
+        display: inline-flex;
+        min-height: 26px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        background: #fbf7fd;
+        border: 1px solid #eadff0;
+        color: #4b005c;
+        font-size: .68rem;
+        font-weight: 900;
+        padding: 0 .65rem;
+        white-space: nowrap;
+    }
+
+    .sync-export-warning {
+        background: #fff8df;
+        border: 1px solid #ffe39a;
+        color: #6f4d00;
+        border-radius: .6rem;
+        padding: .55rem .65rem;
+        font-size: .76rem;
+        font-weight: 750;
+        margin-bottom: .8rem;
+    }
+
+    .sync-export-file-box {
+        display: grid;
+        gap: .3rem;
+        margin-bottom: .75rem;
+        color: #33263c;
+        font-weight: 900;
+        font-size: .78rem;
+    }
+
+    .sync-export-file-box small {
+        color: #6b7280;
+        font-weight: 700;
+        font-size: .68rem;
+    }
+
+    .sync-export-selected {
+        border: 1px solid #eadff0;
+        border-radius: .65rem;
+        background: #fbf7fd;
+        padding: .55rem .65rem;
+        display: grid;
+        gap: .1rem;
+        margin-bottom: .75rem;
+    }
+
+    .sync-export-selected strong {
+        color: #111827;
+        font-size: .82rem;
+    }
+
+    .sync-export-selected span {
+        color: #4b005c;
+        font-size: .72rem;
+        font-weight: 900;
+    }
+
+    .sync-export-actions {
+        display: flex;
+        gap: .55rem;
+        justify-content: flex-end;
+        margin-top: .75rem;
+    }
+
+    .sync-export-table-wrapper {
+        overflow: auto;
+    }
+
+    .sync-export-table-wrapper table {
+        min-width: 760px;
+    }
+
+    .sync-export-table-wrapper td strong,
+    .sync-export-table-wrapper td small {
+        display: block;
+    }
+
+    .sync-export-table-wrapper td small {
+        color: #6b7280;
+        font-size: .68rem;
+    }
+
+    .sync-export-export-box {
+        border: 1px solid #e5e7eb;
+        border-radius: .75rem;
+        background: #f8fafc;
+        padding: .8rem;
+    }
+
+    .sync-export-export-box strong {
+        color: #111827;
+        font-size: .9rem;
+    }
+
+    .sync-export-export-box p {
+        margin: .25rem 0 .75rem;
+        color: #64748b;
+        font-size: .78rem;
+    }
+
+    @@media (max-width: 1100px) {
+        .sync-export-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .sync-export-card.export-pending {
+            grid-column: auto;
+        }
+    }
+</style>
+
+@code {
+    private const long MaxBackupSizeBytes = 5L * 1024L * 1024L * 1024L;
+
+    private static readonly string[] AllowedExtensions =
+    {
+        ".bak",
+        ".bacpac",
+        ".zip",
+        ".7z"
+    };
+
+    private IBrowserFile? selectedBackup;
+    private List<BackupFileItem> backups = new();
+
+    private bool isLoading;
+    private bool isUploading;
+    private string message = string.Empty;
+    private string messageClass = "alert alert-info";
+
+    private bool IsAdmin =>
+        string.Equals(AuthSession.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(AuthSession.RoleCode, "SUPERADMIN", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(AuthSession.RoleName, "Administrador", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(AuthSession.RoleName, "Administrador NAVI", StringComparison.OrdinalIgnoreCase);
+
+    private bool CanManageSettings =>
+        IsAdmin || AuthSession.HasPermission("Settings.Manage");
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        message = string.Empty;
+
+        try
+        {
+            var api = CreateApiClient();
+
+            backups = await api.GetFromJsonAsync<List<BackupFileItem>>("api/settings/sync-export/backups") ?? new();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"No se pudieron cargar los backups: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OnBackupSelected(InputFileChangeEventArgs args)
+    {
+        selectedBackup = args.File;
+        message = string.Empty;
+
+        if (selectedBackup is null)
+        {
+            return;
+        }
+
+        var extension = Path.GetExtension(selectedBackup.Name).ToLowerInvariant();
+
+        if (!AllowedExtensions.Contains(extension))
+        {
+            ShowError("Formato no permitido. Use .bak, .bacpac, .zip o .7z.");
+            selectedBackup = null;
+            return;
+        }
+
+        if (selectedBackup.Size > MaxBackupSizeBytes)
+        {
+            ShowError("El backup supera el tamaño máximo permitido de 5 GB.");
+            selectedBackup = null;
+        }
+    }
+
+    private async Task UploadBackupAsync()
+    {
+        if (!CanManageSettings)
+        {
+            ShowError("No tienes permiso para cargar backups.");
+            return;
+        }
+
+        if (selectedBackup is null)
+        {
+            ShowError("Debe seleccionar un archivo de backup.");
+            return;
+        }
+
+        isUploading = true;
+        message = string.Empty;
+
+        try
+        {
+            var api = CreateApiClient();
+
+            await using var stream = selectedBackup.OpenReadStream(MaxBackupSizeBytes);
+
+            using var content = new MultipartFormDataContent();
+            using var fileContent = new StreamContent(stream);
+
+            fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+
+            content.Add(fileContent, "file", selectedBackup.Name);
+            content.Add(new StringContent(AuthSession.UserName ?? "admin-web"), "uploadedBy");
+
+            using var response = await api.PostAsync("api/settings/sync-export/backups", content);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ShowError(await response.Content.ReadAsStringAsync());
+                return;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<BackupUploadResult>();
+
+            ShowSuccess(result?.Message ?? "Backup cargado correctamente.");
+
+            selectedBackup = null;
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"No se pudo cargar el backup: {ex.Message}");
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+
+    private void ClearSelection()
+    {
+        selectedBackup = null;
+        message = string.Empty;
+    }
+
+    private HttpClient CreateApiClient()
+    {
+        var api = HttpClientFactory.CreateClient("NaviApi");
+
+        api.DefaultRequestHeaders.Remove("X-Navi-User");
+        api.DefaultRequestHeaders.Remove("X-Navi-Role");
+        api.DefaultRequestHeaders.Remove("X-Navi-Role-Code");
+        api.DefaultRequestHeaders.Remove("X-Navi-Permissions");
+
+        api.DefaultRequestHeaders.Add("X-Navi-User", string.IsNullOrWhiteSpace(AuthSession.UserName) ? "admin-web" : AuthSession.UserName);
+        api.DefaultRequestHeaders.Add("X-Navi-Role", string.IsNullOrWhiteSpace(AuthSession.RoleName) ? "Administrador" : AuthSession.RoleName);
+        api.DefaultRequestHeaders.Add("X-Navi-Role-Code", string.IsNullOrWhiteSpace(AuthSession.RoleCode) ? "ADMIN" : AuthSession.RoleCode);
+        api.DefaultRequestHeaders.Add("X-Navi-Permissions", string.Join(";", AuthSession.Permissions ?? new List<string>()));
+
+        return api;
+    }
+
+    private void ShowSuccess(string text)
+    {
+        message = text;
+        messageClass = "alert alert-success";
+    }
+
+    private void ShowError(string text)
+    {
+        message = text;
+        messageClass = "alert alert-danger";
+    }
+
+    private static string FormatBytes(long value)
+    {
+        if (value >= 1024L * 1024L * 1024L)
+        {
+            return $"{value / 1024d / 1024d / 1024d:0.00} GB";
+        }
+
+        if (value >= 1024L * 1024L)
+        {
+            return $"{value / 1024d / 1024d:0.00} MB";
+        }
+
+        if (value >= 1024)
+        {
+            return $"{value / 1024d:0.00} KB";
+        }
+
+        return $"{value} bytes";
+    }
+
+    private sealed class BackupFileItem
+    {
+        public string FileName { get; set; } = string.Empty;
+        public string Extension { get; set; } = string.Empty;
+        public long SizeBytes { get; set; }
+        public DateTime UploadedAt { get; set; }
+        public DateTime ModifiedAt { get; set; }
+        public string StoragePath { get; set; } = string.Empty;
+    }
+
+    private sealed class BackupUploadResult
+    {
+        public string FileName { get; set; } = string.Empty;
+        public string OriginalFileName { get; set; } = string.Empty;
+        public long SizeBytes { get; set; }
+        public DateTime UploadedAt { get; set; }
+        public string Message { get; set; } = string.Empty;
+    }
+}

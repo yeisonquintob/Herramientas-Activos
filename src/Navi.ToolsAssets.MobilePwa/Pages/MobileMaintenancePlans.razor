@@ -1,0 +1,754 @@
+@page "/mobile/maintenance-plans"
+
+@using Navi.ToolsAssets.MobilePwa.Models
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Planes de mantenimiento móvil - NAVI Herramientas y AF</PageTitle>
+
+<section class="mobile-page navi-mobile-plans-v1">
+    @if (isLoading && !initialized)
+    {
+        <div class="mobile-loading">Cargando planes de mantenimiento...</div>
+    }
+    else if (!Auth.IsAuthenticated)
+    {
+        <div class="mobile-empty">
+            <strong>Sesión requerida</strong>
+            <span>Debes iniciar sesión para consultar planes de mantenimiento.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+        </div>
+    }
+    else if (!CanAccessModule)
+    {
+        <div class="mobile-empty">
+            <strong>Sin permiso</strong>
+            <span>No tienes permisos para visualizar planes de mantenimiento.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoHome">Volver al inicio</button>
+        </div>
+    }
+    else
+    {
+        <header class="mplan-hero">
+            <div>
+                <span>PLANES · MANTENIMIENTO</span>
+                <h1>Planes de mantenimiento</h1>
+                <p>@Display(Auth.CurrentUser?.DisplayName) · @ScopeLabel</p>
+            </div>
+
+            <div class="mplan-hero-actions">
+                <button type="button" @onclick="GoHome">Inicio</button>
+
+                <button type="button" @onclick="LoadAsync" disabled="@isLoading">
+                    @(isLoading ? "Cargando..." : "Actualizar")
+                </button>
+            </div>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(successMessage))
+        {
+            <div class="mobile-alert success">@successMessage</div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="mobile-alert error">@errorMessage</div>
+        }
+
+        <section class="mplan-kpis">
+            <article>
+                <span>Total activos</span>
+                <strong>@FilteredPlans.Count()</strong>
+                <small>Con seguimiento</small>
+            </article>
+
+            <article class="success">
+                <span>Al día</span>
+                <strong>@FilteredPlans.Count(x => IsStatus(x, "OnTime"))</strong>
+                <small>Sin vencimiento</small>
+            </article>
+
+            <article class="warning">
+                <span>Por vencer</span>
+                <strong>@FilteredPlans.Count(x => IsStatus(x, "DueSoon"))</strong>
+                <small>Próximos 30 días</small>
+            </article>
+
+            <article class="danger">
+                <span>Vencidos</span>
+                <strong>@FilteredPlans.Count(x => IsStatus(x, "Overdue"))</strong>
+                <small>Requieren atención</small>
+            </article>
+
+            <article class="purple">
+                <span>Solicitudes</span>
+                <strong>@FilteredPlans.Sum(x => x.PendingRequests)</strong>
+                <small>Pendientes abiertas</small>
+            </article>
+
+            <article class="info">
+                <span>Completados</span>
+                <strong>@FilteredPlans.Sum(x => x.CompletedMaintenances)</strong>
+                <small>Registros cerrados</small>
+            </article>
+        </section>
+
+        <section class="mplan-filter-card">
+            <label>
+                <span>Estado</span>
+                <select @bind="selectedStatus">
+                    <option value="">Todos los estados</option>
+                    <option value="OnTime">Al día</option>
+                    <option value="DueSoon">Por vencer</option>
+                    <option value="Overdue">Vencido</option>
+                </select>
+            </label>
+
+            <label>
+                <span>Sede</span>
+                <select @bind="selectedBranchCode">
+                    <option value="">Todas las sedes</option>
+                    @foreach (var branch in branches.OrderBy(x => x.Code))
+                    {
+                        <option value="@branch.Code">@branch.Code - @branch.Name</option>
+                    }
+                </select>
+            </label>
+
+            <label>
+                <span>Buscar</span>
+                <input @bind="searchText"
+                       @bind:event="oninput"
+                       placeholder="Código, activo, sede, responsable, proveedor..." />
+            </label>
+
+            <div class="mplan-filter-actions">
+                <button type="button" @onclick="ClearFilters">Limpiar</button>
+            </div>
+        </section>
+
+        <details class="mplan-card" open>
+            <summary>
+                <span>Distribución del plan</span>
+                <em>@FilteredPlans.Count()</em>
+            </summary>
+
+            <section class="mplan-distribution">
+                <div class="mplan-donut" style="@GetPlanDonutStyle()">
+                    <div>
+                        <strong>@FilteredPlans.Count()</strong>
+                        <span>Total</span>
+                    </div>
+                </div>
+
+                <div class="mplan-legend">
+                    <div>
+                        <i class="green"></i>
+                        <span>Al día</span>
+                        <strong>@FilteredPlans.Count(x => IsStatus(x, "OnTime"))</strong>
+                        <small>@GetPercentLabel(FilteredPlans.Count(x => IsStatus(x, "OnTime")), FilteredPlans.Count())</small>
+                    </div>
+
+                    <div>
+                        <i class="orange"></i>
+                        <span>Por vencer</span>
+                        <strong>@FilteredPlans.Count(x => IsStatus(x, "DueSoon"))</strong>
+                        <small>@GetPercentLabel(FilteredPlans.Count(x => IsStatus(x, "DueSoon")), FilteredPlans.Count())</small>
+                    </div>
+
+                    <div>
+                        <i class="red"></i>
+                        <span>Vencido</span>
+                        <strong>@FilteredPlans.Count(x => IsStatus(x, "Overdue"))</strong>
+                        <small>@GetPercentLabel(FilteredPlans.Count(x => IsStatus(x, "Overdue")), FilteredPlans.Count())</small>
+                    </div>
+                </div>
+            </section>
+        </details>
+
+        <details class="mplan-card" open>
+            <summary>
+                <span>Tablero de planes</span>
+                <em>@FilteredPlans.Count()</em>
+            </summary>
+
+            @if (isLoading)
+            {
+                <div class="mobile-empty compact">Cargando planes...</div>
+            }
+            else if (!FilteredPlans.Any())
+            {
+                <div class="mobile-empty compact">No hay planes con los filtros aplicados.</div>
+            }
+            else
+            {
+                <div class="mplan-list">
+                    @foreach (var item in FilteredPlans)
+                    {
+                        <article class="@GetPlanRowClass(item.PlanStatus)">
+                            <div class="mplan-item-head">
+                                <div>
+                                    <strong>@Display(item.InternalCode)</strong>
+                                    <span>@Display(item.Name)</span>
+                                </div>
+
+                                <span class="@GetPlanBadgeClass(item.PlanStatus)">
+                                    @GetPlanLabel(item.PlanStatus)
+                                </span>
+                            </div>
+
+                            <section class="mplan-mini-grid">
+                                <div>
+                                    <span>Sede</span>
+                                    <strong>@Display(item.BranchCode)</strong>
+                                    <small>@Display(item.LocationName ?? item.BranchName)</small>
+                                </div>
+
+                                <div>
+                                    <span>Responsable</span>
+                                    <strong>@Display(item.ResponsibleName)</strong>
+                                    <small>Custodia / operación</small>
+                                </div>
+
+                                <div>
+                                    <span>Periodicidad</span>
+                                    <strong>@item.PeriodMonths mes(es)</strong>
+                                    <small>Base del plan</small>
+                                </div>
+
+                                <div>
+                                    <span>Último mtto.</span>
+                                    <strong>@FormatDate(item.LastMaintenanceAt)</strong>
+                                    <small>@Display(item.LastMaintenanceNumber)</small>
+                                </div>
+
+                                <div>
+                                    <span>Próximo mtto.</span>
+                                    <strong>@FormatDate(item.NextMaintenanceAt)</strong>
+                                    <small>@GetDaysText(item.DaysRemaining)</small>
+                                </div>
+
+                                <div>
+                                    <span>Indicadores</span>
+                                    <strong>@item.CompletedMaintenances / @item.TotalMaintenances</strong>
+                                    <small>Pendientes: @item.PendingRequests</small>
+                                </div>
+                            </section>
+
+                            <div class="mplan-actions">
+                                <button type="button" class="view" @onclick="() => OpenDetails(item)">
+                                    Ver
+                                </button>
+
+                                @if (CanOpenMaintenanceSchedule)
+                                {
+                                    <button type="button" class="primary" @onclick="() => GoToSchedule(item.ToolAssetId)">
+                                        Cronograma
+                                    </button>
+                                }
+
+                                @if (CanRequestMaintenance)
+                                {
+                                    <button type="button" class="success" @onclick="GoToMaintenanceRequest">
+                                        Solicitar
+                                    </button>
+                                }
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </details>
+
+        @if (selectedPlan is not null)
+        {
+            <div class="mplan-modal-backdrop" @onclick="CloseDetails">
+                <div class="mplan-modal" @onclick:stopPropagation="true">
+                    <header class="mplan-modal-header">
+                        <div>
+                            <span>@GetPlanLabel(selectedPlan.PlanStatus)</span>
+                            <h2>@Display(selectedPlan.InternalCode)</h2>
+                            <p>@Display(selectedPlan.Name)</p>
+                        </div>
+
+                        <button type="button" @onclick="CloseDetails">Cerrar</button>
+                    </header>
+
+                    <section class="mplan-modal-grid">
+                        <div><span>Sede</span><strong>@Display(selectedPlan.BranchCode)</strong><small>@Display(selectedPlan.BranchName)</small></div>
+                        <div><span>Ubicación</span><strong>@Display(selectedPlan.LocationName)</strong></div>
+                        <div><span>Responsable</span><strong>@Display(selectedPlan.ResponsibleName)</strong></div>
+                        <div><span>Periodicidad</span><strong>@selectedPlan.PeriodMonths mes(es)</strong></div>
+                        <div><span>Último mantenimiento</span><strong>@FormatDate(selectedPlan.LastMaintenanceAt)</strong><small>@Display(selectedPlan.LastMaintenanceNumber)</small></div>
+                        <div><span>Próximo mantenimiento</span><strong>@FormatDate(selectedPlan.NextMaintenanceAt)</strong><small>@GetDaysText(selectedPlan.DaysRemaining)</small></div>
+                        <div><span>Total</span><strong>@selectedPlan.TotalMaintenances</strong><small>Mantenimientos</small></div>
+                        <div><span>Completados</span><strong>@selectedPlan.CompletedMaintenances</strong><small>Cerrados</small></div>
+                        <div><span>Programados</span><strong>@selectedPlan.ScheduledMaintenances</strong><small>En agenda</small></div>
+                        <div><span>Solicitudes abiertas</span><strong>@selectedPlan.PendingRequests</strong><small>Pendientes</small></div>
+                        <div><span>Último técnico</span><strong>@Display(selectedPlan.LastTechnician)</strong></div>
+                        <div><span>Último proveedor</span><strong>@Display(selectedPlan.LastProvider)</strong></div>
+                    </section>
+
+                    <section class="mplan-modal-actions">
+
+                        @if (CanOpenMaintenanceSchedule)
+                        {
+                            <button type="button" class="primary" @onclick="() => GoToSchedule(selectedPlan.ToolAssetId)">
+                                Cronograma
+                            </button>
+                        }
+
+                        @if (CanRequestMaintenance)
+                        {
+                            <button type="button" class="success" @onclick="GoToMaintenanceRequest">
+                                Solicitar mtto.
+                            </button>
+                        }
+
+                        @if (CanCreatePlan)
+                        {
+                            <button type="button" class="primary" @onclick="() => GoToSchedule(selectedPlan.ToolAssetId)">
+                                Crear plan
+                            </button>
+                        }
+
+                        @if (CanEditPlan)
+                        {
+                            <button type="button" class="warning" @onclick="() => GoToSchedule(selectedPlan.ToolAssetId)">
+                                Editar plan
+                            </button>
+                        }
+
+                        @if (CanDeletePlan)
+                        {
+                            <button type="button" class="danger" @onclick="() => GoToSchedule(selectedPlan.ToolAssetId)">
+                                Gestionar baja
+                            </button>
+                        }
+                    </section>
+                </div>
+            </div>
+        }
+    }
+</section>
+
+@code {
+    private bool initialized;
+    private bool isLoading;
+    private bool branchFilterInitialized;
+
+    private string selectedStatus = string.Empty;
+    private string selectedBranchCode = string.Empty;
+    private string searchText = string.Empty;
+
+    private string? successMessage;
+    private string? errorMessage;
+
+    private List<MaintenancePlanItem> plans = new();
+    private List<MobileBranchDto> branches = new();
+
+    private MaintenancePlanItem? selectedPlan;
+
+    private bool IsAdmin =>
+        Same(Auth.CurrentUser?.RoleCode, "ADMIN") ||
+        Same(Auth.CurrentUser?.RoleCode, "SUPERADMIN") ||
+        Same(Auth.CurrentUser?.RoleName, "Administrador") ||
+        Same(Auth.CurrentUser?.RoleName, "Administrador NAVI");
+
+    private bool CanViewPlans => IsAdmin || Has("MaintenancePlans.View");
+    private bool CanCreatePlan => IsAdmin || Has("MaintenancePlans.Create") || Has("MaintenancePlans.Manage");
+    private bool CanEditPlan => IsAdmin || Has("MaintenancePlans.Edit") || Has("MaintenancePlans.Manage");
+    private bool CanDeletePlan => IsAdmin || Has("MaintenancePlans.Delete") || Has("MaintenancePlans.Manage");
+
+    private bool CanOpenMaintenanceSchedule =>
+        CanViewPlans || CanCreatePlan || CanEditPlan || CanDeletePlan ||
+        Has("TechnicalLifeRecord.Maintenance");
+
+    private bool CanOpenLifeRecord =>
+        IsAdmin ||
+        Has("TechnicalLifeRecord.View") ||
+        Has("ToolDetail.LifeRecord.Open") ||
+        Has("ToolDetail.View") ||
+        Has("Tools.View") ||
+        Has("Mobile.Tools.View");
+
+    private bool CanRequestMaintenance =>
+        IsAdmin ||
+        Has("Maintenance.Request") ||
+        CanCreatePlan ||
+        CanEditPlan;
+
+    private bool CanAccessModule =>
+        CanViewPlans ||
+        CanCreatePlan ||
+        CanEditPlan ||
+        CanDeletePlan ||
+        Has("Maintenance.View") ||
+        Has("Maintenance.Request");
+
+    private IEnumerable<MaintenancePlanItem> FilteredPlans =>
+        plans
+            .Where(MatchesBranchFilter)
+            .Where(x => string.IsNullOrWhiteSpace(selectedStatus) || Same(x.PlanStatus, selectedStatus))
+            .Where(MatchesSearch)
+            .OrderBy(x => x.DaysRemaining);
+
+    private string ScopeLabel =>
+        string.IsNullOrWhiteSpace(selectedBranchCode)
+            ? "Todas las sedes"
+            : selectedBranchCode;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            initialized = true;
+            return;
+        }
+
+        await LoadBranchesAsync();
+        ApplyDefaultBranchFilterIfNeeded();
+        await LoadAsync();
+
+        initialized = true;
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            if (!CanAccessModule)
+            {
+                return;
+            }
+
+            await LoadBranchesAsync();
+            ApplyDefaultBranchFilterIfNeeded();
+
+            plans = await Api.GetListJsonAsync<MaintenancePlanItem>("api/maintenance-requests/plans-board");
+
+            successMessage = $"Planes actualizados correctamente. Registros cargados: {plans.Count}.";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudieron cargar los planes: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadBranchesAsync()
+    {
+        try
+        {
+            branches = await Api.GetBranchesAsync();
+        }
+        catch
+        {
+            branches = new();
+        }
+    }
+
+    private void ApplyDefaultBranchFilterIfNeeded()
+    {
+        if (branchFilterInitialized)
+        {
+            return;
+        }
+
+        branchFilterInitialized = true;
+
+        var userBranchCode = Auth.CurrentUser?.BranchCode;
+
+        if (IsAllBranchValue(userBranchCode))
+        {
+            selectedBranchCode = string.Empty;
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(userBranchCode))
+        {
+            selectedBranchCode = userBranchCode;
+            return;
+        }
+
+        if (Auth.CurrentUser?.BranchId is Guid branchId)
+        {
+            var branch = branches.FirstOrDefault(x => x.Id == branchId);
+
+            if (branch is not null && !IsAllBranchValue(branch.Code))
+            {
+                selectedBranchCode = branch.Code;
+                return;
+            }
+        }
+
+        selectedBranchCode = string.Empty;
+    }
+
+    private bool MatchesBranchFilter(MaintenancePlanItem item)
+    {
+        if (string.IsNullOrWhiteSpace(selectedBranchCode))
+        {
+            return true;
+        }
+
+        var selectedBranch = branches.FirstOrDefault(x =>
+            Same(x.Code, selectedBranchCode) ||
+            Same(x.Name, selectedBranchCode));
+
+        if (selectedBranch is not null)
+        {
+            return Same(item.BranchCode, selectedBranch.Code) ||
+                   Same(item.BranchName, selectedBranch.Name) ||
+                   Contains(item.BranchCode, selectedBranch.Code) ||
+                   Contains(item.BranchName, selectedBranch.Name);
+        }
+
+        return Same(item.BranchCode, selectedBranchCode) ||
+               Same(item.BranchName, selectedBranchCode) ||
+               Contains(item.BranchCode, selectedBranchCode) ||
+               Contains(item.BranchName, selectedBranchCode);
+    }
+
+    private bool MatchesSearch(MaintenancePlanItem item)
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            return true;
+        }
+
+        var value = searchText.Trim();
+
+        return Contains(item.InternalCode, value) ||
+               Contains(item.Name, value) ||
+               Contains(item.BranchCode, value) ||
+               Contains(item.BranchName, value) ||
+               Contains(item.LocationName, value) ||
+               Contains(item.ResponsibleName, value) ||
+               Contains(item.LastProvider, value) ||
+               Contains(item.LastTechnician, value);
+    }
+
+    private void ClearFilters()
+    {
+        selectedStatus = string.Empty;
+        searchText = string.Empty;
+
+        branchFilterInitialized = false;
+        ApplyDefaultBranchFilterIfNeeded();
+    }
+
+    private void OpenDetails(MaintenancePlanItem item)
+    {
+        selectedPlan = item;
+        successMessage = null;
+        errorMessage = null;
+    }
+
+    private void CloseDetails()
+    {
+        selectedPlan = null;
+    }
+
+    private void GoToLifeRecord(Guid toolAssetId)
+    {
+        Navigation.NavigateTo($"/tools/{toolAssetId}/life-record?from=maintenance-plans");
+    }
+
+    private void GoToSchedule(Guid toolAssetId)
+    {
+        Navigation.NavigateTo($"/tools/{toolAssetId}/life-record?from=maintenance-plans&section=maintenance&edit=maintenance");
+    }
+
+    private void GoToMaintenanceRequest()
+    {
+        Navigation.NavigateTo("/mobile/maintenance-request");
+    }
+
+    private void GoHome()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private void GoLogin()
+    {
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    private bool Has(string permission) => Auth.HasPermission(permission);
+
+    private static bool IsStatus(MaintenancePlanItem item, string status)
+    {
+        return Same(item.PlanStatus, status);
+    }
+
+    private string GetPlanDonutStyle()
+    {
+        var visible = FilteredPlans.ToList();
+        var total = visible.Count;
+
+        if (total <= 0)
+        {
+            return "background: conic-gradient(#eadff0 0 100%);";
+        }
+
+        var onTime = visible.Count(x => IsStatus(x, "OnTime"));
+        var dueSoon = visible.Count(x => IsStatus(x, "DueSoon"));
+
+        var onTimeEnd = PercentEnd(onTime, total, 0);
+        var dueSoonEnd = PercentEnd(dueSoon, total, onTimeEnd);
+
+        return $"background: conic-gradient(#198754 0% {onTimeEnd}%, #ffc107 {onTimeEnd}% {dueSoonEnd}%, #dc3545 {dueSoonEnd}% 100%);";
+    }
+
+    private static decimal PercentEnd(int value, int total, decimal start)
+    {
+        if (value <= 0 || total <= 0)
+        {
+            return start;
+        }
+
+        return Math.Min(100, start + Math.Round((decimal)value / total * 100, 2));
+    }
+
+    private static string GetPercentLabel(int value, int total)
+    {
+        if (value <= 0 || total <= 0)
+        {
+            return "0%";
+        }
+
+        return $"{Math.Round((decimal)value / total * 100, 1)}%";
+    }
+
+    private static string GetDaysText(int days)
+    {
+        if (days < 0)
+        {
+            return $"Vencido hace {Math.Abs(days)} día(s)";
+        }
+
+        if (days == 0)
+        {
+            return "Vence hoy";
+        }
+
+        return $"Faltan {days} día(s)";
+    }
+
+    private static string GetPlanLabel(string? status)
+    {
+        return status switch
+        {
+            "OnTime" => "Al día",
+            "DueSoon" => "Por vencer",
+            "Overdue" => "Vencido",
+            _ => Display(status)
+        };
+    }
+
+    private static string GetPlanBadgeClass(string? status)
+    {
+        return status switch
+        {
+            "OnTime" => "mplan-pill ontime",
+            "DueSoon" => "mplan-pill duesoon",
+            "Overdue" => "mplan-pill overdue",
+            _ => "mplan-pill"
+        };
+    }
+
+    private static string GetPlanRowClass(string? status)
+    {
+        return status switch
+        {
+            "OnTime" => "mplan-item ontime",
+            "DueSoon" => "mplan-item duesoon",
+            "Overdue" => "mplan-item overdue",
+            _ => "mplan-item"
+        };
+    }
+
+    private static string FormatDate(DateTime? value)
+    {
+        return value.HasValue
+            ? value.Value.ToString("dd/MM/yyyy")
+            : "—";
+    }
+
+    private static bool Contains(string? source, string? value)
+    {
+        return !string.IsNullOrWhiteSpace(source) &&
+               !string.IsNullOrWhiteSpace(value) &&
+               source.Contains(value, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool Same(string? left, string? right)
+    {
+        return string.Equals(Normalize(left), Normalize(right), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsAllBranchValue(string? value)
+    {
+        return Same(value, "TODAS") ||
+               Same(value, "ALL") ||
+               Same(value, "Todas las sedes");
+    }
+
+    private static string Normalize(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return value.Trim()
+            .ToUpperInvariant()
+            .Replace("Á", "A")
+            .Replace("É", "E")
+            .Replace("Í", "I")
+            .Replace("Ó", "O")
+            .Replace("Ú", "U")
+            .Replace("Ü", "U")
+            .Replace("Ñ", "N");
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "—" : value;
+    }
+
+    private sealed class MaintenancePlanItem
+    {
+        public Guid ToolAssetId { get; set; }
+        public string InternalCode { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string? LocationName { get; set; }
+        public string? ResponsibleName { get; set; }
+        public int PeriodMonths { get; set; }
+        public DateTime? LastMaintenanceAt { get; set; }
+        public DateTime? NextMaintenanceAt { get; set; }
+        public int DaysRemaining { get; set; }
+        public string PlanStatus { get; set; } = string.Empty;
+        public int TotalMaintenances { get; set; }
+        public int CompletedMaintenances { get; set; }
+        public int ScheduledMaintenances { get; set; }
+        public int PendingRequests { get; set; }
+        public string? LastMaintenanceNumber { get; set; }
+        public string? LastTechnician { get; set; }
+        public string? LastProvider { get; set; }
+    }
+}

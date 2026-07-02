@@ -1,5 +1,12 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Components.Forms;
 using Navi.ToolsAssets.MobilePwa.Models;
 
 namespace Navi.ToolsAssets.MobilePwa.Services;
@@ -57,7 +64,6 @@ public sealed class NaviMobileApiClient
         }
     }
 
-
     public async Task<MobileUser?> RefreshCurrentSessionAsync()
     {
         var userName = _auth.CurrentUser?.UserName;
@@ -97,9 +103,19 @@ public sealed class NaviMobileApiClient
         return user;
     }
 
-    public async Task<MobileExecutiveDashboard> GetDashboardAsync(bool forceRefresh = false)
+    public async Task<MobileExecutiveDashboard> GetDashboardAsync(
+        bool forceRefresh = false,
+        string? branchCode = null,
+        string? operationalStatus = null,
+        string? q = null)
     {
-        if (!forceRefresh &&
+        var hasFilters =
+            !string.IsNullOrWhiteSpace(branchCode) ||
+            !string.IsNullOrWhiteSpace(operationalStatus) ||
+            !string.IsNullOrWhiteSpace(q);
+
+        if (!hasFilters &&
+            !forceRefresh &&
             _dashboardCache is not null &&
             _dashboardCacheAt.HasValue &&
             DateTimeOffset.Now - _dashboardCacheAt.Value < _cacheDuration)
@@ -107,7 +123,9 @@ public sealed class NaviMobileApiClient
             return _dashboardCache;
         }
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, "api/dashboard/executive");
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            BuildDashboardEndpoint(branchCode, operationalStatus, q));
 
         ApplySecurityHeaders(request);
 
@@ -125,10 +143,36 @@ public sealed class NaviMobileApiClient
             throw new InvalidOperationException("No se recibió información del dashboard.");
         }
 
-        _dashboardCache = dashboard;
-        _dashboardCacheAt = DateTimeOffset.Now;
+        if (!hasFilters)
+        {
+            _dashboardCache = dashboard;
+            _dashboardCacheAt = DateTimeOffset.Now;
+        }
 
         return dashboard;
+    }
+
+    private static string BuildDashboardEndpoint(string? branchCode, string? operationalStatus, string? q)
+    {
+        var query = new List<string>();
+
+        AddQuery(query, "branchCode", branchCode);
+        AddQuery(query, "operationalStatus", operationalStatus);
+        AddQuery(query, "q", q);
+
+        return query.Count == 0
+            ? "api/dashboard/executive"
+            : $"api/dashboard/executive?{string.Join("&", query)}";
+    }
+
+    private static void AddQuery(List<string> query, string key, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        query.Add($"{Uri.EscapeDataString(key)}={Uri.EscapeDataString(value.Trim())}");
     }
 
     public async Task<List<MobileToolDto>> GetToolsAsync(bool forceRefresh = false)
@@ -245,6 +289,98 @@ public sealed class NaviMobileApiClient
         return lifeRecord;
     }
 
+    public async Task<List<T>> GetListJsonAsync<T>(string endpoint)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+
+        ApplySecurityHeaders(request);
+
+        using var response = await _http.SendAsync(request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(response));
+        }
+
+        return await response.Content.ReadFromJsonAsync<List<T>>(JsonOptions) ?? new();
+    }
+
+    public async Task<T?> GetJsonAsync<T>(string endpoint)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+
+        ApplySecurityHeaders(request);
+
+        using var response = await _http.SendAsync(request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(response));
+        }
+
+        return await response.Content.ReadFromJsonAsync<T>(JsonOptions);
+    }
+
+    public async Task SendJsonAsync(HttpMethod method, string endpoint, object? body = null)
+    {
+        using var request = new HttpRequestMessage(method, endpoint);
+
+        ApplySecurityHeaders(request);
+
+        if (body is not null)
+        {
+            request.Content = JsonContent.Create(body);
+        }
+
+        using var response = await _http.SendAsync(request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(response));
+        }
+
+        ClearCache();
+    }
+
+    public async Task UploadToolDocumentAsync(
+        Guid toolId,
+        IBrowserFile file,
+        string documentType,
+        string? description,
+        string? uploadedBy,
+        long maxFileSize)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"api/tools/{toolId}/documents");
+
+        ApplySecurityHeaders(request);
+
+        using var form = new MultipartFormDataContent();
+
+        await using var stream = file.OpenReadStream(maxFileSize);
+        using var fileContent = new StreamContent(stream);
+
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue(
+            string.IsNullOrWhiteSpace(file.ContentType)
+                ? "application/octet-stream"
+                : file.ContentType);
+
+        form.Add(fileContent, "file", file.Name);
+        form.Add(new StringContent(string.IsNullOrWhiteSpace(documentType) ? "Other" : documentType), "documentType");
+        form.Add(new StringContent(description ?? string.Empty), "description");
+        form.Add(new StringContent(string.IsNullOrWhiteSpace(uploadedBy) ? "mobile" : uploadedBy), "uploadedBy");
+
+        request.Content = form;
+
+        using var response = await _http.SendAsync(request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(response));
+        }
+
+        ClearCache();
+    }
+
     public async Task<MobileDamageReportResponse> ReportDamageAsync(MobileDamageReportRequest body)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "api/damages/report");
@@ -271,7 +407,6 @@ public sealed class NaviMobileApiClient
 
         return result;
     }
-
 
     public async Task<List<MobileAvailabilityToolDto>> GetAvailabilityToolsAsync()
     {
@@ -371,18 +506,6 @@ public sealed class NaviMobileApiClient
         }
 
         ClearCache();
-    }
-
-    private static async Task<string> ReadMobileAvailabilityApiErrorAsync(HttpResponseMessage response)
-    {
-        var content = await response.Content.ReadAsStringAsync();
-
-        if (string.IsNullOrWhiteSpace(content))
-        {
-            return $"Error HTTP {(int)response.StatusCode}: {response.ReasonPhrase}";
-        }
-
-        return content;
     }
 
     public async Task<List<MobileLoanRequestDto>> GetLoanRequestsAsync()
@@ -488,6 +611,7 @@ public sealed class NaviMobileApiClient
 
         ClearCache();
     }
+
     public string ToApiUrl(string? url)
     {
         if (string.IsNullOrWhiteSpace(url))
@@ -579,8 +703,16 @@ public sealed class NaviMobileApiClient
 
         return content;
     }
+
+    private static async Task<string> ReadMobileAvailabilityApiErrorAsync(HttpResponseMessage response)
+    {
+        var content = await response.Content.ReadAsStringAsync();
+
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return $"Error HTTP {(int)response.StatusCode}: {response.ReasonPhrase}";
+        }
+
+        return content;
+    }
 }
-
-
-
-

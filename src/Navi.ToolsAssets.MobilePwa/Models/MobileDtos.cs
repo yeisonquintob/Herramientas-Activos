@@ -12,6 +12,8 @@ public sealed class MobileUser
     public string UserName { get; set; } = string.Empty;
     public string DisplayName { get; set; } = string.Empty;
     public string? Email { get; set; }
+    public string? DocumentNumber { get; set; }
+    public string? EmployeeCode { get; set; }
     public string? Position { get; set; }
     public string? Area { get; set; }
     public Guid RoleId { get; set; }

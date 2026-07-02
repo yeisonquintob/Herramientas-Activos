@@ -1,0 +1,1010 @@
+@page "/mobile/documents"
+
+@using System.Net.Http
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Forms
+@using Navi.ToolsAssets.MobilePwa.Models
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Documentos móvil - NAVI Herramientas y AF</PageTitle>
+
+<section class="mobile-page mobile-documents-page">
+    @if (isLoading && !initialized)
+    {
+        <div class="mobile-loading">Cargando documentos...</div>
+    }
+    else if (!Auth.IsAuthenticated)
+    {
+        <div class="mobile-empty">
+            <strong>Sesión requerida</strong>
+            <span>Debes iniciar sesión para consultar documentos.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+        </div>
+    }
+    else if (!CanAccessDocuments)
+    {
+        <div class="mobile-empty">
+            <strong>Sin permiso</strong>
+            <span>No tienes permisos para consultar o cargar documentos.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoHome">Volver al inicio</button>
+        </div>
+    }
+    else
+    {
+        <header class="mdoc-hero">
+            <div>
+                <span>DOCUMENTOS · EVIDENCIAS</span>
+                <h1>Documentos</h1>
+                <p>@Display(Auth.CurrentUser?.DisplayName) · @ScopeLabel</p>
+            </div>
+
+            <div class="mdoc-hero-actions">
+                <button type="button" @onclick="GoHome">Inicio</button>
+                <button type="button" @onclick="LoadAsync" disabled="@isLoading">
+                    @(isLoading ? "Cargando..." : "Actualizar")
+                </button>
+            </div>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="mobile-alert error">@errorMessage</div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(successMessage))
+        {
+            <div class="mobile-alert success">@successMessage</div>
+        }
+
+        <section class="mdoc-kpis">
+            <article>
+                <strong>@FilteredTools.Count()</strong>
+                <span>Activos</span>
+                <small>Visibles</small>
+            </article>
+
+            <article>
+                <strong>@DocumentsCount</strong>
+                <span>Documentos</span>
+                <small>Del activo</small>
+            </article>
+
+            <article>
+                <strong>@Manuals.Count</strong>
+                <span>Manuales</span>
+                <small>Opciones</small>
+            </article>
+
+            <article>
+                <strong>@UploadStatusLabel</strong>
+                <span>Carga</span>
+                <small>@(CanUploadDocuments ? "Permitida" : "Solo lectura")</small>
+            </article>
+        </section>
+
+        <section class="mdoc-filter-card">
+            <label>
+                <span>Buscar activo / herramienta</span>
+                <input @bind="searchText"
+                       @bind:event="oninput"
+                       placeholder="Código, nombre, serial, sede, responsable..." />
+            </label>
+
+            <label>
+                <span>Sede</span>
+                <select @bind="selectedBranchCode">
+                    @if (CanSeeAllBranches)
+                    {
+                        <option value="">Todas las sedes</option>
+                    }
+
+                    @foreach (var branch in BranchOptions)
+                    {
+                        <option value="@branch">@branch</option>
+                    }
+                </select>
+            </label>
+
+            <label>
+                <span>Tipo documento</span>
+                <select @bind="selectedDocumentTypeFilter">
+                    <option value="">Todos</option>
+                    @foreach (var option in DocumentTypes)
+                    {
+                        <option value="@option.Value">@option.Text</option>
+                    }
+                </select>
+            </label>
+
+            <label class="mdoc-check">
+                <input type="checkbox" @bind="onlyWithDocuments" />
+                Mostrar solo activos con documentos cargados
+            </label>
+
+            <div class="mdoc-filter-actions">
+                <button type="button" @onclick="ClearFilters">Limpiar filtros</button>
+                <button type="button" @onclick="ToggleManuals">Manuales</button>
+            </div>
+        </section>
+
+        @if (showManuals)
+        {
+            <section class="mdoc-card">
+                <div class="mdoc-section-head">
+                    <div>
+                        <h2>Manuales de uso</h2>
+                        <p>Guía rápida de las opciones disponibles en el módulo móvil de documentos.</p>
+                    </div>
+
+                    <span>@Manuals.Count</span>
+                </div>
+
+                <div class="mdoc-manual-list">
+                    @foreach (var manual in Manuals)
+                    {
+                        <article class="mdoc-manual-card">
+                            <div>
+                                <strong>@manual.Title</strong>
+                                <span>@manual.Subtitle</span>
+                            </div>
+
+                            <button type="button" @onclick="() => selectedManual = manual">
+                                Ver manual
+                            </button>
+                        </article>
+                    }
+                </div>
+            </section>
+        }
+
+        @if (selectedManual is not null)
+        {
+            <section class="mdoc-card mdoc-manual-detail">
+                <div class="mdoc-section-head">
+                    <div>
+                        <h2>@selectedManual.Title</h2>
+                        <p>@selectedManual.Subtitle</p>
+                    </div>
+
+                    <button type="button" @onclick="() => selectedManual = null">Cerrar</button>
+                </div>
+
+                <div class="mdoc-manual-body">
+                    <p>@selectedManual.Description</p>
+
+                    <ol>
+                        @foreach (var step in selectedManual.Steps)
+                        {
+                            <li>@step</li>
+                        }
+                    </ol>
+                </div>
+            </section>
+        }
+
+        <section class="mdoc-card">
+            <div class="mdoc-section-head">
+                <div>
+                    <h2>Activos / artículos</h2>
+                    <p>Selecciona un activo para ver, descargar o anexar documentos según permisos.</p>
+                </div>
+
+                <span>@FilteredTools.Count()</span>
+            </div>
+
+            @if (isLoading)
+            {
+                <div class="mobile-empty compact">Cargando activos...</div>
+            }
+            else if (!FilteredTools.Any())
+            {
+                <div class="mobile-empty compact">No hay activos que coincidan con los filtros seleccionados.</div>
+            }
+            else
+            {
+                <div class="mdoc-tool-list">
+                    @foreach (var tool in FilteredTools.Take(80))
+                    {
+                        <article class="@GetToolCardClass(tool)">
+                            <div class="mdoc-item-head">
+                                <div>
+                                    <strong>@Display(tool.InternalCode)</strong>
+                                    <p>@Display(tool.Name)</p>
+                                </div>
+
+                                <span>@TranslatePhysicalStatus(tool.PhysicalStatus)</span>
+                            </div>
+
+                            <div class="mdoc-grid">
+                                <div><span>Sede</span><strong>@Display(tool.BranchCode)</strong></div>
+                                <div><span>Ubicación</span><strong>@Display(tool.LocationName)</strong></div>
+                                <div><span>Responsable</span><strong>@Display(tool.ResponsiblePersonName)</strong></div>
+                                <div><span>Serial</span><strong>@Display(tool.SerialNumber)</strong></div>
+                            </div>
+
+                            <div class="mdoc-actions">
+                                <button type="button" @onclick="() => SelectToolAsync(tool)">
+                                    @(selectedTool?.Id == tool.Id ? "Seleccionado" : "Documentos")
+                                </button>
+
+                                @if (CanOpenLifeRecord)
+                                {
+                                    <button type="button" class="neutral" @onclick="() => OpenLifeRecord(tool.Id)">
+                                        Hoja vida
+                                    </button>
+                                }
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+
+        @if (selectedTool is not null)
+        {
+            <section class="mdoc-card selected-tool">
+                <div class="mdoc-section-head">
+                    <div>
+                        <h2>@Display(selectedTool.Name)</h2>
+                        <p>@Display(selectedTool.InternalCode) · @Display(selectedTool.BranchCode)</p>
+                    </div>
+
+                    <span>@documents.Count</span>
+                </div>
+
+                <div class="mdoc-grid">
+                    <div><span>Responsable</span><strong>@Display(selectedTool.ResponsiblePersonName)</strong></div>
+                    <div><span>Ubicación</span><strong>@Display(selectedTool.LocationName)</strong></div>
+                    <div><span>Serial</span><strong>@Display(selectedTool.SerialNumber)</strong></div>
+                    <div><span>Estado físico</span><strong>@TranslatePhysicalStatus(selectedTool.PhysicalStatus)</strong></div>
+                </div>
+            </section>
+
+            @if (CanUploadDocuments)
+            {
+                <details class="mdoc-card mdoc-upload-card" open>
+                    <summary>
+                        <span>Anexar documento</span>
+                        <em>Cargar</em>
+                    </summary>
+
+                    <div class="mdoc-form-grid">
+                        <label>
+                            <span>Tipo de documento</span>
+                            <select @bind="uploadForm.DocumentType">
+                                @foreach (var option in DocumentTypes)
+                                {
+                                    <option value="@option.Value">@option.Text</option>
+                                }
+                            </select>
+                        </label>
+
+                        <label>
+                            <span>Archivo</span>
+                            <InputFile OnChange="OnFileSelected" />
+                        </label>
+                    </div>
+
+                    <label>
+                        <span>Descripción / observación</span>
+                        <textarea rows="3"
+                                  @bind="uploadForm.Description"
+                                  placeholder="Ej: manual técnico, garantía, acta, evidencia, factura o soporte del activo..."></textarea>
+                    </label>
+
+                    @if (selectedFile is not null)
+                    {
+                        <div class="mdoc-file-preview">
+                            <strong>@selectedFile.Name</strong>
+                            <span>@FormatBytes(selectedFile.Size)</span>
+                        </div>
+                    }
+
+                    <div class="mdoc-actions">
+                        <button type="button" class="ok-fill" @onclick="UploadAsync" disabled="@isSaving">
+                            @(isSaving ? "Cargando..." : "Guardar documento")
+                        </button>
+
+                        <button type="button" class="neutral" @onclick="ClearUpload">
+                            Limpiar
+                        </button>
+                    </div>
+                </details>
+            }
+            else
+            {
+                <div class="mobile-empty compact">
+                    Puedes consultar documentos, pero no tienes permiso para cargar nuevos anexos.
+                </div>
+            }
+
+            <section class="mdoc-card">
+                <div class="mdoc-section-head">
+                    <div>
+                        <h2>Documentos del activo</h2>
+                        <p>Consulta y descarga documentos anexados a la herramienta o activo seleccionado.</p>
+                    </div>
+
+                    <span>@VisibleDocuments.Count()</span>
+                </div>
+
+                @if (isLoadingDocuments)
+                {
+                    <div class="mobile-empty compact">Cargando documentos del activo...</div>
+                }
+                else if (!VisibleDocuments.Any())
+                {
+                    <div class="mobile-empty compact">Este activo aún no tiene documentos del tipo seleccionado.</div>
+                }
+                else
+                {
+                    <div class="mdoc-document-list">
+                        @foreach (var item in VisibleDocuments)
+                        {
+                            <article class="mdoc-document-card">
+                                <div class="mdoc-item-head">
+                                    <div>
+                                        <strong>@Display(item.FileName)</strong>
+                                        <p>@TranslateDocumentType(item.DocumentType) · @FormatBytes(item.SizeBytes)</p>
+                                    </div>
+
+                                    <span>@TranslateDocumentType(item.DocumentType)</span>
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(item.Description))
+                                {
+                                    <div class="mdoc-note">@item.Description</div>
+                                }
+
+                                <div class="mdoc-grid">
+                                    <div><span>Subido por</span><strong>@Display(item.UploadedBy)</strong></div>
+                                    <div><span>Fecha</span><strong>@FormatDate(item.UploadedAt)</strong></div>
+                                    <div><span>Contenido</span><strong>@Display(item.ContentType)</strong></div>
+                                    <div><span>Tamaño</span><strong>@FormatBytes(item.SizeBytes)</strong></div>
+                                </div>
+
+                                <div class="mdoc-actions">
+                                    @if (CanDownloadDocuments)
+                                    {
+                                        <a href="@Api.ToApiUrl(item.DownloadUrl)" target="_blank">
+                                            Descargar
+                                        </a>
+                                    }
+
+                                    @if (CanDeleteDocuments)
+                                    {
+                                        <button type="button" class="danger" @onclick="() => DeleteDocumentAsync(item)">
+                                            Desactivar
+                                        </button>
+                                    }
+                                </div>
+                            </article>
+                        }
+                    </div>
+                }
+            </section>
+        }
+    }
+</section>
+
+@code {
+    private const long MaxFileSize = 50 * 1024 * 1024;
+
+    private bool initialized;
+    private bool isLoading = true;
+    private bool isLoadingDocuments;
+    private bool isSaving;
+    private bool showManuals;
+
+    private string? errorMessage;
+    private string? successMessage;
+
+    private string searchText = string.Empty;
+    private string selectedBranchCode = string.Empty;
+    private string selectedDocumentTypeFilter = string.Empty;
+    private bool onlyWithDocuments;
+
+    private List<MobileToolDto> tools = new();
+    private List<DocumentItem> documents = new();
+    private Dictionary<Guid, int> documentCountByTool = new();
+
+    private MobileToolDto? selectedTool;
+    private IBrowserFile? selectedFile;
+    private UploadForm uploadForm = new() { DocumentType = "TechnicalDocument" };
+
+    private ManualItem? selectedManual;
+
+    private bool IsAdmin =>
+        Same(Auth.CurrentUser?.RoleCode, "ADMIN") ||
+        Same(Auth.CurrentUser?.RoleCode, "SUPERADMIN") ||
+        Same(Auth.CurrentUser?.RoleName, "Administrador") ||
+        Same(Auth.CurrentUser?.RoleName, "Administrador NAVI");
+
+    private bool CanViewDocuments =>
+        IsAdmin ||
+        Has("Documents.View") ||
+        Has("Documents.Download") ||
+        Has("TechnicalLifeRecord.Documents");
+
+    private bool CanUploadDocuments =>
+        IsAdmin ||
+        Has("Documents.Upload");
+
+    private bool CanDownloadDocuments =>
+        IsAdmin ||
+        Has("Documents.Download") ||
+        Has("Documents.View");
+
+    private bool CanDeleteDocuments =>
+        IsAdmin ||
+        Has("Documents.Delete");
+
+    private bool CanOpenLifeRecord =>
+        IsAdmin ||
+        Has("TechnicalLifeRecord.View") ||
+        Has("ToolDetail.LifeRecord.Open");
+
+    private bool CanAccessDocuments =>
+        CanViewDocuments ||
+        CanUploadDocuments ||
+        CanDownloadDocuments;
+
+    private bool CanSeeAllBranches =>
+        IsAdmin ||
+        IsAllBranchValue(Auth.CurrentUser?.BranchCode) ||
+        Same(Auth.CurrentUser?.BranchName, "Todas las sedes");
+
+    private string ScopeLabel =>
+        CanSeeAllBranches
+            ? "Todas las sedes"
+            : Display(Auth.CurrentUser?.BranchName ?? Auth.CurrentUser?.BranchCode);
+
+    private string UploadStatusLabel =>
+        CanUploadDocuments ? "Sí" : "No";
+
+    private int DocumentsCount => documents.Count;
+
+    private IEnumerable<string> BranchOptions =>
+        tools
+            .Where(IsToolVisibleByScope)
+            .Select(x => x.BranchCode ?? x.BranchName ?? string.Empty)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x);
+
+    private IEnumerable<MobileToolDto> FilteredTools =>
+        tools
+            .Where(IsToolVisibleByScope)
+            .Where(MatchesBranch)
+            .Where(MatchesSearch)
+            .Where(MatchesOnlyWithDocuments)
+            .OrderBy(x => x.BranchCode)
+            .ThenBy(x => x.InternalCode);
+
+    private IEnumerable<DocumentItem> VisibleDocuments =>
+        documents
+            .Where(x => string.IsNullOrWhiteSpace(selectedDocumentTypeFilter) || Same(x.DocumentType, selectedDocumentTypeFilter))
+            .OrderByDescending(x => x.UploadedAt);
+
+    private readonly (string Value, string Text)[] DocumentTypes =
+    {
+        ("TechnicalDocument", "Ficha técnica / Documento técnico"),
+        ("PhotoEvidence", "Registro fotográfico"),
+        ("MaintenanceSupport", "Evidencia de mantenimiento"),
+        ("PhysicalCountEvidence", "Evidencia toma física"),
+        ("DeliveryAct", "Acta de entrega"),
+        ("ReturnAct", "Acta de devolución"),
+        ("DisposalSupport", "Soporte de baja"),
+        ("LifeCycleExcel", "Excel hoja de vida"),
+        ("Other", "Otro / Factura / Garantía")
+    };
+
+    private List<ManualItem> Manuals => new()
+    {
+        new ManualItem(
+            "Buscar y seleccionar activo",
+            "Consulta de artículos",
+            "Permite encontrar el activo o herramienta por código, nombre, serial, sede, ubicación o responsable.",
+            new[]
+            {
+                "Usa el campo de búsqueda para filtrar el listado.",
+                "Selecciona la sede si tienes alcance de varias sedes.",
+                "Presiona Documentos sobre el activo que deseas consultar.",
+                "El sistema cargará los documentos anexados a ese activo."
+            }),
+        new ManualItem(
+            "Anexar documento",
+            "Carga documental",
+            "Permite cargar soportes, evidencias, fichas técnicas, actas o documentos relacionados con el activo seleccionado.",
+            new[]
+            {
+                "Selecciona un activo.",
+                "Abre la sección Anexar documento.",
+                "Elige el tipo de documento.",
+                "Selecciona el archivo permitido: PDF, JPG, JPEG, PNG, XLSX, XLS o DOCX.",
+                "Agrega una descripción clara.",
+                "Guarda el documento."
+            }),
+        new ManualItem(
+            "Ver y descargar documentos",
+            "Consulta documental",
+            "Permite revisar los documentos asociados al activo y descargarlos según el permiso asignado.",
+            new[]
+            {
+                "Selecciona un activo.",
+                "Revisa la lista Documentos del activo.",
+                "Usa Descargar para abrir el archivo desde el repositorio documental.",
+                "Si no ves el botón, valida el permiso Documents.Download o Documents.View."
+            }),
+        new ManualItem(
+            "Tipos documentales",
+            "Clasificación",
+            "Los tipos disponibles corresponden a los tipos existentes en el backend documental.",
+            new[]
+            {
+                "Ficha técnica / Documento técnico: manuales, fichas o especificaciones.",
+                "Registro fotográfico: fotos de estado o evidencia visual.",
+                "Evidencia de mantenimiento: soportes de mantenimiento.",
+                "Evidencia toma física: documentos asociados a validaciones físicas.",
+                "Acta de entrega/devolución: soportes de préstamo o devolución.",
+                "Otro / Factura / Garantía: documentos no clasificados aún con tipo propio."
+            }),
+        new ManualItem(
+            "Seguridad",
+            "Permisos",
+            "El módulo respeta la matriz de permisos de documentos.",
+            new[]
+            {
+                "Documents.View permite consultar documentos.",
+                "Documents.Download permite descargar documentos.",
+                "Documents.Upload permite anexar documentos.",
+                "Documents.Delete permite desactivar documentos.",
+                "Los usuarios sin alcance total solo ven activos de su sede o relacionados con su responsable."
+            })
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            initialized = true;
+            isLoading = false;
+            return;
+        }
+
+        var refreshedUser = await Api.RefreshCurrentSessionAsync();
+
+        if (refreshedUser is null || !Auth.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", forceLoad: true);
+            return;
+        }
+
+        await LoadAsync();
+        initialized = true;
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            tools = await Api.GetToolsAsync(true);
+
+            if (!CanSeeAllBranches && string.IsNullOrWhiteSpace(selectedBranchCode))
+            {
+                selectedBranchCode = Auth.CurrentUser?.BranchCode ?? string.Empty;
+            }
+
+            await BuildDocumentCountsAsync();
+
+            if (selectedTool is not null)
+            {
+                var refreshed = tools.FirstOrDefault(x => x.Id == selectedTool.Id);
+                selectedTool = refreshed;
+                await LoadDocumentsAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo cargar el módulo de documentos: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task BuildDocumentCountsAsync()
+    {
+        documentCountByTool.Clear();
+
+        foreach (var tool in tools.Where(IsToolVisibleByScope).Take(120))
+        {
+            try
+            {
+                var docs = await Api.GetListJsonAsync<DocumentItem>($"api/tools/{tool.Id}/documents");
+                documentCountByTool[tool.Id] = docs.Count;
+            }
+            catch
+            {
+                documentCountByTool[tool.Id] = 0;
+            }
+        }
+    }
+
+    private async Task SelectToolAsync(MobileToolDto tool)
+    {
+        selectedTool = tool;
+        selectedFile = null;
+        uploadForm = new UploadForm { DocumentType = "TechnicalDocument" };
+        await LoadDocumentsAsync();
+    }
+
+    private async Task LoadDocumentsAsync()
+    {
+        documents = new();
+
+        if (selectedTool is null)
+        {
+            return;
+        }
+
+        isLoadingDocuments = true;
+        errorMessage = null;
+
+        try
+        {
+            documents = await Api.GetListJsonAsync<DocumentItem>($"api/tools/{selectedTool.Id}/documents");
+            documentCountByTool[selectedTool.Id] = documents.Count;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudieron cargar los documentos del activo: {ex.Message}";
+        }
+        finally
+        {
+            isLoadingDocuments = false;
+        }
+    }
+
+    private void OnFileSelected(InputFileChangeEventArgs args)
+    {
+        selectedFile = args.File;
+        errorMessage = null;
+        successMessage = null;
+
+        if (selectedFile.Size > MaxFileSize)
+        {
+            errorMessage = "El archivo supera el tamaño máximo permitido de 50 MB.";
+            selectedFile = null;
+        }
+    }
+
+    private async Task UploadAsync()
+    {
+        if (!CanUploadDocuments)
+        {
+            errorMessage = "No tienes permiso para cargar documentos.";
+            return;
+        }
+
+        if (selectedTool is null)
+        {
+            errorMessage = "Selecciona un activo antes de cargar el documento.";
+            return;
+        }
+
+        if (selectedFile is null)
+        {
+            errorMessage = "Selecciona un archivo para cargar.";
+            return;
+        }
+
+        var extension = Path.GetExtension(selectedFile.Name).ToLowerInvariant();
+        var allowed = new[] { ".pdf", ".jpg", ".jpeg", ".png", ".xlsx", ".xls", ".docx" };
+
+        if (!allowed.Contains(extension))
+        {
+            errorMessage = "Tipo de archivo no permitido. Usa PDF, JPG, JPEG, PNG, XLSX, XLS o DOCX.";
+            return;
+        }
+
+        isSaving = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            await Api.UploadToolDocumentAsync(
+                selectedTool.Id,
+                selectedFile,
+                string.IsNullOrWhiteSpace(uploadForm.DocumentType) ? "Other" : uploadForm.DocumentType,
+                uploadForm.Description,
+                Auth.CurrentUser?.UserName ?? Auth.CurrentUser?.DisplayName ?? "mobile",
+                MaxFileSize);
+
+            successMessage = "Documento cargado correctamente.";
+            ClearUpload();
+            await LoadDocumentsAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo cargar el documento: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task DeleteDocumentAsync(DocumentItem item)
+    {
+        if (!CanDeleteDocuments)
+        {
+            errorMessage = "No tienes permiso para desactivar documentos.";
+            return;
+        }
+
+        isSaving = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var deletedBy = Uri.EscapeDataString(Auth.CurrentUser?.UserName ?? Auth.CurrentUser?.DisplayName ?? "mobile");
+            await Api.SendJsonAsync(HttpMethod.Delete, $"api/tools/documents/{item.Id}?deletedBy={deletedBy}");
+
+            successMessage = "Documento desactivado correctamente.";
+            await LoadDocumentsAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo desactivar el documento: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void ClearUpload()
+    {
+        selectedFile = null;
+        uploadForm = new UploadForm { DocumentType = "TechnicalDocument" };
+    }
+
+    private void ClearFilters()
+    {
+        searchText = string.Empty;
+        selectedDocumentTypeFilter = string.Empty;
+        onlyWithDocuments = false;
+
+        selectedBranchCode = CanSeeAllBranches
+            ? string.Empty
+            : Auth.CurrentUser?.BranchCode ?? string.Empty;
+    }
+
+    private void ToggleManuals()
+    {
+        showManuals = !showManuals;
+
+        if (!showManuals)
+        {
+            selectedManual = null;
+        }
+    }
+
+    private bool MatchesBranch(MobileToolDto tool)
+    {
+        if (string.IsNullOrWhiteSpace(selectedBranchCode))
+        {
+            return true;
+        }
+
+        return Same(tool.BranchCode, selectedBranchCode) ||
+               Same(tool.BranchName, selectedBranchCode);
+    }
+
+    private bool MatchesSearch(MobileToolDto tool)
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            return true;
+        }
+
+        var text = searchText.Trim();
+
+        return Contains(tool.InternalCode, text) ||
+               Contains(tool.Name, text) ||
+               Contains(tool.SerialNumber, text) ||
+               Contains(tool.FixedAssetCode, text) ||
+               Contains(tool.FenixCode, text) ||
+               Contains(tool.BranchCode, text) ||
+               Contains(tool.BranchName, text) ||
+               Contains(tool.LocationName, text) ||
+               Contains(tool.ResponsiblePersonName, text) ||
+               Contains(tool.ToolTypeName, text) ||
+               Contains(tool.ToolCategoryName, text);
+    }
+
+    private bool MatchesOnlyWithDocuments(MobileToolDto tool)
+    {
+        if (!onlyWithDocuments)
+        {
+            return true;
+        }
+
+        return documentCountByTool.TryGetValue(tool.Id, out var count) && count > 0;
+    }
+
+    private bool IsToolVisibleByScope(MobileToolDto tool)
+    {
+        if (CanSeeAllBranches)
+        {
+            return true;
+        }
+
+        var userBranch = Auth.CurrentUser?.BranchCode;
+        var displayName = Auth.CurrentUser?.DisplayName;
+        var responsibleName = Auth.CurrentUser?.ResponsiblePersonName;
+        var userName = Auth.CurrentUser?.UserName;
+        var responsibleId = Auth.CurrentUser?.ResponsiblePersonId;
+
+        return Same(tool.BranchCode, userBranch) ||
+               Same(tool.BranchName, Auth.CurrentUser?.BranchName) ||
+               Same(tool.ResponsiblePersonName, displayName) ||
+               Same(tool.ResponsiblePersonName, responsibleName) ||
+               Same(tool.ResponsiblePersonName, userName) ||
+               (responsibleId.HasValue && tool.ResponsiblePersonId.HasValue && responsibleId.Value == tool.ResponsiblePersonId.Value);
+    }
+
+    private string GetToolCardClass(MobileToolDto tool)
+    {
+        return tool.PhysicalStatus switch
+        {
+            "Damaged" => "mdoc-tool-card danger",
+            "NotSuitable" => "mdoc-tool-card danger",
+            "Good" => "mdoc-tool-card success",
+            _ => "mdoc-tool-card"
+        };
+    }
+
+    private void OpenLifeRecord(Guid toolId)
+    {
+        Navigation.NavigateTo($"/mobile/life-records/{toolId}");
+    }
+
+    private bool Has(string permission) => Auth.HasPermission(permission);
+
+    private void GoHome() => Navigation.NavigateTo("/");
+    private void GoLogin() => Navigation.NavigateTo("/login", forceLoad: true);
+
+    private static bool Contains(string? source, string value)
+    {
+        return !string.IsNullOrWhiteSpace(source) &&
+               source.Contains(value, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool Same(string? left, string? right)
+    {
+        return string.Equals(Normalize(left), Normalize(right), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsAllBranchValue(string? value)
+    {
+        return Same(value, "TODAS") ||
+               Same(value, "ALL") ||
+               Same(value, "Todas las sedes");
+    }
+
+    private static string Normalize(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return value.Trim()
+            .ToUpperInvariant()
+            .Replace("Á", "A")
+            .Replace("É", "E")
+            .Replace("Í", "I")
+            .Replace("Ó", "O")
+            .Replace("Ú", "U")
+            .Replace("Ü", "U")
+            .Replace("Ñ", "N");
+    }
+
+    private static string TranslatePhysicalStatus(string? value)
+    {
+        return value switch
+        {
+            "Good" => "Bueno",
+            "Damaged" => "Dañado",
+            "NotSuitable" => "No apta",
+            "Lost" => "No localizada",
+            _ => Display(value)
+        };
+    }
+
+    private static string TranslateDocumentType(string? value)
+    {
+        return value switch
+        {
+            "LifeCycleExcel" => "Excel hoja de vida",
+            "PhotoEvidence" => "Registro fotográfico",
+            "DeliveryAct" => "Acta de entrega",
+            "ReturnAct" => "Acta de devolución",
+            "MaintenanceSupport" => "Evidencia mantenimiento",
+            "DisposalSupport" => "Soporte de baja",
+            "ImportFile" => "Archivo importación",
+            "TechnicalDocument" => "Documento técnico",
+            "PhysicalCountEvidence" => "Evidencia toma física",
+            "Other" => "Otro / Factura / Garantía",
+            _ => Display(value)
+        };
+    }
+
+    private static string FormatDate(DateTime? value)
+    {
+        return value.HasValue
+            ? value.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+            : "—";
+    }
+
+    private static string FormatBytes(long value)
+    {
+        if (value >= 1024 * 1024)
+        {
+            return $"{value / 1024d / 1024d:0.00} MB";
+        }
+
+        if (value >= 1024)
+        {
+            return $"{value / 1024d:0.00} KB";
+        }
+
+        return $"{value} B";
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "—" : value;
+    }
+
+    private sealed class UploadForm
+    {
+        public string? DocumentType { get; set; }
+        public string? Description { get; set; }
+    }
+
+    private sealed class DocumentItem
+    {
+        public Guid Id { get; set; }
+        public Guid ToolAssetId { get; set; }
+        public string? DocumentType { get; set; }
+        public string? FileName { get; set; }
+        public string? ObjectKey { get; set; }
+        public string? ContentType { get; set; }
+        public long SizeBytes { get; set; }
+        public string? UploadedBy { get; set; }
+        public DateTime? UploadedAt { get; set; }
+        public string? Description { get; set; }
+        public string? DownloadUrl { get; set; }
+    }
+
+    private sealed record ManualItem(
+        string Title,
+        string Subtitle,
+        string Description,
+        IReadOnlyList<string> Steps);
+}

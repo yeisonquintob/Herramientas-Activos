@@ -37,6 +37,38 @@ else if (dashboard is not null)
             </div>
         </section>
 
+        <section class="navi-dashboard-filter-panel">
+            <label>
+                <span>Sede</span>
+                <input value="@filterBranchCode"
+                       @oninput="OnFilterBranchChanged"
+                       placeholder="Todas / AGU / Medellín..." />
+            </label>
+
+            <label>
+                <span>Estado</span>
+                <select value="@filterOperationalStatus" @onchange="OnFilterStatusChanged">
+                    <option value="">Todos</option>
+                    @foreach (var item in dashboardStatusFilters)
+                    {
+                        <option value="@item.Value">@item.Text</option>
+                    }
+                </select>
+            </label>
+
+            <label>
+                <span>Buscar</span>
+                <input value="@filterText"
+                       @oninput="OnFilterTextChanged"
+                       placeholder="Código, nombre, serial, responsable..." />
+            </label>
+
+            <div>
+                <button type="button" @onclick="ApplyDashboardFiltersAsync" disabled="@isLoading">Filtrar</button>
+                <button type="button" class="secondary" @onclick="ClearDashboardFiltersAsync" disabled="@isLoading">Limpiar</button>
+            </div>
+        </section>
+
         <section class="dash-kpis">
             <article class="purple">
                 <span>Participantes</span>
@@ -1160,6 +1192,70 @@ else if (dashboard is not null)
             justify-content: flex-start;
         }
     }
+
+    /* NAVI DASHBOARD WEB FILTER CSS */
+    .navi-dashboard-filter-panel {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1.4fr auto;
+        gap: .75rem;
+        align-items: end;
+        margin: 1rem 0;
+        padding: .9rem;
+        border: 1px solid rgba(126, 0, 143, .16);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, .94);
+        box-shadow: 0 12px 28px rgba(42, 0, 54, .08);
+    }
+
+    .navi-dashboard-filter-panel label {
+        display: grid;
+        gap: .3rem;
+        margin: 0;
+    }
+
+    .navi-dashboard-filter-panel span {
+        font-size: .72rem;
+        font-weight: 800;
+        color: #60316c;
+    }
+
+    .navi-dashboard-filter-panel input,
+    .navi-dashboard-filter-panel select {
+        width: 100%;
+        min-height: 38px;
+        border: 1px solid #eadff0;
+        border-radius: 10px;
+        padding: .45rem .65rem;
+        font-weight: 700;
+        color: #21002c;
+        background: #fff;
+    }
+
+    .navi-dashboard-filter-panel div {
+        display: flex;
+        gap: .45rem;
+    }
+
+    .navi-dashboard-filter-panel button {
+        min-height: 38px;
+        border: 1px solid #7b0d8e;
+        border-radius: 10px;
+        background: #7b0d8e;
+        color: #fff;
+        padding: .45rem .8rem;
+        font-weight: 900;
+    }
+
+    .navi-dashboard-filter-panel button.secondary {
+        background: #fff;
+        color: #7b0d8e;
+    }
+
+    @@media (max-width: 900px) {
+        .navi-dashboard-filter-panel {
+            grid-template-columns: 1fr;
+        }
+    }
 </style>
 
 @code {
@@ -1167,6 +1263,22 @@ else if (dashboard is not null)
     private string? errorMessage;
     private ExecutiveDashboard? dashboard;
     private string maintenanceTab = "month";
+    private string? filterBranchCode;
+    private string? filterOperationalStatus;
+    private string? filterText;
+
+    private readonly (string Value, string Text)[] dashboardStatusFilters =
+    {
+        ("Available", "Disponible"),
+        ("Assigned", "Asignada"),
+        ("Loaned", "Prestada"),
+        ("InMaintenance", "En mantenimiento"),
+        ("Damaged", "Dañada"),
+        ("NotSuitable", "No apta"),
+        ("PendingValidation", "Pendiente de validación"),
+        ("NotLocated", "No localizada"),
+        ("Disposed", "Dada de baja")
+    };
 
     protected override async Task OnInitializedAsync()
     {
@@ -1181,7 +1293,7 @@ else if (dashboard is not null)
             errorMessage = null;
 
             var client = HttpClientFactory.CreateClient("NaviApi");
-            dashboard = await client.GetFromJsonAsync<ExecutiveDashboard>("api/dashboard/executive");
+            dashboard = await client.GetFromJsonAsync<ExecutiveDashboard>(BuildDashboardEndpoint());
         }
         catch (Exception ex)
         {
@@ -1192,6 +1304,63 @@ else if (dashboard is not null)
             isLoading = false;
         }
     }
+
+
+
+
+    // NAVI DASHBOARD WEB FILTERS START
+    private void OnFilterBranchChanged(ChangeEventArgs args)
+    {
+        filterBranchCode = args.Value?.ToString();
+    }
+
+    private void OnFilterStatusChanged(ChangeEventArgs args)
+    {
+        filterOperationalStatus = args.Value?.ToString();
+    }
+
+    private void OnFilterTextChanged(ChangeEventArgs args)
+    {
+        filterText = args.Value?.ToString();
+    }
+
+    private async Task ApplyDashboardFiltersAsync()
+    {
+        await LoadDashboardAsync();
+    }
+
+    private async Task ClearDashboardFiltersAsync()
+    {
+        filterBranchCode = null;
+        filterOperationalStatus = null;
+        filterText = null;
+
+        await LoadDashboardAsync();
+    }
+
+    private string BuildDashboardEndpoint()
+    {
+        var query = new List<string>();
+
+        AddDashboardQuery(query, "branchCode", filterBranchCode);
+        AddDashboardQuery(query, "operationalStatus", filterOperationalStatus);
+        AddDashboardQuery(query, "q", filterText);
+
+        return query.Count == 0
+            ? "api/dashboard/executive"
+            : $"api/dashboard/executive?{string.Join("&", query)}";
+    }
+
+    private static void AddDashboardQuery(List<string> query, string key, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        query.Add($"{Uri.EscapeDataString(key)}={Uri.EscapeDataString(value.Trim())}");
+    }
+    // NAVI DASHBOARD WEB FILTERS END
 
     private void SetMaintenanceTab(string value)
     {

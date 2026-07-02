@@ -1,0 +1,1554 @@
+@page "/mobile/physical-counts/{Id:guid}"
+
+@using System.Net.Http
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Forms
+@using Navi.ToolsAssets.MobilePwa.Models
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Detalle toma física móvil - NAVI Herramientas y AF</PageTitle>
+
+<section class="mobile-page navi-mobile-physical-v3 navi-mobile-physical-detail-v3">
+    @if (isLoading && !initialized)
+    {
+        <div class="mobile-loading">Cargando detalle de toma física...</div>
+    }
+    else if (!Auth.IsAuthenticated)
+    {
+        <div class="mobile-empty">
+            <strong>Sesión requerida</strong>
+            <span>Debes iniciar sesión para consultar el detalle.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+        </div>
+    }
+    else if (!CanAccessPhysicalCounts)
+    {
+        <div class="mobile-empty">
+            <strong>Sin permiso</strong>
+            <span>No tienes permisos para consultar esta toma física.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoBack">Volver</button>
+        </div>
+    }
+    else if (board is null)
+    {
+        <div class="mobile-empty">
+            <strong>Sin información</strong>
+            <span>No se pudo cargar la toma física solicitada.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoBack">Volver</button>
+        </div>
+    }
+    else
+    {
+        <header class="mph-hero">
+            <div>
+                <span>TOMA FÍSICA · DETALLE</span>
+                <h1>@Display(board.CountNumber)</h1>
+                <p>@Display(CurrentParticipant?.DisplayName ?? Auth.CurrentUser?.DisplayName) · @Display(board.BranchCode)</p>
+            </div>
+
+            <div class="mph-hero-actions">
+                <button type="button" @onclick="GoBack">Volver</button>
+                <button type="button" @onclick="LoadAsync" disabled="@isLoading">
+                    @(isLoading ? "Cargando..." : "Actualizar")
+                </button>
+            </div>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(successMessage))
+        {
+            <div class="mobile-alert success">@successMessage</div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="mobile-alert error">@errorMessage</div>
+        }
+
+        <section class="mph-kpis">
+            <article>
+                <span>Esperados</span>
+                <strong>@CurrentExpectedItems</strong>
+                <small>Asignados</small>
+            </article>
+
+            <article class="info">
+                <span>Validados</span>
+                <strong>@CurrentCountedItems</strong>
+                <small>Reportados</small>
+            </article>
+
+            <article class="warning">
+                <span>Pendientes</span>
+                <strong>@CurrentPendingItems</strong>
+                <small>Por validar</small>
+            </article>
+
+            <article class="danger">
+                <span>Diferencias</span>
+                <strong>@CurrentDifferences</strong>
+                <small>Conciliación</small>
+            </article>
+
+            <article class="purple">
+                <span>Avance</span>
+                <strong>@CurrentProgress%</strong>
+                <small>@CurrentCountedItems de @CurrentExpectedItems</small>
+            </article>
+        </section>
+
+        <article class="mph-card">
+            <section class="mph-static-head">
+                <div>
+                    <strong>Participante</strong>
+                    <span>Herramientas y activos asignados a este usuario dentro de la toma.</span>
+                </div>
+
+                <em>@ParticipantStatusLabel(CurrentParticipant?.Status, CurrentParticipant?.StatusLabel)</em>
+            </section>
+
+            <section class="mph-mini-grid mph-count-grid">
+                <div><span>Usuario</span><strong>@Display(CurrentParticipant?.DisplayName ?? Auth.CurrentUser?.DisplayName)</strong></div>
+                <div><span>Cargo / área</span><strong>@Display(CurrentParticipant?.Position ?? CurrentParticipant?.Area)</strong></div>
+                <div><span>Sede</span><strong>@Display(board.BranchCode)</strong></div>
+                <div><span>Estado toma</span><strong>@StatusLabel(board.Status, board.StatusLabel)</strong></div>
+            </section>
+        </article>
+
+        @if (CanReportPhysicalCounts)
+        {
+            <details class="mph-card mph-notlisted-card">
+                <summary>
+                    <span>Registrar no listado</span>
+                    <em>Agregar</em>
+                </summary>
+
+                @if (CurrentParticipant is null)
+                {
+                    <div class="mobile-empty compact">No se encontró participante asociado para registrar activos no listados.</div>
+                }
+                else
+                {
+                    <div class="mph-form-grid">
+                        <label>
+                            <span>Usuario que reporta</span>
+                            <input value="@Display(CurrentParticipant.DisplayName ?? Auth.CurrentUser?.DisplayName)" disabled />
+                        </label>
+
+                        <label>
+                            <span>Tipo de reporte</span>
+                            <select @bind="extraForm.ReportType">
+                                <option value="ExtraNotListed">Herramienta / activo no listado</option>
+                                <option value="NotFound">No encontrado</option>
+                                <option value="Different">Diferencia</option>
+                                <option value="Damaged">Dañado</option>
+                            </select>
+                        </label>
+
+                        <label>
+                            <span>Tipo de activo</span>
+                            <select @bind="extraForm.AssetType">
+                                <option value="Herramienta">Herramienta</option>
+                                <option value="Activo fijo">Activo fijo</option>
+                                <option value="Equipo tecnológico">Equipo tecnológico</option>
+                                <option value="Equipo de diagnóstico">Equipo de diagnóstico</option>
+                                <option value="Otro">Otro</option>
+                            </select>
+                        </label>
+
+                        <label>
+                            <span>Código / placa visible</span>
+                            <input @bind="extraForm.ReportedCode" placeholder="Ej: AGU-NO-SIS-001..." />
+                        </label>
+
+                        <label>
+                            <span>Nombre activo / herramienta</span>
+                            <input @bind="extraForm.ReportedName" placeholder="Ej: Taladro, gato, escáner..." />
+                        </label>
+
+                        <label>
+                            <span>Categoría</span>
+                            <input @bind="extraForm.Category" placeholder="Ej: Eléctrica, hidráulica, cómputo..." />
+                        </label>
+
+                        <label>
+                            <span>Sede</span>
+                            <input @bind="extraForm.BranchCode" />
+                        </label>
+
+                        <label>
+                            <span>Ubicación encontrada</span>
+                            <input @bind="extraForm.FoundLocation" />
+                        </label>
+
+                        <label>
+                            <span>Estado físico</span>
+                            <select @bind="extraForm.PhysicalStatus">
+                                <option value="Bueno">Bueno</option>
+                                <option value="Regular">Regular</option>
+                                <option value="Dañado">Dañado</option>
+                                <option value="No encontrado">No encontrado</option>
+                            </select>
+                        </label>
+
+                        <label>
+                            <span>Serial</span>
+                            <input @bind="extraForm.ReportedSerial" />
+                        </label>
+
+                        <label>
+                            <span>Marca</span>
+                            <input @bind="extraForm.ReportedBrand" />
+                        </label>
+
+                        <label>
+                            <span>Modelo</span>
+                            <input @bind="extraForm.ReportedModel" />
+                        </label>
+
+                        <label>
+                            <span>Estado operativo</span>
+                            <input @bind="extraForm.OperationalStatus" />
+                        </label>
+                    </div>
+
+                    <label class="mph-full">
+                        <span>Observación</span>
+                        <textarea rows="3"
+                                  @bind="extraForm.Observation"
+                                  placeholder="Describa lo que reportó el usuario y cualquier detalle para conciliación."></textarea>
+                    </label>
+
+                    <label class="mph-check">
+                        <input type="checkbox" @bind="extraForm.RequiresUserClarification" />
+                        Requiere llamar/contactar al usuario para aclaración
+                    </label>
+
+                    <div class="mph-action-row">
+                        <button type="button" class="success" @onclick="SaveExtraToolAsync" disabled="@isSaving">
+                            @(isSaving ? "Guardando..." : "Guardar registro reportado")
+                        </button>
+
+                        <button type="button" @onclick="ResetExtraForm">Limpiar</button>
+                    </div>
+                }
+            </details>
+        }
+
+        <article class="mph-card">
+            <section class="mph-static-head">
+                <div>
+                    <strong>Activos pendientes</strong>
+                    <span>Selecciona detalle para confirmar, rechazar, cargar evidencia o registrar accesorios.</span>
+                </div>
+
+                <em>@PendingTools.Count</em>
+            </section>
+
+            @if (CurrentParticipant is null)
+            {
+                <div class="mobile-empty compact">No se encontró participante asociado a la sesión.</div>
+            }
+            else if (!PendingTools.Any())
+            {
+                <div class="mobile-empty compact">No tienes activos pendientes por validar.</div>
+            }
+            else
+            {
+                <div class="mph-list pending-tools">
+                    @foreach (var tool in PendingTools)
+                    {
+                        <article class="mph-pending-tool-card">
+                            <div class="mph-item-head">
+                                <div>
+                                    <strong>@Display(tool.InternalCode)</strong>
+                                    <span>@Display(tool.Name)</span>
+                                </div>
+
+                                <span class="mph-pill-lite">@Display(tool.PhysicalStatus)</span>
+                            </div>
+
+                            <section class="mph-mini-grid">
+                                <div><span>Sede</span><strong>@Display(tool.BranchCode)</strong></div>
+                                <div><span>Ubicación</span><strong>@Display(tool.LocationName)</strong></div>
+                                <div><span>Responsable</span><strong>@Display(tool.ResponsibleName ?? tool.ResponsiblePersonName)</strong></div>
+                                <div><span>Operativo</span><strong>@Display(tool.OperationalStatus)</strong></div>
+                            </section>
+
+                            <div class="mph-actions one">
+                                <button type="button" class="view" @onclick="() => OpenToolDetailAsync(tool)">
+                                    Detalle
+                                </button>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </article>
+
+        @if (selectedTool is not null)
+        {
+            <article class="mph-card mph-tool-detail-card">
+                <section class="mph-static-head">
+                    <div>
+                        <strong>@Display(selectedTool.Name)</strong>
+                        <span>@Display(selectedTool.InternalCode) · @Display(selectedTool.SerialNumber)</span>
+                    </div>
+
+                    <em>@(isRejectMode ? "Rechazo" : "Validación")</em>
+                </section>
+
+                <section class="mph-validation-two-columns">
+                    <section class="mph-validation-left">
+                        <article class="mph-validation-panel editable">
+                            <div class="zone-title">
+                                <span class="zone-badge green">MODIFICABLE</span>
+                                <div>
+                                    <h3>Validación permitida</h3>
+                                    <p>Solo estos campos pueden cambiar durante la toma física.</p>
+                                </div>
+                            </div>
+
+                            <label>
+                                <span>Ubicación encontrada</span>
+                                <select @bind="validationForm.LocationId" disabled="@(!CanReportPhysicalCounts || isRejectMode)">
+                                    <option value="">Seleccione ubicación...</option>
+                                    @foreach (var location in locations.OrderBy(x => x.Name))
+                                    {
+                                        <option value="@location.Id">@LocationLabel(location)</option>
+                                    }
+                                </select>
+                            </label>
+
+                            <label>
+                                <span>Estado físico observado</span>
+                                <select @bind="validationForm.PhysicalStatus" disabled="@(!CanReportPhysicalCounts || isRejectMode)">
+                                    <option value="Good">Bueno</option>
+                                    <option value="Damaged">Dañado</option>
+                                    <option value="Lost">No localizado</option>
+                                    <option value="NotSuitable">No apto</option>
+                                </select>
+                            </label>
+
+                            <label>
+                                <span>Estado operativo observado</span>
+                                <select @bind="validationForm.OperationalStatus" disabled="@(!CanReportPhysicalCounts || isRejectMode)">
+                                    <option value="Available">Disponible</option>
+                                    <option value="Assigned">Asignado</option>
+                                    <option value="InUse">En uso</option>
+                                    <option value="Maintenance">En mantenimiento</option>
+                                    <option value="OutOfService">Fuera de servicio</option>
+                                    <option value="PendingValidation">Pendiente validación</option>
+                                </select>
+                            </label>
+
+                            <label>
+                                <span>@(isRejectMode ? "Comentario del rechazo" : "Comentario de validación")</span>
+                                <textarea rows="4" @bind="validationForm.Observation" disabled="@(!CanReportPhysicalCounts)"></textarea>
+                            </label>
+
+                            @if (isRejectMode)
+                            {
+                                <div class="mph-warning-box">
+                                    Esta acción no elimina el activo. Lo deja pendiente de conciliación.
+                                </div>
+                            }
+                        </article>
+
+                        @if (CanUploadPhysicalEvidence)
+                        {
+                            <article class="mph-validation-panel evidence">
+                                <div class="zone-title">
+                                    <span class="zone-badge blue">EVIDENCIA</span>
+                                    <div>
+                                        <h3>Evidencia de toma física</h3>
+                                        <p>Agrega archivos nuevos. Los existentes solo se consultan o descargan.</p>
+                                    </div>
+                                </div>
+
+                                <InputFile OnChange="OnEvidenceSelected" multiple />
+
+                                @if (!string.IsNullOrWhiteSpace(evidenceSelectionError))
+                                {
+                                    <div class="mobile-alert error compact-alert">@evidenceSelectionError</div>
+                                }
+
+                                @if (selectedEvidences.Count > 0)
+                                {
+                                    <div class="mph-selected-files">
+                                        @for (var i = 0; i < selectedEvidences.Count; i++)
+                                        {
+                                            var index = i;
+                                            var file = selectedEvidences[i];
+
+                                            <div>
+                                                <strong>@file.Name</strong>
+                                                <span>@FormatFileSize(file.Size)</span>
+                                                <button type="button" @onclick="() => RemoveSelectedEvidence(index)">Quitar</button>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+
+                                <label>
+                                    <span>Descripción de las evidencias</span>
+                                    <input @bind="validationForm.EvidenceDescription" />
+                                </label>
+
+                                <h3>Evidencias existentes</h3>
+                                @if (!documents.Any())
+                                {
+                                    <div class="mobile-empty compact">No hay evidencias cargadas para este activo.</div>
+                                }
+                                else
+                                {
+                                    <div class="mph-documents-list">
+                                        @foreach (var document in documents)
+                                        {
+                                            <div>
+                                                <strong>@Display(document.FileName)</strong>
+                                                <span>@Display(document.DocumentType) · @Display(document.UploadedBy) · @FormatDateTime(document.UploadedAt)</span>
+                                                <a href="@Api.ToApiUrl(document.DownloadUrl)" target="_blank">Ver / Descargar</a>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </article>
+                        }
+
+                        <article class="mph-validation-panel accessories">
+                            <div class="zone-title">
+                                <span class="zone-badge blue">ACCESORIOS</span>
+                                <div>
+                                    <h3>Accesorios encontrados</h3>
+                                    <p>Se agregan como parte de la observación de validación.</p>
+                                </div>
+                            </div>
+
+                            <div class="mph-form-grid">
+                                <label>
+                                    <span>Nombre del accesorio</span>
+                                    <input @bind="newAccessory.Name" placeholder="Ej: CARGADOR" disabled="@(!CanReportPhysicalCounts)" />
+                                </label>
+
+                                <label>
+                                    <span>Cantidad</span>
+                                    <input type="number" min="1" step="1" @bind="newAccessory.Quantity" disabled="@(!CanReportPhysicalCounts)" />
+                                </label>
+
+                                <label class="mph-check">
+                                    <input type="checkbox" @bind="newAccessory.RequiresMaintenance" disabled="@(!CanReportPhysicalCounts)" />
+                                    Requiere mantenimiento
+                                </label>
+
+                                <label class="mph-check">
+                                    <input type="checkbox" @bind="newAccessory.IsMeasurementEquipment" disabled="@(!CanReportPhysicalCounts)" />
+                                    Equipo de medición
+                                </label>
+                            </div>
+
+                            <label>
+                                <span>Observación</span>
+                                <textarea rows="2" @bind="newAccessory.Observation" disabled="@(!CanReportPhysicalCounts)"></textarea>
+                            </label>
+
+                            <div class="mph-action-row">
+                                <button type="button" class="primary" @onclick="AddAccessoryFromValidation" disabled="@(!CanReportPhysicalCounts)">
+                                    Crear accesorio
+                                </button>
+                            </div>
+
+                            @if (!string.IsNullOrWhiteSpace(accessoryCreateError))
+                            {
+                                <div class="mobile-alert error compact-alert">@accessoryCreateError</div>
+                            }
+
+                            @if (!reportedAccessories.Any())
+                            {
+                                <div class="mobile-empty compact">Todavía no has agregado accesorios en esta validación.</div>
+                            }
+                            else
+                            {
+                                <div class="mph-accessory-list">
+                                    @foreach (var accessory in reportedAccessories)
+                                    {
+                                        <div>
+                                            <strong>@Display(accessory.Name)</strong>
+                                            <span>Cantidad: @accessory.Quantity · Mantenimiento: @(accessory.RequiresMaintenance ? "Sí" : "No") · Medición: @(accessory.IsMeasurementEquipment ? "Sí" : "No")</span>
+                                            <small>@Display(accessory.Observation)</small>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </article>
+
+                        <article class="mph-validation-panel actions">
+                            @if (!CanReportPhysicalCounts)
+                            {
+                                <div class="mobile-alert error compact-alert">
+                                    Puedes consultar el detalle, pero no tienes permiso para confirmar o rechazar.
+                                </div>
+                            }
+
+                            <h3>Finalizar validación</h3>
+                            <p>
+                                Confirmar guardará los cambios permitidos. Rechazar enviará el activo a conciliación.
+                            </p>
+
+                            <div class="mph-action-row final">
+                                @if (isRejectMode)
+                                {
+                                    <button type="button" class="danger" @onclick="RejectToolAsync" disabled="@(!CanSaveValidation)">
+                                        @(isSaving ? "Guardando..." : "Rechazar / No es mía")
+                                    </button>
+
+                                    <button type="button" @onclick="() => SetRejectMode(false)">
+                                        Cambiar a confirmar
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button type="button" class="success" @onclick="ConfirmToolAsync" disabled="@(!CanSaveValidation)">
+                                        @(isSaving ? "Guardando..." : "Confirmar / Reportar correcto")
+                                    </button>
+
+                                    <button type="button" class="danger outline" @onclick="() => SetRejectMode(true)">
+                                        Cambiar a rechazar
+                                    </button>
+                                }
+
+                                <button type="button" @onclick="CloseToolDetail">
+                                    Cancelar
+                                </button>
+                            </div>
+                        </article>
+                    </section>
+
+                    <section class="mph-validation-right">
+                        <article class="mph-validation-panel info">
+                            <div class="zone-title">
+                                <span class="zone-badge red">INFORMATIVO</span>
+                                <div>
+                                    <h3>Información base del activo</h3>
+                                    <p>Solo lectura para el usuario.</p>
+                                </div>
+                            </div>
+
+                            <div class="mph-info-grid">
+                                <div><span>Código interno</span><strong>@Display(selectedTool.InternalCode)</strong></div>
+                                <div><span>Nombre</span><strong>@Display(selectedTool.Name)</strong></div>
+                                <div><span>Serial</span><strong>@Display(selectedTool.SerialNumber)</strong></div>
+                                <div><span>Activo fijo</span><strong>@Display(selectedTool.FixedAssetCode)</strong></div>
+                                <div><span>Código Fenix365</span><strong>@Display(selectedTool.FenixCode)</strong></div>
+                                <div><span>Marca</span><strong>@Display(selectedTool.Brand)</strong></div>
+                                <div><span>Modelo</span><strong>@Display(selectedTool.Model)</strong></div>
+                                <div><span>Tipo</span><strong>@Display(selectedTool.ToolTypeName)</strong></div>
+                                <div><span>Categoría</span><strong>@Display(selectedTool.ToolCategoryName)</strong></div>
+                                <div><span>Responsable actual</span><strong>@Display(selectedTool.ResponsiblePersonName ?? selectedTool.ResponsibleName)</strong></div>
+                                <div><span>Sede actual</span><strong>@Display(selectedTool.BranchCode)</strong></div>
+                                <div><span>Ubicación actual</span><strong>@Display(selectedTool.LocationName)</strong></div>
+                            </div>
+                        </article>
+
+                        <article class="mph-validation-panel info">
+                            <div class="zone-title">
+                                <span class="zone-badge red">INFORMATIVO</span>
+                                <div>
+                                    <h3>Datos técnicos y reglas</h3>
+                                    <p>Información de hoja de vida técnica.</p>
+                                </div>
+                            </div>
+
+                            <div class="mph-info-grid">
+                                <div><span>Voltaje</span><strong>@Display(lifeRecord?.TechnicalSpecifications?.Voltage)</strong></div>
+                                <div><span>Capacidad</span><strong>@Display(lifeRecord?.TechnicalSpecifications?.LoadCapacity)</strong></div>
+                                <div><span>Proveedor</span><strong>@Display(lifeRecord?.TechnicalSpecifications?.Provider)</strong></div>
+                                <div><span>Mantenimiento</span><strong>@YesNo(lifeRecord?.TechnicalSpecifications?.RequiresMaintenance)</strong></div>
+                                <div><span>Preoperacional</span><strong>@YesNo(lifeRecord?.TechnicalSpecifications?.RequiresPreOperationalCheck)</strong></div>
+                                <div><span>Certificación</span><strong>@YesNo(lifeRecord?.TechnicalSpecifications?.RequiresCertification)</strong></div>
+                                <div><span>Vence certificación</span><strong>@FormatDate(lifeRecord?.TechnicalSpecifications?.CertificationExpirationDate)</strong></div>
+                                <div><span>Garantía</span><strong>@YesNo(lifeRecord?.Warranty?.HasWarranty)</strong></div>
+                            </div>
+                        </article>
+
+                        <article class="mph-validation-panel info">
+                            <div class="zone-title">
+                                <span class="zone-badge red">INFORMATIVO</span>
+                                <div>
+                                    <h3>Vida útil y mantenimiento</h3>
+                                    <p>Información de planeación.</p>
+                                </div>
+                            </div>
+
+                            <div class="mph-info-grid">
+                                <div><span>Inicio vida útil</span><strong>@FormatDate(lifeRecord?.UsefulLife?.StartDate)</strong></div>
+                                <div><span>Fin vida útil</span><strong>@FormatDate(lifeRecord?.UsefulLife?.EndDate)</strong></div>
+                                <div><span>Vida útil meses</span><strong>@DisplayNumber(lifeRecord?.UsefulLife?.UsefulLifeMonths)</strong></div>
+                                <div><span>Días restantes</span><strong>@DisplayNumber(lifeRecord?.UsefulLife?.RemainingDays)</strong></div>
+                                <div><span>Último mantenimiento</span><strong>@FormatDate(lifeRecord?.MaintenancePlan?.LastMaintenanceDate)</strong></div>
+                                <div><span>Próximo mantenimiento</span><strong>@FormatDate(lifeRecord?.MaintenancePlan?.NextMaintenanceDate)</strong></div>
+                                <div><span>Periodicidad</span><strong>@DisplayNumber(lifeRecord?.MaintenancePlan?.MaintenancePeriodMonths)</strong></div>
+                                <div><span>Pendientes</span><strong>@DisplayNumber(lifeRecord?.MaintenancePlan?.PendingMaintenanceRecords)</strong></div>
+                            </div>
+                        </article>
+
+                        <article class="mph-validation-panel info">
+                            <div class="zone-title">
+                                <span class="zone-badge red">INFORMATIVO</span>
+                                <div>
+                                    <h3>Eventos de hoja de vida</h3>
+                                    <p>Trazabilidad reciente.</p>
+                                </div>
+                            </div>
+
+                            @if (lifeRecord?.LifeCycleEvents?.Count > 0)
+                            {
+                                <div class="mph-mini-list">
+                                    @foreach (var evt in lifeRecord.LifeCycleEvents.Take(8))
+                                    {
+                                        <div>
+                                            <strong>@Display(evt.Title)</strong>
+                                            <span>@Display(evt.EventType) · @Display(evt.PerformedBy) · @FormatDateTime(evt.EventDate)</span>
+                                            <small>@Display(evt.Description)</small>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="mobile-empty compact">No hay eventos registrados.</div>
+                            }
+                        </article>
+                    </section>
+                </section>
+            </article>
+        }
+    }
+</section>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private bool initialized;
+    private bool isLoading;
+    private bool isSaving;
+
+    private string? successMessage;
+    private string? errorMessage;
+
+    private PhysicalCountBoardDto? board;
+    private PendingToolsResponse? selectedPending;
+    private PendingToolDto? selectedTool;
+    private PendingToolDto? selectedToolFull;
+    private TechnicalLifeRecordDto? lifeRecord;
+
+    private List<MobileLocationDto> locations = new();
+    private List<DocumentDto> documents = new();
+
+    private bool isRejectMode;
+    private ValidationForm validationForm = new();
+    private ValidationForm originalValidationForm = new();
+
+    private ExtraToolForm extraForm = new();
+    private PendingAccessoryInput newAccessory = new();
+    private List<ReportedAccessoryInput> reportedAccessories = new();
+    private string? accessoryCreateError;
+
+    private List<IBrowserFile> selectedEvidences = new();
+    private string? evidenceSelectionError;
+    private const int MaxEvidenceFiles = 10;
+    private const long MaxEvidenceFileBytes = 50_000_000;
+
+    private bool IsAdmin =>
+        Same(Auth.CurrentUser?.RoleCode, "ADMIN") ||
+        Same(Auth.CurrentUser?.RoleCode, "SUPERADMIN") ||
+        Same(Auth.CurrentUser?.RoleName, "Administrador") ||
+        Same(Auth.CurrentUser?.RoleName, "Administrador NAVI");
+
+    private bool CanConsultPhysicalCounts =>
+        IsAdmin ||
+        Has("PhysicalCounts.View");
+
+    private bool CanReportPhysicalCounts =>
+        IsAdmin ||
+        Has("PhysicalCounts.Report");
+
+    private bool CanUploadPhysicalEvidence =>
+        IsAdmin ||
+        Has("PhysicalCounts.Evidence.Upload");
+
+    private bool CanAccessPhysicalCounts =>
+        CanConsultPhysicalCounts ||
+        CanReportPhysicalCounts ||
+        CanUploadPhysicalEvidence;
+
+    private bool UserCanSeeAllParticipants =>
+        IsAdmin ||
+        CanConsultPhysicalCounts && IsAllBranchValue(Auth.CurrentUser?.BranchCode);
+
+    private PhysicalCountParticipantDto? CurrentParticipant =>
+        UserCanSeeAllParticipants
+            ? (board?.Participants.FirstOrDefault(IsOwnParticipant) ?? board?.Participants.FirstOrDefault())
+            : board?.Participants.FirstOrDefault(IsOwnParticipant);
+
+    private int CurrentExpectedItems => CurrentParticipant?.ExpectedItems ?? 0;
+    private int CurrentCountedItems => CurrentParticipant?.CountedItems ?? 0;
+    private int CurrentPendingItems => CurrentParticipant?.PendingItems ?? 0;
+    private int CurrentDifferences => (CurrentParticipant?.DifferentItems ?? 0) + (CurrentParticipant?.MissingItems ?? 0) + (CurrentParticipant?.DamagedItems ?? 0) + (CurrentParticipant?.ExtraItems ?? 0);
+
+    private int CurrentProgress =>
+        CurrentExpectedItems <= 0 ? 0 : (int)Math.Round((decimal)CurrentCountedItems * 100 / CurrentExpectedItems, 0);
+
+    private List<PendingToolDto> PendingTools =>
+        selectedPending?.Tools ?? new();
+
+    private bool HasValidationChanges =>
+        !Same(validationForm.LocationId?.ToString(), originalValidationForm.LocationId?.ToString()) ||
+        !Same(validationForm.PhysicalStatus, originalValidationForm.PhysicalStatus) ||
+        !Same(validationForm.OperationalStatus, originalValidationForm.OperationalStatus) ||
+        !Same(validationForm.Observation, originalValidationForm.Observation) ||
+        selectedEvidences.Count > 0 ||
+        reportedAccessories.Count > 0 ||
+        isRejectMode;
+
+    private bool CanSaveValidation =>
+        CanReportPhysicalCounts &&
+        !isSaving &&
+        selectedTool is not null &&
+        HasValidationChanges;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            initialized = true;
+            return;
+        }
+
+        var refreshedUser = await Api.RefreshCurrentSessionAsync();
+
+        if (refreshedUser is null || !Auth.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", forceLoad: true);
+            return;
+        }
+
+        await LoadAsync();
+
+        initialized = true;
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            board = await Api.GetJsonAsync<PhysicalCountBoardDto>($"api/physical-counts/{Id}/participants-board");
+            locations = await Api.GetLocationsAsync();
+
+            await LoadCurrentParticipantPendingAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo cargar el detalle de la toma física: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadCurrentParticipantPendingAsync()
+    {
+        selectedPending = null;
+
+        var participant = CurrentParticipant;
+
+        if (participant is null)
+        {
+            return;
+        }
+
+        selectedPending = await Api.GetJsonAsync<PendingToolsResponse>($"api/physical-counts/participants/{participant.Id}/pending-tools");
+        ResetExtraForm();
+    }
+
+    private async Task OpenToolDetailAsync(PendingToolDto tool)
+    {
+        selectedTool = tool;
+        selectedToolFull = null;
+        lifeRecord = null;
+        documents = new();
+        selectedEvidences.Clear();
+        reportedAccessories.Clear();
+        isRejectMode = false;
+        errorMessage = null;
+        successMessage = null;
+
+        var toolId = EffectiveToolId(tool);
+
+        try
+        {
+            selectedToolFull = await Api.GetJsonAsync<PendingToolDto>($"api/tools/{toolId}");
+            selectedTool = MergeToolData(tool, selectedToolFull);
+
+            lifeRecord = await Api.GetJsonAsync<TechnicalLifeRecordDto>($"api/tools/{toolId}/technical-life-record");
+            documents = await Api.GetListJsonAsync<DocumentDto>($"api/tools/{toolId}/documents");
+
+            validationForm = new ValidationForm
+            {
+                LocationId = selectedTool?.LocationId,
+                PhysicalStatus = NormalizePhysicalStatus(selectedTool?.PhysicalStatus),
+                OperationalStatus = NormalizeOperationalStatus(selectedTool?.OperationalStatus),
+                Observation = "Herramienta validada físicamente durante la toma física.",
+                EvidenceDescription = $"Evidencia de toma física para {selectedTool?.InternalCode}."
+            };
+
+            originalValidationForm = validationForm.Clone();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo abrir el detalle del activo: {ex.Message}";
+        }
+    }
+
+    private void CloseToolDetail()
+    {
+        selectedTool = null;
+        selectedToolFull = null;
+        lifeRecord = null;
+        documents = new();
+        selectedEvidences.Clear();
+        reportedAccessories.Clear();
+        evidenceSelectionError = null;
+        accessoryCreateError = null;
+        isRejectMode = false;
+        validationForm = new();
+        originalValidationForm = new();
+    }
+
+    private void SetRejectMode(bool value)
+    {
+        isRejectMode = value;
+
+        if (isRejectMode)
+        {
+            validationForm.PhysicalStatus = "Lost";
+
+            if (string.IsNullOrWhiteSpace(validationForm.Observation) ||
+                Same(validationForm.Observation, "Herramienta validada físicamente durante la toma física."))
+            {
+                validationForm.Observation = "El usuario indica que esta herramienta no está en su poder y requiere conciliación.";
+            }
+        }
+    }
+
+    private async Task ConfirmToolAsync()
+    {
+        await SaveToolValidationAsync("Confirmed");
+    }
+
+    private async Task RejectToolAsync()
+    {
+        if (string.IsNullOrWhiteSpace(validationForm.Observation))
+        {
+            errorMessage = "Debes ingresar un comentario indicando por qué rechazas la herramienta.";
+            return;
+        }
+
+        await SaveToolValidationAsync("Rejected");
+    }
+
+    private async Task SaveToolValidationAsync(string action)
+    {
+        if (selectedTool is null)
+        {
+            return;
+        }
+
+        if (!CanReportPhysicalCounts)
+        {
+            errorMessage = "No tienes permiso para reportar activos en la toma física.";
+            return;
+        }
+
+        var toolId = EffectiveToolId(selectedTool);
+
+        successMessage = null;
+        errorMessage = null;
+
+        try
+        {
+            isSaving = true;
+
+            validationForm.Observation = BuildFinalObservation();
+
+            if (action.Equals("Confirmed", StringComparison.OrdinalIgnoreCase))
+            {
+                await Api.SendJsonAsync(HttpMethod.Patch, $"api/tools/{toolId}/master-data", new
+                {
+                    operationalStatus = validationForm.OperationalStatus,
+                    physicalStatus = validationForm.PhysicalStatus,
+                    updatedBy = CurrentUserName()
+                });
+            }
+
+            if (selectedEvidences.Count > 0 && CanUploadPhysicalEvidence)
+            {
+                foreach (var evidence in selectedEvidences)
+                {
+                    await Api.UploadToolDocumentAsync(
+                        toolId,
+                        evidence,
+                        "PhysicalCountEvidence",
+                        validationForm.EvidenceDescription ?? "Evidencia de toma física",
+                        CurrentUserName(),
+                        MaxEvidenceFileBytes);
+                }
+            }
+
+            await Api.SendJsonAsync(HttpMethod.Post, $"api/physical-counts/participants/{CurrentParticipant?.Id}/report-assigned-tool", new
+            {
+                toolAssetId = toolId,
+                reportAction = action,
+                physicalStatus = validationForm.PhysicalStatus,
+                foundLocation = GetSelectedLocationName(),
+                observation = validationForm.Observation,
+                actionBy = CurrentUserName()
+            });
+
+            successMessage = action.Equals("Confirmed", StringComparison.OrdinalIgnoreCase)
+                ? "Activo confirmado correctamente."
+                : "Activo rechazado y enviado a conciliación.";
+
+            CloseToolDetail();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error guardando validación: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void AddAccessoryFromValidation()
+    {
+        accessoryCreateError = null;
+
+        if (string.IsNullOrWhiteSpace(newAccessory.Name))
+        {
+            accessoryCreateError = "Debes ingresar el nombre del accesorio.";
+            return;
+        }
+
+        if (newAccessory.Quantity <= 0)
+        {
+            accessoryCreateError = "La cantidad debe ser mayor a cero.";
+            return;
+        }
+
+        reportedAccessories.Add(new ReportedAccessoryInput
+        {
+            Name = newAccessory.Name.Trim(),
+            Quantity = newAccessory.Quantity,
+            RequiresMaintenance = newAccessory.RequiresMaintenance,
+            IsMeasurementEquipment = newAccessory.IsMeasurementEquipment,
+            Observation = string.IsNullOrWhiteSpace(newAccessory.Observation)
+                ? "Accesorio agregado durante la toma física."
+                : newAccessory.Observation.Trim()
+        });
+
+        newAccessory = new PendingAccessoryInput { Quantity = 1 };
+    }
+
+    private string BuildFinalObservation()
+    {
+        var baseObservation = validationForm.Observation?.Trim() ?? string.Empty;
+
+        if (!reportedAccessories.Any())
+        {
+            return baseObservation;
+        }
+
+        var accessories = new List<string>
+        {
+            "ACCESORIOS AGREGADOS EN TOMA FÍSICA:"
+        };
+
+        foreach (var accessory in reportedAccessories)
+        {
+            accessories.Add(
+                $"- Nombre: {Display(accessory.Name)} | Cantidad: {accessory.Quantity} | Requiere mantenimiento: {(accessory.RequiresMaintenance ? "Sí" : "No")} | Equipo de medición: {(accessory.IsMeasurementEquipment ? "Sí" : "No")} | Observación: {Display(accessory.Observation)}");
+        }
+
+        var accessoryText = string.Join(Environment.NewLine, accessories);
+
+        return string.IsNullOrWhiteSpace(baseObservation)
+            ? accessoryText
+            : baseObservation + Environment.NewLine + Environment.NewLine + accessoryText;
+    }
+
+    private async Task SaveExtraToolAsync()
+    {
+        var participant = CurrentParticipant;
+
+        if (participant is null)
+        {
+            errorMessage = "No se encontró participante para registrar el activo no listado.";
+            return;
+        }
+
+        if (!CanReportPhysicalCounts)
+        {
+            errorMessage = "No tienes permiso para reportar activos no listados.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(extraForm.ReportedName) && string.IsNullOrWhiteSpace(extraForm.ReportedCode))
+        {
+            errorMessage = "Indica al menos el nombre o el código del activo.";
+            return;
+        }
+
+        successMessage = null;
+        errorMessage = null;
+
+        try
+        {
+            isSaving = true;
+
+            await Api.SendJsonAsync(HttpMethod.Post, $"api/physical-counts/participants/{participant.Id}/report-extra-tool", new
+            {
+                reportType = extraForm.ReportType,
+                assetType = extraForm.AssetType,
+                reportedCode = extraForm.ReportedCode,
+                reportedName = extraForm.ReportedName,
+                category = extraForm.Category,
+                branchCode = extraForm.BranchCode,
+                foundLocation = extraForm.FoundLocation,
+                physicalStatus = extraForm.PhysicalStatus,
+                reportedSerial = extraForm.ReportedSerial,
+                reportedBrand = extraForm.ReportedBrand,
+                reportedModel = extraForm.ReportedModel,
+                operationalStatus = extraForm.OperationalStatus,
+                observation = extraForm.Observation,
+                reportedBy = CurrentUserName(),
+                requiresUserClarification = extraForm.RequiresUserClarification
+            });
+
+            successMessage = "Registro no listado guardado correctamente.";
+            ResetExtraForm();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo guardar el registro no listado: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void ResetExtraForm()
+    {
+        extraForm = new ExtraToolForm
+        {
+            ReportType = "ExtraNotListed",
+            AssetType = "Herramienta",
+            BranchCode = board?.BranchCode,
+            FoundLocation = board?.BranchCode,
+            PhysicalStatus = "Bueno",
+            OperationalStatus = "Pendiente validación",
+            RequiresUserClarification = false
+        };
+    }
+
+    private void OnEvidenceSelected(InputFileChangeEventArgs args)
+    {
+        evidenceSelectionError = null;
+
+        if (!CanUploadPhysicalEvidence)
+        {
+            evidenceSelectionError = "No tienes permiso para cargar evidencia de toma física.";
+            return;
+        }
+
+        IReadOnlyList<IBrowserFile> files;
+
+        try
+        {
+            files = args.GetMultipleFiles(MaxEvidenceFiles);
+        }
+        catch
+        {
+            evidenceSelectionError = $"Puedes seleccionar máximo {MaxEvidenceFiles} evidencias por validación.";
+            return;
+        }
+
+        foreach (var file in files)
+        {
+            if (selectedEvidences.Count >= MaxEvidenceFiles)
+            {
+                evidenceSelectionError = $"Solo puedes agregar máximo {MaxEvidenceFiles} evidencias.";
+                return;
+            }
+
+            var alreadyAdded = selectedEvidences.Any(x =>
+                string.Equals(x.Name, file.Name, StringComparison.OrdinalIgnoreCase) &&
+                x.Size == file.Size);
+
+            if (!alreadyAdded)
+            {
+                selectedEvidences.Add(file);
+            }
+        }
+    }
+
+    private void RemoveSelectedEvidence(int index)
+    {
+        if (index < 0 || index >= selectedEvidences.Count)
+        {
+            return;
+        }
+
+        selectedEvidences.RemoveAt(index);
+    }
+
+    private string? GetSelectedLocationName()
+    {
+        if (!validationForm.LocationId.HasValue)
+        {
+            return selectedTool?.LocationName;
+        }
+
+        return locations.FirstOrDefault(x => x.Id == validationForm.LocationId.Value)?.Name ?? selectedTool?.LocationName;
+    }
+
+    private static Guid EffectiveToolId(PendingToolDto tool)
+    {
+        return tool.ToolAssetId.HasValue && tool.ToolAssetId.Value != Guid.Empty
+            ? tool.ToolAssetId.Value
+            : tool.Id;
+    }
+
+    private bool IsOwnParticipant(PhysicalCountParticipantDto participant)
+    {
+        var userName = Auth.CurrentUser?.UserName;
+        var displayName = Auth.CurrentUser?.DisplayName;
+        var responsibleId = Auth.CurrentUser?.ResponsiblePersonId;
+
+        return Same(participant.UserName, userName) ||
+               Same(participant.DisplayName, displayName) ||
+               Same(participant.DisplayName, Auth.CurrentUser?.ResponsiblePersonName) ||
+               (responsibleId.HasValue && participant.ResponsiblePersonId.HasValue && responsibleId.Value == participant.ResponsiblePersonId.Value);
+    }
+
+    private bool Has(string permission) => Auth.HasPermission(permission);
+
+    private string CurrentUserName()
+    {
+        return Auth.CurrentUser?.UserName ??
+               Auth.CurrentUser?.DisplayName ??
+               "mobile";
+    }
+
+    private static PendingToolDto MergeToolData(PendingToolDto pendingTool, PendingToolDto? fullTool)
+    {
+        if (fullTool is null)
+        {
+            return pendingTool;
+        }
+
+        return new PendingToolDto
+        {
+            Id = fullTool.Id != Guid.Empty ? fullTool.Id : pendingTool.Id,
+            ToolAssetId = fullTool.ToolAssetId ?? pendingTool.ToolAssetId,
+            InternalCode = Pick(fullTool.InternalCode, pendingTool.InternalCode),
+            Name = Pick(fullTool.Name, pendingTool.Name),
+            Description = Pick(fullTool.Description, pendingTool.Description),
+            SerialNumber = Pick(fullTool.SerialNumber, pendingTool.SerialNumber),
+            FixedAssetCode = Pick(fullTool.FixedAssetCode, pendingTool.FixedAssetCode),
+            FenixCode = Pick(fullTool.FenixCode, pendingTool.FenixCode),
+            Brand = Pick(fullTool.Brand, pendingTool.Brand),
+            Model = Pick(fullTool.Model, pendingTool.Model),
+            BranchId = fullTool.BranchId ?? pendingTool.BranchId,
+            BranchCode = Pick(fullTool.BranchCode, pendingTool.BranchCode),
+            BranchName = Pick(fullTool.BranchName, pendingTool.BranchName),
+            LocationId = fullTool.LocationId ?? pendingTool.LocationId,
+            LocationName = Pick(fullTool.LocationName, pendingTool.LocationName),
+            ResponsibleName = Pick(fullTool.ResponsibleName, pendingTool.ResponsibleName),
+            ResponsiblePersonName = Pick(fullTool.ResponsiblePersonName, pendingTool.ResponsiblePersonName),
+            ToolTypeName = Pick(fullTool.ToolTypeName, pendingTool.ToolTypeName),
+            ToolCategoryName = Pick(fullTool.ToolCategoryName, pendingTool.ToolCategoryName),
+            OperationalStatus = Pick(fullTool.OperationalStatus, pendingTool.OperationalStatus),
+            PhysicalStatus = Pick(fullTool.PhysicalStatus, pendingTool.PhysicalStatus)
+        };
+    }
+
+    private static string? Pick(string? primary, string? fallback) =>
+        !string.IsNullOrWhiteSpace(primary) ? primary : fallback;
+
+    private static string NormalizePhysicalStatus(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "Good";
+        }
+
+        return value.Trim() switch
+        {
+            "Bueno" => "Good",
+            "Dañado" => "Damaged",
+            "No localizado" => "Lost",
+            "No apto" => "NotSuitable",
+            _ => value.Trim()
+        };
+    }
+
+    private static string NormalizeOperationalStatus(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "Assigned";
+        }
+
+        return value.Trim() switch
+        {
+            "Disponible" => "Available",
+            "Asignado" => "Assigned",
+            "En uso" => "InUse",
+            "Mantenimiento" => "Maintenance",
+            "Fuera de servicio" => "OutOfService",
+            "Pendiente validación" => "PendingValidation",
+            _ => value.Trim()
+        };
+    }
+
+    private static string LocationLabel(MobileLocationDto location)
+    {
+        var code = Display(location.Code);
+        var name = Display(location.Name);
+
+        if (code == "—")
+        {
+            return name;
+        }
+
+        return $"{code} - {name}";
+    }
+
+    private static string StatusLabel(string? status, string? label)
+    {
+        if (!string.IsNullOrWhiteSpace(label))
+        {
+            return label;
+        }
+
+        return status switch
+        {
+            "Draft" => "Borrador",
+            "InProgress" => "En proceso",
+            "Completed" => "Completada",
+            "Reconciled" => "Conciliada",
+            "Cancelled" => "Cancelada",
+            _ => Display(status)
+        };
+    }
+
+    private static string ParticipantStatusLabel(string? status, string? label)
+    {
+        if (!string.IsNullOrWhiteSpace(label))
+        {
+            return label;
+        }
+
+        return status switch
+        {
+            "NotStarted" => "No iniciada",
+            "InProgress" => "En proceso",
+            "Finished" => "Finalizada",
+            "FinishedWithDifferences" => "Finalizada con diferencias",
+            "Expired" => "Vencida",
+            "Canceled" => "Cancelada",
+            _ => Display(status)
+        };
+    }
+
+    private static bool Same(string? left, string? right)
+    {
+        return string.Equals(Normalize(left), Normalize(right), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsAllBranchValue(string? value)
+    {
+        return Same(value, "TODAS") ||
+               Same(value, "ALL") ||
+               Same(value, "Todas las sedes");
+    }
+
+    private static string Normalize(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return value.Trim()
+            .ToUpperInvariant()
+            .Replace("Á", "A")
+            .Replace("É", "E")
+            .Replace("Í", "I")
+            .Replace("Ó", "O")
+            .Replace("Ú", "U")
+            .Replace("Ü", "U")
+            .Replace("Ñ", "N");
+    }
+
+    private static string FormatDate(DateTime? value)
+    {
+        return value.HasValue
+            ? value.Value.ToLocalTime().ToString("dd/MM/yyyy")
+            : "—";
+    }
+
+    private static string FormatDateTime(DateTime? value)
+    {
+        return value.HasValue
+            ? value.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+            : "—";
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return $"{bytes} B";
+        }
+
+        if (bytes < 1024 * 1024)
+        {
+            return $"{bytes / 1024m:N1} KB";
+        }
+
+        return $"{bytes / 1024m / 1024m:N1} MB";
+    }
+
+    private static string DisplayNumber(int? value) =>
+        value.HasValue ? value.Value.ToString("N0") : "—";
+
+    private static string DisplayNumber(decimal? value) =>
+        value.HasValue ? value.Value.ToString("N0") : "—";
+
+    private static string YesNo(bool? value) =>
+        value.HasValue ? (value.Value ? "Sí" : "No") : "—";
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "—" : value;
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/mobile/physical-counts");
+    private void GoLogin() => Navigation.NavigateTo("/login", forceLoad: true);
+
+    private sealed class ValidationForm
+    {
+        public Guid? LocationId { get; set; }
+        public string? PhysicalStatus { get; set; } = "Good";
+        public string? OperationalStatus { get; set; } = "Assigned";
+        public string? Observation { get; set; }
+        public string? EvidenceDescription { get; set; }
+
+        public ValidationForm Clone()
+        {
+            return new ValidationForm
+            {
+                LocationId = LocationId,
+                PhysicalStatus = PhysicalStatus,
+                OperationalStatus = OperationalStatus,
+                Observation = Observation,
+                EvidenceDescription = EvidenceDescription
+            };
+        }
+    }
+
+    private sealed class ExtraToolForm
+    {
+        public string? ReportType { get; set; } = "ExtraNotListed";
+        public string? AssetType { get; set; } = "Herramienta";
+        public string? ReportedCode { get; set; }
+        public string? ReportedName { get; set; }
+        public string? Category { get; set; }
+        public string? BranchCode { get; set; }
+        public string? FoundLocation { get; set; }
+        public string? PhysicalStatus { get; set; } = "Bueno";
+        public string? ReportedSerial { get; set; }
+        public string? ReportedBrand { get; set; }
+        public string? ReportedModel { get; set; }
+        public string? OperationalStatus { get; set; } = "Pendiente validación";
+        public string? Observation { get; set; }
+        public bool RequiresUserClarification { get; set; }
+    }
+
+    private sealed class PendingAccessoryInput
+    {
+        public string? Name { get; set; }
+        public int Quantity { get; set; } = 1;
+        public bool RequiresMaintenance { get; set; }
+        public bool IsMeasurementEquipment { get; set; }
+        public string? Observation { get; set; }
+    }
+
+    private sealed class ReportedAccessoryInput
+    {
+        public string? Name { get; set; }
+        public int Quantity { get; set; }
+        public bool RequiresMaintenance { get; set; }
+        public bool IsMeasurementEquipment { get; set; }
+        public string? Observation { get; set; }
+    }
+
+    private sealed class PhysicalCountBoardDto
+    {
+        public Guid Id { get; set; }
+        public string CountNumber { get; set; } = string.Empty;
+        public Guid BranchId { get; set; }
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public string? StatusLabel { get; set; }
+        public DateTime? StartedAt { get; set; }
+        public DateTime? FinishedAt { get; set; }
+        public string? ResponsibleBy { get; set; }
+        public string? Notes { get; set; }
+        public List<PhysicalCountParticipantDto> Participants { get; set; } = new();
+    }
+
+    private sealed class PhysicalCountParticipantDto
+    {
+        public Guid Id { get; set; }
+        public Guid PhysicalCountId { get; set; }
+        public Guid? ResponsiblePersonId { get; set; }
+        public string? UserId { get; set; }
+        public string? UserName { get; set; }
+        public string? DisplayName { get; set; }
+        public string? Area { get; set; }
+        public string? Position { get; set; }
+        public string? Status { get; set; }
+        public string? StatusLabel { get; set; }
+        public int ExpectedItems { get; set; }
+        public int CountedItems { get; set; }
+        public int PendingItems { get; set; }
+        public int FoundItems { get; set; }
+        public int MissingItems { get; set; }
+        public int DifferentItems { get; set; }
+        public int DamagedItems { get; set; }
+        public int ExtraItems { get; set; }
+    }
+
+    private sealed class PendingToolsResponse
+    {
+        public Guid Id { get; set; }
+        public string? DisplayName { get; set; }
+        public int ExpectedItems { get; set; }
+        public int CountedItems { get; set; }
+        public int PendingItems { get; set; }
+        public List<PendingToolDto> Tools { get; set; } = new();
+    }
+
+    private sealed class PendingToolDto
+    {
+        public Guid Id { get; set; }
+        public Guid? ToolAssetId { get; set; }
+        public string? InternalCode { get; set; }
+        public string? Name { get; set; }
+        public string? Description { get; set; }
+        public string? SerialNumber { get; set; }
+        public string? FixedAssetCode { get; set; }
+        public string? FenixCode { get; set; }
+        public string? Brand { get; set; }
+        public string? Model { get; set; }
+        public Guid? BranchId { get; set; }
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public Guid? LocationId { get; set; }
+        public string? LocationName { get; set; }
+        public string? ResponsibleName { get; set; }
+        public string? ResponsiblePersonName { get; set; }
+        public string? ToolTypeName { get; set; }
+        public string? ToolCategoryName { get; set; }
+        public string? OperationalStatus { get; set; }
+        public string? PhysicalStatus { get; set; }
+    }
+
+    private sealed class DocumentDto
+    {
+        public Guid Id { get; set; }
+        public string? DocumentType { get; set; }
+        public string? FileName { get; set; }
+        public string? DownloadUrl { get; set; }
+        public string? UploadedBy { get; set; }
+        public DateTime? UploadedAt { get; set; }
+        public string? Description { get; set; }
+    }
+
+    private sealed class TechnicalLifeRecordDto
+    {
+        public TechnicalSpecificationsDto? TechnicalSpecifications { get; set; }
+        public WarrantyDto? Warranty { get; set; }
+        public UsefulLifeDto? UsefulLife { get; set; }
+        public MaintenancePlanDto? MaintenancePlan { get; set; }
+        public List<LifeCycleEventDto> LifeCycleEvents { get; set; } = new();
+    }
+
+    private sealed class TechnicalSpecificationsDto
+    {
+        public string? Voltage { get; set; }
+        public string? LoadCapacity { get; set; }
+        public string? Provider { get; set; }
+        public bool? RequiresMaintenance { get; set; }
+        public bool? RequiresPreOperationalCheck { get; set; }
+        public bool? RequiresCertification { get; set; }
+        public DateTime? CertificationExpirationDate { get; set; }
+    }
+
+    private sealed class WarrantyDto
+    {
+        public bool? HasWarranty { get; set; }
+        public string? WarrantyType { get; set; }
+    }
+
+    private sealed class UsefulLifeDto
+    {
+        public DateTime? StartDate { get; set; }
+        public DateTime? EndDate { get; set; }
+        public int? UsefulLifeMonths { get; set; }
+        public int? RemainingDays { get; set; }
+    }
+
+    private sealed class MaintenancePlanDto
+    {
+        public DateTime? LastMaintenanceDate { get; set; }
+        public DateTime? NextMaintenanceDate { get; set; }
+        public int? MaintenancePeriodMonths { get; set; }
+        public int? PendingMaintenanceRecords { get; set; }
+    }
+
+    private sealed class LifeCycleEventDto
+    {
+        public string? EventType { get; set; }
+        public string? Title { get; set; }
+        public string? Description { get; set; }
+        public string? PerformedBy { get; set; }
+        public DateTime? EventDate { get; set; }
+    }
+}

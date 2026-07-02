@@ -1,0 +1,1192 @@
+@page "/mobile/reports"
+
+@using System.Text
+@using System.Net.Http
+@using Navi.ToolsAssets.MobilePwa.Models
+
+@inject NaviMobileApiClient Api
+@inject MobileAuthSessionService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Reportes móvil - NAVI</PageTitle>
+
+<section class="mobile-page mobile-reports-web">
+    @if (isLoading && !initialized)
+    {
+        <div class="mobile-loading">Cargando centro de reportes...</div>
+    }
+    else if (!Auth.IsAuthenticated)
+    {
+        <div class="mobile-empty">
+            <strong>Sesión requerida</strong>
+            <span>Debes iniciar sesión para consultar reportes.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+        </div>
+    }
+    else if (!CanViewReports)
+    {
+        <div class="mobile-empty">
+            <strong>Acceso restringido</strong>
+            <span>No tienes permiso para visualizar reportes en la app móvil.</span>
+            <button class="mobile-primary-button" type="button" @onclick="GoHome">Volver al inicio</button>
+        </div>
+    }
+    else
+    {
+        <header class="mrep-hero">
+            <div>
+                <span>REPORTES · INDICADORES · EXPORTACIÓN</span>
+                <h1>Centro de reportes</h1>
+                <p>Consulta reportes ejecutivos y operativos de inventario, documentos, mantenimiento, compras, toma física y conciliación.</p>
+            </div>
+
+            <div class="mrep-hero-actions">
+                <button type="button" @onclick="GoHome">Inicio</button>
+                <button type="button" @onclick="LoadAsync" disabled="@isLoading">
+                    @(isLoading ? "Actualizando..." : "Actualizar")
+                </button>
+            </div>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(message))
+        {
+            <div class="@messageClass">@message</div>
+        }
+
+        <section class="mrep-kpis">
+            <article>
+                <span>Inventario</span>
+                <strong>@ScopedAssets.Count()</strong>
+                <small>Activos / herramientas</small>
+            </article>
+
+            <article class="success">
+                <span>Documentos</span>
+                <strong>@ScopedDocuments.Count()</strong>
+                <small>Soportes cargados</small>
+            </article>
+
+            <article class="warning">
+                <span>Mantenimientos</span>
+                <strong>@TotalMaintenance</strong>
+                <small>Registros y solicitudes</small>
+            </article>
+
+            <article class="purple">
+                <span>Tomas físicas</span>
+                <strong>@ScopedPhysicalCounts.Count()</strong>
+                <small>Campañas creadas</small>
+            </article>
+        </section>
+
+        <section class="mrep-workspace">
+            <aside class="mrep-card mrep-left">
+                <details class="mrep-menu-details" open>
+                    <summary>
+                        <div>
+                            <h2>Reportes</h2>
+                            <p>Selecciona el informe a consultar.</p>
+                        </div>
+                    </summary>
+
+                    <div class="mrep-menu">
+                        @foreach (var item in Reports)
+                        {
+                            <button type="button"
+                                    class="@GetReportClass(item.Code)"
+                                    @onclick="() => SelectReport(item.Code)">
+                                <span>@item.Icon</span>
+
+                                <div>
+                                    <strong>@item.Title</strong>
+                                    <small>@item.Description</small>
+                                </div>
+                            </button>
+                        }
+                    </div>
+                </details>
+            </aside>
+
+            <main class="mrep-main">
+                <article class="mrep-card">
+                    <div class="mrep-card-title">
+                        <div>
+                            <h2>@SelectedReport.Title</h2>
+                            <p>@SelectedReport.LongDescription</p>
+                        </div>
+
+                        <span>@SelectedReport.Area</span>
+                    </div>
+
+                    <div class="mrep-filters">
+                        <label>
+                            <span>Buscar</span>
+                            <input placeholder="Buscar código, nombre, sede, responsable, estado..."
+                                   @bind="searchText"
+                                   @bind:event="oninput" />
+                        </label>
+
+                        <label>
+                            <span>Sede</span>
+                            <select @bind="branchFilter">
+                                @if (CanSeeAllBranches)
+                                {
+                                    <option value="">Todas las sedes</option>
+                                }
+
+                                @foreach (var branch in BranchOptions)
+                                {
+                                    <option value="@branch">@branch</option>
+                                }
+                            </select>
+                        </label>
+
+                        <label>
+                            <span>Periodo</span>
+                            <select @bind="periodFilter">
+                                <option value="all">Todo</option>
+                                <option value="today">Hoy</option>
+                                <option value="7">Últimos 7 días</option>
+                                <option value="30">Últimos 30 días</option>
+                                <option value="90">Últimos 90 días</option>
+                            </select>
+                        </label>
+
+                        <label>
+                            <span>Estado</span>
+                            <select @bind="statusFilter">
+                                <option value="">Todos</option>
+                                @foreach (var status in StatusOptions)
+                                {
+                                    <option value="@status">@status</option>
+                                }
+                            </select>
+                        </label>
+                    </div>
+                </article>
+
+                <section class="mrep-summary-grid">
+                    @foreach (var item in SelectedSummary)
+                    {
+                        <article class="@item.CssClass">
+                            <span>@item.Label</span>
+                            <strong>@item.Value</strong>
+                            <small>@item.Description</small>
+                        </article>
+                    }
+                </section>
+
+                <article class="mrep-card">
+                    <div class="mrep-card-title">
+                        <div>
+                            <h2>Resultado del reporte</h2>
+                            <p>@FilteredRows.Count registro(s) según filtros aplicados.</p>
+                        </div>
+
+                        <div class="mrep-actions">
+                            <button type="button" @onclick="ClearFilters">Limpiar filtros</button>
+                        </div>
+                    </div>
+
+                    @if (isLoading)
+                    {
+                        <div class="mobile-empty compact">Cargando información del reporte...</div>
+                    }
+                    else if (FilteredRows.Count == 0)
+                    {
+                        <div class="mobile-empty compact">No hay registros para el reporte y filtros seleccionados.</div>
+                    }
+                    else
+                    {
+                        <div class="mrep-result-list">
+                            @foreach (var row in FilteredRows.Take(80))
+                            {
+                                <article class="mrep-row-card">
+                                    @for (var index = 0; index < CurrentHeaders.Count && index < row.Cells.Count; index++)
+                                    {
+                                        var header = CurrentHeaders[index];
+                                        var cell = row.Cells[index];
+
+                                        <div>
+                                            <span>@header</span>
+
+                                            @if (cell.IsBadge)
+                                            {
+                                                <strong><em class="@GetBadgeClass(cell.Value)">@cell.Value</em></strong>
+                                            }
+                                            else
+                                            {
+                                                <strong>@cell.Value</strong>
+                                            }
+                                        </div>
+                                    }
+                                </article>
+                            }
+                        </div>
+                    }
+                </article>
+            </main>
+
+            <aside class="mrep-card mrep-right">
+                <details class="mrep-side-details" open>
+                    <summary>
+                        <div>
+                            <h2>Resumen</h2>
+                            <p>Lectura rápida del reporte actual.</p>
+                        </div>
+                    </summary>
+
+                    <div class="mrep-resume-list">
+                        @foreach (var item in SelectedInsights)
+                        {
+                            <div>
+                                <span>@item.Icon</span>
+                                <strong>@item.Title</strong>
+                                <small>@item.Detail</small>
+                            </div>
+                        }
+                    </div>
+                </details>
+
+                <div class="mrep-separator"></div>
+
+                <section class="mrep-export-box">
+                    <div>
+                        <h2>Exportación</h2>
+                        <p>El CSV conserva el reporte y filtros seleccionados.</p>
+                    </div>
+
+                    <strong>@SelectedReport.Title</strong>
+                    <small>@FilteredRows.Count registro(s)</small>
+
+                    @if (CanExportReports)
+                    {
+                        <a href="@BuildCsvDataUrl()" download="@($"{SelectedReport.FileName}.csv")">
+                            Descargar reporte
+                        </a>
+                    }
+                    else
+                    {
+                        <button type="button" disabled>
+                            Exportación restringida
+                        </button>
+                    }
+                </section>
+
+                <div class="mrep-separator"></div>
+
+                <details class="mrep-side-details">
+                    <summary>
+                        <div>
+                            <h2>Histórico</h2>
+                            <p>Últimas acciones de reportería.</p>
+                        </div>
+                    </summary>
+
+                    <div class="mrep-history">
+                        @foreach (var item in History.Take(8))
+                        {
+                            <div>
+                                <strong>@item.Title</strong>
+                                <small>@item.Date.ToString("dd/MM/yyyy HH:mm") · @item.User</small>
+                            </div>
+                        }
+                    </div>
+                </details>
+            </aside>
+        </section>
+    }
+</section>
+
+@code {
+    private bool initialized;
+    private bool isLoading = true;
+
+    private string selectedReportCode = "executive";
+    private string searchText = string.Empty;
+    private string branchFilter = string.Empty;
+    private string periodFilter = "all";
+    private string statusFilter = string.Empty;
+
+    private string? message;
+    private string messageClass = "mobile-alert success";
+
+    private List<MobileToolDto> assets = new();
+    private List<DocumentViewItem> documents = new();
+    private List<MaintenanceRecordItem> maintenanceRecords = new();
+    private List<MaintenanceRequestItem> maintenanceRequests = new();
+    private List<PurchaseRequestItem> purchaseRequests = new();
+    private List<PhysicalCountItem> physicalCounts = new();
+    private List<ReconciliationItem> reconciliationRecords = new();
+
+    private List<ReportHistoryItem> History { get; } = new();
+
+    private bool IsAdmin =>
+        Same(Auth.CurrentUser?.RoleCode, "ADMIN") ||
+        Same(Auth.CurrentUser?.RoleCode, "SUPERADMIN") ||
+        Same(Auth.CurrentUser?.RoleName, "Administrador") ||
+        Same(Auth.CurrentUser?.RoleName, "Administrador NAVI") ||
+        Contains(Auth.CurrentUser?.RoleName, "Administrador");
+
+    private bool CanViewReports =>
+        IsAdmin ||
+        Auth.HasPermission("Reports.View");
+
+    private bool CanExportReports =>
+        IsAdmin ||
+        Auth.HasPermission("Reports.Export");
+
+    private bool CanSeeAllBranches =>
+        IsAdmin ||
+        Same(Auth.CurrentUser?.BranchCode, "TODAS") ||
+        Same(Auth.CurrentUser?.BranchCode, "ALL") ||
+        Contains(Auth.CurrentUser?.BranchName, "Todas");
+
+    private string UserBranchCode => Auth.CurrentUser?.BranchCode ?? string.Empty;
+
+    private IEnumerable<MobileToolDto> ScopedAssets =>
+        assets.Where(IsAssetVisibleByScope);
+
+    private IEnumerable<DocumentViewItem> ScopedDocuments =>
+        documents.Where(x => CanSeeAllBranches || Same(x.BranchCode, UserBranchCode));
+
+    private IEnumerable<MaintenanceRecordItem> ScopedMaintenanceRecords =>
+        maintenanceRecords.Where(x => CanSeeAllBranches || Same(x.BranchCode, UserBranchCode));
+
+    private IEnumerable<MaintenanceRequestItem> ScopedMaintenanceRequests =>
+        maintenanceRequests.Where(x => CanSeeAllBranches || Same(x.BranchCode, UserBranchCode));
+
+    private IEnumerable<PurchaseRequestItem> ScopedPurchaseRequests =>
+        purchaseRequests.Where(x => CanSeeAllBranches || Same(x.BranchCode, UserBranchCode));
+
+    private IEnumerable<PhysicalCountItem> ScopedPhysicalCounts =>
+        physicalCounts.Where(x => CanSeeAllBranches || Same(x.BranchCode, UserBranchCode));
+
+    private IEnumerable<ReconciliationItem> ScopedReconciliationRecords =>
+        reconciliationRecords.Where(x => CanSeeAllBranches || Same(x.BranchCode, UserBranchCode));
+
+    private int TotalMaintenance => ScopedMaintenanceRecords.Count() + ScopedMaintenanceRequests.Count();
+
+    private ReportDefinition SelectedReport =>
+        Reports.FirstOrDefault(x => x.Code == selectedReportCode) ?? Reports.First();
+
+    private List<ReportDefinition> Reports { get; } = new()
+    {
+        new("executive", "📊", "Resumen ejecutivo", "Ejecutivo", "Vista global", "Resumen general del sistema con activos, documentos, mantenimientos, compras, tomas físicas y conciliación.", "reporte-ejecutivo-navi"),
+        new("inventory", "🧰", "Inventario Herramientas y AF", "Operación", "Activos y herramientas", "Listado de herramientas y activos existentes con sede, responsable, serial y estado.", "reporte-inventario-af"),
+        new("documents", "📄", "Documentos", "Control", "Soportes cargados", "Documentos asociados a activos, clasificación, responsable, fecha y descarga.", "reporte-documentos"),
+        new("maintenance", "🛠️", "Mantenimiento", "Operación", "Costos y solicitudes", "Registros y solicitudes de mantenimiento con estado, activo, proveedor y fechas.", "reporte-mantenimiento"),
+        new("purchases", "🛒", "Compras Herramientas y AF", "Operación", "Solicitudes SPC/MRO", "Solicitudes de compra de herramientas, activos y soportes asociados.", "reporte-compras-af"),
+        new("physical", "📦", "Toma física", "Control", "Campañas reales", "Tomas físicas creadas, estado, sede, fechas, responsables, encontrados y faltantes.", "reporte-toma-fisica"),
+        new("reconciliation", "⚖️", "Conciliación", "Control", "Diferencias", "Registros de conciliación, diferencias, decisiones y trazabilidad.", "reporte-conciliacion")
+    };
+
+    private IEnumerable<string> BranchOptions =>
+        RawRows
+            .Where(IsRowVisibleByScope)
+            .Select(x => x.BranchCode)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x)!;
+
+    private IEnumerable<string> StatusOptions =>
+        RawRows
+            .Where(IsRowVisibleByScope)
+            .Select(x => x.Status)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x)!;
+
+    private List<string> CurrentHeaders => selectedReportCode switch
+    {
+        "inventory" => new() { "Código", "Nombre", "Sede", "Responsable", "Serial", "Estado" },
+        "documents" => new() { "Documento", "Clasificación", "Activo", "Responsable", "Fecha", "Tamaño" },
+        "maintenance" => new() { "Número", "Activo", "Tipo", "Estado", "Responsable", "Fecha", "Costo" },
+        "purchases" => new() { "Solicitud", "Activo / herramienta", "Sede", "Estado", "Responsable", "Fecha", "Total" },
+        "physical" => new() { "Toma", "Sede", "Estado", "Inicio", "Cierre", "Responsable", "Inventario" },
+        "reconciliation" => new() { "Código", "Activo", "Sede", "Estado", "Decisión", "Fecha", "Responsable" },
+        _ => new() { "Módulo", "Indicador", "Resultado", "Estado", "Observación" }
+    };
+
+    private List<ReportRow> RawRows => selectedReportCode switch
+    {
+        "inventory" => BuildInventoryRows(),
+        "documents" => BuildDocumentRows(),
+        "maintenance" => BuildMaintenanceRows(),
+        "purchases" => BuildPurchaseRows(),
+        "physical" => BuildPhysicalRows(),
+        "reconciliation" => BuildReconciliationRows(),
+        _ => BuildExecutiveRows()
+    };
+
+    private List<ReportRow> FilteredRows
+    {
+        get
+        {
+            var query = RawRows.AsEnumerable().Where(IsRowVisibleByScope);
+
+            if (!string.IsNullOrWhiteSpace(branchFilter))
+            {
+                query = query.Where(x => Contains(x.BranchCode, branchFilter));
+            }
+
+            if (!string.IsNullOrWhiteSpace(statusFilter))
+            {
+                query = query.Where(x => Same(x.Status, statusFilter));
+            }
+
+            if (!string.IsNullOrWhiteSpace(searchText))
+            {
+                var value = searchText.Trim();
+                query = query.Where(x => x.SearchText.Contains(value, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (periodFilter != "all")
+            {
+                var from = periodFilter switch
+                {
+                    "today" => DateTime.Today,
+                    "7" => DateTime.Now.AddDays(-7),
+                    "30" => DateTime.Now.AddDays(-30),
+                    "90" => DateTime.Now.AddDays(-90),
+                    _ => DateTime.MinValue
+                };
+
+                query = query.Where(x => x.Date is null || x.Date.Value >= from);
+            }
+
+            return query.ToList();
+        }
+    }
+
+    private List<SummaryItem> SelectedSummary => selectedReportCode switch
+    {
+        "inventory" => new()
+        {
+            new("Total activos", ScopedAssets.Count().ToString(), "Inventario cargado", ""),
+            new("Con sede", ScopedAssets.Count(x => !string.IsNullOrWhiteSpace(x.BranchCode)).ToString(), "Ubicación asignada", "success"),
+            new("Sin responsable", ScopedAssets.Count(x => string.IsNullOrWhiteSpace(x.ResponsiblePersonName)).ToString(), "Pendiente responsable", "warning"),
+            new("Con documentos", ScopedDocuments.Select(x => x.ToolAssetId).Distinct().Count().ToString(), "Soporte documental", "purple")
+        },
+        "documents" => new()
+        {
+            new("Total documentos", ScopedDocuments.Count().ToString(), "Soportes cargados", ""),
+            new("Activos con docs", ScopedDocuments.Select(x => x.ToolAssetId).Distinct().Count().ToString(), "Con evidencia", "success"),
+            new("Ficha técnica", ScopedDocuments.Count(x => GetDocumentCategory(x) == "Ficha técnica").ToString(), "Técnicos", "warning"),
+            new("Mantenimiento", ScopedDocuments.Count(x => GetDocumentCategory(x) == "Evidencia mantenimiento").ToString(), "Evidencias", "purple")
+        },
+        "maintenance" => new()
+        {
+            new("Total", TotalMaintenance.ToString(), "Registros y solicitudes", ""),
+            new("Solicitudes", ScopedMaintenanceRequests.Count().ToString(), "Nuevas solicitudes", "success"),
+            new("Registros", ScopedMaintenanceRecords.Count().ToString(), "Histórico", "warning"),
+            new("Pendientes", ScopedMaintenanceRequests.Count(x => !IsClosedStatus(x.Status)).ToString(), "Por cerrar", "purple")
+        },
+        "purchases" => new()
+        {
+            new("Solicitudes", ScopedPurchaseRequests.Count().ToString(), "SPC/MRO", ""),
+            new("Con activo", ScopedPurchaseRequests.Count(x => !string.IsNullOrWhiteSpace(x.ToolInternalCode)).ToString(), "Asociadas", "success"),
+            new("Pendientes", ScopedPurchaseRequests.Count(x => !IsClosedStatus(x.Status)).ToString(), "Por gestionar", "warning"),
+            new("Cerradas", ScopedPurchaseRequests.Count(x => IsClosedStatus(x.Status)).ToString(), "Finalizadas", "purple")
+        },
+        "physical" => new()
+        {
+            new("Tomas", ScopedPhysicalCounts.Count().ToString(), "Campañas reales", ""),
+            new("En progreso", ScopedPhysicalCounts.Count(x => Same(x.Status, "InProgress")).ToString(), "Activas", "success"),
+            new("Canceladas", ScopedPhysicalCounts.Count(x => Contains(x.Status, "Cancel")).ToString(), "Canceladas", "warning"),
+            new("Faltantes", ScopedPhysicalCounts.Sum(x => x.MissingItems).ToString(), "Pendientes", "purple")
+        },
+        "reconciliation" => new()
+        {
+            new("Registros", ScopedReconciliationRecords.Count().ToString(), "Conciliación", ""),
+            new("Con activo", ScopedReconciliationRecords.Count(x => x.ToolAssetId != Guid.Empty).ToString(), "Asociados", "success"),
+            new("Pendientes", ScopedReconciliationRecords.Count(x => !IsClosedStatus(x.Status)).ToString(), "Por decidir", "warning"),
+            new("Procesados", ScopedReconciliationRecords.Count(x => IsClosedStatus(x.Status)).ToString(), "Cerrados", "purple")
+        },
+        _ => new()
+        {
+            new("Activos", ScopedAssets.Count().ToString(), "Inventario", ""),
+            new("Documentos", ScopedDocuments.Count().ToString(), "Soportes", "success"),
+            new("Mantenimientos", TotalMaintenance.ToString(), "Operación", "warning"),
+            new("Tomas físicas", ScopedPhysicalCounts.Count().ToString(), "Control", "purple")
+        }
+    };
+
+    private List<InsightItem> SelectedInsights => selectedReportCode switch
+    {
+        "physical" => new()
+        {
+            new("📦", "Tomas reales", $"{ScopedPhysicalCounts.Count()} campaña(s) registradas."),
+            new("✅", "Encontrados", $"{ScopedPhysicalCounts.Sum(x => x.FoundItems)} activo(s) encontrados."),
+            new("⚠️", "Faltantes", $"{ScopedPhysicalCounts.Sum(x => x.MissingItems)} activo(s) faltantes."),
+            new("🔎", "Seguimiento", "Cruzar con Conciliación para resolver diferencias.")
+        },
+        "documents" => new()
+        {
+            new("📄", "Soportes", $"{ScopedDocuments.Count()} documento(s) cargados."),
+            new("🧰", "Activos", $"{ScopedDocuments.Select(x => x.ToolAssetId).Distinct().Count()} activo(s) con documento."),
+            new("🛠️", "Mantenimiento", $"{ScopedDocuments.Count(x => GetDocumentCategory(x) == "Evidencia mantenimiento")} evidencia(s)."),
+            new("📘", "Técnicos", $"{ScopedDocuments.Count(x => GetDocumentCategory(x) == "Ficha técnica")} ficha(s) técnica(s).")
+        },
+        "maintenance" => new()
+        {
+            new("🛠️", "Mantenimiento", $"{TotalMaintenance} registro(s) total."),
+            new("📝", "Solicitudes", $"{ScopedMaintenanceRequests.Count()} solicitud(es)."),
+            new("⏳", "Pendientes", $"{ScopedMaintenanceRequests.Count(x => !IsClosedStatus(x.Status))} por cerrar."),
+            new("📄", "Soporte", "Las evidencias deben cruzar con Documentos.")
+        },
+        _ => new()
+        {
+            new("📊", "Reporte", SelectedReport.Title),
+            new("🔎", "Filtrado", $"{FilteredRows.Count} registro(s) visibles."),
+            new("🏢", "Sedes", $"{BranchOptions.Count()} sede(s) detectadas."),
+            new("⬇️", "Exportación", CanExportReports ? "Descarga CSV con los filtros actuales." : "Requiere permiso Reports.Export.")
+        }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        if (!Auth.IsAuthenticated)
+        {
+            initialized = true;
+            isLoading = false;
+            return;
+        }
+
+        var refreshedUser = await Api.RefreshCurrentSessionAsync();
+
+        if (refreshedUser is null || !Auth.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", forceLoad: true);
+            return;
+        }
+
+        await LoadAsync();
+        initialized = true;
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        message = null;
+
+        try
+        {
+            await LoadAssetsAsync();
+            await LoadDocumentsAsync();
+            await LoadMaintenanceAsync();
+            await LoadPurchaseRequestsAsync();
+            await LoadPhysicalCountsAsync();
+            await LoadReconciliationAsync();
+
+            History.Insert(0, new ReportHistoryItem(SelectedReport.Title, DateTime.Now, Auth.CurrentUser?.UserName ?? Auth.CurrentUser?.DisplayName ?? "mobile"));
+
+            messageClass = "mobile-alert success";
+            message = "Reportes actualizados correctamente con información real de NAVI.";
+        }
+        catch (Exception ex)
+        {
+            messageClass = "mobile-alert error";
+            message = $"No se pudieron cargar todos los reportes. Valida que la API esté activa. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadAssetsAsync()
+    {
+        try
+        {
+            assets = await Api.GetToolsAsync(true);
+        }
+        catch
+        {
+            assets = new();
+        }
+    }
+
+    private async Task LoadDocumentsAsync()
+    {
+        var result = new List<DocumentViewItem>();
+
+        foreach (var asset in ScopedAssets.Take(150))
+        {
+            try
+            {
+                var toolDocuments = await Api.GetListJsonAsync<ListDocumentItem>($"api/tools/{asset.Id}/documents");
+
+                foreach (var document in toolDocuments)
+                {
+                    result.Add(new DocumentViewItem
+                    {
+                        Id = document.Id,
+                        ToolAssetId = document.ToolAssetId,
+                        DocumentType = document.DocumentType,
+                        FileName = document.FileName,
+                        ObjectKey = document.ObjectKey,
+                        ContentType = document.ContentType,
+                        SizeBytes = document.SizeBytes,
+                        UploadedBy = document.UploadedBy,
+                        UploadedAt = document.UploadedAt,
+                        Description = document.Description,
+                        DownloadUrl = document.DownloadUrl,
+                        ToolInternalCode = asset.InternalCode,
+                        ToolName = asset.Name,
+                        BranchCode = asset.BranchCode,
+                        ResponsiblePersonName = asset.ResponsiblePersonName
+                    });
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        documents = result;
+    }
+
+    private async Task LoadMaintenanceAsync()
+    {
+        try
+        {
+            maintenanceRecords = await Api.GetListJsonAsync<MaintenanceRecordItem>("api/maintenance");
+        }
+        catch
+        {
+            maintenanceRecords = new();
+        }
+
+        try
+        {
+            maintenanceRequests = await Api.GetListJsonAsync<MaintenanceRequestItem>("api/maintenance-requests");
+        }
+        catch
+        {
+            maintenanceRequests = new();
+        }
+    }
+
+    private async Task LoadPurchaseRequestsAsync()
+    {
+        try
+        {
+            purchaseRequests = await Api.GetListJsonAsync<PurchaseRequestItem>("api/purchase-requests");
+        }
+        catch
+        {
+            purchaseRequests = new();
+        }
+    }
+
+    private async Task LoadPhysicalCountsAsync()
+    {
+        try
+        {
+            physicalCounts = await Api.GetListJsonAsync<PhysicalCountItem>("api/physical-counts");
+        }
+        catch
+        {
+            physicalCounts = new();
+        }
+    }
+
+    private async Task LoadReconciliationAsync()
+    {
+        try
+        {
+            reconciliationRecords = await Api.GetListJsonAsync<ReconciliationItem>("api/reconciliation");
+        }
+        catch
+        {
+            reconciliationRecords = new();
+        }
+    }
+
+    private void SelectReport(string code)
+    {
+        selectedReportCode = code;
+        searchText = string.Empty;
+        branchFilter = string.Empty;
+        statusFilter = string.Empty;
+        periodFilter = "all";
+
+        var selected = Reports.FirstOrDefault(x => x.Code == code);
+        History.Insert(0, new ReportHistoryItem(selected?.Title ?? "Reporte", DateTime.Now, Auth.CurrentUser?.UserName ?? Auth.CurrentUser?.DisplayName ?? "mobile"));
+    }
+
+    private void ClearFilters()
+    {
+        searchText = string.Empty;
+        branchFilter = string.Empty;
+        periodFilter = "all";
+        statusFilter = string.Empty;
+    }
+
+    private string GetReportClass(string code)
+    {
+        return selectedReportCode == code ? "active" : string.Empty;
+    }
+
+    private List<ReportRow> BuildExecutiveRows()
+    {
+        return new()
+        {
+            new(new() { new("Inventario"), new("Total activos"), new(ScopedAssets.Count().ToString()), new(ScopedAssets.Any() ? "Con datos" : "Sin datos", true), new("Herramientas y activos registrados.") }, "", ScopedAssets.Any() ? "Con datos" : "Sin datos", DateTime.Now),
+            new(new() { new("Documentos"), new("Total soportes"), new(ScopedDocuments.Count().ToString()), new(ScopedDocuments.Any() ? "Con datos" : "Sin datos", true), new("Documentos cargados por activo.") }, "", ScopedDocuments.Any() ? "Con datos" : "Sin datos", DateTime.Now),
+            new(new() { new("Mantenimiento"), new("Registros y solicitudes"), new(TotalMaintenance.ToString()), new(TotalMaintenance > 0 ? "Con datos" : "Sin datos", true), new("Incluye históricos y solicitudes.") }, "", TotalMaintenance > 0 ? "Con datos" : "Sin datos", DateTime.Now),
+            new(new() { new("Compras"), new("Solicitudes SPC/MRO"), new(ScopedPurchaseRequests.Count().ToString()), new(ScopedPurchaseRequests.Any() ? "Con datos" : "Sin datos", true), new("Solicitudes de compra registradas.") }, "", ScopedPurchaseRequests.Any() ? "Con datos" : "Sin datos", DateTime.Now),
+            new(new() { new("Toma física"), new("Campañas reales"), new(ScopedPhysicalCounts.Count().ToString()), new(ScopedPhysicalCounts.Any() ? "Con datos" : "Sin datos", true), new("Campañas creadas desde control.") }, "", ScopedPhysicalCounts.Any() ? "Con datos" : "Sin datos", DateTime.Now),
+            new(new() { new("Conciliación"), new("Registros conciliación"), new(ScopedReconciliationRecords.Count().ToString()), new(ScopedReconciliationRecords.Any() ? "Con datos" : "Sin datos", true), new("Diferencias y decisiones.") }, "", ScopedReconciliationRecords.Any() ? "Con datos" : "Sin datos", DateTime.Now)
+        };
+    }
+
+    private List<ReportRow> BuildInventoryRows()
+    {
+        return ScopedAssets.Select(x =>
+        {
+            var status = !string.IsNullOrWhiteSpace(x.OperationalStatus)
+                ? x.OperationalStatus
+                : !string.IsNullOrWhiteSpace(x.PhysicalStatus)
+                    ? x.PhysicalStatus
+                    : "Sin estado";
+
+            return new ReportRow(new()
+            {
+                new(x.InternalCode),
+                new(x.Name),
+                new(Show(x.BranchCode)),
+                new(Show(x.ResponsiblePersonName)),
+                new(Show(x.SerialNumber)),
+                new(Show(status), true)
+            },
+            x.BranchCode,
+            status,
+            null,
+            $"{x.InternalCode} {x.Name} {x.BranchCode} {x.ResponsiblePersonName} {x.SerialNumber} {x.OperationalStatus} {x.PhysicalStatus}");
+        }).ToList();
+    }
+
+    private List<ReportRow> BuildDocumentRows()
+    {
+        return ScopedDocuments.Select(x => new ReportRow(new()
+        {
+            new(GetDocumentDisplayName(x)),
+            new(GetDocumentCategory(x), true),
+            new($"{x.ToolInternalCode} - {x.ToolName}"),
+            new(Show(x.UploadedBy)),
+            new(FormatDate(x.UploadedAt)),
+            new(FormatBytes(x.SizeBytes))
+        }, x.BranchCode, GetDocumentCategory(x), x.UploadedAt, $"{x.FileName} {x.Description} {x.ToolInternalCode} {x.ToolName} {x.UploadedBy} {GetDocumentCategory(x)}")).ToList();
+    }
+
+    private List<ReportRow> BuildMaintenanceRows()
+    {
+        var rows = new List<ReportRow>();
+
+        rows.AddRange(ScopedMaintenanceRecords.Select(x => new ReportRow(new()
+        {
+            new(Show(x.MaintenanceNumber)),
+            new($"{Show(x.ToolInternalCode)} - {Show(x.ToolName)}"),
+            new(Show(x.MaintenanceType)),
+            new(Show(x.Status), true),
+            new(Show(x.ResponsibleBy ?? x.TechnicianName)),
+            new(FormatDate(x.CompletedAt ?? x.ScheduledAt ?? x.CreatedAt)),
+            new(FormatMoney(x.Cost))
+        }, x.BranchCode, x.Status, x.CompletedAt ?? x.ScheduledAt ?? x.CreatedAt, $"{x.MaintenanceNumber} {x.ToolInternalCode} {x.ToolName} {x.Status} {x.MaintenanceType} {x.ResponsibleBy} {x.TechnicianName}")));
+
+        rows.AddRange(ScopedMaintenanceRequests.Select(x => new ReportRow(new()
+        {
+            new(Show(x.RequestNumber ?? x.Title)),
+            new($"{Show(x.ToolInternalCode)} - {Show(x.ToolName)}"),
+            new(Show(x.RequestType ?? x.MaintenanceType)),
+            new(Show(x.Status), true),
+            new(Show(x.RequestedBy ?? x.ResponsibleBy)),
+            new(FormatDate(x.CreatedAt)),
+            new(FormatMoney(x.EstimatedCost ?? x.TotalBeforeTax))
+        }, x.BranchCode, x.Status, x.CreatedAt, $"{x.RequestNumber} {x.Title} {x.ToolInternalCode} {x.ToolName} {x.Status} {x.RequestedBy} {x.ResponsibleBy}")));
+
+        return rows;
+    }
+
+    private List<ReportRow> BuildPurchaseRows()
+    {
+        return ScopedPurchaseRequests.Select(x => new ReportRow(new()
+        {
+            new(Show(x.RequestNumber ?? x.Title)),
+            new($"{Show(x.ToolInternalCode)} - {Show(x.ToolName)}"),
+            new(Show(x.BranchCode)),
+            new(Show(x.Status), true),
+            new(Show(x.RequestedBy ?? x.ResponsibleBy)),
+            new(FormatDate(x.CreatedAt)),
+            new(FormatMoney(x.TotalBeforeTax ?? x.EstimatedCost))
+        }, x.BranchCode, x.Status, x.CreatedAt, $"{x.RequestNumber} {x.Title} {x.ToolInternalCode} {x.ToolName} {x.Status} {x.RequestedBy} {x.ResponsibleBy} {x.BranchCode}")).ToList();
+    }
+
+    private List<ReportRow> BuildPhysicalRows()
+    {
+        return ScopedPhysicalCounts.Select(x => new ReportRow(new()
+        {
+            new(x.CountNumber),
+            new($"{Show(x.BranchCode)} - {Show(x.BranchName)}"),
+            new(Show(x.StatusLabel ?? x.Status), true),
+            new(FormatDate(x.StartedAt)),
+            new(x.FinishedAt is null ? "—" : FormatDate(x.FinishedAt)),
+            new(Show(x.ResponsibleBy)),
+            new($"Total: {x.TotalItems} · Encontradas: {x.FoundItems} · Faltantes: {x.MissingItems}")
+        }, x.BranchCode, x.StatusLabel ?? x.Status, x.StartedAt, $"{x.CountNumber} {x.BranchCode} {x.BranchName} {x.Status} {x.StatusLabel} {x.ResponsibleBy}")).ToList();
+    }
+
+    private List<ReportRow> BuildReconciliationRows()
+    {
+        return ScopedReconciliationRecords.Select(x => new ReportRow(new()
+        {
+            new(Show(x.ToolInternalCode)),
+            new(Show(x.ToolName)),
+            new(Show(x.BranchCode)),
+            new(Show(x.Status), true),
+            new(Show(x.Decision ?? x.Action)),
+            new(FormatDate(x.ProcessedAt)),
+            new(Show(x.ProcessedBy))
+        }, x.BranchCode, x.Status, x.ProcessedAt, $"{x.ToolInternalCode} {x.ToolName} {x.BranchCode} {x.Status} {x.Decision} {x.Action} {x.ProcessedBy}")).ToList();
+    }
+
+    private string BuildCsvDataUrl()
+    {
+        if (!CanExportReports)
+        {
+            return "#";
+        }
+
+        var csv = new StringBuilder();
+
+        csv.AppendLine(string.Join(",", CurrentHeaders.Select(Csv)));
+
+        foreach (var row in FilteredRows)
+        {
+            csv.AppendLine(string.Join(",", row.Cells.Select(x => Csv(x.Value))));
+        }
+
+        return "data:text/csv;charset=utf-8," + Uri.EscapeDataString(csv.ToString());
+    }
+
+    private bool IsAssetVisibleByScope(MobileToolDto tool)
+    {
+        if (CanSeeAllBranches)
+        {
+            return true;
+        }
+
+        return Same(tool.BranchCode, UserBranchCode) ||
+               Same(tool.BranchName, Auth.CurrentUser?.BranchName) ||
+               Same(tool.ResponsiblePersonName, Auth.CurrentUser?.ResponsiblePersonName) ||
+               Same(tool.ResponsiblePersonName, Auth.CurrentUser?.DisplayName) ||
+               Same(tool.ResponsiblePersonName, Auth.CurrentUser?.UserName) ||
+               (tool.ResponsiblePersonId.HasValue &&
+                Auth.CurrentUser?.ResponsiblePersonId.HasValue == true &&
+                tool.ResponsiblePersonId.Value == Auth.CurrentUser.ResponsiblePersonId.Value);
+    }
+
+    private bool IsRowVisibleByScope(ReportRow row)
+    {
+        return CanSeeAllBranches ||
+               string.IsNullOrWhiteSpace(row.BranchCode) ||
+               Same(row.BranchCode, UserBranchCode);
+    }
+
+    private void GoHome() => Navigation.NavigateTo("/");
+    private void GoLogin() => Navigation.NavigateTo("/login", forceLoad: true);
+
+    private static string Csv(string? value)
+    {
+        var safe = (value ?? string.Empty).Replace("\"", "\"\"");
+        return "\"" + safe + "\"";
+    }
+
+    private static string GetBadgeClass(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "mrep-badge";
+        }
+
+        if (Contains(value, "cerr") ||
+            Contains(value, "final") ||
+            Contains(value, "vigente") ||
+            Contains(value, "completo") ||
+            Contains(value, "ok") ||
+            Contains(value, "concili") ||
+            Contains(value, "datos") ||
+            Contains(value, "disponible") ||
+            Contains(value, "assigned") ||
+            Contains(value, "asignado"))
+        {
+            return "mrep-badge ok";
+        }
+
+        if (Contains(value, "cancel") ||
+            Contains(value, "rechaz") ||
+            Contains(value, "baja") ||
+            Contains(value, "dañ") ||
+            Contains(value, "damaged"))
+        {
+            return "mrep-badge danger";
+        }
+
+        return "mrep-badge warn";
+    }
+
+    private static bool IsClosedStatus(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        return Contains(value, "closed") ||
+               Contains(value, "cerr") ||
+               Contains(value, "finish") ||
+               Contains(value, "final") ||
+               Contains(value, "complete") ||
+               Contains(value, "cancel") ||
+               Contains(value, "reject") ||
+               Contains(value, "rechaz");
+    }
+
+    private static string GetDocumentCategory(DocumentViewItem item)
+    {
+        var fromDescription = TryGetDescriptionValue(item.Description, "Clasificación");
+
+        if (!string.IsNullOrWhiteSpace(fromDescription))
+        {
+            return fromDescription;
+        }
+
+        return item.DocumentType switch
+        {
+            "TechnicalDocument" => "Ficha técnica",
+            "MaintenanceSupport" => "Evidencia mantenimiento",
+            "PhysicalCountEvidence" => "Toma física",
+            "DeliveryAct" => "Acta",
+            "ReturnAct" => "Acta",
+            "Other" => "Factura",
+            _ => "Ficha técnica"
+        };
+    }
+
+    private static string GetDocumentDisplayName(DocumentViewItem item)
+    {
+        var fromDescription = TryGetDescriptionValue(item.Description, "Nombre");
+
+        return string.IsNullOrWhiteSpace(fromDescription)
+            ? item.FileName
+            : fromDescription;
+    }
+
+    private static string? TryGetDescriptionValue(string? description, string key)
+    {
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            return null;
+        }
+
+        var token = $"[{key}:";
+        var start = description.IndexOf(token, StringComparison.OrdinalIgnoreCase);
+
+        if (start < 0)
+        {
+            return null;
+        }
+
+        start += token.Length;
+        var end = description.IndexOf(']', start);
+
+        if (end < 0)
+        {
+            return null;
+        }
+
+        return description[start..end].Trim();
+    }
+
+    private static bool Contains(string? source, string value)
+    {
+        return !string.IsNullOrWhiteSpace(source)
+            && source.Contains(value, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool Same(string? left, string? right)
+    {
+        return string.Equals(Normalize(left), Normalize(right), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Normalize(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return value.Trim()
+            .ToUpperInvariant()
+            .Replace("Á", "A")
+            .Replace("É", "E")
+            .Replace("Í", "I")
+            .Replace("Ó", "O")
+            .Replace("Ú", "U")
+            .Replace("Ü", "U")
+            .Replace("Ñ", "N");
+    }
+
+    private static string Show(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "—" : value;
+    }
+
+    private static string FormatDate(DateTime? value)
+    {
+        return value.HasValue
+            ? value.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+            : "—";
+    }
+
+    private static string FormatBytes(long value)
+    {
+        if (value >= 1024 * 1024)
+        {
+            return $"{value / 1024d / 1024d:0.00} MB";
+        }
+
+        if (value >= 1024)
+        {
+            return $"{value / 1024d:0.00} KB";
+        }
+
+        return $"{value} bytes";
+    }
+
+    private static string FormatMoney(decimal? value)
+    {
+        return value is null ? "$0" : $"${value.Value:N0}";
+    }
+
+    private sealed record ReportDefinition(string Code, string Icon, string Title, string Area, string Description, string LongDescription, string FileName);
+    private sealed record ReportHistoryItem(string Title, DateTime Date, string User);
+    private sealed record SummaryItem(string Label, string Value, string Description, string CssClass);
+    private sealed record InsightItem(string Icon, string Title, string Detail);
+    private sealed record ReportCell(string Value, bool IsBadge = false);
+
+    private sealed record ReportRow(List<ReportCell> Cells, string? BranchCode, string? Status, DateTime? Date, string? ExtraSearch = null)
+    {
+        public string SearchText => string.Join(" ", Cells.Select(x => x.Value)) + " " + ExtraSearch;
+    }
+
+    private class ListDocumentItem
+    {
+        public Guid Id { get; set; }
+        public Guid ToolAssetId { get; set; }
+        public string DocumentType { get; set; } = string.Empty;
+        public string FileName { get; set; } = string.Empty;
+        public string? ObjectKey { get; set; }
+        public string? ContentType { get; set; }
+        public long SizeBytes { get; set; }
+        public string? UploadedBy { get; set; }
+        public DateTime UploadedAt { get; set; }
+        public string? Description { get; set; }
+        public string? DownloadUrl { get; set; }
+    }
+
+    private sealed class DocumentViewItem : ListDocumentItem
+    {
+        public string ToolInternalCode { get; set; } = string.Empty;
+        public string ToolName { get; set; } = string.Empty;
+        public string? BranchCode { get; set; }
+        public string? ResponsiblePersonName { get; set; }
+    }
+
+    private sealed class MaintenanceRecordItem
+    {
+        public Guid Id { get; set; }
+        public string? MaintenanceNumber { get; set; }
+        public Guid? ToolAssetId { get; set; }
+        public string? ToolInternalCode { get; set; }
+        public string? ToolName { get; set; }
+        public string? BranchCode { get; set; }
+        public string? MaintenanceType { get; set; }
+        public string? Status { get; set; }
+        public string? ResponsibleBy { get; set; }
+        public string? TechnicianName { get; set; }
+        public DateTime? ScheduledAt { get; set; }
+        public DateTime? CompletedAt { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public decimal? Cost { get; set; }
+    }
+
+    private sealed class MaintenanceRequestItem
+    {
+        public Guid Id { get; set; }
+        public string? RequestNumber { get; set; }
+        public string? Title { get; set; }
+        public string? ToolInternalCode { get; set; }
+        public string? ToolName { get; set; }
+        public string? BranchCode { get; set; }
+        public string? RequestType { get; set; }
+        public string? MaintenanceType { get; set; }
+        public string? Status { get; set; }
+        public string? RequestedBy { get; set; }
+        public string? ResponsibleBy { get; set; }
+        public decimal? EstimatedCost { get; set; }
+        public decimal? TotalBeforeTax { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
+    private sealed class PurchaseRequestItem
+    {
+        public Guid Id { get; set; }
+        public string? RequestNumber { get; set; }
+        public string? Title { get; set; }
+        public string? ToolInternalCode { get; set; }
+        public string? ToolName { get; set; }
+        public string? BranchCode { get; set; }
+        public string? Status { get; set; }
+        public string? RequestedBy { get; set; }
+        public string? ResponsibleBy { get; set; }
+        public decimal? EstimatedCost { get; set; }
+        public decimal? TotalBeforeTax { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
+    private sealed class PhysicalCountItem
+    {
+        public Guid Id { get; set; }
+        public string CountNumber { get; set; } = string.Empty;
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public string? StatusLabel { get; set; }
+        public DateTime StartedAt { get; set; }
+        public DateTime? FinishedAt { get; set; }
+        public string? ResponsibleBy { get; set; }
+        public string? Notes { get; set; }
+        public int TotalItems { get; set; }
+        public int FoundItems { get; set; }
+        public int MissingItems { get; set; }
+    }
+
+    private sealed class ReconciliationItem
+    {
+        public Guid Id { get; set; }
+        public Guid ToolAssetId { get; set; }
+        public string? ToolInternalCode { get; set; }
+        public string? ToolName { get; set; }
+        public string? BranchCode { get; set; }
+        public string? Status { get; set; }
+        public string? Decision { get; set; }
+        public string? Action { get; set; }
+        public string? ProcessedBy { get; set; }
+        public DateTime ProcessedAt { get; set; }
+    }
+}

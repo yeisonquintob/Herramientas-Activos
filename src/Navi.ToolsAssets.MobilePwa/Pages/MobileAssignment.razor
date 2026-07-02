@@ -177,7 +177,7 @@
                                     <small>Solicita: @Display(GetRequesterName(request)) · @ShowDate(request.RequestedAt)</small>
                                 </div>
 
-                                <div class="mobile-approval-actions">
+                                <div class="mobile-approval-actions mobile-approval-actions-top">
                                     @if (CanApproveAssignmentRequest)
                                     {
                                         <button class="approve" type="button" disabled="@isSaving" @onclick="() => ApproveAsync(request)">
@@ -403,14 +403,25 @@
                        @oninput="OnToolSearchChanged"
                        placeholder="Buscar código, nombre, sede o ubicación..." />
 
-                <select value="@toolStatus" @onchange="OnToolStatusChanged">
-                    <option value="">Todos los estados</option>
-                    <option value="Available">Disponible</option>
-                    <option value="Assigned">Asignada</option>
-                    <option value="Loaned">Prestada</option>
-                    <option value="InMaintenance">Mantenimiento</option>
-                    <option value="Damaged">Dañada</option>
-                </select>
+                <div class="mobile-assignment-status-multi">
+                    <div class="mobile-assignment-status-head">
+                        <strong>Estado</strong>
+                        <button type="button" @onclick="ClearToolStatuses">Limpiar</button>
+                    </div>
+
+                    <div class="mobile-assignment-status-options">
+                        @foreach (var status in ToolStatusFilterOptions)
+                        {
+                            var selected = selectedToolStatuses.Contains(status.Value);
+
+                            <button type="button"
+                                    class="@(selected ? "selected" : "")"
+                                    @onclick="() => ToggleToolStatus(status.Value)">
+                                @status.Text
+                            </button>
+                        }
+                    </div>
+                </div>
             </div>
 
             @if (!FilteredTools.Any())
@@ -503,6 +514,20 @@
     private string historySearch = string.Empty;
     private string toolSearch = string.Empty;
     private string toolStatus = string.Empty;
+    private HashSet<string> selectedToolStatuses = new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly (string Value, string Text)[] ToolStatusFilterOptions =
+    {
+        ("Available", "Disponible"),
+        ("Assigned", "Asignada"),
+        ("Loaned", "Prestada"),
+        ("InMaintenance", "Mantenimiento"),
+        ("Damaged", "Dañada"),
+        ("NotSuitable", "No apta"),
+        ("PendingValidation", "Pendiente validación"),
+        ("NotLocated", "No localizada"),
+        ("Disposed", "Baja")
+    };
 
     private List<MobileAvailabilityToolDto> tools = new();
     private List<MobileLoanRequestDto> loanRequests = new();
@@ -524,13 +549,13 @@
     private bool CanReportDamage => HasAny("Mobile.Damage.Report", "Damages.Create");
 
     private bool CanUseAssignmentModule =>
+        HasPermission("AssetAssignment.View") ||
         CanRequestLoan ||
         CanDirectAssign ||
         CanReturnAssignment ||
         CanApproveAssignmentRequest ||
         CanDenyAssignmentRequest ||
-        CanViewAssignmentHistory ||
-        HasPermission("AssetAssignment.View");
+        CanViewAssignmentHistory;
 
     private string CurrentResponsibleLabel =>
         !string.IsNullOrWhiteSpace(Auth.CurrentUser?.ResponsiblePersonName)
@@ -569,6 +594,7 @@
 
     private IEnumerable<MobileAvailabilityToolDto> LoanRequestTools =>
         ScopedTools
+            .Where(IsToolAvailableForLoan)
             .Where(x => string.IsNullOrWhiteSpace(loanSearch) ||
                         ContainsText(x.InternalCode, loanSearch) ||
                         ContainsText(x.Name, loanSearch) ||
@@ -610,6 +636,13 @@
                 x.Status.Equals("Delivered", StringComparison.OrdinalIgnoreCase)
             ));
 
+    private int VisibleHistoryTotal =>
+        loanRequests
+            .Where(x => CanViewAssignmentHistory)
+            .Where(x => !IsPendingStatus(x.Status))
+            .Where(RequestInVisibleScope)
+            .Count();
+
     private IEnumerable<MobileLoanRequestDto> FilteredHistory =>
         loanRequests
             .Where(x => CanViewAssignmentHistory)
@@ -629,11 +662,29 @@
                         ContainsText(x.BranchCode, toolSearch) ||
                         ContainsText(x.LocationName, toolSearch) ||
                         ContainsText(x.ResponsiblePersonName, toolSearch))
-            .Where(x => string.IsNullOrWhiteSpace(toolStatus) ||
-                        x.OperationalStatus.Equals(toolStatus, StringComparison.OrdinalIgnoreCase))
+            .Where(x => selectedToolStatuses.Count == 0 ||
+                        selectedToolStatuses.Contains(x.OperationalStatus ?? string.Empty))
             .OrderByDescending(x => FindPendingRequestForTool(x.Id) is not null)
             .ThenByDescending(x => ContainsStatus(x.OperationalStatus, "Available"))
             .ThenBy(x => x.InternalCode);
+
+    private void ToggleToolStatus(string status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return;
+        }
+
+        if (!selectedToolStatuses.Add(status))
+        {
+            selectedToolStatuses.Remove(status);
+        }
+    }
+
+    private void ClearToolStatuses()
+    {
+        selectedToolStatuses.Clear();
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -645,8 +696,23 @@
             return;
         }
 
+        var refreshedUser = await Api.RefreshCurrentSessionAsync();
+
+        if (refreshedUser is null || !Auth.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", forceLoad: true);
+            return;
+        }
+
+        if (!CanUseAssignmentModule)
+        {
+            isLoading = false;
+            return;
+        }
+
         await LoadAsync();
     }
+
 
     private async Task LoadAsync()
     {
@@ -731,6 +797,16 @@
         }
     }
 
+    private static bool IsToolAvailableForLoan(MobileAvailabilityToolDto tool)
+    {
+        return string.Equals(tool.OperationalStatus, "Available", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetLoanAvailabilityMessage(MobileAvailabilityToolDto tool)
+    {
+        return $"Solo se pueden solicitar herramientas disponibles. {tool.InternalCode} está en estado {Display(tool.OperationalStatus)}.";
+    }
+
     private void SelectLoanTool(MobileAvailabilityToolDto tool)
     {
         if (!CanRequestLoan)
@@ -738,9 +814,17 @@
             return;
         }
 
+        if (!IsToolAvailableForLoan(tool))
+        {
+            ShowError(GetLoanAvailabilityMessage(tool));
+            return;
+        }
+
         loanForm.ToolId = tool.Id;
         loanSearch = $"{tool.InternalCode} - {tool.Name}";
     }
+
+
 
     private void OnLoanExpectedReturnChanged(ChangeEventArgs args)
     {
@@ -777,8 +861,16 @@
             return;
         }
 
+        if (!IsToolAvailableForLoan(tool))
+        {
+            ShowError("La herramienta seleccionada ya no está disponible para préstamo. Actualiza la pantalla y selecciona una herramienta disponible.");
+            return;
+        }
+
         await RequestLoanForToolAsync(tool);
     }
+
+
 
     private async Task RequestLoanForToolAsync(MobileAvailabilityToolDto tool)
     {
@@ -788,7 +880,13 @@
             return;
         }
 
-        if (!Auth.CurrentUser?.ResponsiblePersonId.HasValue == true)
+        if (!IsToolAvailableForLoan(tool))
+        {
+            ShowError("La herramienta seleccionada ya no está disponible para préstamo. Actualiza la pantalla y selecciona una herramienta disponible.");
+            return;
+        }
+
+        if (!(Auth.CurrentUser?.ResponsiblePersonId.HasValue ?? false))
         {
             ShowError("Tu usuario no tiene solicitante operativo asociado. Edita el usuario y guarda nuevamente.");
             return;
@@ -819,6 +917,7 @@
 
             ShowSuccess("Solicitud de préstamo creada correctamente. Queda pendiente de aprobación.");
             ClearLoanRequest();
+
             await LoadAsync();
         }
         catch (Exception ex)
@@ -830,6 +929,8 @@
             isSaving = false;
         }
     }
+
+
 
     private void ClearLoanRequest()
     {
@@ -962,6 +1063,20 @@
         if (assignmentForm.AssignmentType == "Responsible" && assignmentForm.ResponsiblePersonId is null)
         {
             ShowError("Debe seleccionar un responsable.");
+            return;
+        }
+
+        var selectedToolForMovement = selectedAssignmentTool;
+
+        if (selectedToolForMovement is null)
+        {
+            ShowError("No se encontró el activo seleccionado o no está dentro de tu alcance.");
+            return;
+        }
+
+        if (assignmentForm.AssignmentType == "Responsible" && !IsToolAvailableForLoan(selectedToolForMovement))
+        {
+            ShowError("El activo seleccionado no está disponible para asignación directa. Primero debe estar disponible en almacén/taller.");
             return;
         }
 
@@ -1103,20 +1218,20 @@
         return permissions.Any(HasPermission);
     }
 
+
+
     private bool HasPermission(string permission)
     {
-        var permissions = Auth.CurrentUser?.Permissions ?? new();
-
-        return permissions.Any(x => string.Equals(x, "ALL", StringComparison.OrdinalIgnoreCase))
-            || permissions.Any(x => string.Equals(x, permission, StringComparison.OrdinalIgnoreCase))
-            || Auth.HasPermission(permission);
+        return Auth.HasPermission(permission);
     }
+
+
 
     private bool UserCanSeeAllBranches()
     {
         var user = Auth.CurrentUser;
 
-        if (user is null || !Auth.IsAdmin())
+        if (user is null)
         {
             return false;
         }
@@ -1128,6 +1243,7 @@
             || SameNormalized(user.BranchName, "TODAS")
             || SameNormalized(user.BranchName, "ALL");
     }
+
 
     private bool IsSameBranch(MobileAvailabilityToolDto tool)
     {
