@@ -86,16 +86,6 @@
             <small class="@GetLocationSearchHintClass()">@GetLocationSearchHint()</small>
         </div>
 
-
-        <div class="mb-2">
-            <label class="form-label">Estantería / ubicación exacta</label>
-            <InputText class="form-control"
-                       @bind-Value="form.ShelfLocation"
-                       placeholder="Ej: EST-A1, RACK-3, CAJÓN 2"
-                       disabled="@(!CanChangeAvailabilityLocation)" />
-            <small class="navi-search-hint ok">Punto exacto dentro del almacén, taller o ubicación seleccionada.</small>
-        </div>
-
         <div class="mb-2">
             <label class="form-label">Estado operativo</label>
             <InputSelect class="form-select" @bind-Value="form.OperationalStatus" disabled="@(!CanChangeAvailabilityStatus)">
@@ -192,7 +182,6 @@
                         <th>Activo</th>
                         <th>Sede</th>
                         <th>Ubicación</th>
-                        <th>Estantería</th>
                         <th>Responsable</th>
                         <th>Estado</th>
                         <th class="text-end">Acción</th>
@@ -209,7 +198,6 @@
                             </td>
                             <td>@Show(tool.BranchCode)</td>
                             <td>@Show(tool.LocationName)</td>
-                            <td><span class="availability-shelf-pill">@Show(tool.ShelfLocation)</span></td>
                             <td>@Show(tool.ResponsiblePersonName)</td>
                             <td><span class="@GetStatusBadge(tool.OperationalStatus)">@GetStatusLabel(tool.OperationalStatus)</span></td>
                             <td class="text-end">
@@ -491,20 +479,6 @@
         font-weight: 950;
     }
 
-    .availability-shelf-pill {
-        display: inline-flex;
-        align-items: center;
-        min-height: 22px;
-        border-radius: 999px;
-        background: #fbf7fd;
-        border: 1px solid #eadff0;
-        color: #4b005c;
-        padding: .1rem .45rem;
-        font-size: .68rem;
-        font-weight: 900;
-        white-space: nowrap;
-    }
-
 </style>
 
 @code {
@@ -608,9 +582,7 @@ private IEnumerable<ToolItem> FilteredTools =>
             .Where(x => string.IsNullOrWhiteSpace(search) ||
                         x.InternalCode.Contains(search, StringComparison.OrdinalIgnoreCase) ||
                         x.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                        (x.SerialNumber ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                        (x.LocationName ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                        (x.ShelfLocation ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase))
+                        (x.SerialNumber ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase))
             .Where(x => string.IsNullOrWhiteSpace(selectedBranchCode) ||
                         (x.BranchCode ?? string.Empty).Contains(selectedBranchCode, StringComparison.OrdinalIgnoreCase))
             .Where(x => string.IsNullOrWhiteSpace(selectedStatus) || x.OperationalStatus == selectedStatus)
@@ -945,7 +917,6 @@ private IEnumerable<ToolItem> FilteredTools =>
         public Guid? ToolId { get; set; }
         public Guid? BranchId { get; set; }
         public Guid? LocationId { get; set; }
-        public string? ShelfLocation { get; set; }
         public string OperationalStatus { get; set; } = "Available";
         public string? Observation { get; set; }
     }
@@ -962,7 +933,6 @@ private IEnumerable<ToolItem> FilteredTools =>
         public string? BranchCode { get; set; }
         public Guid? LocationId { get; set; }
         public string? LocationName { get; set; }
-        public string? ShelfLocation { get; set; }
         public string? ResponsiblePersonName { get; set; }
         public string OperationalStatus { get; set; } = string.Empty;
     }

@@ -163,7 +163,6 @@ public class ToolsController : ControllerBase
             ZoneId = branch.ZoneId,
             BranchId = branch.Id,
             LocationId = location?.Id,
-            ShelfLocation = NormalizeShelfLocation(request.ShelfLocation),
             ResponsiblePersonId = responsible?.Id,
             ToolTypeId = toolType?.Id,
             ToolCategoryId = toolCategory?.Id,
@@ -252,7 +251,6 @@ public class ToolsController : ControllerBase
         tool.ZoneId = branch.ZoneId;
         tool.BranchId = branch.Id;
         tool.LocationId = location?.Id;
-        tool.ShelfLocation = NormalizeShelfLocation(request.ShelfLocation);
         tool.ResponsiblePersonId = responsible?.Id;
         tool.ToolTypeId = toolType?.Id;
         tool.ToolCategoryId = toolCategory?.Id;
@@ -436,7 +434,6 @@ public class ToolsController : ControllerBase
                 x.LocationId,
                 LocationCode = x.Location != null ? x.Location.Code : null,
                 LocationName = x.Location != null ? x.Location.Name : null,
-                x.ShelfLocation,
                 x.ResponsiblePersonId,
                 ResponsiblePersonName = x.ResponsiblePerson != null ? x.ResponsiblePerson.FullName : null,
                 ResponsiblePosition = x.ResponsiblePerson != null ? x.ResponsiblePerson.Position : null,
@@ -505,12 +502,11 @@ public class ToolsController : ControllerBase
             return BadRequest(new { Message = $"Estado operativo inválido: {request.OperationalStatus}" });
         }
 
-        var previousValue = $"Sede={tool.Branch?.Code}; Ubicación={tool.Location?.Code}; Estantería={tool.ShelfLocation}; Estado={tool.OperationalStatus}; Responsable={tool.ResponsiblePerson?.FullName}";
+        var previousValue = $"Sede={tool.Branch?.Code}; Ubicación={tool.Location?.Code}; Estado={tool.OperationalStatus}; Responsable={tool.ResponsiblePerson?.FullName}";
 
         tool.ZoneId = branch.ZoneId;
         tool.BranchId = branch.Id;
         tool.LocationId = location?.Id;
-        tool.ShelfLocation = NormalizeShelfLocation(request.ShelfLocation);
         tool.OperationalStatus = newStatus;
 
         if (newStatus == ToolOperationalStatus.Available)
@@ -525,7 +521,7 @@ public class ToolsController : ControllerBase
         tool.UpdatedAt = DateTime.UtcNow;
         tool.UpdatedBy = string.IsNullOrWhiteSpace(request.ChangedBy) ? "admin-web" : request.ChangedBy.Trim();
 
-        var newValue = $"Sede={branch.Code}; Ubicación={location?.Code}; Estantería={tool.ShelfLocation}; Estado={tool.OperationalStatus}; Responsable={tool.ResponsiblePerson?.FullName}";
+        var newValue = $"Sede={branch.Code}; Ubicación={location?.Code}; Estado={tool.OperationalStatus}; Responsable={tool.ResponsiblePerson?.FullName}";
 
         _context.ToolLifeCycleEvents.Add(new()
         {
@@ -633,12 +629,11 @@ public class ToolsController : ControllerBase
                 return BadRequest(new { Message = "El almacén/taller seleccionado no pertenece a la sede indicada." });
             }
 
-            var previousValue = $"Responsable={tool.ResponsiblePerson?.FullName}; Sede={tool.Branch?.Code}; Ubicación={tool.Location?.Code}; Estantería={tool.ShelfLocation}; Estado={tool.OperationalStatus}; Custodia={tool.CustodyStatus}";
+            var previousValue = $"Responsable={tool.ResponsiblePerson?.FullName}; Sede={tool.Branch?.Code}; Ubicación={tool.Location?.Code}; Estado={tool.OperationalStatus}; Custodia={tool.CustodyStatus}";
 
             tool.ZoneId = branch.ZoneId;
             tool.BranchId = branch.Id;
             tool.LocationId = location.Id;
-            tool.ShelfLocation = NormalizeShelfLocation(request.ShelfLocation);
             tool.ResponsiblePersonId = null;
             tool.OperationalStatus = ToolOperationalStatus.Available;
             tool.CustodyStatus = ToolCustodyStatus.InWarehouse;
@@ -654,7 +649,7 @@ public class ToolsController : ControllerBase
                     ? $"Activo ubicado en {location.Code} - {location.Name}."
                     : request.Observation.Trim(),
                 PreviousValue = previousValue,
-                NewValue = $"Sede={branch.Code}; Ubicación={location.Code}; Estantería={tool.ShelfLocation}; Estado={tool.OperationalStatus}; Custodia={tool.CustodyStatus}",
+                NewValue = $"Sede={branch.Code}; Ubicación={location.Code}; Estado={tool.OperationalStatus}; Custodia={tool.CustodyStatus}",
                 RegisteredAt = request.AssignmentDate ?? DateTime.UtcNow,CreatedAt = DateTime.UtcNow,
                 CreatedBy = tool.UpdatedBy
             });
@@ -1136,7 +1131,6 @@ public class ToolsController : ControllerBase
                 tool.LocationId,
                 tool.LocationCode,
                 tool.LocationName,
-                tool.ShelfLocation,
                 tool.ResponsiblePersonId,
                 tool.ResponsiblePersonName
             },
@@ -1558,7 +1552,6 @@ public class ToolsController : ControllerBase
                 LocationId = x.LocationId,
                 LocationCode = x.Location == null ? null : x.Location.Code,
                 LocationName = x.Location == null ? null : x.Location.Name,
-                ShelfLocation = x.ShelfLocation,
 
                 ResponsiblePersonId = x.ResponsiblePersonId,
                 ResponsiblePersonName = x.ResponsiblePerson == null ? null : x.ResponsiblePerson.FullName,
@@ -1583,20 +1576,6 @@ public class ToolsController : ControllerBase
             : value.Trim().ToUpperInvariant();
     }
 
-    private static string? NormalizeShelfLocation(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var clean = value.Trim();
-
-        return clean.Length > 120
-            ? clean[..120]
-            : clean;
-    }
-
     public class CreateToolRequest
     {
         public string? InternalCode { get; set; }
@@ -1618,7 +1597,6 @@ public class ToolsController : ControllerBase
         public DateTime? CertificationExpirationDate { get; set; }
         public string? BranchCode { get; set; }
         public string? LocationCode { get; set; }
-        public string? ShelfLocation { get; set; }
         public string? ResponsibleEmployeeCode { get; set; }
         public string? ToolTypeCode { get; set; }
         public string? ToolCategoryCode { get; set; }
@@ -1633,7 +1611,6 @@ public class ToolsController : ControllerBase
     {
         public Guid BranchId { get; set; }
         public Guid? LocationId { get; set; }
-        public string? ShelfLocation { get; set; }
         public string? OperationalStatus { get; set; }
         public string? Observation { get; set; }
         public string? ChangedBy { get; set; }
@@ -1645,7 +1622,6 @@ public class ToolsController : ControllerBase
         public Guid? ResponsiblePersonId { get; set; }
         public Guid? BranchId { get; set; }
         public Guid? LocationId { get; set; }
-        public string? ShelfLocation { get; set; }
         public DateTime? AssignmentDate { get; set; }
         public string? Observation { get; set; }
         public string? ChangedBy { get; set; }
@@ -1696,7 +1672,6 @@ public class ToolsController : ControllerBase
         public Guid? LocationId { get; set; }
         public string? LocationCode { get; set; }
         public string? LocationName { get; set; }
-        public string? ShelfLocation { get; set; }
 
         public Guid? ResponsiblePersonId { get; set; }
         public string? ResponsiblePersonName { get; set; }

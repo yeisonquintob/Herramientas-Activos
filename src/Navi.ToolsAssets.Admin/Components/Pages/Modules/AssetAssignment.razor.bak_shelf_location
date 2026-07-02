@@ -118,15 +118,6 @@
 
                     <small class="@GetAssignmentLocationHintClass()">@GetAssignmentLocationHint()</small>
                 </div>
-
-                <div class="mb-2">
-                    <label class="form-label">Estantería / ubicación exacta destino</label>
-                    <InputText class="form-control"
-                               @bind-Value="form.ShelfLocation"
-                               placeholder="Ej: EST-A1, RACK-3, CAJÓN 2" />
-                    <small class="navi-search-hint ok">Punto exacto donde queda guardado el activo al regresar al almacén/taller.</small>
-                </div>
-
             }
 
             <div class="mb-2">
@@ -254,7 +245,7 @@
                                 <span>
                                     <strong>@tool.InternalCode</strong>
                                     <small>@tool.Name</small>
-                                    <small>@Show(tool.BranchCode) · @Show(tool.LocationName) · Est: @Show(tool.ShelfLocation)</small>
+                                    <small>@Show(tool.BranchCode) · @Show(tool.LocationName)</small>
                                 </span>
 
                                 <em class="@GetRequestAvailabilityClass(tool, pending)">
@@ -272,7 +263,7 @@
                     <div>
                         <span>Herramienta seleccionada</span>
                         <strong>@SelectedRequestTool.InternalCode - @SelectedRequestTool.Name</strong>
-                        <small>@Show(SelectedRequestTool.BranchCode) · @Show(SelectedRequestTool.LocationName) · Est: @Show(SelectedRequestTool.ShelfLocation)</small>
+                        <small>@Show(SelectedRequestTool.BranchCode) · @Show(SelectedRequestTool.LocationName)</small>
                     </div>
 
                     <button type="button" @onclick="ClearRequestToolSelection">
@@ -441,7 +432,6 @@
                         <th>Activo</th>
                         <th>Sede</th>
                         <th>Ubicación</th>
-                        <th>Estantería</th>
                         <th>Usuario / Responsable</th>
                         <th>Estado</th>
                         <th>Solicitud</th>
@@ -463,7 +453,6 @@
                             </td>
                             <td>@Show(tool.BranchCode)</td>
                             <td>@Show(tool.LocationName)</td>
-                            <td><span class="assignment-shelf-pill">@Show(tool.ShelfLocation)</span></td>
                             <td>
                                 <div>@Show(tool.ResponsiblePersonName)</div>
                                 <small class="text-muted">@Show(tool.ResponsiblePosition)</small>
@@ -1459,20 +1448,6 @@
         }
     }
 
-    .assignment-shelf-pill {
-        display: inline-flex;
-        align-items: center;
-        min-height: 22px;
-        border-radius: 999px;
-        background: #fbf7fd;
-        border: 1px solid #eadff0;
-        color: #4b005c;
-        padding: .1rem .45rem;
-        font-size: .68rem;
-        font-weight: 900;
-        white-space: nowrap;
-    }
-
 </style>
 
 @code {
@@ -1864,7 +1839,6 @@ private IEnumerable<ToolItem> FilteredTools =>
                Contains(tool.SerialNumber, search) ||
                Contains(tool.BranchCode, search) ||
                Contains(tool.LocationName, search) ||
-               Contains(tool.ShelfLocation, search) ||
                Contains(tool.ResponsiblePersonName, search);
     }
 
@@ -2211,7 +2185,6 @@ private IEnumerable<ToolItem> FilteredTools =>
             responsiblePersonId = form.ResponsiblePersonId,
             branchId = form.BranchId,
             locationId = form.LocationId,
-                shelfLocation = form.ShelfLocation,
             assignmentDate = form.AssignmentDate,
             observation = form.Observation,
             changedBy = AuthSession.AuditUser
@@ -2756,7 +2729,6 @@ private IEnumerable<ToolItem> FilteredTools =>
         public Guid? ResponsiblePersonId { get; set; }
         public Guid? BranchId { get; set; }
         public Guid? LocationId { get; set; }
-        public string? ShelfLocation { get; set; }
         public DateTime? AssignmentDate { get; set; } = DateTime.Today;
         public string? Observation { get; set; }
     }
@@ -2780,7 +2752,6 @@ private IEnumerable<ToolItem> FilteredTools =>
         public string? BranchCode { get; set; }
         public Guid? LocationId { get; set; }
         public string? LocationName { get; set; }
-        public string? ShelfLocation { get; set; }
         public Guid? ResponsiblePersonId { get; set; }
         public string? ResponsiblePersonName { get; set; }
         public string? ResponsiblePosition { get; set; }
