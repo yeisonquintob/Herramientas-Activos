@@ -1,4 +1,4 @@
-﻿using Hangfire;
+using Hangfire;
 using Hangfire.SqlServer;
 using Navi.ToolsAssets.Infrastructure.Extensions;
 using Navi.ToolsAssets.Infrastructure.Seed;
@@ -78,4 +78,3 @@ app.MapGet("/", () => Results.Ok(new
 }));
 
 app.Run();
-

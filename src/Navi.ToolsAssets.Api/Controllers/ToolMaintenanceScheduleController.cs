@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Navi.ToolsAssets.Domain.Entities.LifeCycles;
 using Navi.ToolsAssets.Domain.Entities.Maintenance;
@@ -374,4 +374,3 @@ public sealed class UpdateToolMaintenanceScheduleRequest
 
     public string? UpdatedBy { get; set; }
 }
-

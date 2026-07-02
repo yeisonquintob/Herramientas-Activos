@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Navi.ToolsAssets.Domain.Entities.Damages;
 using Navi.ToolsAssets.Domain.Entities.LifeCycles;

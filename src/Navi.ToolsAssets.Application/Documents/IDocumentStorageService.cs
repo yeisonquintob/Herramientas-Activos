@@ -1,4 +1,4 @@
-﻿namespace Navi.ToolsAssets.Application.Documents;
+namespace Navi.ToolsAssets.Application.Documents;
 
 public interface IDocumentStorageService
 {

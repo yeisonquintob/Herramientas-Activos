@@ -132,5 +132,3 @@ public class ToolAsset : BaseEntity
 
     public ICollection<FenixReconciliationRecord> ReconciliationRecords { get; set; } = new List<FenixReconciliationRecord>();
 }
-
-

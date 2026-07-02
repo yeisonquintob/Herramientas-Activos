@@ -1,4 +1,4 @@
-﻿using Navi.ToolsAssets.Domain.Common.Base;
+using Navi.ToolsAssets.Domain.Common.Base;
 
 namespace Navi.ToolsAssets.Domain.Entities.Imports;
 

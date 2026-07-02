@@ -504,7 +504,7 @@ public class ReportsIndexBase : ComponentBase
             new(Show(x.ProcessedBy))
         }, x.BranchCode, x.Status, x.ProcessedAt, $"{x.ToolInternalCode} {x.ToolName} {x.BranchCode} {x.Status} {x.Decision} {x.Action} {x.ProcessedBy}")).ToList();
     }
-protected string BuildCsvDataUrl()
+    protected string BuildCsvDataUrl()
     {
         if (!CanExportReports)
         {

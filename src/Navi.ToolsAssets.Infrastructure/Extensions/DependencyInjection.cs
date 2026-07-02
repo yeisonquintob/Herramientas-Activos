@@ -1,9 +1,9 @@
-﻿using Navi.ToolsAssets.Infrastructure.Storage;
-using Navi.ToolsAssets.Application.Documents;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Navi.ToolsAssets.Application.Documents;
 using Navi.ToolsAssets.Infrastructure.Persistence.Context;
+using Navi.ToolsAssets.Infrastructure.Storage;
 
 namespace Navi.ToolsAssets.Infrastructure.Extensions;
 
@@ -26,4 +26,3 @@ public static class DependencyInjection
         return services;
     }
 }
-

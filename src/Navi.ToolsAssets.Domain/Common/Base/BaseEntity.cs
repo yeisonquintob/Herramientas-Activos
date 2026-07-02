@@ -1,4 +1,4 @@
-﻿namespace Navi.ToolsAssets.Domain.Common.Base;
+namespace Navi.ToolsAssets.Domain.Common.Base;
 
 public abstract class BaseEntity
 {

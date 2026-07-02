@@ -1,6 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Navi.ToolsAssets.Api.Security;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Navi.ToolsAssets.Api.Security;
 using Navi.ToolsAssets.Application.Documents;
 using Navi.ToolsAssets.Domain.Entities.Documents;
 using Navi.ToolsAssets.Domain.Entities.LifeCycles;
@@ -348,6 +348,3 @@ public class ToolDocumentsController : ControllerBase
         };
     }
 }
-
-
-

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Navi.ToolsAssets.Domain.Entities.LifeCycles;
 using Navi.ToolsAssets.Domain.Entities.Sync;
@@ -518,4 +518,3 @@ public sealed class ReconciliationActionRequest
 
     public string? Notes { get; set; }
 }
-

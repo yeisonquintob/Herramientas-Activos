@@ -1,5 +1,5 @@
-using Navi.ToolsAssets.Admin.Services.Auth;
 using Navi.ToolsAssets.Admin.Components;
+using Navi.ToolsAssets.Admin.Services.Auth;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,9 +33,3 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
-
-
-
-
-
-

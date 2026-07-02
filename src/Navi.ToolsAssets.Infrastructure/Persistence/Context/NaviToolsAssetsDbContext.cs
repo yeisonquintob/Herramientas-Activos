@@ -1,9 +1,9 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Navi.ToolsAssets.Domain.Entities.Configuration;
 using Navi.ToolsAssets.Domain.Entities.Damages;
 using Navi.ToolsAssets.Domain.Entities.Documents;
-using Navi.ToolsAssets.Domain.Entities.Inventory;
 using Navi.ToolsAssets.Domain.Entities.Imports;
+using Navi.ToolsAssets.Domain.Entities.Inventory;
 using Navi.ToolsAssets.Domain.Entities.LifeCycles;
 using Navi.ToolsAssets.Domain.Entities.Loans;
 using Navi.ToolsAssets.Domain.Entities.Maintenance;
@@ -765,16 +765,3 @@ public class NaviToolsAssetsDbContext : DbContext
         });
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

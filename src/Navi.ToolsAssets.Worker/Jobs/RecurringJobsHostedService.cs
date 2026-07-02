@@ -1,4 +1,4 @@
-﻿using Hangfire;
+using Hangfire;
 
 namespace Navi.ToolsAssets.Worker.Jobs;
 

@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Navi.ToolsAssets.Domain.Entities.LifeCycles;
-using Navi.ToolsAssets.Domain.Entities.PhysicalCounts;
 using Navi.ToolsAssets.Domain.Entities.Inventory;
+using Navi.ToolsAssets.Domain.Entities.LifeCycles;
 using Navi.ToolsAssets.Domain.Entities.Organization;
+using Navi.ToolsAssets.Domain.Entities.PhysicalCounts;
 using Navi.ToolsAssets.Domain.Enums;
 using Navi.ToolsAssets.Infrastructure.Persistence.Context;
 
@@ -566,7 +566,7 @@ public class PhysicalCountsController : ControllerBase
             }
         });
     }
-[HttpPost("{id:guid}/generate-participants")]
+    [HttpPost("{id:guid}/generate-participants")]
     public async Task<IActionResult> GenerateParticipants(Guid id, [FromBody] GeneratePhysicalCountParticipantsRequest request, CancellationToken cancellationToken)
     {
         await EnsurePhysicalCountParticipantSchemaAsync(cancellationToken);
@@ -1894,7 +1894,7 @@ END;
             return NotFound(new { Message = $"No se encontró la herramienta reportada {extraItemId}." });
         }
 
-        
+
         if (extra.Rejected || extra.ReconciliationStatus == "Rejected")
         {
             return BadRequest(new { Message = "La herramienta reportada está rechazada y no puede aprobarse para creación." });
@@ -1904,7 +1904,7 @@ END;
         {
             return BadRequest(new { Message = "La herramienta reportada requiere aclaración antes de aprobar creación." });
         }
-var actionBy = NormalizeOptional(request.ActionBy) ?? "admin";
+        var actionBy = NormalizeOptional(request.ActionBy) ?? "admin";
         var now = DateTime.UtcNow;
 
         extra.ApprovedForCreation = true;
@@ -1983,7 +1983,7 @@ var actionBy = NormalizeOptional(request.ActionBy) ?? "admin";
             return NotFound(new { Message = $"No se encontró la herramienta reportada {extraItemId}." });
         }
 
-        
+
         if (extra.Rejected || extra.ReconciliationStatus == "Rejected")
         {
             return BadRequest(new { Message = "La herramienta reportada está rechazada y no puede conciliarse." });
@@ -1993,7 +1993,7 @@ var actionBy = NormalizeOptional(request.ActionBy) ?? "admin";
         {
             return BadRequest(new { Message = "La herramienta reportada requiere aclaración antes de conciliarse." });
         }
-var actionBy = NormalizeOptional(request.ActionBy) ?? "admin";
+        var actionBy = NormalizeOptional(request.ActionBy) ?? "admin";
         var now = DateTime.UtcNow;
 
         extra.ReconciliationStatus = "Reconciled";
@@ -2544,7 +2544,7 @@ END;
             });
         }
 
-        
+
         if (item.Rejected || item.ReconciliationStatus == "Rejected")
         {
             return BadRequest(new { Message = "El registro está rechazado y no puede aprobarse para creación." });
@@ -2554,7 +2554,7 @@ END;
         {
             return BadRequest(new { Message = "El registro requiere aclaración del usuario antes de aprobar creación." });
         }
-var actionBy = NormalizeOptional(request.ActionBy) ?? "admin";
+        var actionBy = NormalizeOptional(request.ActionBy) ?? "admin";
         var now = DateTime.UtcNow;
 
         item.ApprovedForCreation = true;
@@ -2634,7 +2634,7 @@ var actionBy = NormalizeOptional(request.ActionBy) ?? "admin";
             return NotFound(new { Message = $"No se encontró el registro reportado {reportedItemId}." });
         }
 
-        
+
         if (item.Rejected || item.ReconciliationStatus == "Rejected")
         {
             return BadRequest(new { Message = "El registro está rechazado y no puede conciliarse." });
@@ -2644,7 +2644,7 @@ var actionBy = NormalizeOptional(request.ActionBy) ?? "admin";
         {
             return BadRequest(new { Message = "El registro requiere aclaración del usuario antes de conciliarse." });
         }
-var actionBy = NormalizeOptional(request.ActionBy) ?? "admin";
+        var actionBy = NormalizeOptional(request.ActionBy) ?? "admin";
         var now = DateTime.UtcNow;
 
         item.ReconciliationStatus = "Reconciled";
@@ -2940,7 +2940,7 @@ END;
             return BadRequest(new { Message = "Solo los registros tipo herramienta no listada pueden convertirse en Inventario de AF." });
         }
 
-        
+
         if (item.Rejected || item.ReconciliationStatus == "Rejected")
         {
             return BadRequest(new { Message = "El registro está rechazado y no puede crearse en Inventario de AF." });
@@ -2950,7 +2950,7 @@ END;
         {
             return BadRequest(new { Message = "El registro requiere aclaración del usuario antes de crearse en Inventario de AF." });
         }
-if (!item.ApprovedForCreation && item.ReconciliationStatus != "ApprovedForCreation")
+        if (!item.ApprovedForCreation && item.ReconciliationStatus != "ApprovedForCreation")
         {
             return BadRequest(new { Message = "El registro debe estar aprobado para creación antes de crear el activo." });
         }
@@ -3608,7 +3608,7 @@ public sealed class PhysicalCountActionRequest
     public string? ActionBy { get; set; }
 
     public string? Notes { get; set; }
-        public bool ForceClose { get; set; }
+    public bool ForceClose { get; set; }
 }
 
 
@@ -3639,4 +3639,3 @@ public sealed class ParticipantAssignedToolReportRequest
     public string? Observation { get; set; }
     public string? ActionBy { get; set; }
 }
-

@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using Navi.ToolsAssets.Api.Security;
 using Microsoft.EntityFrameworkCore;
+using Navi.ToolsAssets.Api.Security;
 using Navi.ToolsAssets.Domain.Entities.LifeCycles;
 using Navi.ToolsAssets.Domain.Entities.Loans;
 using Navi.ToolsAssets.Domain.Enums;
@@ -884,6 +884,3 @@ public sealed class LoanActionRequest
 
     public string? Condition { get; set; }
 }
-
-
-

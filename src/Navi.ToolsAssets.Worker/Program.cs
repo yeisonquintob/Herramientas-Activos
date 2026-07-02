@@ -1,4 +1,4 @@
-﻿using Hangfire;
+using Hangfire;
 using Hangfire.SqlServer;
 using Navi.ToolsAssets.Worker.Jobs;
 

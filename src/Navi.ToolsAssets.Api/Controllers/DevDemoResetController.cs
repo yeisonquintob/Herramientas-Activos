@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Navi.ToolsAssets.Domain.Entities.Inventory;
 using Navi.ToolsAssets.Domain.Entities.LifeCycles;
@@ -621,4 +621,3 @@ public sealed class ResetDemoRequest
     public string Confirmation { get; set; } = string.Empty;
     public string? SeedBy { get; set; }
 }
-

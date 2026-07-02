@@ -1,4 +1,4 @@
-﻿using Navi.ToolsAssets.Domain.Common.Base;
+using Navi.ToolsAssets.Domain.Common.Base;
 using Navi.ToolsAssets.Domain.Entities.Organization;
 
 namespace Navi.ToolsAssets.Domain.Entities.Security;
@@ -33,17 +33,3 @@ public class AppUser : BaseEntity
 
     public DateTime? LastLoginAt { get; set; }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-

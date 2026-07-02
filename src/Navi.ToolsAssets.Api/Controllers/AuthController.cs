@@ -1,7 +1,7 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Navi.ToolsAssets.Infrastructure.Persistence.Context;
 
 namespace Navi.ToolsAssets.Api.Controllers;
@@ -351,7 +351,7 @@ public sealed class AuthController : ControllerBase
         return Ok(SecurityPermissions.All);
     }
 
-        private async Task EnsureSecurityUsersPasswordSchemaAsync(CancellationToken cancellationToken)
+    private async Task EnsureSecurityUsersPasswordSchemaAsync(CancellationToken cancellationToken)
     {
         var sql = @"
 IF COL_LENGTH('Security.AppUsers', 'PasswordHash') IS NULL
@@ -380,7 +380,7 @@ END
         return string.Equals(HashPassword(password), hash, StringComparison.OrdinalIgnoreCase);
     }
 
-        private async Task EnsureAppUserPasswordHashColumnAsync(CancellationToken cancellationToken)
+    private async Task EnsureAppUserPasswordHashColumnAsync(CancellationToken cancellationToken)
     {
         var entityType = _context.Model.FindEntityType(typeof(Navi.ToolsAssets.Domain.Entities.Security.AppUser));
 
@@ -981,23 +981,3 @@ public static class SecurityPermissions
         new("Security.Roles", "Seguridad", "Roles", "Administrar roles y permisos.")
     };
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

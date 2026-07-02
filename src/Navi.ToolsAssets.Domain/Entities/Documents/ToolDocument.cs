@@ -1,4 +1,4 @@
-﻿using Navi.ToolsAssets.Domain.Common.Base;
+using Navi.ToolsAssets.Domain.Common.Base;
 using Navi.ToolsAssets.Domain.Entities.Inventory;
 using Navi.ToolsAssets.Domain.Enums;
 

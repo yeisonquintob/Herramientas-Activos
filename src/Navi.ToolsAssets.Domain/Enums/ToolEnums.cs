@@ -1,4 +1,4 @@
-﻿namespace Navi.ToolsAssets.Domain.Enums;
+namespace Navi.ToolsAssets.Domain.Enums;
 
 public enum ToolOperationalStatus
 {

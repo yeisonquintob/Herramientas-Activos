@@ -1,8 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Navi.ToolsAssets.Domain.Enums;
-using Navi.ToolsAssets.Domain.Entities.PhysicalCounts;
 using Navi.ToolsAssets.Domain.Entities.LifeCycles;
+using Navi.ToolsAssets.Domain.Entities.PhysicalCounts;
+using Navi.ToolsAssets.Domain.Enums;
 using Navi.ToolsAssets.Infrastructure.Persistence.Context;
 
 namespace Navi.ToolsAssets.Api.Controllers;
@@ -282,7 +282,7 @@ public sealed class ToolAssetControlController : ControllerBase
         var now = DateTime.UtcNow;
         var reason = Normalize(request.Reason) ?? "Activo anulado desde detalle de Inventario de AF.";
 
-        tool.IsDeleted = true;        tool.UpdatedAt = now;
+        tool.IsDeleted = true; tool.UpdatedAt = now;
         tool.UpdatedBy = actionBy;
 
         tool.Description = string.IsNullOrWhiteSpace(tool.Description)
@@ -330,7 +330,7 @@ public sealed class ToolAssetControlController : ControllerBase
         tool.ResponsiblePersonId = null;
         tool.CustodyStatus = ToolCustodyStatus.InWarehouse;
         tool.OperationalStatus = ToolOperationalStatus.PendingValidation;
-        tool.ReconciliationStatus = ToolReconciliationStatus.Pending;        tool.UpdatedAt = now;
+        tool.ReconciliationStatus = ToolReconciliationStatus.Pending; tool.UpdatedAt = now;
         tool.UpdatedBy = actionBy;
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -415,8 +415,3 @@ public sealed class ToolAssetControlController : ControllerBase
         public string? Reason { get; set; }
     }
 }
-
-
-
-
-

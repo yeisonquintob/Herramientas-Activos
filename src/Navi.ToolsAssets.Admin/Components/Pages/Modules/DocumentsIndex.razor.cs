@@ -1321,7 +1321,7 @@ public class DocumentsIndexBase : ComponentBase
 
         return $"{asset.InternalCode} - {asset.Name} · {branch} · {serial}";
     }
-protected string BuildPhysicalCountCsvDataUrl()
+    protected string BuildPhysicalCountCsvDataUrl()
     {
         if (!CanDownloadDocuments)
         {
@@ -1372,7 +1372,7 @@ protected string BuildPhysicalCountCsvDataUrl()
             _ => "docs-physical-status pending"
         };
     }
-protected string BuildDownloadUrl(string? downloadUrl)
+    protected string BuildDownloadUrl(string? downloadUrl)
     {
         if (!CanDownloadDocuments)
         {

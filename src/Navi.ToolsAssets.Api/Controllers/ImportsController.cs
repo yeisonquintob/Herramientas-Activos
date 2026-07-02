@@ -1,13 +1,13 @@
+using System.Text.Json;
 using ClosedXML.Excel;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Minio;
 using Minio.DataModel.Args;
 using Navi.ToolsAssets.Domain.Entities.Imports;
-using Navi.ToolsAssets.Domain.Entities.LifeCycles;
 using Navi.ToolsAssets.Domain.Entities.Inventory;
+using Navi.ToolsAssets.Domain.Entities.LifeCycles;
 using Navi.ToolsAssets.Domain.Enums;
-using System.Text.Json;
 using Navi.ToolsAssets.Infrastructure.Persistence.Context;
 
 namespace Navi.ToolsAssets.Api.Controllers;
@@ -110,7 +110,7 @@ public class ImportsController : ControllerBase
 
         if (import is null)
         {
-            return NotFound(new { Message = $"No se encontró la importación con Id {id}." });
+            return NotFound(new { Message = $"No se encontrï¿½ la importaciï¿½n con Id {id}." });
         }
 
         return Ok(import);
@@ -123,7 +123,7 @@ public class ImportsController : ControllerBase
 
         if (!exists)
         {
-            return NotFound(new { Message = $"No se encontró la importación con Id {id}." });
+            return NotFound(new { Message = $"No se encontrï¿½ la importaciï¿½n con Id {id}." });
         }
 
         var rows = await _context.ImportRows
@@ -234,11 +234,11 @@ public class ImportsController : ControllerBase
 
         foreach (var row in dataRows)
         {
-            var internalCode = NormalizeCodeOrNull(GetCellValue(row, headers, "codigo navi", "codigo interno", "internal code", "código interno", "codigo herramienta", "code"));
-            var fenixCode = NormalizeCodeOrNull(GetCellValue(row, headers, "codigo fenix", "fenix code", "codigo fenix365", "código fenix365"));
+            var internalCode = NormalizeCodeOrNull(GetCellValue(row, headers, "codigo navi", "codigo interno", "internal code", "cï¿½digo interno", "codigo herramienta", "code"));
+            var fenixCode = NormalizeCodeOrNull(GetCellValue(row, headers, "codigo fenix", "fenix code", "codigo fenix365", "cï¿½digo fenix365"));
             var fixedAssetCode = NormalizeCodeOrNull(GetCellValue(row, headers, "activo fijo", "fixed asset", "placa", "placa activo", "asset code"));
             var serialNumber = NormalizeCodeOrNull(GetCellValue(row, headers, "serial", "serie", "serial number"));
-            var toolName = GetCellValue(row, headers, "nombre", "herramienta", "tool name", "descripcion", "descripción");
+            var toolName = GetCellValue(row, headers, "nombre", "herramienta", "tool name", "descripcion", "descripciï¿½n");
             var branchCode = NormalizeCodeOrNull(GetCellValue(row, headers, "sede", "branch", "branch code", "centro", "ubicacion sede"));
             var responsibleName = GetCellValue(row, headers, "responsable", "responsible", "custodio", "asignado a");
             var operationalStatus = GetCellValue(row, headers, "estado", "status", "estado operativo");
@@ -274,7 +274,7 @@ public class ImportsController : ControllerBase
         importBatch.CreatedTools = 0;
         importBatch.UpdatedTools = 0;
         importBatch.Status = importBatch.ErrorRows > 0 ? "CompletedWithErrors" : "Completed";
-        importBatch.Summary = $"Filas: {importBatch.TotalRows}. Válidas: {importBatch.ValidRows}. Errores: {importBatch.ErrorRows}. Duplicados/Existentes: {importBatch.DuplicateRows}.";
+        importBatch.Summary = $"Filas: {importBatch.TotalRows}. Vï¿½lidas: {importBatch.ValidRows}. Errores: {importBatch.ErrorRows}. Duplicados/Existentes: {importBatch.DuplicateRows}.";
         importBatch.ProcessedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -309,7 +309,7 @@ public class ImportsController : ControllerBase
 
         if (importBatch is null)
         {
-            return NotFound(new { Message = $"No se encontró la importación con Id {id}." });
+            return NotFound(new { Message = $"No se encontrï¿½ la importaciï¿½n con Id {id}." });
         }
 
         var candidateRows = importBatch.Rows
@@ -319,7 +319,7 @@ public class ImportsController : ControllerBase
 
         if (candidateRows.Count == 0)
         {
-            return BadRequest(new { Message = "La importación no tiene filas NewCandidate para crear herramientas." });
+            return BadRequest(new { Message = "La importaciï¿½n no tiene filas NewCandidate para crear herramientas." });
         }
 
         var processedBy = string.IsNullOrWhiteSpace(request.ProcessedBy)
@@ -346,7 +346,7 @@ public class ImportsController : ControllerBase
             if (string.IsNullOrWhiteSpace(row.InternalCode))
             {
                 row.ResultStatus = "Error";
-                row.Message = "No se puede crear la herramienta porque la fila no tiene código interno.";
+                row.Message = "No se puede crear la herramienta porque la fila no tiene cï¿½digo interno.";
                 row.UpdatedAt = DateTime.UtcNow;
                 row.UpdatedBy = processedBy;
 
@@ -372,7 +372,7 @@ public class ImportsController : ControllerBase
             if (string.IsNullOrWhiteSpace(branchCode))
             {
                 row.ResultStatus = "Error";
-                row.Message = "No se puede crear la herramienta porque la fila no tiene sede y no se indicó sede por defecto.";
+                row.Message = "No se puede crear la herramienta porque la fila no tiene sede y no se indicï¿½ sede por defecto.";
                 row.UpdatedAt = DateTime.UtcNow;
                 row.UpdatedBy = processedBy;
 
@@ -390,7 +390,7 @@ public class ImportsController : ControllerBase
             if (alreadyExists is not null)
             {
                 row.ResultStatus = "Existing";
-                row.Message = $"No se creó porque ya existe una herramienta relacionada en NAVI: {alreadyExists.InternalCode}.";
+                row.Message = $"No se creï¿½ porque ya existe una herramienta relacionada en NAVI: {alreadyExists.InternalCode}.";
                 row.UpdatedAt = DateTime.UtcNow;
                 row.UpdatedBy = processedBy;
 
@@ -422,7 +422,7 @@ public class ImportsController : ControllerBase
             if (location is null)
             {
                 row.ResultStatus = "Error";
-                row.Message = $"No se puede crear la herramienta porque la sede {branch.Code} no tiene ubicación configurada.";
+                row.Message = $"No se puede crear la herramienta porque la sede {branch.Code} no tiene ubicaciï¿½n configurada.";
                 row.UpdatedAt = DateTime.UtcNow;
                 row.UpdatedBy = processedBy;
 
@@ -456,7 +456,7 @@ public class ImportsController : ControllerBase
             if (toolCategory is null)
             {
                 row.ResultStatus = "Error";
-                row.Message = "No se puede crear la herramienta porque no existe categoría configurada.";
+                row.Message = "No se puede crear la herramienta porque no existe categorï¿½a configurada.";
                 row.UpdatedAt = DateTime.UtcNow;
                 row.UpdatedBy = processedBy;
 
@@ -468,7 +468,7 @@ public class ImportsController : ControllerBase
             {
                 InternalCode = NormalizeCode(row.InternalCode),
                 Name = row.ToolName.Trim(),
-                Description = $"Herramienta creada desde importación {importBatch.ImportNumber}.",
+                Description = $"Herramienta creada desde importaciï¿½n {importBatch.ImportNumber}.",
                 SerialNumber = row.SerialNumber,
                 FixedAssetCode = row.FixedAssetCode,
                 FenixCode = row.FenixCode,
@@ -497,14 +497,14 @@ public class ImportsController : ControllerBase
             AddToolLifeCycleEvent(
                 tool.Id,
                 "ToolCreatedFromImport",
-                "Herramienta creada desde importación",
-                $"Herramienta creada desde la importación {importBatch.ImportNumber}, fila {row.RowNumber}.",
+                "Herramienta creada desde importaciï¿½n",
+                $"Herramienta creada desde la importaciï¿½n {importBatch.ImportNumber}, fila {row.RowNumber}.",
                 null,
                 tool.InternalCode,
                 processedBy);
 
             row.ResultStatus = "Created";
-            row.Message = $"Herramienta creada en NAVI con código {tool.InternalCode}.";
+            row.Message = $"Herramienta creada en NAVI con cï¿½digo {tool.InternalCode}.";
             row.UpdatedAt = DateTime.UtcNow;
             row.UpdatedBy = processedBy;
 
@@ -527,7 +527,7 @@ public class ImportsController : ControllerBase
         importBatch.Status = errorRows.Count > 0 ? "AppliedWithErrors" : "Applied";
         importBatch.ErrorRows = importBatch.Rows.Count(x => x.ResultStatus == "Error");
         importBatch.ValidRows = importBatch.Rows.Count(x => x.ResultStatus != "Error");
-        importBatch.Summary = $"Aplicación de candidatos finalizada. Creadas: {createdTools.Count}. Errores: {errorRows.Count}.";
+        importBatch.Summary = $"Aplicaciï¿½n de candidatos finalizada. Creadas: {createdTools.Count}. Errores: {errorRows.Count}.";
 
         await _context.SaveChangesAsync(cancellationToken);
 
@@ -582,7 +582,7 @@ public class ImportsController : ControllerBase
 
         if (importBatch is null)
         {
-            return NotFound(new { Message = $"No se encontró la importación con Id {id}." });
+            return NotFound(new { Message = $"No se encontrï¿½ la importaciï¿½n con Id {id}." });
         }
 
         var statusSummary = importBatch.Rows
@@ -622,7 +622,7 @@ public class ImportsController : ControllerBase
 
         if (!exists)
         {
-            return NotFound(new { Message = $"No se encontró la importación con Id {id}." });
+            return NotFound(new { Message = $"No se encontrï¿½ la importaciï¿½n con Id {id}." });
         }
 
         var normalizedStatus = status.Trim();
@@ -666,7 +666,7 @@ public class ImportsController : ControllerBase
 
         if (row is null)
         {
-            return NotFound(new { Message = $"No se encontró la fila de importación con Id {rowId}." });
+            return NotFound(new { Message = $"No se encontrï¿½ la fila de importaciï¿½n con Id {rowId}." });
         }
 
         var changedBy = GetImportRowActionUser(request);
@@ -706,7 +706,7 @@ public class ImportsController : ControllerBase
 
         if (row is null)
         {
-            return NotFound(new { Message = $"No se encontró la fila de importación con Id {rowId}." });
+            return NotFound(new { Message = $"No se encontrï¿½ la fila de importaciï¿½n con Id {rowId}." });
         }
 
         var changedBy = GetImportRowActionUser(request);
@@ -746,7 +746,7 @@ public class ImportsController : ControllerBase
 
         if (row is null)
         {
-            return NotFound(new { Message = $"No se encontró la fila de importación con Id {rowId}." });
+            return NotFound(new { Message = $"No se encontrï¿½ la fila de importaciï¿½n con Id {rowId}." });
         }
 
         var tool = await _context.ToolAssets
@@ -754,7 +754,7 @@ public class ImportsController : ControllerBase
 
         if (tool is null)
         {
-            return NotFound(new { Message = $"No se encontró la herramienta con Id {toolId}." });
+            return NotFound(new { Message = $"No se encontrï¿½ la herramienta con Id {toolId}." });
         }
 
         var changedBy = GetImportRowActionUser(request);
@@ -771,8 +771,8 @@ public class ImportsController : ControllerBase
         AddToolLifeCycleEvent(
             tool.Id,
             "ImportRowLinkedToTool",
-            "Fila de importación asociada a herramienta",
-            $"Fila {row.RowNumber} de la importación {row.ImportBatch?.ImportNumber} asociada manualmente a esta herramienta.",
+            "Fila de importaciï¿½n asociada a herramienta",
+            $"Fila {row.RowNumber} de la importaciï¿½n {row.ImportBatch?.ImportNumber} asociada manualmente a esta herramienta.",
             previousStatus,
             row.ResultStatus,
             changedBy);
@@ -828,7 +828,7 @@ public class ImportsController : ControllerBase
             ? "ReviewedWithErrors"
             : "Reviewed";
 
-        importBatch.Summary = $"Revisión de importación actualizada. Filas: {importBatch.TotalRows}. Creadas: {importBatch.CreatedTools}. Errores: {importBatch.ErrorRows}. Existentes/Duplicadas/Asociadas: {importBatch.DuplicateRows}.";
+        importBatch.Summary = $"Revisiï¿½n de importaciï¿½n actualizada. Filas: {importBatch.TotalRows}. Creadas: {importBatch.CreatedTools}. Errores: {importBatch.ErrorRows}. Existentes/Duplicadas/Asociadas: {importBatch.DuplicateRows}.";
         importBatch.UpdatedAt = DateTime.UtcNow;
         importBatch.UpdatedBy = changedBy;
     }
@@ -840,7 +840,7 @@ public class ImportsController : ControllerBase
             && string.IsNullOrWhiteSpace(row.SerialNumber))
         {
             row.ResultStatus = "Error";
-            row.Message = "La fila no tiene código interno, código Fenix365, activo fijo ni serial.";
+            row.Message = "La fila no tiene cï¿½digo interno, cï¿½digo Fenix365, activo fijo ni serial.";
             return;
         }
 
@@ -854,7 +854,7 @@ public class ImportsController : ControllerBase
         if (existingTool is null)
         {
             row.ResultStatus = "NewCandidate";
-            row.Message = "Herramienta candidata para creación. No existe coincidencia en NAVI.";
+            row.Message = "Herramienta candidata para creaciï¿½n. No existe coincidencia en NAVI.";
             return;
         }
 
@@ -878,7 +878,7 @@ public class ImportsController : ControllerBase
 
             row.ResultStatus = differences.Count == 0 ? "Existing" : "Inconsistent";
             row.Message = differences.Count == 0
-                ? $"La herramienta ya existe en NAVI con código {existingTool.InternalCode}."
+                ? $"La herramienta ya existe en NAVI con cï¿½digo {existingTool.InternalCode}."
                 : string.Join(" | ", differences);
 
             return;
@@ -984,12 +984,12 @@ public class ImportsController : ControllerBase
         return value
             .Trim()
             .ToLowerInvariant()
-            .Replace("á", "a")
-            .Replace("é", "e")
-            .Replace("í", "i")
-            .Replace("ó", "o")
-            .Replace("ú", "u")
-            .Replace("ñ", "n")
+            .Replace("ï¿½", "a")
+            .Replace("ï¿½", "e")
+            .Replace("ï¿½", "i")
+            .Replace("ï¿½", "o")
+            .Replace("ï¿½", "u")
+            .Replace("ï¿½", "n")
             .Replace("_", " ")
             .Replace("-", " ");
     }

@@ -1,4 +1,4 @@
-﻿using System.Data.Common;
+using System.Data.Common;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Navi.ToolsAssets.Infrastructure.Persistence.Context;
@@ -383,7 +383,3 @@ END";
         string Description,
         string Permissions);
 }
-
-
-
-

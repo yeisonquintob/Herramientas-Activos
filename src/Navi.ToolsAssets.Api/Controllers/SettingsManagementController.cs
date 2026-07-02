@@ -1,10 +1,10 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
 using System.Text;
-using Navi.ToolsAssets.Domain.Entities.Organization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Navi.ToolsAssets.Domain.Entities.Configuration;
 using Navi.ToolsAssets.Domain.Entities.Inventory;
+using Navi.ToolsAssets.Domain.Entities.Organization;
 using Navi.ToolsAssets.Domain.Entities.Security;
 using Navi.ToolsAssets.Infrastructure.Persistence.Context;
 
@@ -221,7 +221,7 @@ public class SettingsManagementController : ControllerBase
         {
             return Conflict(new { Message = $"Ya existe un usuario con documento/usuario {userName}." });
         }
-var user = new Navi.ToolsAssets.Domain.Entities.Security.AppUser
+        var user = new Navi.ToolsAssets.Domain.Entities.Security.AppUser
         {
             UserName = userName,
             DisplayName = request.DisplayName.Trim(),
@@ -232,7 +232,7 @@ var user = new Navi.ToolsAssets.Domain.Entities.Security.AppUser
             AppRoleId = request.AppRoleId,
             BranchId = request.BranchId,
 
-ResponsiblePersonId = (await ResolveUserOperationalResponsibleAsync(request, userName, cancellationToken)).Id,
+            ResponsiblePersonId = (await ResolveUserOperationalResponsibleAsync(request, userName, cancellationToken)).Id,
             IsActive = request.IsActive ?? true,
             CreatedAt = DateTime.UtcNow,
             CreatedBy = request.ChangedBy ?? "settings"
@@ -283,7 +283,7 @@ ResponsiblePersonId = (await ResolveUserOperationalResponsibleAsync(request, use
         {
             return Conflict(new { Message = $"Ya existe otro usuario con documento/usuario {userName}." });
         }
-user.UserName = userName;
+        user.UserName = userName;
         user.DisplayName = request.DisplayName.Trim();
         user.Email = request.Email?.Trim();
         user.Position = request.Position?.Trim();
@@ -291,7 +291,7 @@ user.UserName = userName;
         user.AppRoleId = request.AppRoleId;
         user.BranchId = request.BranchId;
 
-user.ResponsiblePersonId = (await ResolveUserOperationalResponsibleAsync(request, userName, cancellationToken)).Id;
+        user.ResponsiblePersonId = (await ResolveUserOperationalResponsibleAsync(request, userName, cancellationToken)).Id;
         user.IsActive = request.IsActive ?? user.IsActive;
         user.UpdatedAt = DateTime.UtcNow;
         user.UpdatedBy = request.ChangedBy ?? "settings";
@@ -307,7 +307,7 @@ user.ResponsiblePersonId = (await ResolveUserOperationalResponsibleAsync(request
 
 
 
-        [HttpPut("users/{id:guid}/password")]
+    [HttpPut("users/{id:guid}/password")]
     public async Task<IActionResult> ChangeUserPassword(Guid id, [FromBody] ChangeUserPasswordRequest request, CancellationToken cancellationToken)
     {
         await EnsureAppUserPasswordHashColumnAsync(cancellationToken);
@@ -1470,7 +1470,7 @@ END
         return (code ?? string.Empty).Trim().ToUpperInvariant();
     }
 
-        private async Task EnsureSecurityUsersPasswordSchemaAsync(CancellationToken cancellationToken)
+    private async Task EnsureSecurityUsersPasswordSchemaAsync(CancellationToken cancellationToken)
     {
         var sql = @"
 IF COL_LENGTH('Security.AppUsers', 'PasswordHash') IS NULL
@@ -1667,27 +1667,3 @@ public sealed class SaveWarehouseRequest
     public bool? IsActive { get; set; }
     public string? ChangedBy { get; set; }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

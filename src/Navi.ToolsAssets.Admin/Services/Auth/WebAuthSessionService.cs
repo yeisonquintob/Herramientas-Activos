@@ -1,4 +1,4 @@
-﻿namespace Navi.ToolsAssets.Admin.Services.Auth;
+namespace Navi.ToolsAssets.Admin.Services.Auth;
 
 public sealed class WebAuthSessionService
 {

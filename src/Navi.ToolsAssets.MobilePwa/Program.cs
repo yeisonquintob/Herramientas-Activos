@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Components.Web;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Navi.ToolsAssets.MobilePwa;
 using Navi.ToolsAssets.MobilePwa.Services;

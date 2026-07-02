@@ -1,8 +1,8 @@
-using Navi.ToolsAssets.Domain.Entities.Documents;
-using Navi.ToolsAssets.Application.Documents;
 using Microsoft.AspNetCore.Mvc;
-using Navi.ToolsAssets.Api.Security;
 using Microsoft.EntityFrameworkCore;
+using Navi.ToolsAssets.Api.Security;
+using Navi.ToolsAssets.Application.Documents;
+using Navi.ToolsAssets.Domain.Entities.Documents;
 using Navi.ToolsAssets.Domain.Entities.Inventory;
 using Navi.ToolsAssets.Domain.Entities.Organization;
 using Navi.ToolsAssets.Domain.Enums;
@@ -606,7 +606,8 @@ public class ToolsController : ControllerBase
                     : request.Observation.Trim(),
                 PreviousValue = previousValue,
                 NewValue = $"Responsable={responsible.FullName}; Estado={tool.OperationalStatus}; Custodia={tool.CustodyStatus}",
-                RegisteredAt = request.AssignmentDate ?? DateTime.UtcNow,CreatedAt = DateTime.UtcNow,
+                RegisteredAt = request.AssignmentDate ?? DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
                 CreatedBy = tool.UpdatedBy
             });
         }
@@ -655,7 +656,8 @@ public class ToolsController : ControllerBase
                     : request.Observation.Trim(),
                 PreviousValue = previousValue,
                 NewValue = $"Sede={branch.Code}; Ubicación={location.Code}; Estantería={tool.ShelfLocation}; Estado={tool.OperationalStatus}; Custodia={tool.CustodyStatus}",
-                RegisteredAt = request.AssignmentDate ?? DateTime.UtcNow,CreatedAt = DateTime.UtcNow,
+                RegisteredAt = request.AssignmentDate ?? DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
                 CreatedBy = tool.UpdatedBy
             });
         }
@@ -1708,40 +1710,3 @@ public class ToolsController : ControllerBase
         public string? ToolCategoryName { get; set; }
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

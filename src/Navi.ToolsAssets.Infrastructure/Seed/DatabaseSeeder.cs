@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Navi.ToolsAssets.Domain.Entities.Inventory;
 using Navi.ToolsAssets.Domain.Entities.Organization;
@@ -464,7 +464,3 @@ public static class DatabaseSeeder
         tool.UpdatedBy = "seed";
     }
 }
-
-
-
-

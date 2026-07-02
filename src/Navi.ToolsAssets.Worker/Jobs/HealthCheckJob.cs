@@ -1,4 +1,4 @@
-﻿namespace Navi.ToolsAssets.Worker.Jobs;
+namespace Navi.ToolsAssets.Worker.Jobs;
 
 public class HealthCheckJob
 {

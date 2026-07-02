@@ -826,6 +826,3 @@ public sealed class PurchaseRequestDto
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; }
 }
-
-
-

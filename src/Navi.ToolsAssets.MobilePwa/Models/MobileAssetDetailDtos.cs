@@ -1,4 +1,4 @@
-﻿namespace Navi.ToolsAssets.MobilePwa.Models;
+namespace Navi.ToolsAssets.MobilePwa.Models;
 
 public sealed class MobileToolDetailDto
 {

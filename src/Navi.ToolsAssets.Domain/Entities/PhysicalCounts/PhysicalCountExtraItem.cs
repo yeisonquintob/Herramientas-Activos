@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
+using System.ComponentModel.DataAnnotations.Schema;
 using Navi.ToolsAssets.Domain.Common.Base;
 using Navi.ToolsAssets.Domain.Entities.Inventory;
 
