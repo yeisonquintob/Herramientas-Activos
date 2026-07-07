@@ -1,6 +1,7 @@
 @page "/technical-life-records"
 @rendermode InteractiveServer
 @using Navi.ToolsAssets.Admin.Services.Auth
+@using Navi.ToolsAssets.Admin.Components.Shared
 @using System.Net.Http.Json
 @inject IHttpClientFactory HttpClientFactory
 @inject NaviAccessScopeService AccessScope
@@ -9,45 +10,90 @@
 
 <PermissionGuard Permission="TechnicalLifeRecord.View" ModuleName="Hoja de Vida de Herramientas y AF">
 
-<section class="af-banner">
-    <div>
-        <span class="af-pill">ACTIVOS FIJOS</span>
-        <h2>Hoja de Vida de Herramientas y AF</h2>
-        <p>Consulta consolidada de hojas de vida con datos generales, técnicos, ubicación, responsable, documentos, mantenimientos y trazabilidad.</p>
-    </div>
+<NaviPageHero
+    Pill="ACTIVOS FIJOS"
+    Title="Hoja de Vida de Herramientas y AF"
+    Description="Consulta consolidada de hojas de vida con datos generales, técnicos, ubicación, responsable, documentos, mantenimientos y trazabilidad.">
 
-    <div class="af-banner-side">
-        <div class="af-status-box">
-            <span>Hojas de vida</span>
-            <strong>@FilteredTools.Count() visibles</strong>
-        </div>
+    <button type="button" @onclick="LoadAsync">
+        Actualizar
+    </button>
 
-        <button class="btn btn-sm btn-outline-light" @onclick="LoadAsync">
-            Actualizar
-        </button>
-    </div>
-</section>
+</NaviPageHero>
+
 
 <section class="life-kpi-grid">
-    <article>
-        <span>Total Herramientas y AF</span>
-        <strong>@ScopedTools.Count()</strong>
+    <article class="life-kpi total">
+        <span>Total herramientas y AF</span>
+        <strong>@FilteredTools.Count()</strong>
+        <small>Según filtros activos</small>
     </article>
 
-    <article>
+    <article class="life-kpi success">
         <span>Con mantenimiento</span>
-        <strong>@ScopedTools.Count(x => x.RequiresMaintenance)</strong>
+        <strong>@FilteredTools.Count(x => x.RequiresMaintenance)</strong>
+        <small>Control técnico</small>
     </article>
 
-    <article>
+    <article class="life-kpi blue">
         <span>Especializados</span>
-        <strong>@ScopedTools.Count(x => x.IsSpecialized)</strong>
+        <strong>@FilteredTools.Count(x => x.IsSpecialized)</strong>
+        <small>Herramientas críticas</small>
     </article>
 
-    <article>
+    <article class="life-kpi warning">
         <span>Certificación</span>
-        <strong>@ScopedTools.Count(x => x.RequiresCertification)</strong>
+        <strong>@FilteredTools.Count(x => x.RequiresCertification)</strong>
+        <small>Requieren control</small>
     </article>
+
+    <article class="life-kpi danger">
+        <span>Preoperacional</span>
+        <strong>@FilteredTools.Count(x => x.RequiresPreOperationalCheck)</strong>
+        <small>Validación previa</small>
+    </article>
+</section>
+
+<section class="life-status-filters life-status-filters-modern" aria-label="Estados de hoja de vida">
+    <button type="button"
+            class="@GetLifeStatusFilterChipClass(string.Empty)"
+            @onclick="@(() => SelectLifeStatus(string.Empty))">
+        Todos
+        <span>@LifeBaseFilteredTools.Count()</span>
+    </button>
+
+    @foreach (var status in LifeStatusFilterOptions)
+    {
+        <button type="button"
+                class="@GetLifeStatusFilterChipClass(status.Value)"
+                @onclick="@(() => SelectLifeStatus(status.Value))">
+            @status.Label
+            <span>@status.Count</span>
+        </button>
+    }
+</section>
+
+<section class="life-page-filters" aria-label="Filtros de hojas de vida">
+    <input class="form-control form-control-sm"
+           placeholder="Buscar código, nombre, serial, activo fijo, sede, ubicación, responsable, tipo o categoría..."
+           @bind="search"
+           @bind:event="oninput" />
+
+    <select class="form-select form-select-sm" @bind="selectedBranchCode">
+        <option value="">@(AccessScope.IsAllBranchScope() ? "Todas las sedes" : AccessScope.GetDefaultBranchFilterText())</option>
+        @foreach (var branch in BranchFilterOptions)
+        {
+            <option value="@branch.Code">@branch.Code</option>
+        }
+    </select>
+
+    <select class="form-select form-select-sm" @bind="selectedType">
+        <option value="">Todos los tipos</option>
+        @foreach (var type in LifeTypeOptions)
+        {
+            <option value="@type">@type</option>
+        }
+    </select>
 </section>
 
 <section class="af-card">
@@ -55,21 +101,6 @@
         <div>
             <h3>Hojas de vida registradas</h3>
             <p>Abre la hoja de vida para gestionar datos técnicos, accesorios, documentos, mantenimiento, prácticas seguras y trazabilidad.</p>
-        </div>
-
-        <div class="af-filters">
-            <input class="form-control form-control-sm"
-                   placeholder="Buscar código, nombre, serial..."
-                   @bind="search"
-                   @bind:event="oninput" />
-
-            <select class="form-select form-select-sm" @bind="selectedBranchCode">
-                <option value="">Todas las sedes</option>
-                @foreach (var branch in BranchFilterOptions)
-                {
-                    <option value="@branch.Code">@branch.Code</option>
-                }
-            </select>
         </div>
     </div>
 
@@ -367,6 +398,207 @@
             grid-template-columns: repeat(2, 1fr);
         }
     }
+
+    /* NAVI LIFE RECORDS KPI FILTER STANDARD START */
+
+    .life-kpi-grid {
+        display: grid !important;
+        grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+        gap: .55rem !important;
+        margin: 0 0 .72rem 0 !important;
+        padding: 0 !important;
+    }
+
+    .life-status-filters-modern {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        align-items: center !important;
+        gap: .38rem !important;
+
+        margin: 0 0 .58rem 0 !important;
+        padding: .46rem .50rem !important;
+
+        border: 1px solid #dfe3e8 !important;
+        border-radius: .72rem !important;
+
+        background: #ffffff !important;
+        box-shadow: 0 .08rem .22rem rgba(15, 23, 42, .035) !important;
+    }
+
+    .life-status-filter-chip {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: .35rem !important;
+
+        min-height: 29px !important;
+        height: 29px !important;
+
+        padding: .22rem .62rem !important;
+
+        border-radius: 999px !important;
+        border: 1px solid #dfe3e8 !important;
+
+        background: #ffffff !important;
+        color: #101828 !important;
+
+        font-size: .66rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+
+        box-shadow: none !important;
+        cursor: pointer !important;
+        white-space: nowrap !important;
+    }
+
+    .life-status-filter-chip span {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+
+        min-width: 22px !important;
+        height: 18px !important;
+
+        padding: 0 .34rem !important;
+
+        border-radius: 999px !important;
+
+        background: rgba(15, 23, 42, .06) !important;
+        color: inherit !important;
+
+        font-size: .58rem !important;
+        font-weight: 950 !important;
+    }
+
+    .life-status-filter-chip.active {
+        border-color: #7b0d8e !important;
+        background: #fbf7fd !important;
+        color: #4b005c !important;
+        box-shadow: inset 0 0 0 1px rgba(123, 13, 142, .08) !important;
+    }
+
+    .life-status-available {
+        border-color: #86efac !important;
+        background: #f0fdf4 !important;
+        color: #166534 !important;
+    }
+
+    .life-status-assigned,
+    .life-status-loaned {
+        border-color: #bfdbfe !important;
+        background: #eff6ff !important;
+        color: #1d4ed8 !important;
+    }
+
+    .life-status-maintenance {
+        border-color: #99f6e4 !important;
+        background: #f0fdfa !important;
+        color: #0f766e !important;
+    }
+
+    .life-status-damaged {
+        border-color: #fecaca !important;
+        background: #fff1f2 !important;
+        color: #b91c1c !important;
+    }
+
+    .life-status-not-suitable,
+    .life-status-disposal,
+    .life-status-disposed {
+        border-color: #cfd6df !important;
+        background: #f8fafc !important;
+        color: #344054 !important;
+    }
+
+    .life-status-pending {
+        border-color: #fed7aa !important;
+        background: #fff7ed !important;
+        color: #9a3412 !important;
+    }
+
+    .life-status-not-located,
+    .life-status-other,
+    .life-status-all {
+        border-color: #dfe3e8 !important;
+        background: #ffffff !important;
+        color: #101828 !important;
+    }
+
+    .life-page-filters {
+        display: grid !important;
+        grid-template-columns: minmax(420px, 1fr) 230px 230px !important;
+        align-items: center !important;
+        gap: .45rem !important;
+
+        margin: 0 0 .72rem 0 !important;
+        padding: .56rem .62rem !important;
+
+        border: 1px solid #dfe3e8 !important;
+        border-radius: .72rem !important;
+
+        background: #ffffff !important;
+        box-shadow: 0 .08rem .22rem rgba(15, 23, 42, .035) !important;
+    }
+
+    .life-page-filters :where(input, select) {
+        width: 100% !important;
+        height: 34px !important;
+        min-height: 34px !important;
+        max-height: 34px !important;
+
+        border-radius: .52rem !important;
+        border: 1px solid #cfd6df !important;
+
+        background-color: #ffffff !important;
+        color: #101828 !important;
+
+        font-size: .68rem !important;
+        font-weight: 800 !important;
+        line-height: 1 !important;
+
+        box-shadow: none !important;
+    }
+
+    .life-page-filters :where(input, select):focus {
+        border-color: #7b0d8e !important;
+        box-shadow: 0 0 0 .14rem rgba(123, 13, 142, .10) !important;
+    }
+
+    .af-table-header {
+        display: block !important;
+        margin-bottom: .62rem !important;
+    }
+
+    .af-table-header h3 {
+        margin: 0 !important;
+        font-size: .92rem !important;
+        line-height: 1.05 !important;
+    }
+
+    .af-table-header p {
+        margin: .10rem 0 0 0 !important;
+        font-size: .62rem !important;
+        line-height: 1.1 !important;
+    }
+
+    @@media (max-width: 1280px) {
+        .life-kpi-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        }
+
+        .life-page-filters {
+            grid-template-columns: 1fr !important;
+        }
+    }
+
+    @@media (max-width: 760px) {
+        .life-kpi-grid {
+            grid-template-columns: 1fr !important;
+        }
+    }
+
+    /* NAVI LIFE RECORDS KPI FILTER STANDARD END */
+
 </style>
 
 @code {
@@ -378,6 +610,8 @@
     private bool isLoading;
     private string search = string.Empty;
     private string selectedBranchCode = string.Empty;
+    private string selectedStatus = string.Empty;
+    private string selectedType = string.Empty;
     private bool branchFilterInitialized;
 
     private IEnumerable<ToolItem> ScopedTools =>
@@ -391,27 +625,89 @@
             ? branches
             : branches.Where(x => string.Equals(x.Code, AccessScope.GetDefaultBranchCode(), StringComparison.OrdinalIgnoreCase));
 
-    private IEnumerable<ToolItem> FilteredTools =>
+    private IEnumerable<ToolItem> LifeBaseFilteredTools =>
         ScopedTools
             .Where(x => string.IsNullOrWhiteSpace(search) ||
                         Contains(x.InternalCode, search) ||
                         Contains(x.Name, search) ||
                         Contains(x.SerialNumber, search) ||
-                        Contains(x.FixedAssetCode, search))
-            .Where(x => string.IsNullOrWhiteSpace(selectedBranchCode) || string.Equals(x.BranchCode, selectedBranchCode, StringComparison.OrdinalIgnoreCase))
+                        Contains(x.FixedAssetCode, search) ||
+                        Contains(x.BranchCode, search) ||
+                        Contains(x.LocationName, search) ||
+                        Contains(x.ResponsiblePersonName, search) ||
+                        Contains(x.ToolTypeName, search) ||
+                        Contains(x.ToolCategoryName, search))
+            .Where(x => string.IsNullOrWhiteSpace(selectedBranchCode) ||
+                        string.Equals(x.BranchCode, selectedBranchCode, StringComparison.OrdinalIgnoreCase))
+            .Where(x => string.IsNullOrWhiteSpace(selectedType) ||
+                        string.Equals(x.ToolTypeName ?? string.Empty, selectedType, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(x.ToolCategoryName ?? string.Empty, selectedType, StringComparison.OrdinalIgnoreCase));
+
+    private IEnumerable<ToolItem> FilteredTools =>
+        LifeBaseFilteredTools
+            .Where(x => string.IsNullOrWhiteSpace(selectedStatus) ||
+                        string.Equals(x.OperationalStatus, selectedStatus, StringComparison.OrdinalIgnoreCase))
             .OrderBy(x => x.BranchCode)
             .ThenBy(x => x.InternalCode);
 
-    private IEnumerable<ToolItem> FilteredTools_OLD =>
-        tools
-            .Where(x => string.IsNullOrWhiteSpace(search) ||
-                        x.InternalCode.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                        x.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                        (x.SerialNumber ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                        (x.FixedAssetCode ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase))
-            .Where(x => string.IsNullOrWhiteSpace(selectedBranchCode) || x.BranchCode == selectedBranchCode)
-            .OrderBy(x => x.BranchCode)
-            .ThenBy(x => x.InternalCode);
+
+    private IEnumerable<LifeStatusFilterOption> LifeStatusFilterOptions =>
+        LifeBaseFilteredTools
+            .Where(x => !string.IsNullOrWhiteSpace(x.OperationalStatus))
+            .GroupBy(x => x.OperationalStatus)
+            .Select(x => new LifeStatusFilterOption
+            {
+                Value = x.Key,
+                Label = GetStatusLabel(x.Key),
+                Count = x.Count()
+            })
+            .OrderBy(x => x.Label);
+
+    private IEnumerable<string> LifeTypeOptions =>
+        LifeBaseFilteredTools
+            .SelectMany(x => new[] { x.ToolTypeName, x.ToolCategoryName })
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x);
+
+    private void SelectLifeStatus(string status)
+    {
+        selectedStatus = status;
+    }
+
+    private string GetLifeStatusFilterChipClass(string? status)
+    {
+        var value = status ?? string.Empty;
+
+        var selected = string.Equals(
+            selectedStatus ?? string.Empty,
+            value,
+            StringComparison.OrdinalIgnoreCase)
+            ? " active"
+            : string.Empty;
+
+        var statusClass = string.IsNullOrWhiteSpace(value)
+            ? "all"
+            : NormalizeLifeStatusCss(value);
+
+        return $"life-status-filter-chip life-status-{statusClass}{selected}";
+    }
+
+    private static string NormalizeLifeStatusCss(string status) => status switch
+    {
+        "Available" => "available",
+        "Assigned" => "assigned",
+        "Loaned" => "loaned",
+        "InMaintenance" => "maintenance",
+        "Damaged" => "damaged",
+        "NotSuitable" => "not-suitable",
+        "PendingValidation" => "pending",
+        "NotLocated" => "not-located",
+        "PendingDisposal" => "disposal",
+        "Disposed" => "disposed",
+        _ => "other"
+    };
 
     protected override async Task OnInitializedAsync()
     {
@@ -463,22 +759,30 @@
         "NotLocated" => "No localizada",
         "PendingDisposal" => "Pendiente baja",
         "Disposed" => "Dada de baja",
-        _ => status
+        _ => NaviStatusLabels.ToSpanish(status)
     };
 
     private static string GetStatusBadge(string status) => status switch
     {
-        "Available" => "badge bg-success",
-        "Assigned" => "badge bg-warning text-dark",
-        "Loaned" => "badge bg-info text-dark",
-        "InMaintenance" => "badge bg-primary",
-        "Damaged" => "badge bg-danger",
-        "NotSuitable" => "badge bg-danger",
-        "NotLocated" => "badge bg-dark",
-        "Disposed" => "badge bg-secondary",
-        "PendingValidation" => "badge bg-secondary",
-        _ => "badge bg-secondary"
+        "Available" => "navi-status-badge navi-status-available",
+        "Assigned" => "navi-status-badge navi-status-assigned",
+        "Loaned" => "navi-status-badge navi-status-assigned",
+        "InMaintenance" => "navi-status-badge navi-status-maintenance",
+        "Damaged" => "navi-status-badge navi-status-damaged",
+        "NotSuitable" => "navi-status-badge navi-status-not-suitable",
+        "NotLocated" => "navi-status-badge navi-status-not-located",
+        "Disposed" => "navi-status-badge navi-status-disposed",
+        "PendingValidation" => "navi-status-badge navi-status-pending",
+        _ => "navi-status-badge navi-status-muted"
     };
+
+
+    private sealed class LifeStatusFilterOption
+    {
+        public string Value { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
 
     private sealed class ToolItem
     {

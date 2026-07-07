@@ -194,7 +194,15 @@ public class ExecutiveDashboardController : ControllerBase
                 Available = x.Count(t => t.OperationalStatus == ToolOperationalStatus.Available),
                 PendingValidation = x.Count(t => t.OperationalStatus == ToolOperationalStatus.PendingValidation),
                 Assigned = x.Count(t => t.OperationalStatus == ToolOperationalStatus.Assigned),
-                InMaintenance = x.Count(t => t.OperationalStatus == ToolOperationalStatus.InMaintenance)
+                Loaned = x.Count(t => t.OperationalStatus == ToolOperationalStatus.Loaned),
+                InMaintenance = x.Count(t => t.OperationalStatus == ToolOperationalStatus.InMaintenance),
+                Damaged = x.Count(t =>
+                    t.OperationalStatus == ToolOperationalStatus.Damaged ||
+                    t.OperationalStatus == ToolOperationalStatus.NotSuitable),
+                NotLocated = x.Count(t => t.OperationalStatus == ToolOperationalStatus.NotLocated),
+                Disposed = x.Count(t =>
+                    t.OperationalStatus == ToolOperationalStatus.Disposed ||
+                    t.OperationalStatus == ToolOperationalStatus.PendingDisposal)
             })
             .ToList();
 

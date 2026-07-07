@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @using System.Net.Http.Json
 @using Navi.ToolsAssets.Admin.Services.Auth
+@using Navi.ToolsAssets.Admin.Components.Shared
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager NavigationManager
 @inject WebAuthSessionService AuthSession
@@ -31,92 +32,57 @@ else if (isLoading && tool is null)
 }
 else if (tool is not null)
 {
-        <section class="detail-hero-banner">
-        <div class="detail-hero-main">
+        <NaviPageHero
+        Pill="ACTIVOS FIJOS"
+        Title="@tool!.Name"
+        Description="Consulta visual de datos maestros, ubicación, clasificación, estados y hoja de vida operativa.">
 
-            <span class="detail-hero-pill">DETALLE DE ACTIVO FIJO</span>
+        <button type="button" @onclick="LoadAsync" disabled="@isLoading">
+            @(isLoading ? "Actualizando..." : "Actualizar")
+        </button>
 
-            <h2>@tool!.Name</h2>
+    </NaviPageHero>
 
-            <div class="detail-hero-code">
-                @tool!.InternalCode
-            </div>
+    <section class="tool-detail-summary-shell">
+        <section class="tool-detail-kpis navi-final-kpi-row tool-detail-summary-kpis">
+        <article>
+            <span>Código interno</span>
+            <strong>@ShowValue(tool.InternalCode)</strong>
+            <small>Activo fijo</small>
+        </article>
 
-            <div class="detail-hero-inline-badges">
-                <span class="@GetStatusBadgeClass(tool.OperationalStatus)">
-                    @GetStatusLabel(tool.OperationalStatus)
-                </span>
+        <article>
+            <span>Estado operativo</span>
+            <strong>@GetStatusLabel(tool?.OperationalStatus)</strong>
+            <small>Control actual</small>
+        </article>
 
-                @if (tool.IsSpecialized)
-                {
-                    <span class="badge bg-primary">Especializada</span>
-                }
-                else
-                {
-                    <span class="badge bg-secondary">No especializada</span>
-                }
-            </div>
+        <article>
+            <span>Clasificación</span>
+            <strong>@(tool.IsSpecialized ? "Especializada" : "No especializada")</strong>
+            <small>Tipo de activo</small>
+        </article>
 
-            @if (!string.IsNullOrWhiteSpace(tool.Description))
-            {
-                <p>@tool!.Description</p>
-            }
-            else
-            {
-                <p>Consulta visual de datos maestros, ubicación, clasificación, estados y hoja de vida operativa.</p>
-            }
-        </div>
+        <article>
+            <span>Responsable</span>
+            <strong>@ShowValue(tool.ResponsiblePersonName)</strong>
+            <small>Custodia actual</small>
+        </article>
+    </section>
 
-                <div class="detail-hero-side navi-header-actions-stack">
-            <button class="btn btn-sm btn-outline-light detail-hero-refresh" @onclick="LoadAsync" disabled="@isLoading">
-                @(isLoading ? "Actualizando..." : "Actualizar")
-            </button>
-
+        <aside class="tool-detail-summary-actions">
             <button class="btn-detail-back" type="button" @onclick="GoBack">
                 Volver al inventario
             </button>
 
-                @if (CanOpenLifeRecord)
-                {
-                    <a class="detail-action detail-action-primary navi-life-record-hero-link"
-                       href="@($"/tools/{ToolId}/technical-life-record-view")">
-                        Ver hoja vida técnica
-                    </a>
-                }
-
-            @if (!isEditingMasterData)
+            @if (CanOpenLifeRecord)
             {
-                @if (CanEditTool)
-                {
-                    <button class="detail-action detail-action-primary" type="button" @onclick="StartMasterDataEdit">
-                        Editar
-                    </button>
-                }
-
-                @if (CanChangeOperationalStatus)
-                {
-
-                }
+                <a class="detail-action detail-action-primary navi-life-record-hero-link"
+                   href="@($"/tools/{ToolId}/technical-life-record-view")">
+                    Ver hoja vida técnica
+                </a>
             }
-            else
-            {
-                @if (CanEditTool)
-                    {
-                        <button class="detail-action detail-action-success" type="button" @onclick="SaveMasterDataAsync">
-                            Guardar
-                        </button>
-                    }
-
-                <button class="detail-action detail-action-neutral" type="button" @onclick="CancelMasterDataEdit">
-                    Cancelar
-                </button>
-
-                @if (CanChangeOperationalStatus)
-                {
-
-                }
-            }
-        </div>
+        </aside>
     </section>
 
 
@@ -506,27 +472,27 @@ else if (tool is not null)
             <div class="status-chip-grid">
                 <div>
                     <span>Operativo</span>
-                    <strong>@GetStatusLabel(tool.OperationalStatus)</strong>
+                    <strong>@GetStatusLabel(tool?.OperationalStatus)</strong>
                 </div>
 
                 <div>
                     <span>Físico</span>
-                    <strong>@ShowValue(tool.PhysicalStatus)</strong>
+                    <strong>@ShowValue(tool?.PhysicalStatus)</strong>
                 </div>
 
                 <div>
                     <span>Custodia</span>
-                    <strong>@ShowValue(tool.CustodyStatus)</strong>
+                    <strong>@ShowValue(tool?.CustodyStatus)</strong>
                 </div>
 
                 <div>
                     <span>Conciliación</span>
-                    <strong>@ShowValue(tool.ReconciliationStatus)</strong>
+                    <strong>@ShowValue(tool?.ReconciliationStatus)</strong>
                 </div>
 
                 <div>
                     <span>Sincronización</span>
-                    <strong>@ShowValue(tool.SyncStatus)</strong>
+                    <strong>@ShowValue(tool?.SyncStatus)</strong>
                 </div>
             </div>
         </section>
@@ -537,22 +503,22 @@ else if (tool is not null)
             <div class="status-chip-grid">
                 <div>
                     <span>Mantenimiento</span>
-                    <strong>@BoolLabel(tool.RequiresMaintenance)</strong>
+                    <strong>@BoolLabel(tool?.RequiresMaintenance == true)</strong>
                 </div>
 
                 <div>
                     <span>Preoperacional</span>
-                    <strong>@BoolLabel(tool.RequiresPreOperationalCheck)</strong>
+                    <strong>@BoolLabel(tool?.RequiresPreOperationalCheck == true)</strong>
                 </div>
 
                 <div>
                     <span>Certificación</span>
-                    <strong>@BoolLabel(tool.RequiresCertification)</strong>
+                    <strong>@BoolLabel(tool?.RequiresCertification == true)</strong>
                 </div>
 
                 <div>
                     <span>Vence certificación</span>
-                    <strong>@FormatDate(tool.CertificationExpirationDate)</strong>
+                    <strong>@FormatDate(tool?.CertificationExpirationDate)</strong>
                 </div>
             </div>
         </section>
@@ -813,24 +779,7 @@ else if (tool is not null)
             "NotLocated" => "No localizada",
             "PendingDisposal" => "Pendiente de baja",
             "Disposed" => "Dada de baja",
-            _ => string.IsNullOrWhiteSpace(status) ? "Sin estado" : status
-        };
-    }
-
-    private static string GetStatusBadgeClass(string? status)
-    {
-        return status switch
-        {
-            "Available" => "badge bg-success",
-            "PendingValidation" => "badge bg-warning text-dark",
-            "Loaned" => "badge bg-info text-dark",
-            "InMaintenance" => "badge bg-primary",
-            "Damaged" => "badge bg-danger",
-            "NotSuitable" => "badge bg-danger",
-            "NotLocated" => "badge bg-dark",
-            "Inconsistent" => "badge bg-danger",
-            "Disposed" => "badge bg-secondary",
-            _ => "badge bg-secondary"
+            _ => NaviStatusLabels.ToSpanish(status)
         };
     }
 
@@ -1110,6 +1059,18 @@ private sealed class ToolMasterEditModel
         public DateTime? ApprovedForCreationAt { get; set; }
         public string? ApprovedForCreationBy { get; set; }
     }
+
+    private static string GetStatusBadge(string? status)
+    {
+        return NaviStatusLabels.BadgeClass(status);
+    }
+
+
+    private static string GetStatusBadgeClass(string? status)
+    {
+        return NaviStatusLabels.BadgeClass(status);
+    }
+
 }
 
 

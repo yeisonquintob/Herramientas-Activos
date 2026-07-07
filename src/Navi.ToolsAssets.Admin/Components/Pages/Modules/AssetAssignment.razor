@@ -4,6 +4,7 @@
 @inject IHttpClientFactory HttpClientFactory
 @inject NaviAccessScopeService AccessScope
 @using Navi.ToolsAssets.Admin.Services.Auth
+@using Navi.ToolsAssets.Admin.Components.Shared
 @inject NavigationManager NavigationManager
 @inject WebAuthSessionService AuthSession
 
@@ -11,23 +12,118 @@
 
 <PermissionGuard Permission="AssetAssignment.View" ModuleName="Asignar Herramientas y AF">
 
-<section class="af-banner">
-    <div>
-        <span class="af-pill">ACTIVOS FIJOS</span>
-        <h2>Asignar Herramientas y AF</h2>
-        <p>Solicita, aprueba, asigna o regresa activos fijos con trazabilidad de préstamo y responsable.</p>
-    </div>
+<NaviPageHero
+    Pill="ACTIVOS FIJOS"
+    Title="Asignar Herramientas y AF"
+    Description="Solicita, aprueba, asigna o regresa activos fijos con trazabilidad de préstamo y responsable.">
 
-    <div class="af-banner-side"><button class="btn btn-sm btn-outline-light" @onclick="LoadAsync">
-            Actualizar
-        </button>
-    </div>
-</section>
+    <button type="button" @onclick="LoadAsync">
+        Actualizar
+    </button>
+
+</NaviPageHero>
 
 @if (!string.IsNullOrWhiteSpace(message))
 {
     <div class="@messageClass">@message</div>
 }
+
+
+<section class="assignment-kpi-grid">
+    <article class="assignment-kpi total">
+        <span>Total activos</span>
+        <strong>@FilteredTools.Count()</strong>
+        <small>Según filtros activos</small>
+    </article>
+
+    <article class="assignment-kpi success">
+        <span>Disponibles</span>
+        <strong>@FilteredTools.Count(x => string.Equals(x.OperationalStatus, "Available", StringComparison.OrdinalIgnoreCase))</strong>
+        <small>Listos para asignar</small>
+    </article>
+
+    <article class="assignment-kpi blue">
+        <span>Asignadas / prestadas</span>
+        <strong>@FilteredTools.Count(x => string.Equals(x.OperationalStatus, "Assigned", StringComparison.OrdinalIgnoreCase) || string.Equals(x.OperationalStatus, "Loaned", StringComparison.OrdinalIgnoreCase))</strong>
+        <small>Con responsable</small>
+    </article>
+
+    <article class="assignment-kpi warning">
+        <span>Solicitudes</span>
+        <strong>@FilteredTools.Count(x => FindPendingRequestForTool(x.Id) is not null)</strong>
+        <small>Pendientes de decisión</small>
+    </article>
+
+    <article class="assignment-kpi danger">
+        <span>Sin responsable</span>
+        <strong>@FilteredTools.Count(x => x.ResponsiblePersonId is null)</strong>
+        <small>Disponibles o por revisar</small>
+    </article>
+</section>
+
+<section class="assignment-status-filters assignment-status-filters-modern" aria-label="Estados de asignación">
+    <button type="button"
+            class="assignment-status-filter-chip assignment-status-all @(selectedToolStatuses.Count == 0 ? "active" : "")"
+            @onclick="ClearToolStatusFilter">
+        Todos
+        <span>@AssignmentBaseFilteredTools.Count()</span>
+    </button>
+
+    @foreach (var status in ToolStatusFilterOptions)
+    {
+        var selected = selectedToolStatuses.Contains(status.Value);
+
+        <button type="button"
+                class="@GetAssignmentStatusChipClass(status.Value, selected)"
+                @onclick="() => ToggleToolStatusFilter(status.Value)">
+            @status.Text
+            <span>@AssignmentBaseFilteredTools.Count(x => string.Equals(x.OperationalStatus, status.Value, StringComparison.OrdinalIgnoreCase))</span>
+        </button>
+    }
+</section>
+
+<section class="assignment-page-filters" aria-label="Filtros de asignación">
+    <input class="form-control form-control-sm"
+           placeholder="Buscar código, nombre, serial, sede, ubicación o responsable..."
+           @bind="search"
+           @bind:event="oninput" />
+
+    <input class="form-control form-control-sm"
+           list="assignment-table-branches-list"
+           value="@selectedBranchSearchText"
+           @oninput="OnTableBranchSearchInput"
+           placeholder="Todas las sedes" />
+
+    <datalist id="assignment-table-branches-list">
+        @if (IsAllBranchScope())
+        {
+            <option value="Todas las sedes"></option>
+        }
+
+        @foreach (var branch in BranchFilterOptions)
+        {
+            <option value="@FormatBranchOption(branch)"></option>
+            <option value="@branch.Code"></option>
+            <option value="@branch.Name"></option>
+        }
+    </datalist>
+
+    <input class="form-control form-control-sm"
+           list="table-responsibles-list"
+           value="@selectedResponsibleSearchText"
+           @oninput="OnTableResponsibleSearchInput"
+           placeholder="Todos los usuarios" />
+
+    <datalist id="table-responsibles-list">
+        <option value="Todos los usuarios"></option>
+        <option value="Sin responsable"></option>
+        @foreach (var responsible in responsibles.OrderBy(x => x.FullName))
+        {
+            <option value="@FormatResponsibleOption(responsible)"></option>
+            <option value="@responsible.FullName"></option>
+        }
+    </datalist>
+</section>
 
 <section class="af-grid">
     <aside class="af-left-stack">
@@ -350,77 +446,7 @@
         <div class="af-table-header">
             <div>
                 <h3>Activos asignables</h3>
-                <p>Consulta el estado actual, filtra por usuario y registra asignaciones, regresos o aprobaciones.</p>
-            </div>
-
-            <div class="af-filters af-filters-standard navi-assignment-filter-grid">
-                <input class="form-control form-control-sm"
-                       placeholder="Buscar código, nombre, serial..."
-                       @bind="search"
-                       @bind:event="oninput" />
-
-                <input class="form-control form-control-sm"
-                       list="assignment-table-branches-list"
-                       value="@selectedBranchSearchText"
-                       @oninput="OnTableBranchSearchInput"
-                       placeholder="Todas las sedes" />
-
-                <datalist id="assignment-table-branches-list">
-                    @if (IsAllBranchScope())
-                    {
-                        <option value="Todas las sedes"></option>
-                    }
-
-                    @foreach (var branch in BranchFilterOptions)
-                    {
-                        <option value="@FormatBranchOption(branch)"></option>
-                        <option value="@branch.Code"></option>
-                        <option value="@branch.Name"></option>
-                    }
-                </datalist>
-
-                <input class="form-control form-control-sm"
-                       list="table-responsibles-list"
-                       value="@selectedResponsibleSearchText"
-                       @oninput="OnTableResponsibleSearchInput"
-                       placeholder="Todos los usuarios" />
-
-                <datalist id="table-responsibles-list">
-                    <option value="Todos los usuarios"></option>
-                    <option value="Sin responsable"></option>
-                    @foreach (var responsible in responsibles.OrderBy(x => x.FullName))
-                    {
-                        <option value="@FormatResponsibleOption(responsible)"></option>
-                        <option value="@responsible.FullName"></option>
-                    }
-                </datalist>
-
-
-                <div class="navi-assignment-status-filter navi-assignment-status-inline">
-                    <div class="navi-assignment-status-inline-head">
-                        <div>
-                            <strong>Estado</strong>
-                            <span>@GetSelectedStatusLabel()</span>
-                        </div>
-
-                        <button type="button" @onclick="ClearToolStatusFilter">
-                            Limpiar
-                        </button>
-                    </div>
-
-                    <div class="navi-assignment-status-chips">
-                        @foreach (var status in ToolStatusFilterOptions)
-                        {
-                            var selected = selectedToolStatuses.Contains(status.Value);
-
-                            <button type="button"
-                                    class="@(selected ? "selected" : "")"
-                                    @onclick="() => ToggleToolStatusFilter(status.Value)">
-                                @status.Text
-                            </button>
-                        }
-                    </div>
-                </div>
+                <p>Consulta el estado actual y registra asignaciones, regresos o aprobaciones.</p>
             </div>
         </div>
 
@@ -1473,6 +1499,401 @@
         white-space: nowrap;
     }
 
+/* NAVI FIX 13A SOFT ACTION BUTTONS FINAL 20260703 START */
+
+/*
+   Estándar final de botones de acción:
+   - mismo estilo de Solicitudes pendientes
+   - fondo suave
+   - borde visible
+   - texto fuerte
+   - no saturado
+   - hover sólido
+*/
+
+/* Contenedor de acciones */
+html body .assignment-actions {
+    display: inline-flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: center !important;
+    gap: .34rem !important;
+    min-width: 88px !important;
+}
+
+/* Base de todos los botones de acción */
+html body .assignment-actions .assign-action,
+html body .assign-action,
+html body .assign-main {
+    width: 88px !important;
+    min-width: 88px !important;
+    max-width: 88px !important;
+
+    height: 29px !important;
+    min-height: 29px !important;
+
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding: 0 .55rem !important;
+
+    border-radius: .5rem !important;
+    border-width: 1px !important;
+    border-style: solid !important;
+
+    font-family: var(--navi-font, 'Poppins', system-ui, sans-serif) !important;
+    font-size: .63rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    text-align: center !important;
+    text-decoration: none !important;
+    white-space: nowrap !important;
+
+    box-shadow: none !important;
+    outline: none !important;
+
+    transition:
+        background-color .14s ease,
+        color .14s ease,
+        border-color .14s ease,
+        transform .12s ease !important;
+}
+
+html body .assignment-actions .assign-action:hover,
+html body .assign-action:hover,
+html body .assign-main:hover {
+    transform: translateY(-1px) !important;
+    text-decoration: none !important;
+}
+
+/* Asignar = morado suave */
+html body .assignment-actions .assign-action.assign-action-primary,
+html body .assign-action.assign-action-primary,
+html body .assign-main.assign-main-primary {
+    color: #76008f !important;
+    background: #fbf0ff !important;
+    border-color: #d98bea !important;
+}
+
+html body .assignment-actions .assign-action.assign-action-primary:hover,
+html body .assign-action.assign-action-primary:hover,
+html body .assign-main.assign-main-primary:hover {
+    color: #ffffff !important;
+    background: #76008f !important;
+    border-color: #76008f !important;
+}
+
+/* Aprobar = verde suave */
+html body .assignment-actions .assign-action.assign-action-success,
+html body .assign-action.assign-action-success,
+html body .assign-main.assign-main-success {
+    color: #067647 !important;
+    background: #ecfdf3 !important;
+    border-color: #12b76a !important;
+}
+
+html body .assignment-actions .assign-action.assign-action-success:hover,
+html body .assign-action.assign-action-success:hover,
+html body .assign-main.assign-main-success:hover {
+    color: #ffffff !important;
+    background: #067647 !important;
+    border-color: #067647 !important;
+}
+
+/* Denegar = rojo suave */
+html body .assignment-actions .assign-action.assign-action-danger,
+html body .assign-action.assign-action-danger,
+html body .assign-main.assign-main-danger {
+    color: #b42318 !important;
+    background: #fff1f3 !important;
+    border-color: #f63d68 !important;
+}
+
+html body .assignment-actions .assign-action.assign-action-danger:hover,
+html body .assign-action.assign-action-danger:hover,
+html body .assign-main.assign-main-danger:hover {
+    color: #ffffff !important;
+    background: #b42318 !important;
+    border-color: #b42318 !important;
+}
+
+/* Regresar = naranja suave */
+html body .assignment-actions .assign-action.assign-action-warning,
+html body .assign-action.assign-action-warning,
+html body .assign-main.assign-main-warning {
+    color: #b54708 !important;
+    background: #fffaeb !important;
+    border-color: #f79009 !important;
+}
+
+html body .assignment-actions .assign-action.assign-action-warning:hover,
+html body .assign-action.assign-action-warning:hover,
+html body .assign-main.assign-main-warning:hover {
+    color: #3b2500 !important;
+    background: #fef0c7 !important;
+    border-color: #f79009 !important;
+}
+
+/* Neutro / limpiar */
+html body .assignment-actions .assign-action.assign-action-neutral,
+html body .assign-action.assign-action-neutral,
+html body .assign-main.assign-main-neutral {
+    color: #344054 !important;
+    background: #ffffff !important;
+    border-color: #d0d5dd !important;
+}
+
+html body .assignment-actions .assign-action.assign-action-neutral:hover,
+html body .assign-action.assign-action-neutral:hover,
+html body .assign-main.assign-main-neutral:hover {
+    color: #111827 !important;
+    background: #f2f4f7 !important;
+    border-color: #98a2b3 !important;
+}
+
+/* Disabled: suave, no saturado */
+html body .assignment-actions .assign-action:disabled,
+html body .assign-action:disabled,
+html body .assign-main:disabled {
+    opacity: .52 !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* Disabled mantiene el fondo pastel, no sólido */
+html body .assignment-actions .assign-action.assign-action-success:disabled {
+    color: #067647 !important;
+    background: #ecfdf3 !important;
+    border-color: #abefc6 !important;
+}
+
+html body .assignment-actions .assign-action.assign-action-danger:disabled {
+    color: #b42318 !important;
+    background: #fff1f3 !important;
+    border-color: #fecdca !important;
+}
+
+html body .assignment-actions .assign-action.assign-action-warning:disabled {
+    color: #b54708 !important;
+    background: #fffaeb !important;
+    border-color: #fedf89 !important;
+}
+
+html body .assignment-actions .assign-action.assign-action-primary:disabled {
+    color: #76008f !important;
+    background: #fbf0ff !important;
+    border-color: #d98bea !important;
+}
+
+/* NAVI FIX 13A SOFT ACTION BUTTONS FINAL 20260703 END */
+
+
+    /* NAVI ASSIGNMENT KPI FILTER STANDARD START */
+
+    .assignment-kpi-grid {
+        display: grid !important;
+        grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+        gap: .55rem !important;
+        margin: 0 0 .72rem 0 !important;
+        padding: 0 !important;
+    }
+
+    .assignment-status-filters-modern {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        align-items: center !important;
+        gap: .38rem !important;
+
+        margin: 0 0 .58rem 0 !important;
+        padding: .46rem .50rem !important;
+
+        border: 1px solid #dfe3e8 !important;
+        border-radius: .72rem !important;
+
+        background: #ffffff !important;
+        box-shadow: 0 .08rem .22rem rgba(15, 23, 42, .035) !important;
+    }
+
+    .assignment-status-filter-chip {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: .35rem !important;
+
+        min-height: 29px !important;
+        height: 29px !important;
+
+        padding: .22rem .62rem !important;
+
+        border-radius: 999px !important;
+        border: 1px solid #dfe3e8 !important;
+
+        background: #ffffff !important;
+        color: #101828 !important;
+
+        font-size: .66rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+
+        box-shadow: none !important;
+        cursor: pointer !important;
+        white-space: nowrap !important;
+    }
+
+    .assignment-status-filter-chip span {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+
+        min-width: 22px !important;
+        height: 18px !important;
+
+        padding: 0 .34rem !important;
+
+        border-radius: 999px !important;
+
+        background: rgba(15, 23, 42, .06) !important;
+        color: inherit !important;
+
+        font-size: .58rem !important;
+        font-weight: 950 !important;
+    }
+
+    .assignment-status-filter-chip.active {
+        border-color: #7b0d8e !important;
+        background: #fbf7fd !important;
+        color: #4b005c !important;
+        box-shadow: inset 0 0 0 1px rgba(123, 13, 142, .08) !important;
+    }
+
+    .assignment-status-available {
+        border-color: #86efac !important;
+        background: #f0fdf4 !important;
+        color: #166534 !important;
+    }
+
+    .assignment-status-assigned,
+    .assignment-status-loaned {
+        border-color: #bfdbfe !important;
+        background: #eff6ff !important;
+        color: #1d4ed8 !important;
+    }
+
+    .assignment-status-maintenance {
+        border-color: #99f6e4 !important;
+        background: #f0fdfa !important;
+        color: #0f766e !important;
+    }
+
+    .assignment-status-damaged {
+        border-color: #fecaca !important;
+        background: #fff1f2 !important;
+        color: #b91c1c !important;
+    }
+
+    .assignment-status-not-suitable,
+    .assignment-status-disposed {
+        border-color: #cfd6df !important;
+        background: #f8fafc !important;
+        color: #344054 !important;
+    }
+
+    .assignment-status-pending {
+        border-color: #fed7aa !important;
+        background: #fff7ed !important;
+        color: #9a3412 !important;
+    }
+
+    .assignment-status-not-located,
+    .assignment-status-other,
+    .assignment-status-all {
+        border-color: #dfe3e8 !important;
+        background: #ffffff !important;
+        color: #101828 !important;
+    }
+
+    .assignment-page-filters {
+        display: grid !important;
+        grid-template-columns: minmax(420px, 1fr) 230px 230px !important;
+        align-items: center !important;
+        gap: .45rem !important;
+
+        margin: 0 0 .72rem 0 !important;
+        padding: .56rem .62rem !important;
+
+        border: 1px solid #dfe3e8 !important;
+        border-radius: .72rem !important;
+
+        background: #ffffff !important;
+        box-shadow: 0 .08rem .22rem rgba(15, 23, 42, .035) !important;
+    }
+
+    .assignment-page-filters :where(input, select) {
+        width: 100% !important;
+        height: 34px !important;
+        min-height: 34px !important;
+        max-height: 34px !important;
+
+        border-radius: .52rem !important;
+        border: 1px solid #cfd6df !important;
+
+        background-color: #ffffff !important;
+        color: #101828 !important;
+
+        font-size: .68rem !important;
+        font-weight: 800 !important;
+        line-height: 1 !important;
+
+        box-shadow: none !important;
+    }
+
+    .assignment-page-filters :where(input, select):focus {
+        border-color: #7b0d8e !important;
+        box-shadow: 0 0 0 .14rem rgba(123, 13, 142, .10) !important;
+    }
+
+    .af-table-header {
+        display: block !important;
+        margin-bottom: .62rem !important;
+    }
+
+    .af-table-header h3 {
+        margin: 0 !important;
+        font-size: .92rem !important;
+        line-height: 1.05 !important;
+    }
+
+    .af-table-header p {
+        margin: .10rem 0 0 0 !important;
+        font-size: .62rem !important;
+        line-height: 1.1 !important;
+    }
+
+    .af-card > .af-table-header + p,
+    .af-card > .af-table-header + .alert {
+        margin-top: .45rem !important;
+    }
+
+    @@media (max-width: 1280px) {
+        .assignment-kpi-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        }
+
+        .assignment-page-filters {
+            grid-template-columns: 1fr !important;
+        }
+    }
+
+    @@media (max-width: 760px) {
+        .assignment-kpi-grid {
+            grid-template-columns: 1fr !important;
+        }
+    }
+
+    /* NAVI ASSIGNMENT KPI FILTER STANDARD END */
+
 </style>
 
 @code {
@@ -1742,11 +2163,14 @@ private HttpClient Api => HttpClientFactory.CreateClient("NaviApi");
             tools,
             x => x.BranchCode,
             x => x.ResponsiblePersonName);
-private IEnumerable<ToolItem> FilteredTools =>
+private IEnumerable<ToolItem> AssignmentBaseFilteredTools =>
         ScopedTools
             .Where(MatchesSearchFilter)
             .Where(MatchesBranchFilter)
-            .Where(MatchesResponsibleFilter)
+            .Where(MatchesResponsibleFilter);
+
+    private IEnumerable<ToolItem> FilteredTools =>
+        AssignmentBaseFilteredTools
             .Where(MatchesStatusFilter)
             .OrderByDescending(x => FindPendingRequestForTool(x.Id) is not null)
             .ThenBy(x => x.InternalCode);
@@ -1809,6 +2233,28 @@ private IEnumerable<ToolItem> FilteredTools =>
         }
     }
 
+
+
+    private string GetAssignmentStatusChipClass(string status, bool selected)
+    {
+        var normalized = status switch
+        {
+            "Available" => "available",
+            "Assigned" => "assigned",
+            "Loaned" => "loaned",
+            "InMaintenance" => "maintenance",
+            "Damaged" => "damaged",
+            "NotSuitable" => "not-suitable",
+            "PendingValidation" => "pending",
+            "NotLocated" => "not-located",
+            "Disposed" => "disposed",
+            _ => "other"
+        };
+
+        return selected
+            ? $"assignment-status-filter-chip assignment-status-{normalized} active"
+            : $"assignment-status-filter-chip assignment-status-{normalized}";
+    }
 
     private void ToggleStatusFilterPanel()
     {
@@ -1896,7 +2342,12 @@ private IEnumerable<ToolItem> FilteredTools =>
 
     private void OnTableBranchSearchInput(ChangeEventArgs args)
     {
-        selectedBranchSearchText = args?.ToString() ?? string.Empty;
+        selectedBranchSearchText = args?.Value?.ToString() ?? string.Empty;
+
+        if (selectedBranchSearchText.Contains("Microsoft.AspNetCore.Components", StringComparison.OrdinalIgnoreCase))
+        {
+            selectedBranchSearchText = string.Empty;
+        }
 
         if (IsAllBranchScope() &&
             (string.IsNullOrWhiteSpace(selectedBranchSearchText) ||
@@ -1927,7 +2378,12 @@ private IEnumerable<ToolItem> FilteredTools =>
 
     private void OnTableResponsibleSearchInput(ChangeEventArgs args)
     {
-        selectedResponsibleSearchText = args?.ToString() ?? string.Empty;
+        selectedResponsibleSearchText = args?.Value?.ToString() ?? string.Empty;
+
+        if (selectedResponsibleSearchText.Contains("Microsoft.AspNetCore.Components", StringComparison.OrdinalIgnoreCase))
+        {
+            selectedResponsibleSearchText = string.Empty;
+        }
 
         if (string.IsNullOrWhiteSpace(selectedResponsibleSearchText) ||
             selectedResponsibleSearchText.Equals("Todos los usuarios", StringComparison.OrdinalIgnoreCase))
@@ -2488,7 +2944,7 @@ private IEnumerable<ToolItem> FilteredTools =>
 
     private void OnAssignmentToolSearchInput(ChangeEventArgs args)
     {
-        assignmentToolSearchText = args?.ToString() ?? string.Empty;
+        assignmentToolSearchText = args?.Value?.ToString() ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(assignmentToolSearchText))
         {
@@ -2507,7 +2963,7 @@ private IEnumerable<ToolItem> FilteredTools =>
 
     private void OnAssignmentResponsibleSearchInput(ChangeEventArgs args)
     {
-        assignmentResponsibleSearchText = args?.ToString() ?? string.Empty;
+        assignmentResponsibleSearchText = args?.Value?.ToString() ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(assignmentResponsibleSearchText))
         {
@@ -2526,7 +2982,7 @@ private IEnumerable<ToolItem> FilteredTools =>
 
     private void OnAssignmentBranchSearchInput(ChangeEventArgs args)
     {
-        assignmentBranchSearchText = args?.ToString() ?? string.Empty;
+        assignmentBranchSearchText = args?.Value?.ToString() ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(assignmentBranchSearchText))
         {
@@ -2548,7 +3004,7 @@ private IEnumerable<ToolItem> FilteredTools =>
 
     private void OnAssignmentLocationSearchInput(ChangeEventArgs args)
     {
-        assignmentLocationSearchText = args?.ToString() ?? string.Empty;
+        assignmentLocationSearchText = args?.Value?.ToString() ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(assignmentLocationSearchText))
         {
@@ -2567,7 +3023,7 @@ private IEnumerable<ToolItem> FilteredTools =>
 
     private void OnHistoryResponsibleSearchInput(ChangeEventArgs args)
     {
-        historyResponsibleSearchText = args?.ToString() ?? string.Empty;
+        historyResponsibleSearchText = args?.Value?.ToString() ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(historyResponsibleSearchText) ||
             historyResponsibleSearchText.Equals("Todos los usuarios", StringComparison.OrdinalIgnoreCase))
@@ -2722,19 +3178,7 @@ private IEnumerable<ToolItem> FilteredTools =>
         "Damaged" => "Dañada",
         "NotLocated" => "No localizada",
         "PendingValidation" => "Pendiente validación",
-        _ => status
-    };
-
-    private static string GetStatusBadge(string status) => status switch
-    {
-        "Available" => "badge bg-success",
-        "Assigned" => "badge bg-warning text-dark",
-        "Loaned" => "badge bg-info text-dark",
-        "InMaintenance" => "badge bg-primary",
-        "Damaged" => "badge bg-danger",
-        "NotLocated" => "badge bg-dark",
-        "PendingValidation" => "badge bg-secondary",
-        _ => "badge bg-secondary"
+        _ => NaviStatusLabels.ToSpanish(status)
     };
 
     private void ShowSuccess(string value)
@@ -2851,4 +3295,23 @@ private IEnumerable<ToolItem> FilteredTools =>
         public string? ToolName { get; set; }
         public bool Returned { get; set; }
     }
+
+    private static string GetStatusBadge(string? status)
+    {
+        return NaviStatusLabels.BadgeClass(status);
+    }
+
+
+    private static string GetStatusBadgeClass(string? status)
+    {
+        return NaviStatusLabels.BadgeClass(status);
+    }
+
+
+    private static string GetStatusFilterChipButtonClass(string status, bool selected)
+    {
+        var selectedClass = selected ? " selected" : string.Empty;
+        return $"{NaviStatusLabels.BadgeClass(status)} navi-status-filter-chip{selectedClass}";
+    }
+
 }

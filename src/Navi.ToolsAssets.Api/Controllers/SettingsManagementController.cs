@@ -215,11 +215,21 @@ public class SettingsManagementController : ControllerBase
             return BadRequest(new { Message = "El rol seleccionado no existe." });
         }
 
-        var exists = await _context.AppUsers.AnyAsync(x => x.UserName == userName && !x.IsDeleted, cancellationToken);
+        var existingUser = await _context.AppUsers
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.UserName == userName && !x.IsDeleted, cancellationToken);
 
-        if (exists)
+        if (existingUser is not null)
         {
-            return Conflict(new { Message = $"Ya existe un usuario con documento/usuario {userName}." });
+            var statusText = existingUser.IsActive ? "activo" : "deshabilitado";
+            var actionText = existingUser.IsActive
+                ? "Actualiza el registro existente si necesitas cambiar sus datos."
+                : "Usa el botón Habilitar para recuperar el acceso sin perder trazabilidad.";
+
+            return Conflict(new
+            {
+                Message = $"Ya existe un usuario {statusText} con documento/usuario {userName}. {actionText}"
+            });
         }
         var user = new Navi.ToolsAssets.Domain.Entities.Security.AppUser
         {
@@ -339,6 +349,40 @@ public class SettingsManagementController : ControllerBase
     }
 
 
+
+
+    [HttpPut("users/{id:guid}/status")]
+    public async Task<IActionResult> SetUserStatus(Guid id, [FromBody] SaveUserStatusRequest request, CancellationToken cancellationToken)
+    {
+        var user = await _context.AppUsers.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
+
+        if (user is null)
+        {
+            return NotFound(new { Message = "No se encontró el usuario." });
+        }
+
+        if (request.IsActive && !request.AcceptedReactivationTerms)
+        {
+            return BadRequest(new
+            {
+                Message = "Para habilitar un usuario deshabilitado debes aceptar la advertencia de reactivación."
+            });
+        }
+
+        user.IsActive = request.IsActive;
+        user.UpdatedAt = DateTime.UtcNow;
+        user.UpdatedBy = request.ChangedBy ?? "settings-user-status";
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return Ok(new
+        {
+            Message = request.IsActive
+                ? "Usuario habilitado correctamente."
+                : "Usuario deshabilitado correctamente. El registro se conserva para trazabilidad."
+        });
+    }
+
     [HttpDelete("users/{id:guid}")]
     public async Task<IActionResult> DeleteUser(Guid id, [FromQuery] string? changedBy, CancellationToken cancellationToken)
     {
@@ -349,14 +393,16 @@ public class SettingsManagementController : ControllerBase
             return NotFound(new { Message = "No se encontró el usuario." });
         }
 
-        user.IsDeleted = true;
         user.IsActive = false;
         user.UpdatedAt = DateTime.UtcNow;
-        user.UpdatedBy = changedBy ?? "settings";
+        user.UpdatedBy = changedBy ?? "settings-user-disable";
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        return Ok(new { Message = "Usuario eliminado correctamente." });
+        return Ok(new
+        {
+            Message = "Usuario deshabilitado correctamente. El registro se conserva para trazabilidad."
+        });
     }
 
     // =========================================================
@@ -1644,6 +1690,14 @@ public sealed class ChangeUserPasswordRequest
 {
     public string? Password { get; set; }
     public string? ChangedBy { get; set; }
+}
+
+public sealed class SaveUserStatusRequest
+{
+    public bool IsActive { get; set; }
+    public bool AcceptedReactivationTerms { get; set; }
+    public string? ChangedBy { get; set; }
+    public string? Reason { get; set; }
 }
 
 public sealed class SaveBranchRequest

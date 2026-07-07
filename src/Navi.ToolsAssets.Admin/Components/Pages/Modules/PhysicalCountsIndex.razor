@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @using System.Net.Http.Json
 @using Navi.ToolsAssets.Admin.Components.Security
+@using Navi.ToolsAssets.Admin.Components.Shared
 @using Navi.ToolsAssets.Admin.Services.Auth
 @inject IHttpClientFactory HttpClientFactory
 @inject WebAuthSessionService AuthSession
@@ -11,24 +12,16 @@
 
 <PermissionGuard Permission="PhysicalCounts.View" ModuleName="Tomas Físicas">
 
-<section class="tf-hero">
-    <div>
-        <span class="tf-pill">INVENTARIO · TOMA FÍSICA</span>
-        <h2>Tomas físicas</h2>
-        <p>Programa campañas, habilita inventario por sede y controla el avance por usuario desde escritorio y móvil.</p>
-    </div>
+<NaviPageHero
+    Pill="CONTROL"
+    Title="Tomas físicas"
+    Description="Programa campañas, habilita inventario por sede y controla el avance por usuario desde escritorio y móvil.">
 
-    <div class="tf-side">
-        <div class="tf-status-box">
-            <span>Total</span>
-            <strong>@counts.Count</strong>
-        </div>
+    <button type="button" @onclick="LoadAsync">
+        Actualizar
+    </button>
 
-        <button class="tf-outline-btn" type="button" @onclick="LoadAsync">
-            Actualizar
-        </button>
-    </div>
-</section>
+</NaviPageHero>
 
 @if (!string.IsNullOrWhiteSpace(successMessage))
 {
@@ -521,6 +514,1313 @@
         }
     }
 
+
+/* NAVI PROMPTS 26 27 28 PHYSICAL RECONCILIATION STANDARD 20260705 START */
+
+/* ==========================================================================
+   PROMPTS 26, 27 Y 28
+   26. Tomas físicas
+   27. Detalle de toma física
+   28. Conciliación
+
+   Objetivo:
+   - Banner estándar.
+   - Botón Actualizar alineado.
+   - KPIs con estándar único.
+   - Cards, filtros, tablas y acciones compactas.
+   ========================================================================== */
+
+
+/* ==========================================================================
+   1. BANNERS
+   ========================================================================== */
+
+html body :where(
+    .tf-hero,
+    .pc-hero,
+    .rec-hero
+) {
+    width: 100% !important;
+    min-height: 96px !important;
+    height: auto !important;
+
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 190px !important;
+    align-items: center !important;
+    gap: 1rem !important;
+
+    margin: 0 0 .85rem 0 !important;
+    padding: 1.05rem 1.65rem 1.05rem 1.2rem !important;
+
+    color: #ffffff !important;
+
+    border-radius: .95rem !important;
+    border: 1px solid rgba(255,255,255,.10) !important;
+
+    background:
+        radial-gradient(circle at 88% 16%, rgba(175, 0, 210, .34), transparent 32%),
+        linear-gradient(135deg, #050008 0%, #100016 36%, #30003c 66%, #76008f 100%) !important;
+
+    box-shadow:
+        0 .45rem 1.05rem rgba(75,0,92,.15),
+        inset 0 1px 0 rgba(255,255,255,.06) !important;
+
+    overflow: hidden !important;
+}
+
+html body :where(
+    .tf-hero,
+    .pc-hero,
+    .rec-hero
+) > div:first-child {
+    grid-column: 1 !important;
+
+    min-width: 0 !important;
+
+    padding: 0 !important;
+    margin: 0 !important;
+
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+
+    text-align: left !important;
+}
+
+html body :where(
+    .tf-pill,
+    .pc-pill,
+    .rec-badge
+) {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    width: fit-content !important;
+    min-height: 22px !important;
+
+    margin: 0 0 .25rem 0 !important;
+    padding: .16rem .62rem !important;
+
+    border-radius: 999px !important;
+    border: 1px solid rgba(255,255,255,.45) !important;
+    background: rgba(255,255,255,.08) !important;
+    color: #ffffff !important;
+
+    font-size: .62rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    letter-spacing: .05em !important;
+    text-transform: uppercase !important;
+    white-space: nowrap !important;
+}
+
+html body :where(
+    .tf-hero,
+    .pc-hero,
+    .rec-hero
+) :where(h1, h2) {
+    margin: 0 !important;
+    padding: 0 !important;
+
+    color: #ffffff !important;
+
+    font-size: clamp(1.38rem, 1.7vw, 1.75rem) !important;
+    font-weight: 950 !important;
+    line-height: 1.06 !important;
+    letter-spacing: -.045em !important;
+    text-align: left !important;
+}
+
+html body :where(
+    .tf-hero,
+    .pc-hero,
+    .rec-hero
+) p {
+    max-width: 980px !important;
+
+    margin: .24rem 0 0 0 !important;
+    padding: 0 !important;
+
+    color: rgba(255,255,255,.84) !important;
+
+    font-size: .82rem !important;
+    font-weight: 650 !important;
+    line-height: 1.28 !important;
+    text-align: left !important;
+}
+
+/* Zona derecha del banner */
+html body :where(
+    .tf-side,
+    .pc-side,
+    .rec-hero-actions
+) {
+    grid-column: 2 !important;
+
+    width: 190px !important;
+    min-width: 190px !important;
+    max-width: 190px !important;
+
+    height: 100% !important;
+    min-height: 34px !important;
+
+    align-self: stretch !important;
+
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: .38rem !important;
+
+    padding: 0 !important;
+    margin: 0 !important;
+
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+/* En el banner solo dejamos botones; la información va en KPIs */
+html body :where(
+    .tf-status-box,
+    .pc-status-box
+) {
+    display: none !important;
+}
+
+/* Botones del banner */
+html body :where(
+    .tf-outline-btn,
+    .pc-outline-btn,
+    .rec-outline-btn
+) {
+    width: 145px !important;
+    min-width: 145px !important;
+    max-width: 145px !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding: 0 .72rem !important;
+    margin: 0 auto !important;
+
+    border-radius: .58rem !important;
+    border: 1px solid rgba(255,255,255,.62) !important;
+
+    background: transparent !important;
+    color: #ffffff !important;
+
+    font-family: var(--navi-font, 'Poppins', system-ui, sans-serif) !important;
+    font-size: .72rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    text-align: center !important;
+    text-decoration: none !important;
+
+    box-shadow: none !important;
+}
+
+html body :where(
+    .tf-outline-btn,
+    .pc-outline-btn,
+    .rec-outline-btn
+):hover {
+    background: #ffffff !important;
+    color: #4b005c !important;
+    border-color: #ffffff !important;
+    transform: translateY(-1px) !important;
+}
+
+
+/* ==========================================================================
+   2. KPI ESTÁNDAR PARA DETALLE Y CONCILIACIÓN
+   ========================================================================== */
+
+html body :where(
+    .pc-kpi-grid,
+    .pc-user-progress,
+    .rec-kpi-grid
+) {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)) !important;
+    gap: .55rem !important;
+
+    margin: 0 0 .72rem 0 !important;
+    padding: 0 !important;
+
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+}
+
+html body :where(
+    .pc-kpi-grid,
+    .pc-user-progress,
+    .rec-kpi-grid
+) > article {
+    position: relative !important;
+
+    min-height: 54px !important;
+    height: 54px !important;
+    max-height: 54px !important;
+
+    display: grid !important;
+    align-content: center !important;
+    gap: .08rem !important;
+
+    padding: .46rem .72rem .44rem .82rem !important;
+
+    border-radius: .58rem !important;
+
+    border-top: 1px solid #dfe3e8 !important;
+    border-right: 1px solid #dfe3e8 !important;
+    border-bottom: 1px solid #dfe3e8 !important;
+    border-left-width: 4px !important;
+    border-left-style: solid !important;
+
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    background-image: none !important;
+
+    box-shadow:
+        0 .08rem .22rem rgba(15, 23, 42, .035),
+        inset 0 1px 0 rgba(255, 255, 255, .75) !important;
+
+    overflow: hidden !important;
+}
+
+html body :where(
+    .pc-kpi-grid,
+    .pc-user-progress,
+    .rec-kpi-grid
+) > article::after {
+    content: "" !important;
+
+    position: absolute !important;
+    top: -.16rem !important;
+    right: -.12rem !important;
+
+    width: 26px !important;
+    height: 26px !important;
+
+    border-radius: 999px !important;
+    background: rgba(123, 13, 142, .07) !important;
+
+    pointer-events: none !important;
+}
+
+html body :where(
+    .pc-kpi-grid,
+    .pc-user-progress,
+    .rec-kpi-grid
+) > article::before {
+    display: none !important;
+    content: none !important;
+}
+
+html body :where(
+    .pc-kpi-grid,
+    .pc-user-progress,
+    .rec-kpi-grid
+) > article span {
+    display: block !important;
+
+    margin: 0 !important;
+
+    color: #667085 !important;
+
+    font-size: .56rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    letter-spacing: .04em !important;
+    text-transform: uppercase !important;
+}
+
+html body :where(
+    .pc-kpi-grid,
+    .pc-user-progress,
+    .rec-kpi-grid
+) > article strong {
+    display: block !important;
+
+    margin: .08rem 0 0 0 !important;
+
+    color: #1b0b2b !important;
+
+    font-size: 1.08rem !important;
+    font-weight: 950 !important;
+    line-height: .96 !important;
+    letter-spacing: -.035em !important;
+}
+
+html body :where(
+    .pc-kpi-grid,
+    .pc-user-progress,
+    .rec-kpi-grid
+) > article small {
+    display: block !important;
+
+    margin: .1rem 0 0 0 !important;
+
+    color: #667085 !important;
+
+    font-size: .56rem !important;
+    font-weight: 750 !important;
+    line-height: 1.05 !important;
+
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+/* Colores por posición */
+html body :where(.pc-kpi-grid, .pc-user-progress, .rec-kpi-grid) > article:nth-child(1) {
+    border-left-color: #7b0d8e !important;
+}
+
+html body :where(.pc-kpi-grid, .pc-user-progress, .rec-kpi-grid) > article:nth-child(2) {
+    border-left-color: #2186d9 !important;
+}
+
+html body :where(.pc-kpi-grid, .pc-user-progress, .rec-kpi-grid) > article:nth-child(3) {
+    border-left-color: #039855 !important;
+}
+
+html body :where(.pc-kpi-grid, .pc-user-progress, .rec-kpi-grid) > article:nth-child(4) {
+    border-left-color: #f0a224 !important;
+}
+
+html body :where(.pc-kpi-grid, .pc-user-progress, .rec-kpi-grid) > article:nth-child(5) {
+    border-left-color: #d92d20 !important;
+}
+
+html body :where(.pc-kpi-grid, .pc-user-progress, .rec-kpi-grid) > article:nth-child(6) {
+    border-left-color: #5b21b6 !important;
+}
+
+
+/* ==========================================================================
+   3. CARDS Y LAYOUT
+   ========================================================================== */
+
+html body :where(
+    .tf-layout
+) {
+    display: grid !important;
+    grid-template-columns: minmax(320px, .78fr) minmax(0, 1.22fr) !important;
+    gap: .72rem !important;
+    align-items: start !important;
+}
+
+html body :where(
+    .tf-form-card,
+    .tf-list-card,
+    .pc-card,
+    .pc-actions-card,
+    .rec-card
+) {
+    border: 1px solid #dfe3e8 !important;
+    border-radius: .78rem !important;
+    background: #ffffff !important;
+    box-shadow: 0 .16rem .42rem rgba(15,23,42,.045) !important;
+
+    padding: .72rem !important;
+    overflow: hidden !important;
+}
+
+html body :where(
+    .tf-card-title,
+    .pc-card-title,
+    .rec-section-title
+) {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: .65rem !important;
+
+    margin: 0 0 .62rem 0 !important;
+}
+
+html body :where(
+    .tf-form-card,
+    .tf-list-card,
+    .pc-card,
+    .pc-actions-card,
+    .rec-card,
+    .rec-section-title
+) :where(h2, h3) {
+    margin: 0 !important;
+
+    color: #111827 !important;
+
+    font-size: .96rem !important;
+    font-weight: 950 !important;
+    line-height: 1.08 !important;
+    letter-spacing: -.035em !important;
+}
+
+html body :where(
+    .tf-form-card,
+    .tf-list-card,
+    .pc-card,
+    .pc-actions-card,
+    .rec-card,
+    .rec-section-title
+) p {
+    margin: .16rem 0 0 0 !important;
+
+    color: #667085 !important;
+
+    font-size: .66rem !important;
+    font-weight: 650 !important;
+    line-height: 1.16 !important;
+}
+
+
+/* ==========================================================================
+   4. FORMULARIOS Y FILTROS
+   ========================================================================== */
+
+html body :where(
+    .form-grid,
+    .rec-filter-grid
+) {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: .5rem !important;
+}
+
+html body .rec-filter-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+
+html body :where(
+    .form-group,
+    .rec-filter-grid label
+) {
+    min-height: 48px !important;
+
+    padding: .48rem .55rem !important;
+
+    border: 1px solid #edf0f4 !important;
+    border-radius: .55rem !important;
+    background: #f8fafc !important;
+}
+
+html body :where(
+    .form-group.full,
+    .rec-search
+) {
+    grid-column: 1 / -1 !important;
+}
+
+html body :where(
+    .form-group label,
+    .rec-filter-grid label
+) {
+    display: block !important;
+
+    margin: 0 0 .22rem 0 !important;
+
+    color: #667085 !important;
+
+    font-size: .6rem !important;
+    font-weight: 950 !important;
+    line-height: 1.05 !important;
+    letter-spacing: .035em !important;
+    text-transform: uppercase !important;
+}
+
+html body :where(
+    .tf-form-card,
+    .tf-list-card,
+    .pc-card,
+    .rec-card
+) :where(input, select, textarea, .form-control, .form-select) {
+    width: 100% !important;
+
+    min-height: 32px !important;
+    height: 32px !important;
+
+    border-radius: .46rem !important;
+    border: 1px solid #cfd6df !important;
+
+    color: #111827 !important;
+    background: #ffffff !important;
+
+    font-size: .7rem !important;
+    font-weight: 700 !important;
+
+    box-shadow: none !important;
+}
+
+html body :where(
+    .tf-form-card,
+    .pc-card,
+    .rec-card
+) textarea {
+    min-height: 70px !important;
+    height: auto !important;
+    resize: vertical !important;
+}
+
+html body .rec-filter-bottom {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    flex-wrap: wrap !important;
+    gap: .45rem !important;
+
+    margin-top: .55rem !important;
+}
+
+
+/* ==========================================================================
+   5. TABLAS
+   ========================================================================== */
+
+html body :where(
+    .tf-table-wrapper,
+    .pc-table-wrapper,
+    .rec-table-wrapper
+) {
+    width: 100% !important;
+    overflow-x: auto !important;
+
+    border: 1px solid #e5e7eb !important;
+    border-radius: .78rem !important;
+    background: #ffffff !important;
+}
+
+html body :where(
+    .tf-table,
+    .pc-table,
+    .rec-table
+) {
+    width: 100% !important;
+
+    border-collapse: collapse !important;
+
+    font-size: .66rem !important;
+}
+
+html body :where(
+    .tf-table,
+    .pc-table,
+    .rec-table
+) th {
+    padding: .42rem .48rem !important;
+
+    color: #111827 !important;
+    border-bottom: 1.5px solid #111827 !important;
+    background: #ffffff !important;
+
+    font-size: .56rem !important;
+    font-weight: 950 !important;
+    letter-spacing: .035em !important;
+    text-transform: uppercase !important;
+    white-space: nowrap !important;
+}
+
+html body :where(
+    .tf-table,
+    .pc-table,
+    .rec-table
+) td {
+    padding: .46rem .48rem !important;
+
+    border-bottom: 1px solid #e5e7eb !important;
+    vertical-align: middle !important;
+
+    color: #111827 !important;
+
+    font-size: .64rem !important;
+    font-weight: 700 !important;
+}
+
+html body :where(
+    .tf-table,
+    .pc-table,
+    .rec-table
+) tr:hover td {
+    background: #fbf7fd !important;
+}
+
+
+/* ==========================================================================
+   6. BOTONES DE ACCIÓN
+   ========================================================================== */
+
+html body :where(
+    .pc-actions,
+    .row-actions,
+    .rec-actions
+) {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    flex-wrap: wrap !important;
+    gap: .34rem !important;
+}
+
+html body :where(
+    .tf-form-card,
+    .tf-list-card,
+    .pc-actions,
+    .row-actions,
+    .rec-actions,
+    .rec-section-title,
+    .rec-filter-bottom
+) :where(button, a, .btn, .pc-action, .rec-action, .rec-secondary-btn) {
+    min-height: 29px !important;
+    height: 29px !important;
+
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding: 0 .68rem !important;
+
+    border-radius: .5rem !important;
+    border-width: 1px !important;
+    border-style: solid !important;
+
+    font-family: var(--navi-font, 'Poppins', system-ui, sans-serif) !important;
+    font-size: .62rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    text-align: center !important;
+    text-decoration: none !important;
+    white-space: nowrap !important;
+
+    box-shadow: none !important;
+}
+
+/* Morado: acción principal */
+html body :where(
+    .btn-primary,
+    .btn-outline-primary,
+    .pc-action-primary,
+    .rec-secondary-btn
+) {
+    color: #76008f !important;
+    background: #fbf0ff !important;
+    border-color: #d98bea !important;
+}
+
+html body :where(
+    .btn-primary,
+    .btn-outline-primary,
+    .pc-action-primary,
+    .rec-secondary-btn
+):hover {
+    color: #ffffff !important;
+    background: #76008f !important;
+    border-color: #76008f !important;
+}
+
+/* Verde: aprobar / activar / crear */
+html body :where(
+    .btn-success,
+    .rec-action.ok
+) {
+    color: #067647 !important;
+    background: #ecfdf3 !important;
+    border-color: #12b76a !important;
+}
+
+html body :where(
+    .btn-success,
+    .rec-action.ok
+):hover {
+    color: #ffffff !important;
+    background: #067647 !important;
+    border-color: #067647 !important;
+}
+
+/* Rojo: rechazar / eliminar */
+html body :where(
+    .btn-danger,
+    .rec-action.danger
+) {
+    color: #b42318 !important;
+    background: #fff1f3 !important;
+    border-color: #f63d68 !important;
+}
+
+html body :where(
+    .btn-danger,
+    .rec-action.danger
+):hover {
+    color: #ffffff !important;
+    background: #b42318 !important;
+    border-color: #b42318 !important;
+}
+
+/* Naranja: aclarar / advertencia */
+html body :where(
+    .rec-action.warn,
+    .btn-warning
+) {
+    color: #b54708 !important;
+    background: #fffaeb !important;
+    border-color: #f79009 !important;
+}
+
+html body :where(
+    .rec-action.warn,
+    .btn-warning
+):hover {
+    color: #ffffff !important;
+    background: #b54708 !important;
+    border-color: #b54708 !important;
+}
+
+/* Neutro */
+html body :where(
+    .btn-dark,
+    .btn-secondary,
+    .btn-outline-secondary,
+    .rec-action.neutral
+) {
+    color: #344054 !important;
+    background: #ffffff !important;
+    border-color: #d0d5dd !important;
+}
+
+html body :where(
+    .btn-dark,
+    .btn-secondary,
+    .btn-outline-secondary,
+    .rec-action.neutral
+):hover {
+    color: #111827 !important;
+    background: #f2f4f7 !important;
+    border-color: #98a2b3 !important;
+}
+
+
+/* ==========================================================================
+   7. BADGES / ESTADOS
+   ========================================================================== */
+
+html body :where(
+    .tf-status,
+    .pc-status,
+    .rec-status,
+    .rec-type,
+    .rec-badge-table,
+    .pc-badge
+) {
+    min-height: 20px !important;
+
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding: .1rem .44rem !important;
+
+    border-radius: 999px !important;
+    border: 1px solid #d0d5dd !important;
+
+    color: #344054 !important;
+    background: #f2f4f7 !important;
+
+    font-size: .56rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+
+    box-shadow: none !important;
+}
+
+html body .pc-status.pending {
+    color: #344054 !important;
+    background: #f2f4f7 !important;
+    border-color: #d0d5dd !important;
+}
+
+html body .pc-status.progress {
+    color: #175cd3 !important;
+    background: #eff8ff !important;
+    border-color: #84caff !important;
+}
+
+html body .pc-status.done {
+    color: #067647 !important;
+    background: #ecfdf3 !important;
+    border-color: #12b76a !important;
+}
+
+html body .pc-status.diff {
+    color: #b54708 !important;
+    background: #fffaeb !important;
+    border-color: #f79009 !important;
+}
+
+html body .pc-status.expired {
+    color: #b42318 !important;
+    background: #fff1f3 !important;
+    border-color: #f63d68 !important;
+}
+
+
+/* ==========================================================================
+   8. EMPTY / ALERTAS
+   ========================================================================== */
+
+html body :where(
+    .tf-empty,
+    .pc-empty,
+    .rec-empty
+) {
+    min-height: 42px !important;
+
+    display: flex !important;
+    align-items: center !important;
+
+    padding: .55rem .65rem !important;
+
+    border-radius: .58rem !important;
+    border: 1px dashed #d0d5dd !important;
+    background: #f8fafc !important;
+    color: #667085 !important;
+
+    font-size: .7rem !important;
+    font-weight: 750 !important;
+}
+
+html body :where(
+    .rec-alert,
+    .alert
+) {
+    border-radius: .62rem !important;
+    font-size: .72rem !important;
+    font-weight: 800 !important;
+}
+
+
+/* ==========================================================================
+   9. RESPONSIVE
+   ========================================================================== */
+
+@@media (max-width: 1200px) {
+    html body .tf-layout {
+        grid-template-columns: 1fr !important;
+    }
+
+    html body .rec-filter-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+}
+
+@@media (max-width: 820px) {
+    html body :where(
+        .tf-hero,
+        .pc-hero,
+        .rec-hero
+    ) {
+        grid-template-columns: 1fr !important;
+        padding: 1.05rem 1.2rem !important;
+    }
+
+    html body :where(
+        .tf-side,
+        .pc-side,
+        .rec-hero-actions
+    ) {
+        grid-column: 1 !important;
+
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+
+        height: auto !important;
+
+        align-items: stretch !important;
+
+        margin-top: .75rem !important;
+    }
+
+    html body :where(
+        .tf-outline-btn,
+        .pc-outline-btn,
+        .rec-outline-btn
+    ) {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+    }
+
+    html body :where(
+        .pc-kpi-grid,
+        .pc-user-progress,
+        .rec-kpi-grid
+    ) {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    html body :where(
+        .form-grid,
+        .rec-filter-grid
+    ) {
+        grid-template-columns: 1fr !important;
+    }
+
+    html body :where(
+        .tf-card-title,
+        .pc-card-title,
+        .rec-section-title
+    ) {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+}
+
+@@media (max-width: 520px) {
+    html body :where(
+        .pc-kpi-grid,
+        .pc-user-progress,
+        .rec-kpi-grid
+    ) {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* NAVI PROMPTS 26 27 28 PHYSICAL RECONCILIATION STANDARD 20260705 END */
+
+/* NAVI FIX REDUCE PROGRAMAR TOMA FISICA 20260705 START */
+
+/* ============================================================
+   Tomas físicas
+   Ajuste:
+   - Reducir ancho y alto de Programar toma física.
+   - Dar más espacio a Campañas registradas.
+   - Mantener el estándar visual.
+   ============================================================ */
+
+/* Layout principal: formulario más pequeño y tabla más amplia */
+html body .tf-layout {
+    grid-template-columns: minmax(270px, 420px) minmax(0, 1fr) !important;
+    gap: .62rem !important;
+    align-items: start !important;
+}
+
+/* Card de Programar toma física */
+html body .tf-layout > .tf-form-card:first-child,
+html body .tf-form-card {
+    max-width: 420px !important;
+    width: 100% !important;
+
+    padding: .58rem .62rem !important;
+
+    border-radius: .72rem !important;
+}
+
+/* Título más compacto */
+html body .tf-form-card h3 {
+    font-size: .86rem !important;
+    line-height: 1.05 !important;
+    margin-bottom: .08rem !important;
+}
+
+html body .tf-form-card p {
+    font-size: .58rem !important;
+    line-height: 1.08 !important;
+    margin-bottom: .42rem !important;
+}
+
+/* Formulario interno más compacto */
+html body .tf-form-card .form-grid {
+    gap: .38rem !important;
+}
+
+html body .tf-form-card .form-group {
+    min-height: 42px !important;
+    padding: .38rem .45rem !important;
+    border-radius: .5rem !important;
+}
+
+html body .tf-form-card .form-group label {
+    font-size: .54rem !important;
+    margin-bottom: .18rem !important;
+}
+
+/* Inputs más bajos */
+html body .tf-form-card :where(input, select, .form-control, .form-select) {
+    min-height: 28px !important;
+    height: 28px !important;
+
+    font-size: .64rem !important;
+    border-radius: .42rem !important;
+}
+
+/* Textarea más bajo */
+html body .tf-form-card textarea.form-control,
+html body .tf-form-card textarea {
+    min-height: 54px !important;
+    height: 54px !important;
+
+    font-size: .64rem !important;
+}
+
+/* Botón crear más compacto */
+html body .tf-form-card button,
+html body .tf-form-card .btn {
+    min-height: 30px !important;
+    height: 30px !important;
+
+    border-radius: .48rem !important;
+
+    font-size: .62rem !important;
+    font-weight: 950 !important;
+}
+
+/* Campañas registradas aprovecha el espacio liberado */
+html body .tf-list-card {
+    min-width: 0 !important;
+    width: 100% !important;
+}
+
+/* Buscador de campañas más compacto */
+html body .tf-search {
+    max-width: 320px !important;
+    min-height: 30px !important;
+    height: 30px !important;
+}
+
+/* Responsive */
+@@media (max-width: 1200px) {
+    html body .tf-layout {
+        grid-template-columns: 1fr !important;
+    }
+
+    html body .tf-form-card {
+        max-width: none !important;
+    }
+}
+
+/* NAVI FIX REDUCE PROGRAMAR TOMA FISICA 20260705 END */
+
+/* NAVI FIX TF CAMPAÑAS SIN BARRA HORIZONTAL 20260705 START */
+
+/* ============================================================
+   Tomas físicas - Campañas registradas
+
+   Ajuste:
+   - Eliminar barra horizontal.
+   - Ajustar tabla al ancho del card.
+   - Columnas uniformes.
+   - Botones compactos en acciones.
+   ============================================================ */
+
+html body .tf-list-card {
+    overflow: hidden !important;
+}
+
+html body .tf-table-wrapper {
+    width: 100% !important;
+    max-width: 100% !important;
+
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+
+    border: 1px solid #e5e7eb !important;
+    border-radius: .72rem !important;
+    background: #ffffff !important;
+}
+
+/* Ocultar barra horizontal si el navegador la deja pintada */
+html body .tf-table-wrapper::-webkit-scrollbar {
+    height: 0 !important;
+}
+
+html body .tf-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+}
+
+/* Distribución compacta de columnas */
+html body .tf-table th:nth-child(1),
+html body .tf-table td:nth-child(1) {
+    width: 18% !important;
+}
+
+html body .tf-table th:nth-child(2),
+html body .tf-table td:nth-child(2) {
+    width: 8% !important;
+}
+
+html body .tf-table th:nth-child(3),
+html body .tf-table td:nth-child(3) {
+    width: 10% !important;
+}
+
+html body .tf-table th:nth-child(4),
+html body .tf-table td:nth-child(4) {
+    width: 12% !important;
+}
+
+html body .tf-table th:nth-child(5),
+html body .tf-table td:nth-child(5) {
+    width: 11% !important;
+}
+
+html body .tf-table th:nth-child(6),
+html body .tf-table td:nth-child(6) {
+    width: 12% !important;
+}
+
+html body .tf-table th:nth-child(7),
+html body .tf-table td:nth-child(7) {
+    width: 12% !important;
+}
+
+html body .tf-table th:nth-child(8),
+html body .tf-table td:nth-child(8) {
+    width: 17% !important;
+}
+
+/* Celdas más compactas */
+html body .tf-table th {
+    padding: .34rem .36rem !important;
+
+    font-size: .52rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+
+    white-space: nowrap !important;
+}
+
+html body .tf-table td {
+    padding: .4rem .36rem !important;
+
+    font-size: .58rem !important;
+    font-weight: 750 !important;
+    line-height: 1.08 !important;
+
+    vertical-align: middle !important;
+
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+/* Columnas que sí pueden partir texto */
+html body .tf-table td:nth-child(1),
+html body .tf-table td:nth-child(6),
+html body .tf-table td:nth-child(7) {
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+}
+
+/* Código de toma más compacto */
+html body .tf-table td:nth-child(1) strong,
+html body .tf-table td:nth-child(1) b {
+    display: block !important;
+
+    font-size: .62rem !important;
+    font-weight: 950 !important;
+    line-height: 1.05 !important;
+}
+
+html body .tf-table td:nth-child(1) small {
+    display: block !important;
+
+    margin-top: .08rem !important;
+
+    font-size: .52rem !important;
+    font-weight: 700 !important;
+    line-height: 1.05 !important;
+}
+
+/* Acciones en grilla compacta para que no empujen la tabla */
+html body .tf-table td:nth-child(8) {
+    overflow: visible !important;
+}
+
+html body .tf-table td:nth-child(8) .row-actions,
+html body .tf-table td:nth-child(8) .tf-actions,
+html body .tf-table td:nth-child(8) div {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(54px, 1fr)) !important;
+    gap: .28rem !important;
+    align-items: center !important;
+    justify-items: stretch !important;
+}
+
+/* Botones de acciones más pequeños */
+html body .tf-table td:nth-child(8) :where(button, a, .btn) {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+
+    height: 25px !important;
+    min-height: 25px !important;
+
+    padding: 0 .32rem !important;
+
+    border-radius: .42rem !important;
+
+    font-size: .54rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+}
+
+/* Buscador alineado sin romper el encabezado */
+html body .tf-list-card .tf-card-title {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 320px !important;
+    align-items: start !important;
+    gap: .65rem !important;
+}
+
+html body .tf-list-card .tf-card-title input,
+html body .tf-list-card .tf-search {
+    width: 100% !important;
+    max-width: 320px !important;
+
+    height: 30px !important;
+    min-height: 30px !important;
+}
+
+/* Responsive */
+@@media (max-width: 1200px) {
+    html body .tf-table-wrapper {
+        overflow-x: auto !important;
+    }
+
+    html body .tf-table {
+        min-width: 860px !important;
+    }
+
+    html body .tf-table-wrapper::-webkit-scrollbar {
+        height: 8px !important;
+    }
+}
+
+@@media (max-width: 820px) {
+    html body .tf-list-card .tf-card-title {
+        grid-template-columns: 1fr !important;
+    }
+
+    html body .tf-list-card .tf-card-title input,
+    html body .tf-list-card .tf-search {
+        max-width: none !important;
+    }
+}
+
+/* NAVI FIX TF CAMPAÑAS SIN BARRA HORIZONTAL 20260705 END */
 </style>
 
 @code {

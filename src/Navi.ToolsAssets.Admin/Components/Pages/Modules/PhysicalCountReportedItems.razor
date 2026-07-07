@@ -4,6 +4,7 @@
 @using System.Net.Http.Json
 @using Microsoft.AspNetCore.Components
 @using Navi.ToolsAssets.Admin.Components.Security
+@using Navi.ToolsAssets.Admin.Components.Shared
 
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager NavigationManager
@@ -12,38 +13,20 @@
 
 <PermissionGuard Permission="PhysicalCounts.View" ModuleName="Registros reportados">
 
-    <section class="ri-hero">
-        <div>
-            <span class="ri-pill">TOMA FÍSICA · REGISTROS REPORTADOS</span>
-            <h2>Registros reportados</h2>
+    <NaviPageHero
+        Pill="CONTROL"
+        Title="Registros reportados"
+        Description="@ReportedItemsHeroDescription">
 
-            @if (SelectedParticipant is not null)
-            {
-                <p>
-                    Vista informativa de los registros reportados por
-                    <strong>@SelectedParticipant.DisplayName</strong>.
-                    Aquí no se realizan acciones administrativas.
-                </p>
-            }
-            else
-            {
-                <p>
-                    Vista informativa de registros reportados durante la toma física.
-                    Para ver solo un usuario, ingrese desde el botón de la toma física.
-                </p>
-            }
-        </div>
+        <button type="button" @onclick="LoadAsync" disabled="@isLoading">
+            @(isLoading ? "Actualizando..." : "Actualizar")
+        </button>
 
-        <div class="ri-actions">
-            <button class="btn btn-light" type="button" @onclick="LoadAsync" disabled="@isLoading">
-                @(isLoading ? "Actualizando..." : "Actualizar")
-            </button>
+        <button type="button" @onclick="GoBack">
+            Volver
+        </button>
 
-            <button class="btn btn-outline-light" type="button" @onclick="GoBack">
-                Volver
-            </button>
-        </div>
-    </section>
+    </NaviPageHero>
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
     {
@@ -80,7 +63,7 @@
             </div>
         </section>
 
-        <section class="ri-kpis">
+        <section class="ri-kpis ri-kpis-standard">
             <article>
                 <span>Total</span>
                 <strong>@VisibleItems.Count()</strong>
@@ -648,9 +631,457 @@
             grid-template-columns: 1fr;
         }
     }
+
+    
+
+
+    /* NAVI REPORTED ITEMS STANDARD START */
+
+    /* ============================================================
+       Registros reportados
+       Orden visual:
+       1. NaviPageHero
+       2. Resumen compacto
+       3. KPIs blancos compactos con colores distintos
+       4. Filtros debajo de KPIs
+       5. Tabla
+       ============================================================ */
+
+    .ri-hero,
+    .ri-actions {
+        all: unset;
+    }
+
+    html body .navi-page-hero.navi-page-hero--official .navi-page-hero__actions {
+        gap: .45rem !important;
+    }
+
+    html body .navi-page-hero.navi-page-hero--official .navi-page-hero__actions button {
+        width: 160px !important;
+        min-width: 160px !important;
+        max-width: 160px !important;
+
+        height: 34px !important;
+        min-height: 34px !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+
+        border-radius: .52rem !important;
+        border: 1px solid rgba(255, 255, 255, .70) !important;
+
+        background: transparent !important;
+        color: inherit !important;
+
+        font-size: .68rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+
+        box-shadow: none !important;
+    }
+
+    /* Resumen superior */
+    html body .ri-context-card {
+        display: grid !important;
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: .55rem !important;
+
+        margin: 0 0 .62rem 0 !important;
+        padding: 0 !important;
+
+        background: transparent !important;
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+
+    html body .ri-context-card > div {
+        position: relative !important;
+        overflow: hidden !important;
+
+        min-height: 58px !important;
+        padding: .42rem .58rem .40rem .62rem !important;
+
+        border: 1px solid #dfe3e8 !important;
+        border-left: 4px solid #7b0d8e !important;
+        border-radius: .62rem !important;
+
+        background: #ffffff !important;
+        color: #101828 !important;
+
+        box-shadow: 0 .06rem .18rem rgba(15, 23, 42, .035) !important;
+    }
+
+    html body .ri-context-card > div:nth-child(2) {
+        border-left-color: #2f80ed !important;
+    }
+
+    html body .ri-context-card > div:nth-child(3) {
+        border-left-color: #7b0d8e !important;
+    }
+
+    html body .ri-context-card span,
+    html body .ri-context-card strong,
+    html body .ri-context-card small {
+        position: relative !important;
+        z-index: 1 !important;
+    }
+
+    html body .ri-context-card span {
+        display: block !important;
+        margin: 0 0 .10rem 0 !important;
+
+        color: #667085 !important;
+
+        font-size: .52rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+        letter-spacing: .025em !important;
+        text-transform: uppercase !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    html body .ri-context-card strong {
+        display: block !important;
+        margin: 0 !important;
+
+        color: #101828 !important;
+
+        font-size: .86rem !important;
+        font-weight: 950 !important;
+        line-height: 1.05 !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    html body .ri-context-card small {
+        display: block !important;
+        margin: .08rem 0 0 0 !important;
+
+        color: #475467 !important;
+
+        font-size: .50rem !important;
+        font-weight: 850 !important;
+        line-height: 1.05 !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    /* KPIs */
+    html body .ri-kpis.ri-kpis-standard,
+    html body .ri-kpis {
+        display: grid !important;
+        grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+        gap: .45rem !important;
+
+        margin: 0 0 .62rem 0 !important;
+        padding: 0 !important;
+
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    html body .ri-kpis.ri-kpis-standard > article,
+    html body .ri-kpis > article {
+        position: relative !important;
+        overflow: hidden !important;
+
+        min-width: 0 !important;
+        width: auto !important;
+
+        height: 58px !important;
+        min-height: 58px !important;
+        max-height: 58px !important;
+
+        padding: .38rem .52rem .36rem .62rem !important;
+
+        border: 1px solid #dfe3e8 !important;
+        border-left-width: 4px !important;
+        border-radius: .62rem !important;
+
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        background-image: none !important;
+
+        color: #101828 !important;
+
+        box-shadow: 0 .06rem .18rem rgba(15, 23, 42, .035) !important;
+    }
+
+    html body .ri-kpis > article:nth-child(1) {
+        border-left-color: #7b0d8e !important;
+    }
+
+    html body .ri-kpis > article:nth-child(2) {
+        border-left-color: #12a150 !important;
+    }
+
+    html body .ri-kpis > article:nth-child(3) {
+        border-left-color: #f59e0b !important;
+    }
+
+    html body .ri-kpis > article:nth-child(4) {
+        border-left-color: #2f80ed !important;
+    }
+
+    html body .ri-kpis > article:nth-child(5) {
+        border-left-color: #dc2626 !important;
+    }
+
+    html body .ri-kpis > article:nth-child(6) {
+        border-left-color: #6d28d9 !important;
+    }
+
+    html body .ri-kpis > article::after {
+        content: "" !important;
+        position: absolute !important;
+
+        width: 24px !important;
+        height: 24px !important;
+
+        right: .42rem !important;
+        top: .32rem !important;
+
+        border-radius: 999px !important;
+        background: #f6eef8 !important;
+        opacity: .90 !important;
+
+        pointer-events: none !important;
+    }
+
+    html body .ri-kpis > article:nth-child(2)::after {
+        background: #e9f9ef !important;
+    }
+
+    html body .ri-kpis > article:nth-child(3)::after {
+        background: #fff4da !important;
+    }
+
+    html body .ri-kpis > article:nth-child(4)::after {
+        background: #eaf3ff !important;
+    }
+
+    html body .ri-kpis > article:nth-child(5)::after {
+        background: #feecec !important;
+    }
+
+    html body .ri-kpis > article:nth-child(6)::after {
+        background: #f1e8ff !important;
+    }
+
+    html body .ri-kpis span,
+    html body .ri-kpis strong,
+    html body .ri-kpis small {
+        position: relative !important;
+        z-index: 1 !important;
+    }
+
+    html body .ri-kpis span {
+        display: block !important;
+        margin: 0 0 .10rem 0 !important;
+
+        color: #667085 !important;
+
+        font-size: .52rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+        letter-spacing: .025em !important;
+        text-transform: uppercase !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    html body .ri-kpis strong {
+        display: block !important;
+        margin: 0 !important;
+
+        color: #101828 !important;
+
+        font-size: 1.02rem !important;
+        font-weight: 950 !important;
+        line-height: 1.03 !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    html body .ri-kpis small {
+        display: block !important;
+        margin: .08rem 0 0 0 !important;
+
+        color: #475467 !important;
+
+        font-size: .50rem !important;
+        font-weight: 850 !important;
+        line-height: 1.05 !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    /* Filtros debajo de KPIs */
+    html body .ri-filter-card {
+        margin: 0 0 .72rem 0 !important;
+        padding: .66rem .72rem !important;
+
+        border: 1px solid #dfe3e8 !important;
+        border-radius: .72rem !important;
+
+        background: #ffffff !important;
+        box-shadow: 0 .08rem .22rem rgba(15, 23, 42, .035) !important;
+    }
+
+    html body .ri-filter-card .ri-card-title {
+        display: flex !important;
+        align-items: flex-start !important;
+        justify-content: space-between !important;
+        gap: .75rem !important;
+
+        margin: 0 0 .56rem 0 !important;
+    }
+
+    html body .ri-filter-card .ri-card-title h3 {
+        margin: 0 !important;
+        font-size: .92rem !important;
+        line-height: 1.05 !important;
+    }
+
+    html body .ri-filter-card .ri-card-title p {
+        margin: .10rem 0 0 0 !important;
+        font-size: .62rem !important;
+        line-height: 1.1 !important;
+    }
+
+    html body .ri-filter-card .ri-card-title button {
+        width: 140px !important;
+        height: 34px !important;
+        min-height: 34px !important;
+
+        border-radius: .52rem !important;
+
+        font-size: .68rem !important;
+        font-weight: 900 !important;
+        line-height: 1 !important;
+    }
+
+    html body .ri-filter-grid.ri-filter-grid-simple {
+        display: grid !important;
+        grid-template-columns: minmax(420px, 1fr) 180px 180px !important;
+        gap: .45rem !important;
+        align-items: end !important;
+    }
+
+    html body .ri-filter-grid label {
+        display: grid !important;
+        gap: .22rem !important;
+
+        color: #2b3340 !important;
+
+        font-size: .62rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+    }
+
+    html body .ri-filter-grid input {
+        width: 100% !important;
+        height: 34px !important;
+        min-height: 34px !important;
+        max-height: 34px !important;
+
+        border-radius: .52rem !important;
+        border: 1px solid #cfd6df !important;
+
+        background-color: #ffffff !important;
+        color: #101828 !important;
+
+        font-size: .68rem !important;
+        font-weight: 800 !important;
+        line-height: 1 !important;
+
+        box-shadow: none !important;
+    }
+
+    html body .ri-filter-grid input:focus {
+        border-color: #7b0d8e !important;
+        box-shadow: 0 0 0 .14rem rgba(123, 13, 142, .10) !important;
+    }
+
+    html body .ri-filter-checks {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: .85rem !important;
+        margin-top: .62rem !important;
+    }
+
+    html body .ri-filter-checks label {
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: .36rem !important;
+
+        font-size: .68rem !important;
+        font-weight: 850 !important;
+        color: #334155 !important;
+    }
+
+    @@media (max-width: 1280px) {
+        html body .ri-kpis.ri-kpis-standard,
+        html body .ri-kpis {
+            grid-template-columns: repeat(6, minmax(118px, 1fr)) !important;
+            overflow-x: auto !important;
+        }
+
+        html body .ri-context-card {
+            grid-template-columns: 1fr !important;
+        }
+
+        html body .ri-filter-grid.ri-filter-grid-simple {
+            grid-template-columns: 1fr !important;
+        }
+    }
+
+    @@media (max-width: 760px) {
+        html body .ri-kpis.ri-kpis-standard,
+        html body .ri-kpis {
+            grid-template-columns: 1fr !important;
+            overflow-x: visible !important;
+        }
+
+        html body .ri-kpis > article {
+            height: auto !important;
+            max-height: none !important;
+        }
+
+        html body .ri-filter-card .ri-card-title {
+            display: grid !important;
+        }
+
+        html body .ri-filter-card .ri-card-title button {
+            width: 100% !important;
+        }
+    }
+
+    /* NAVI REPORTED ITEMS STANDARD END */
+
 </style>
 
 @code {
+
+    private string ReportedItemsHeroDescription =>
+        SelectedParticipant is not null
+            ? $"Vista informativa de los registros reportados por {SelectedParticipant.DisplayName}. Aquí no se realizan acciones administrativas."
+            : "Vista informativa de registros reportados durante la toma física. Para ver solo un usuario, ingrese desde el botón de la toma física.";
+
     [Parameter] public Guid Id { get; set; }
 
     [Parameter]

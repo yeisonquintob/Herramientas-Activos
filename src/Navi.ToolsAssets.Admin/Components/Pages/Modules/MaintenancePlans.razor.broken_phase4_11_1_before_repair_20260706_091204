@@ -1,0 +1,2006 @@
+@page "/maintenance-plans"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@using Navi.ToolsAssets.Admin.Components.Security
+@using Navi.ToolsAssets.Admin.Components.Shared
+@using Navi.ToolsAssets.Admin.Services.Auth
+@inject IHttpClientFactory HttpClientFactory
+@inject WebAuthSessionService AuthSession
+
+<PageTitle>Planes de Mantenimiento</PageTitle>
+
+<PermissionGuard Permission="MaintenancePlans.View" ModuleName="Planes de Mantenimiento">
+
+<NaviPageHero
+    Pill="OPERACIONES · PLANES · COSTOS"
+    Title="Planes de mantenimiento"
+    Description="Controla vencimientos, cobertura, solicitudes pendientes, cronograma y relación con solicitudes de mantenimiento.">
+
+    @if (CanRequestMaintenance)
+    {
+        <a href="/maintenance-request">Solicitar</a>
+    }
+
+    <button type="button" @onclick="LoadAsync">
+        Actualizar
+    </button>
+
+</NaviPageHero>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+<section class="plans-board plans-board-linear">
+
+    <article class="plans-card plans-kpis-panel">
+        <div class="plans-card-title">
+            <div>
+                <h3>Indicadores del plan</h3>
+                <p>Resumen operativo del cronograma y solicitudes pendientes.</p>
+            </div>
+        </div>
+
+        <section class="plans-kpis plans-kpis-inline">
+    <article>
+        <span>Total activos</span>
+        <strong>@plans.Count</strong>
+        <small>Con seguimiento</small>
+    </article>
+
+    <article class="success">
+        <span>Al día</span>
+        <strong>@plans.Count(x => x.PlanStatus == "OnTime")</strong>
+        <small>Sin vencimiento</small>
+    </article>
+
+    <article class="warning">
+        <span>Por vencer</span>
+        <strong>@plans.Count(x => x.PlanStatus == "DueSoon")</strong>
+        <small>Próximos 30 días</small>
+    </article>
+
+    <article class="danger">
+        <span>Vencidos</span>
+        <strong>@plans.Count(x => x.PlanStatus == "Overdue")</strong>
+        <small>Requieren atención</small>
+    </article>
+
+    <article class="purple">
+        <span>Solicitudes</span>
+        <strong>@plans.Sum(x => x.PendingRequests)</strong>
+        <small>Pendientes abiertas</small>
+    </article>
+
+    <article class="info">
+        <span>Completados</span>
+        <strong>@plans.Sum(x => x.CompletedMaintenances)</strong>
+        <small>Registros cerrados</small>
+    </article>
+
+        </section>
+    </article>
+
+</section>
+
+<section class="plans-filter-strip" aria-label="Filtros de planes de mantenimiento">
+<select class="form-select" @bind="selectedStatus">
+                <option value="">Todos los estados</option>
+                <option value="OnTime">Al día</option>
+                <option value="DueSoon">Por vencer</option>
+                <option value="Overdue">Vencido</option>
+            </select>
+
+            <input class="form-control"
+                   placeholder="Buscar código, activo, sede, responsable..."
+                   @bind="searchText"
+                   @bind:event="oninput" />
+</section>
+
+
+<section class="plans-card">
+    <div class="plans-card-title">
+        <div>
+            <h3>Tablero de planes</h3>
+            <p>Consulta el cronograma por activo. Las acciones visibles dependen de la matriz de permisos.</p>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="plans-empty">Cargando planes...</div>
+    }
+    else if (!FilteredPlans.Any())
+    {
+        <div class="plans-empty">No hay planes con los filtros aplicados.</div>
+    }
+    else
+    {
+        <div class="plans-table-wrapper">
+            <table class="plans-table">
+                <thead>
+                    <tr>
+                        <th>Activo</th>
+                        <th>Sede / ubicación</th>
+                        <th>Responsable</th>
+                        <th>Periodicidad</th>
+                        <th>Último mantenimiento</th>
+                        <th>Próximo mantenimiento</th>
+                        <th>Estado</th>
+                        <th>Indicadores</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in FilteredPlans)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@item.InternalCode</strong>
+                                <small>@item.Name</small>
+                            </td>
+
+                            <td>
+                                <strong>@(item.BranchCode ?? "—")</strong>
+                                <small>@(item.LocationName ?? item.BranchName ?? "Sin ubicación")</small>
+                            </td>
+
+                            <td>@(item.ResponsibleName ?? "—")</td>
+
+                            <td>
+                                <strong>@item.PeriodMonths mes(es)</strong>
+                                <small>Periodicidad base</small>
+                            </td>
+
+                            <td>
+                                <strong>@FormatDate(item.LastMaintenanceAt)</strong>
+                                <small>@(item.LastMaintenanceNumber ?? "Sin registro previo")</small>
+                                <small>@(item.LastProvider ?? "Sin proveedor")</small>
+                            </td>
+
+                            <td>
+                                <strong>@FormatDate(item.NextMaintenanceAt)</strong>
+                                <small>@GetDaysText(item.DaysRemaining)</small>
+                            </td>
+
+                            <td>
+                                <span class="@GetPlanClass(item.PlanStatus)">
+                                    @GetPlanLabel(item.PlanStatus)
+                                </span>
+                            </td>
+
+                            <td>
+                                <small>Total: @item.TotalMaintenances</small>
+                                <small>Completados: @item.CompletedMaintenances</small>
+                                <small>Programados: @item.ScheduledMaintenances</small>
+                                <small>Solicitudes abiertas: @item.PendingRequests</small>
+                            </td>
+
+                            <td>
+                                <div class="plans-actions">
+    @if (CanOpenLifeRecord)
+    {
+        <a class="plans-action neutral" href="@($"/tools/{item.ToolAssetId}/technical-life-record")">
+            Hoja de vida
+        </a>
+    }
+
+    @if (CanOpenMaintenanceSchedule)
+    {
+        <a class="plans-action primary" href="@($"/tools/{item.ToolAssetId}/maintenance-schedule")">
+            Cronograma
+        </a>
+    }
+
+    @if (CanRequestMaintenance)
+    {
+        <a class="plans-action success" href="/maintenance-request">
+            Solicitar
+        </a>
+    }
+</div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+</PermissionGuard>
+
+<style>
+    .plans-hero {
+        margin-bottom: .7rem;
+        padding: .92rem 1.05rem;
+        border-radius: 1rem;
+        background: linear-gradient(105deg, #050507 0%, #07070b 34%, #120017 58%, #350040 78%, #710083 100%);
+        color: white;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        box-shadow: 0 .55rem 1.2rem rgba(75,0,92,.18);
+    }
+
+    .plans-pill {
+        display: inline-flex;
+        padding: .18rem .62rem;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,.35);
+        background: rgba(255,255,255,.10);
+        font-size: .66rem;
+        font-weight: 950;
+    }
+
+    .plans-hero h2 {
+        margin: .32rem 0 .12rem;
+        font-size: 1.35rem;
+        font-weight: 950;
+    }
+
+    .plans-hero p {
+        margin: 0;
+        color: rgba(255,255,255,.88);
+        font-size: .84rem;
+    }
+
+    .plans-hero-actions {
+        width: 190px;
+        display: grid;
+        gap: .42rem;
+    }
+
+    .plans-hero-btn {
+        width: 190px;
+        min-height: 36px;
+        border-radius: .6rem;
+        border: 1px solid rgba(255,255,255,.70);
+        background: rgba(255,255,255,.08);
+        color: white;
+        font-weight: 950;
+        font-size: .76rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+    }
+
+    .plans-kpis {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(120px, 1fr));
+        gap: .45rem;
+        margin-bottom: .65rem;
+    }
+
+    .plans-kpis article {
+        border: 1px solid #eadff0;
+        border-left: 4px solid #0d6efd;
+        border-radius: .72rem;
+        padding: .52rem;
+        background: white;
+        box-shadow: 0 .2rem .55rem rgba(75,0,92,.04);
+    }
+
+    .plans-kpis article.success { border-left-color: #198754; }
+    .plans-kpis article.warning { border-left-color: #ffc107; }
+    .plans-kpis article.danger { border-left-color: #dc3545; }
+    .plans-kpis article.purple { border-left-color: #7b0d8e; }
+    .plans-kpis article.info { border-left-color: #0dcaf0; }
+
+    .plans-kpis span {
+        display: block;
+        color: #526071;
+        font-size: .62rem;
+        font-weight: 950;
+        text-transform: uppercase;
+    }
+
+    .plans-kpis strong {
+        display: block;
+        color: #06111f;
+        font-size: 1.28rem;
+        font-weight: 950;
+        line-height: 1.05;
+    }
+
+    .plans-kpis small {
+        color: #657083;
+        font-size: .62rem;
+        font-weight: 750;
+    }
+
+    .plans-board {
+        display: grid;
+        grid-template-columns: .8fr 1.2fr;
+        gap: .65rem;
+        margin-bottom: .65rem;
+    }
+
+    .plans-card {
+        background: white;
+        border: 1px solid #eadff0;
+        border-radius: .95rem;
+        padding: .82rem;
+        box-shadow: 0 .28rem .8rem rgba(75,0,92,.04);
+    }
+
+    .plans-card-title {
+        display: flex;
+        justify-content: space-between;
+        gap: .8rem;
+        align-items: flex-start;
+        margin-bottom: .62rem;
+    }
+
+    .plans-card-title h3 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 950;
+        color: #100018;
+    }
+
+    .plans-card-title p {
+        margin: .1rem 0 0;
+        color: #657083;
+        font-size: .76rem;
+    }
+
+    .plans-donut-row {
+        display: grid;
+        grid-template-columns: 130px minmax(0, 1fr);
+        gap: .75rem;
+        align-items: center;
+    }
+
+    .plans-donut {
+        width: 122px;
+        height: 122px;
+        border-radius: 50%;
+        position: relative;
+        display: grid;
+        place-items: center;
+        box-shadow: inset 0 0 0 1px rgba(75,0,92,.12), 0 .25rem .65rem rgba(75,0,92,.08);
+    }
+
+    .plans-donut::after {
+        content: "";
+        position: absolute;
+        inset: 30px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: inset 0 0 0 1px #eadff0;
+    }
+
+    .plans-donut div {
+        position: relative;
+        z-index: 1;
+        text-align: center;
+    }
+
+    .plans-donut strong {
+        display: block;
+        color: #100018;
+        font-size: 1.35rem;
+        font-weight: 950;
+        line-height: 1;
+    }
+
+    .plans-donut span {
+        display: block;
+        color: #657083;
+        font-size: .58rem;
+        font-weight: 850;
+    }
+
+    .plans-legend {
+        display: grid;
+        gap: .3rem;
+        font-size: .68rem;
+    }
+
+    .plans-legend div {
+        display: grid;
+        grid-template-columns: 9px minmax(0, 1fr) auto auto;
+        gap: .32rem;
+        align-items: center;
+    }
+
+    .plans-legend i {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    .plans-legend .green,
+    .green { background: #198754; }
+
+    .plans-legend .orange,
+    .orange { background: #ffc107; }
+
+    .plans-legend .red,
+    .red { background: #dc3545; }
+
+    .plans-legend span {
+        color: #2a1734;
+        font-weight: 850;
+    }
+
+    .plans-legend strong {
+        color: #100018;
+        font-weight: 950;
+    }
+
+    .plans-legend small {
+        min-width: 36px;
+        text-align: right;
+        color: #657083;
+        font-weight: 850;
+        font-size: .58rem;
+    }
+
+    .plans-focus-list {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: .45rem;
+    }
+
+    .plans-focus-list div {
+        border: 1px solid #eadff0;
+        border-radius: .75rem;
+        background: #fbf8ff;
+        padding: .55rem;
+        min-width: 0;
+    }
+
+    .plans-focus-list strong,
+    .plans-focus-list small {
+        display: block;
+        line-height: 1.15;
+    }
+
+    .plans-focus-list strong {
+        margin-top: .3rem;
+        font-size: .76rem;
+        font-weight: 950;
+        color: #100018;
+    }
+
+    .plans-focus-list small {
+        color: #657083;
+        font-size: .62rem;
+        margin-top: .12rem;
+        overflow-wrap: anywhere;
+    }
+
+    .plans-filters {
+        display: grid;
+        grid-template-columns: 190px minmax(320px, 1fr);
+        gap: .45rem;
+        min-width: 560px;
+    }
+
+    .plans-table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    .plans-table {
+        width: 100%;
+        table-layout: fixed;
+        border-collapse: collapse;
+        font-size: .72rem;
+    }
+
+    .plans-table th {
+        border-bottom: 1px solid #17111c;
+        padding: .42rem .35rem;
+        font-size: .63rem;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .plans-table td {
+        border-bottom: 1px solid #e5e8ef;
+        padding: .45rem .35rem;
+        vertical-align: top;
+    }
+
+    .plans-table td strong,
+    .plans-table td small {
+        display: block;
+        line-height: 1.18;
+        overflow-wrap: anywhere;
+    }
+
+    .plans-table td small {
+        color: #657083;
+        font-size: .64rem;
+        margin-top: .12rem;
+    }
+
+    .plan-pill {
+        display: inline-flex;
+        border-radius: 999px;
+        padding: .18rem .42rem;
+        font-size: .65rem;
+        font-weight: 950;
+        white-space: nowrap;
+    }
+
+    .plan-pill.ontime { background: #d1e7dd; color: #0f5132; }
+    .plan-pill.duesoon { background: #fff3cd; color: #7a5200; }
+    .plan-pill.overdue { background: #f8d7da; color: #842029; }
+
+    .plans-actions {
+        display: grid;
+        gap: .28rem;
+    }
+
+    .plans-action {
+        width: 100%;
+        min-height: 28px;
+        border-radius: .48rem;
+        padding: .26rem .35rem;
+        font-size: .65rem;
+        font-weight: 950;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid transparent;
+        text-decoration: none;
+        background: white;
+        cursor: pointer;
+        line-height: 1.05;
+        text-align: center;
+    }
+
+    .plans-action.primary { border-color: #2563eb; color: #1d4ed8; background: #eff6ff; }
+    .plans-action.success { border-color: #059669; color: #047857; background: #ecfdf5; }
+    .plans-action.neutral { border-color: #64748b; color: #334155; background: #f8fafc; }
+
+    .plans-empty {
+        padding: .9rem;
+        border-radius: .75rem;
+        background: #f8fafc;
+        color: #526071;
+        font-weight: 850;
+    }
+
+    .plans-empty.compact {
+        padding: .55rem;
+        font-size: .72rem;
+    }
+
+    @@media (max-width: 1300px) {
+        .plans-board,
+        .plans-kpis,
+        .plans-focus-list {
+            grid-template-columns: 1fr;
+        }
+
+        .plans-filters {
+            min-width: 0;
+            width: 100%;
+            grid-template-columns: 1fr;
+        }
+
+        .plans-card-title {
+            flex-direction: column;
+        }
+
+        .plans-table {
+            min-width: 1100px;
+        }
+    }
+
+/* ============================================================
+   NAVI MAINTENANCE PLANS KPIS PATCH
+   Distribución del plan + KPIs al lado derecho
+   ============================================================ */
+
+    .plans-board {
+        display: grid !important;
+        grid-template-columns: .78fr 1.22fr !important;
+        gap: .65rem !important;
+        align-items: stretch !important;
+        margin-bottom: .65rem !important;
+    }
+
+    .plan-focus {
+        display: none !important;
+    }
+
+    .plans-kpis-panel {
+        min-height: 100% !important;
+    }
+
+    .plans-kpis-inline {
+        display: grid !important;
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: .45rem !important;
+        margin: 0 !important;
+    }
+
+    .plans-kpis-inline article {
+        min-height: 74px !important;
+        margin: 0 !important;
+    }
+
+    .plans-kpis-inline span {
+        font-size: .58rem !important;
+    }
+
+    .plans-kpis-inline strong {
+        font-size: 1.22rem !important;
+    }
+
+    .plans-kpis-inline small {
+        font-size: .58rem !important;
+    }
+
+    .plans-donut-row {
+        min-height: 170px !important;
+    }
+
+    @@media (max-width: 1300px) {
+        .plans-board {
+            grid-template-columns: 1fr !important;
+        }
+
+        .plans-kpis-inline {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+    }
+
+    @@media (max-width: 700px) {
+        .plans-kpis-inline {
+            grid-template-columns: 1fr !important;
+        }
+    }
+
+/* ============================================================
+   FIN NAVI MAINTENANCE PLANS KPIS PATCH
+   ============================================================ */
+
+/* NAVI PROMPTS 22 23 24 25 OPERATIONS STANDARD 20260704 START */
+
+/* ==========================================================================
+   PROMPTS 22-25
+   22 Solicitud de compra Herramientas y AF
+   23 Solicitud de mantenimiento
+   24 Consulta Compras y Mtto.
+   25 Planes de mantenimiento
+   ========================================================================== */
+
+:root {
+    --navi-op-purple: #76008f;
+    --navi-op-purple-soft: #fbf0ff;
+    --navi-op-purple-border: #d98bea;
+
+    --navi-op-green: #067647;
+    --navi-op-green-soft: #ecfdf3;
+    --navi-op-green-border: #12b76a;
+
+    --navi-op-red: #b42318;
+    --navi-op-red-soft: #fff1f3;
+    --navi-op-red-border: #f63d68;
+
+    --navi-op-orange: #b54708;
+    --navi-op-orange-soft: #fffaeb;
+    --navi-op-orange-border: #f79009;
+
+    --navi-op-blue: #175cd3;
+    --navi-op-blue-soft: #eff8ff;
+    --navi-op-blue-border: #84caff;
+
+    --navi-op-gray-50: #f8fafc;
+    --navi-op-gray-100: #f2f4f7;
+    --navi-op-gray-200: #e5e7eb;
+    --navi-op-gray-300: #d0d5dd;
+    --navi-op-gray-500: #667085;
+    --navi-op-gray-700: #344054;
+    --navi-op-text: #111827;
+}
+
+/* ==========================================================================
+   1. BANNERS OPERACIONES
+   ========================================================================== */
+
+html body :where(
+    section.spc-hero.navi-standard-hero,
+    section.navi-module-hero,
+    section.plans-hero
+) {
+    width: 100% !important;
+    min-height: 96px !important;
+    height: auto !important;
+
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 190px !important;
+    align-items: center !important;
+    gap: 1rem !important;
+
+    margin: 0 0 .85rem 0 !important;
+    padding: 1.05rem 1.65rem 1.05rem 1.2rem !important;
+
+    color: #ffffff !important;
+
+    border-radius: .95rem !important;
+    border: 1px solid rgba(255,255,255,.10) !important;
+
+    background:
+        radial-gradient(circle at 88% 16%, rgba(175, 0, 210, .34), transparent 32%),
+        linear-gradient(135deg, #050008 0%, #100016 36%, #30003c 66%, #76008f 100%) !important;
+
+    box-shadow:
+        0 .45rem 1.05rem rgba(75,0,92,.15),
+        inset 0 1px 0 rgba(255,255,255,.06) !important;
+
+    overflow: hidden !important;
+}
+
+/* Quitar cajas internas dentro del banner */
+html body :where(
+    .spc-hero-copy,
+    section.navi-module-hero > div:first-child,
+    section.plans-hero > div:first-child
+) {
+    grid-column: 1 !important;
+    min-width: 0 !important;
+
+    padding: 0 !important;
+    margin: 0 !important;
+
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+/* Pills */
+html body :where(
+    .spc-pill,
+    .navi-module-pill,
+    .plans-pill
+) {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    width: fit-content !important;
+    min-height: 22px !important;
+
+    margin: 0 0 .25rem 0 !important;
+    padding: .16rem .62rem !important;
+
+    border-radius: 999px !important;
+    border: 1px solid rgba(255,255,255,.45) !important;
+    background: rgba(255,255,255,.08) !important;
+    color: #ffffff !important;
+
+    font-size: .62rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    letter-spacing: .05em !important;
+    text-transform: uppercase !important;
+    white-space: nowrap !important;
+}
+
+/* Títulos y subtítulos */
+html body :where(
+    section.spc-hero.navi-standard-hero,
+    section.navi-module-hero,
+    section.plans-hero
+) :where(h1, h2) {
+    margin: 0 !important;
+    padding: 0 !important;
+
+    color: #ffffff !important;
+
+    font-size: clamp(1.38rem, 1.7vw, 1.75rem) !important;
+    font-weight: 950 !important;
+    line-height: 1.06 !important;
+    letter-spacing: -.045em !important;
+}
+
+html body :where(
+    section.spc-hero.navi-standard-hero,
+    section.navi-module-hero,
+    section.plans-hero
+) p {
+    max-width: 980px !important;
+    margin: .24rem 0 0 0 !important;
+
+    color: rgba(255,255,255,.84) !important;
+
+    font-size: .82rem !important;
+    font-weight: 650 !important;
+    line-height: 1.28 !important;
+}
+
+/* Zona derecha del banner */
+html body :where(
+    .spc-hero-actions,
+    .navi-module-hero-actions,
+    .plans-hero-actions
+) {
+    grid-column: 2 !important;
+
+    width: 190px !important;
+    min-width: 190px !important;
+    max-width: 190px !important;
+
+    height: 100% !important;
+    min-height: 34px !important;
+
+    align-self: stretch !important;
+
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: .38rem !important;
+
+    padding: 0 !important;
+    margin: 0 !important;
+
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+/* Mini status dentro del banner SPC */
+html body .spc-hero-status {
+    width: 145px !important;
+    min-width: 145px !important;
+    max-width: 145px !important;
+
+    min-height: 34px !important;
+    height: 34px !important;
+
+    display: grid !important;
+    align-content: center !important;
+    justify-items: center !important;
+
+    padding: .18rem .55rem !important;
+
+    border-radius: .58rem !important;
+    border: 1px solid rgba(255,255,255,.62) !important;
+    background: rgba(255,255,255,.08) !important;
+    color: #ffffff !important;
+
+    box-shadow: none !important;
+}
+
+html body .spc-hero-status span {
+    display: block !important;
+    margin: 0 !important;
+
+    color: rgba(255,255,255,.88) !important;
+
+    font-size: .5rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    letter-spacing: .03em !important;
+    text-transform: uppercase !important;
+}
+
+html body .spc-hero-status strong {
+    display: block !important;
+    margin: .08rem 0 0 0 !important;
+
+    color: #ffffff !important;
+
+    font-size: .82rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+}
+
+/* Botones del banner */
+html body :where(
+    .spc-hero-btn,
+    .navi-module-hero-actions button,
+    .navi-module-hero-actions a,
+    .navi-module-hero-btn,
+    .plans-hero-btn,
+    .plans-hero-actions button,
+    .plans-hero-actions a
+) {
+    width: 145px !important;
+    min-width: 145px !important;
+    max-width: 145px !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding: 0 .72rem !important;
+    margin: 0 !important;
+
+    border-radius: .58rem !important;
+    border: 1px solid rgba(255,255,255,.62) !important;
+
+    background: transparent !important;
+    color: #ffffff !important;
+
+    font-family: var(--navi-font, 'Poppins', system-ui, sans-serif) !important;
+    font-size: .72rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    text-align: center !important;
+    text-decoration: none !important;
+
+    box-shadow: none !important;
+}
+
+html body :where(
+    .spc-hero-btn,
+    .navi-module-hero-actions button,
+    .navi-module-hero-actions a,
+    .navi-module-hero-btn,
+    .plans-hero-btn,
+    .plans-hero-actions button,
+    .plans-hero-actions a
+):hover {
+    background: #ffffff !important;
+    color: #4b005c !important;
+    border-color: #ffffff !important;
+    transform: translateY(-1px) !important;
+}
+
+/* ==========================================================================
+   2. PROMPTS 22 Y 23 - COMPRA / MANTENIMIENTO
+   ========================================================================== */
+
+html body .spc-shell {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1.05fr) minmax(420px, .95fr) !important;
+    gap: .72rem !important;
+    align-items: start !important;
+}
+
+html body .spc-column {
+    display: grid !important;
+    gap: .72rem !important;
+}
+
+html body :where(
+    .spc-card,
+    .spc-final-card,
+    .spc-request-state-card,
+    .spc-registered
+) {
+    border: 1px solid #dfe3e8 !important;
+    border-radius: .78rem !important;
+    background: #ffffff !important;
+    box-shadow: 0 .16rem .42rem rgba(15,23,42,.045) !important;
+
+    padding: .72rem !important;
+    overflow: hidden !important;
+}
+
+html body .spc-card-title {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: .65rem !important;
+
+    margin: 0 0 .58rem 0 !important;
+}
+
+html body .spc-card-title h3,
+html body .spc-final-card h3 {
+    margin: 0 !important;
+
+    color: #111827 !important;
+
+    font-size: .96rem !important;
+    font-weight: 950 !important;
+    line-height: 1.08 !important;
+    letter-spacing: -.035em !important;
+}
+
+html body .spc-card-title p,
+html body .spc-final-card p {
+    margin: .16rem 0 0 0 !important;
+
+    color: #667085 !important;
+
+    font-size: .66rem !important;
+    font-weight: 650 !important;
+    line-height: 1.16 !important;
+}
+
+html body .spc-grid {
+    display: grid !important;
+    gap: .5rem !important;
+}
+
+html body .spc-grid.two {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+html body .spc-grid .form-group,
+html body .quote-header-box > div,
+html body .spc-summary-grid > div,
+html body .spc-state-box {
+    min-height: 48px !important;
+
+    padding: .48rem .55rem !important;
+
+    border: 1px solid #edf0f4 !important;
+    border-radius: .55rem !important;
+    background: #f8fafc !important;
+}
+
+html body .spc-grid label,
+html body .quote-header-box span,
+html body .spc-summary-grid span,
+html body .spc-state-box span {
+    display: block !important;
+    margin: 0 0 .22rem 0 !important;
+
+    color: #667085 !important;
+
+    font-size: .6rem !important;
+    font-weight: 950 !important;
+    line-height: 1.05 !important;
+    letter-spacing: .035em !important;
+    text-transform: uppercase !important;
+}
+
+html body .spc-grid :where(input, select, textarea, .form-control, .form-select),
+html body .spc-card :where(input, select, textarea, .form-control, .form-select) {
+    width: 100% !important;
+
+    min-height: 32px !important;
+    height: 32px !important;
+
+    border-radius: .46rem !important;
+    border: 1px solid #cfd6df !important;
+
+    color: #111827 !important;
+    background: #ffffff !important;
+
+    font-size: .7rem !important;
+    font-weight: 700 !important;
+
+    box-shadow: none !important;
+}
+
+html body .spc-card textarea {
+    min-height: 70px !important;
+    height: auto !important;
+    resize: vertical !important;
+}
+
+html body .spc-locked {
+    margin: 0 0 .55rem 0 !important;
+    padding: .55rem .65rem !important;
+
+    border-radius: .58rem !important;
+    border: 1px solid #f79009 !important;
+    background: #fffaeb !important;
+    color: #93370d !important;
+
+    font-size: .68rem !important;
+    font-weight: 850 !important;
+}
+
+html body .quote-header-box,
+html body .spc-summary-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: .5rem !important;
+    margin-bottom: .58rem !important;
+}
+
+html body .spc-actions {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    flex-wrap: wrap !important;
+    gap: .38rem !important;
+    margin-top: .55rem !important;
+}
+
+html body .spc-actions.vertical {
+    display: grid !important;
+    gap: .38rem !important;
+}
+
+/* Botones suaves de solicitudes */
+html body .spc-actions :where(button, a, .btn),
+html body .spc-card-title :where(button, a, .btn),
+html body .spc-registered :where(button, a, .btn),
+html body .consult-panel :where(button, a, .btn),
+html body .plans-actions :where(a, button, .btn) {
+    min-height: 29px !important;
+    height: 29px !important;
+
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding: 0 .68rem !important;
+
+    border-radius: .5rem !important;
+    border-width: 1px !important;
+    border-style: solid !important;
+
+    font-family: var(--navi-font, 'Poppins', system-ui, sans-serif) !important;
+    font-size: .62rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    text-align: center !important;
+    text-decoration: none !important;
+
+    box-shadow: none !important;
+}
+
+html body :where(.spc-actions, .spc-card-title, .spc-registered, .consult-panel, .plans-actions) :where(.btn-primary, .btn-outline-primary, .plans-action.primary) {
+    color: #76008f !important;
+    background: #fbf0ff !important;
+    border-color: #d98bea !important;
+}
+
+html body :where(.spc-actions, .spc-card-title, .spc-registered, .consult-panel, .plans-actions) :where(.btn-primary, .btn-outline-primary, .plans-action.primary):hover {
+    color: #ffffff !important;
+    background: #76008f !important;
+    border-color: #76008f !important;
+}
+
+html body :where(.spc-actions, .spc-card-title, .spc-registered, .consult-panel, .plans-actions) :where(.btn-success, .plans-action.success) {
+    color: #067647 !important;
+    background: #ecfdf3 !important;
+    border-color: #12b76a !important;
+}
+
+html body :where(.spc-actions, .spc-card-title, .spc-registered, .consult-panel, .plans-actions) :where(.btn-success, .plans-action.success):hover {
+    color: #ffffff !important;
+    background: #067647 !important;
+    border-color: #067647 !important;
+}
+
+html body :where(.spc-actions, .spc-card-title, .spc-registered, .consult-panel, .plans-actions) :where(.btn-danger, .plans-action.danger) {
+    color: #b42318 !important;
+    background: #fff1f3 !important;
+    border-color: #f63d68 !important;
+}
+
+html body :where(.spc-actions, .spc-card-title, .spc-registered, .consult-panel, .plans-actions) :where(.btn-danger, .plans-action.danger):hover {
+    color: #ffffff !important;
+    background: #b42318 !important;
+    border-color: #b42318 !important;
+}
+
+html body :where(.spc-actions, .spc-card-title, .spc-registered, .consult-panel, .plans-actions) :where(.btn-secondary, .btn-outline-secondary, .plans-action.neutral) {
+    color: #344054 !important;
+    background: #ffffff !important;
+    border-color: #d0d5dd !important;
+}
+
+html body :where(.spc-actions, .spc-card-title, .spc-registered, .consult-panel, .plans-actions) :where(.btn-secondary, .btn-outline-secondary, .plans-action.neutral):hover {
+    color: #111827 !important;
+    background: #f2f4f7 !important;
+    border-color: #98a2b3 !important;
+}
+
+/* Tablas SPC */
+html body .spc-table-wrap,
+html body .consult-table-wrap,
+html body .plans-table-wrapper {
+    width: 100% !important;
+    overflow-x: auto !important;
+}
+
+html body :where(.spc-table, .consult-table, .plans-table) {
+    width: 100% !important;
+    font-size: .68rem !important;
+    border-collapse: collapse !important;
+}
+
+html body :where(.spc-table, .consult-table, .plans-table) th {
+    padding: .42rem .48rem !important;
+
+    color: #111827 !important;
+    border-bottom: 1.5px solid #111827 !important;
+
+    font-size: .56rem !important;
+    font-weight: 950 !important;
+    letter-spacing: .035em !important;
+    text-transform: uppercase !important;
+    white-space: nowrap !important;
+}
+
+html body :where(.spc-table, .consult-table, .plans-table) td {
+    padding: .46rem .48rem !important;
+    border-bottom: 1px solid #e5e7eb !important;
+    vertical-align: middle !important;
+
+    color: #111827 !important;
+    font-size: .64rem !important;
+    font-weight: 700 !important;
+}
+
+html body :where(.spc-table, .consult-table, .plans-table) tr:hover td {
+    background: #fbf7fd !important;
+}
+
+html body .spc-empty,
+html body .consult-empty,
+html body .plans-empty {
+    min-height: 42px !important;
+
+    display: flex !important;
+    align-items: center !important;
+
+    padding: .55rem .65rem !important;
+
+    border-radius: .58rem !important;
+    border: 1px dashed #d0d5dd !important;
+    background: #f8fafc !important;
+    color: #667085 !important;
+
+    font-size: .7rem !important;
+    font-weight: 750 !important;
+}
+
+/* ==========================================================================
+   3. PROMPT 24 - CONSULTA COMPRAS Y MTTO
+   ========================================================================== */
+
+html body .consult-kpi-grid {
+    display: grid !important;
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+    gap: .55rem !important;
+    margin: 0 0 .72rem 0 !important;
+}
+
+html body .consult-kpi {
+    min-height: 58px !important;
+
+    padding: .55rem .65rem !important;
+
+    border-radius: .72rem !important;
+    border: 1px solid #dfe3e8 !important;
+    background: #ffffff !important;
+
+    box-shadow: 0 .12rem .32rem rgba(15,23,42,.04) !important;
+}
+
+html body .consult-kpi span {
+    display: block !important;
+
+    color: #667085 !important;
+
+    font-size: .58rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    letter-spacing: .035em !important;
+    text-transform: uppercase !important;
+}
+
+html body .consult-kpi strong {
+    display: block !important;
+    margin-top: .18rem !important;
+
+    color: #111827 !important;
+
+    font-size: 1.05rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+}
+
+html body .consult-kpi small {
+    display: block !important;
+    margin-top: .1rem !important;
+
+    color: #667085 !important;
+
+    font-size: .58rem !important;
+    font-weight: 750 !important;
+    line-height: 1 !important;
+}
+
+html body .consult-layout {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 320px !important;
+    gap: .72rem !important;
+    align-items: start !important;
+}
+
+html body .consult-panel {
+    border: 1px solid #dfe3e8 !important;
+    border-radius: .78rem !important;
+    background: #ffffff !important;
+    box-shadow: 0 .16rem .42rem rgba(15,23,42,.045) !important;
+
+    padding: .72rem !important;
+    overflow: hidden !important;
+}
+
+html body .consult-title-row {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: .65rem !important;
+
+    margin-bottom: .65rem !important;
+}
+
+html body .consult-title-row h3,
+html body .consult-panel.summary h3 {
+    margin: 0 !important;
+
+    color: #111827 !important;
+
+    font-size: .96rem !important;
+    font-weight: 950 !important;
+    line-height: 1.08 !important;
+    letter-spacing: -.035em !important;
+}
+
+html body .consult-title-row p,
+html body .consult-panel.summary p {
+    margin: .16rem 0 0 0 !important;
+
+    color: #667085 !important;
+
+    font-size: .66rem !important;
+    font-weight: 650 !important;
+    line-height: 1.16 !important;
+}
+
+html body .consult-filters {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    flex-wrap: wrap !important;
+    gap: .38rem !important;
+}
+
+html body .consult-filters :where(input, select, button, .btn) {
+    min-height: 32px !important;
+    height: 32px !important;
+
+    border-radius: .46rem !important;
+
+    font-size: .68rem !important;
+    font-weight: 800 !important;
+}
+
+html body .consult-section-title {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+
+    min-height: 34px !important;
+    margin: .45rem 0 .35rem 0 !important;
+    padding: .45rem .6rem !important;
+
+    border-radius: .58rem !important;
+    border-left: 4px solid #76008f !important;
+    background: #fbf0ff !important;
+    color: #4b005c !important;
+}
+
+html body .consult-section-title.maintenance {
+    border-left-color: #175cd3 !important;
+    background: #eff8ff !important;
+    color: #175cd3 !important;
+}
+
+html body .consult-section-title strong,
+html body .consult-section-title span {
+    font-size: .78rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+}
+
+/* Resumen de costos */
+html body .consult-panel.summary {
+    position: sticky !important;
+    top: .72rem !important;
+}
+
+html body .cost-block {
+    margin-top: .62rem !important;
+    padding: .7rem !important;
+
+    border-radius: .78rem !important;
+    border: 1px solid #eadff0 !important;
+    background: #fffaff !important;
+}
+
+html body .cost-block.maintenance {
+    background: #eff8ff !important;
+    border-color: #b2ddff !important;
+}
+
+html body .cost-block-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: .5rem !important;
+
+    margin-bottom: .55rem !important;
+}
+
+html body .cost-block-header strong,
+html body .cost-block-header span {
+    color: #4b005c !important;
+    font-size: .92rem !important;
+    font-weight: 950 !important;
+}
+
+html body .cost-block.maintenance .cost-block-header strong,
+html body .cost-block.maintenance .cost-block-header span {
+    color: #175cd3 !important;
+}
+
+html body .cost-mini-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: .42rem !important;
+}
+
+html body .cost-mini-grid > div {
+    min-height: 50px !important;
+
+    padding: .45rem .5rem !important;
+
+    border-radius: .55rem !important;
+    border: 1px solid #eadff0 !important;
+    background: #ffffff !important;
+}
+
+html body .cost-mini-grid span {
+    display: block !important;
+    color: #667085 !important;
+    font-size: .56rem !important;
+    font-weight: 950 !important;
+    text-transform: uppercase !important;
+}
+
+html body .cost-mini-grid strong {
+    display: block !important;
+    margin-top: .18rem !important;
+    color: #111827 !important;
+    font-size: .84rem !important;
+    font-weight: 950 !important;
+}
+
+html body .cost-list {
+    display: grid !important;
+    gap: .32rem !important;
+    margin: .55rem 0 0 0 !important;
+    padding: 0 !important;
+    list-style: none !important;
+}
+
+html body .cost-list li {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: .42rem !important;
+
+    padding: .35rem 0 !important;
+
+    border-bottom: 1px solid #e5e7eb !important;
+}
+
+html body .cost-list strong {
+    color: #76008f !important;
+    font-size: .78rem !important;
+    font-weight: 950 !important;
+}
+
+/* ==========================================================================
+   4. PROMPT 25 - PLANES DE MANTENIMIENTO
+   ========================================================================== */
+
+html body .plans-board {
+    display: grid !important;
+    grid-template-columns: minmax(340px, .72fr) minmax(0, 1.28fr) !important;
+    gap: .72rem !important;
+    align-items: stretch !important;
+    margin-bottom: .72rem !important;
+}
+
+html body .plans-card {
+    border: 1px solid #dfe3e8 !important;
+    border-radius: .78rem !important;
+    background: #ffffff !important;
+    box-shadow: 0 .16rem .42rem rgba(15,23,42,.045) !important;
+
+    padding: .72rem !important;
+    overflow: hidden !important;
+}
+
+html body .plans-card-title {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: .65rem !important;
+
+    margin-bottom: .65rem !important;
+}
+
+html body .plans-card-title h3 {
+    margin: 0 !important;
+
+    color: #111827 !important;
+
+    font-size: .96rem !important;
+    font-weight: 950 !important;
+    line-height: 1.08 !important;
+    letter-spacing: -.035em !important;
+}
+
+html body .plans-card-title p {
+    margin: .16rem 0 0 0 !important;
+
+    color: #667085 !important;
+
+    font-size: .66rem !important;
+    font-weight: 650 !important;
+    line-height: 1.16 !important;
+}
+
+html body .plans-donut-row {
+    display: grid !important;
+    grid-template-columns: 150px minmax(0, 1fr) !important;
+    gap: .75rem !important;
+    align-items: center !important;
+}
+
+html body .plans-donut {
+    width: 132px !important;
+    height: 132px !important;
+    border-radius: 50% !important;
+    display: grid !important;
+    place-items: center !important;
+}
+
+html body .plans-donut > div {
+    width: 70px !important;
+    height: 70px !important;
+
+    display: grid !important;
+    place-items: center !important;
+
+    border-radius: 999px !important;
+    background: #ffffff !important;
+}
+
+html body .plans-donut strong {
+    display: block !important;
+    color: #111827 !important;
+    font-size: 1.05rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    text-align: center !important;
+}
+
+html body .plans-donut span {
+    display: block !important;
+    color: #667085 !important;
+    font-size: .56rem !important;
+    font-weight: 900 !important;
+    text-align: center !important;
+}
+
+html body .plans-legend {
+    display: grid !important;
+    gap: .36rem !important;
+}
+
+html body .plans-legend > div {
+    display: grid !important;
+    grid-template-columns: 10px minmax(0, 1fr) auto auto !important;
+    align-items: center !important;
+    gap: .35rem !important;
+}
+
+html body .plans-legend span,
+html body .plans-legend strong,
+html body .plans-legend small {
+    font-size: .64rem !important;
+    font-weight: 900 !important;
+}
+
+html body .plans-kpis {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: .55rem !important;
+}
+
+html body .plans-kpis article {
+    min-height: 58px !important;
+
+    padding: .55rem .65rem !important;
+
+    border-radius: .72rem !important;
+    border: 1px solid #dfe3e8 !important;
+    background: #ffffff !important;
+}
+
+html body .plans-kpis article span {
+    display: block !important;
+    color: #667085 !important;
+    font-size: .58rem !important;
+    font-weight: 950 !important;
+    text-transform: uppercase !important;
+}
+
+html body .plans-kpis article strong {
+    display: block !important;
+    margin-top: .18rem !important;
+    color: #111827 !important;
+    font-size: 1.05rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+}
+
+html body .plans-filters {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    flex-wrap: wrap !important;
+    gap: .38rem !important;
+}
+
+html body .plans-filters :where(input, select, .form-control, .form-select) {
+    height: 32px !important;
+    min-height: 32px !important;
+
+    border-radius: .46rem !important;
+    border: 1px solid #cfd6df !important;
+
+    font-size: .68rem !important;
+    font-weight: 800 !important;
+}
+
+html body .plans-actions {
+    display: grid !important;
+    gap: .34rem !important;
+    justify-items: stretch !important;
+}
+
+html body .plans-actions .plans-action {
+    width: 100% !important;
+    min-width: 96px !important;
+}
+
+/* ==========================================================================
+   5. BADGES DE ESTADO Y PRIORIDAD
+   ========================================================================== */
+
+html body :where(
+    .spc-table,
+    .consult-table,
+    .plans-table
+) :where(.badge, .status-badge, .priority-badge, .navi-status-badge) {
+    min-height: 20px !important;
+
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding: .1rem .44rem !important;
+
+    border-radius: 999px !important;
+
+    font-size: .56rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+
+    box-shadow: none !important;
+}
+
+/* ==========================================================================
+   6. RESPONSIVE
+   ========================================================================== */
+
+@@media (max-width: 1300px) {
+    html body .consult-kpi-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    }
+
+    html body .plans-board {
+        grid-template-columns: 1fr !important;
+    }
+
+    html body .plans-kpis {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+}
+
+@@media (max-width: 1100px) {
+    html body .spc-shell,
+    html body .consult-layout {
+        grid-template-columns: 1fr !important;
+    }
+
+    html body .consult-panel.summary {
+        position: static !important;
+    }
+}
+
+@@media (max-width: 820px) {
+    html body :where(
+        section.spc-hero.navi-standard-hero,
+        section.navi-module-hero,
+        section.plans-hero
+    ) {
+        grid-template-columns: 1fr !important;
+        padding: 1.05rem 1.2rem !important;
+    }
+
+    html body :where(
+        .spc-hero-actions,
+        .navi-module-hero-actions,
+        .plans-hero-actions
+    ) {
+        grid-column: 1 !important;
+
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+
+        height: auto !important;
+
+        margin-top: .75rem !important;
+        align-items: stretch !important;
+    }
+
+    html body .spc-hero-status,
+    html body :where(
+        .spc-hero-btn,
+        .navi-module-hero-actions button,
+        .navi-module-hero-actions a,
+        .navi-module-hero-btn,
+        .plans-hero-btn,
+        .plans-hero-actions button,
+        .plans-hero-actions a
+    ) {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+    }
+
+    html body .spc-grid.two,
+    html body .quote-header-box,
+    html body .spc-summary-grid,
+    html body .cost-mini-grid,
+    html body .consult-kpi-grid,
+    html body .plans-kpis {
+        grid-template-columns: 1fr !important;
+    }
+
+    html body .consult-title-row,
+    html body .plans-card-title {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+
+    html body .consult-filters,
+    html body .plans-filters {
+        justify-content: stretch !important;
+    }
+
+    html body .consult-filters :where(input, select, button, .btn),
+    html body .plans-filters :where(input, select, .form-control, .form-select) {
+        width: 100% !important;
+    }
+}
+
+/* NAVI PROMPTS 22 23 24 25 OPERATIONS STANDARD 20260704 END */
+
+</style>
+
+@code {
+
+    private bool CanViewPlans => PlanHasPermission("MaintenancePlans.View");
+    private bool CanCreatePlan => PlanHasPermission("MaintenancePlans.Create");
+    private bool CanEditPlan => PlanHasPermission("MaintenancePlans.Edit");
+    private bool CanDeletePlan => PlanHasPermission("MaintenancePlans.Delete");
+
+    private bool CanOpenMaintenanceSchedule =>
+        CanViewPlans || CanCreatePlan || CanEditPlan || CanDeletePlan ||
+        PlanHasPermission("TechnicalLifeRecord.Maintenance");
+
+    private bool CanOpenLifeRecord =>
+        PlanHasPermission("TechnicalLifeRecord.View") ||
+        PlanHasPermission("ToolDetail.LifeRecord.Open") ||
+        PlanHasPermission("ToolDetail.View");
+
+    private bool CanRequestMaintenance =>
+        PlanHasPermission("Maintenance.Request") ||
+        CanCreatePlan ||
+        CanEditPlan;
+
+    private bool PlanHasPermission(string permission)
+    {
+        return AuthSession.HasPermission(permission)
+            || string.Equals(AuthSession.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(AuthSession.RoleCode, "SUPERADMIN", StringComparison.OrdinalIgnoreCase);
+    }
+
+
+
+
+
+
+
+
+
+
+
+    private List<MaintenancePlanItem> plans = new();
+    private bool isLoading;
+    private string selectedStatus = string.Empty;
+    private string searchText = string.Empty;
+    private string? errorMessage;
+
+    private IEnumerable<MaintenancePlanItem> FilteredPlans =>
+        plans
+            .Where(x => string.IsNullOrWhiteSpace(selectedStatus) || x.PlanStatus == selectedStatus)
+            .Where(MatchesSearch)
+            .OrderBy(x => x.DaysRemaining);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private HttpClient CreateApiClient()
+    {
+        var api = HttpClientFactory.CreateClient("NaviApi");
+
+        api.DefaultRequestHeaders.Remove("X-Navi-User");
+        api.DefaultRequestHeaders.Remove("X-Navi-Role");
+        api.DefaultRequestHeaders.Remove("X-Navi-Role-Code");
+        api.DefaultRequestHeaders.Remove("X-Navi-Permissions");
+
+        api.DefaultRequestHeaders.Add("X-Navi-User", string.IsNullOrWhiteSpace(AuthSession.UserName) ? "admin" : AuthSession.UserName);
+        api.DefaultRequestHeaders.Add("X-Navi-Role", string.IsNullOrWhiteSpace(AuthSession.RoleName) ? "Administrador" : AuthSession.RoleName);
+        api.DefaultRequestHeaders.Add("X-Navi-Role-Code", string.IsNullOrWhiteSpace(AuthSession.RoleCode) ? "ADMIN" : AuthSession.RoleCode);
+        api.DefaultRequestHeaders.Add("X-Navi-Permissions", string.Join(";", AuthSession.Permissions ?? new List<string>()));
+
+        return api;
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var api = CreateApiClient();
+            plans = await api.GetFromJsonAsync<List<MaintenancePlanItem>>("api/maintenance-requests/plans-board") ?? new();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudieron cargar los planes: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private bool MatchesSearch(MaintenancePlanItem item)
+    {
+        if (string.IsNullOrWhiteSpace(searchText)) return true;
+
+        var value = searchText.Trim();
+
+        return Contains(item.InternalCode, value) ||
+               Contains(item.Name, value) ||
+               Contains(item.BranchCode, value) ||
+               Contains(item.BranchName, value) ||
+               Contains(item.LocationName, value) ||
+               Contains(item.ResponsibleName, value) ||
+               Contains(item.LastProvider, value) ||
+               Contains(item.LastTechnician, value);
+    }
+
+    private static bool Contains(string? source, string value) =>
+        !string.IsNullOrWhiteSpace(source) && source.Contains(value, StringComparison.OrdinalIgnoreCase);
+
+    private static string FormatDate(DateTime? value) => value.HasValue ? value.Value.ToString("dd/MM/yyyy") : "—";
+
+    private static string GetDaysText(int days)
+    {
+        if (days < 0) return $"Vencido hace {Math.Abs(days)} día(s)";
+        if (days == 0) return "Vence hoy";
+        return $"Faltan {days} día(s)";
+    }
+
+    private static string GetPlanClass(string status) => status switch
+    {
+        "OnTime" => "plan-pill ontime",
+        "DueSoon" => "plan-pill duesoon",
+        "Overdue" => "plan-pill overdue",
+        _ => "plan-pill"
+    };
+
+    private static string GetPlanLabel(string status) => status switch
+    {
+        "OnTime" => "Al día",
+        "DueSoon" => "Por vencer",
+        "Overdue" => "Vencido",
+        _ => NaviStatusLabels.ToSpanish(status)
+    };
+
+    private string GetPlanDonutStyle()
+    {
+        var total = plans.Count;
+
+        if (total <= 0)
+        {
+            return "background: conic-gradient(#eadff0 0 100%);";
+        }
+
+        var onTime = plans.Count(x => x.PlanStatus == "OnTime");
+        var dueSoon = plans.Count(x => x.PlanStatus == "DueSoon");
+        var overdue = plans.Count(x => x.PlanStatus == "Overdue");
+
+        var onTimeEnd = PercentEnd(onTime, total, 0);
+        var dueSoonEnd = PercentEnd(dueSoon, total, onTimeEnd);
+
+        return $"background: conic-gradient(#198754 0% {onTimeEnd}%, #ffc107 {onTimeEnd}% {dueSoonEnd}%, #dc3545 {dueSoonEnd}% 100%);";
+    }
+
+    private static decimal PercentEnd(int value, int total, decimal start)
+    {
+        if (value <= 0 || total <= 0)
+        {
+            return start;
+        }
+
+        return Math.Min(100, start + Math.Round((decimal)value / total * 100, 2));
+    }
+
+    private static string GetPercentLabel(int value, int total)
+    {
+        if (value <= 0 || total <= 0)
+        {
+            return "0%";
+        }
+
+        return $"{Math.Round((decimal)value / total * 100, 1)}%";
+    }
+
+    private sealed class MaintenancePlanItem
+    {
+        public Guid ToolAssetId { get; set; }
+        public string InternalCode { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string? LocationName { get; set; }
+        public string? ResponsibleName { get; set; }
+        public int PeriodMonths { get; set; }
+        public DateTime? LastMaintenanceAt { get; set; }
+        public DateTime NextMaintenanceAt { get; set; }
+        public int DaysRemaining { get; set; }
+        public string PlanStatus { get; set; } = string.Empty;
+        public int TotalMaintenances { get; set; }
+        public int CompletedMaintenances { get; set; }
+        public int ScheduledMaintenances { get; set; }
+        public int PendingRequests { get; set; }
+        public string? LastMaintenanceNumber { get; set; }
+        public string? LastTechnician { get; set; }
+        public string? LastProvider { get; set; }
+    }
+}

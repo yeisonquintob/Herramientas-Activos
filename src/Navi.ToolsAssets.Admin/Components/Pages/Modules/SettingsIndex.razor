@@ -1,24 +1,22 @@
 @page "/settings"
 @rendermode InteractiveServer
 @using Navi.ToolsAssets.Admin.Services.Auth
+@using Navi.ToolsAssets.Admin.Components.Shared
 @inject WebAuthSessionService AuthSession
 
 <PageTitle>Configuración - NAVI Herramientas</PageTitle>
 
 <PermissionGuard Permission="Settings.View" ModuleName="Configuración">
-    <section class="navi-module-hero">
-        <div>
-            <span class="navi-module-pill">CONFIGURACIÓN · PARÁMETROS · CATÁLOGOS</span>
-            <h2>Configuración</h2>
-            <p>Administra sedes, zonas, talleres, ubicaciones, responsables, tipos de activos, documentos, mantenimientos, causales y parámetros base.</p>
-        </div>
+    <NaviPageHero
+        Pill="CONFIGURACIÓN"
+        Title="Configuración"
+        Description="Administra sedes, zonas, talleres, ubicaciones, responsables, tipos de activos, documentos, mantenimientos, causales y parámetros base.">
 
-        <div class="navi-module-hero-actions">
-            <button type="button" class="navi-module-hero-btn" onclick="window.location.reload()">
-                Actualizar
-            </button>
-        </div>
-    </section>
+        <button type="button" onclick="window.location.reload()">
+            Actualizar
+        </button>
+
+    </NaviPageHero>
 
     <section class="settings-tech-grid">
 
@@ -126,6 +124,1747 @@
             grid-template-columns: 1fr;
         }
     }
+
+/* NAVI PROMPTS 29 30 31 DOCUMENTS REPORTS SETTINGS STANDARD 20260705 START */
+
+/* ==========================================================================
+   PROMPTS 29, 30 Y 31
+   29. Gestión documental global
+   30. Centro de reportes
+   31. Configuración
+
+   Objetivo:
+   - Banner estándar.
+   - Botón Actualizar alineado.
+   - KPIs blancos con línea izquierda.
+   - Cards limpias.
+   - Menús laterales compactos.
+   - Tablas y filtros uniformes.
+   - Configuración con cards compactas y ordenadas.
+   ========================================================================== */
+
+
+/* ==========================================================================
+   1. BANNERS
+   ========================================================================== */
+
+html body :where(
+    .docs-hero,
+    .reports-hero,
+    .navi-module-hero
+) {
+    width: 100% !important;
+    min-height: 96px !important;
+    height: auto !important;
+
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 190px !important;
+    align-items: center !important;
+    gap: 1rem !important;
+
+    margin: 0 0 .85rem 0 !important;
+    padding: 1.05rem 1.65rem 1.05rem 1.2rem !important;
+
+    color: #ffffff !important;
+
+    border-radius: .95rem !important;
+    border: 1px solid rgba(255,255,255,.10) !important;
+
+    background:
+        radial-gradient(circle at 88% 16%, rgba(175, 0, 210, .34), transparent 32%),
+        linear-gradient(135deg, #050008 0%, #100016 36%, #30003c 66%, #76008f 100%) !important;
+
+    box-shadow:
+        0 .45rem 1.05rem rgba(75,0,92,.15),
+        inset 0 1px 0 rgba(255,255,255,.06) !important;
+
+    overflow: hidden !important;
+}
+
+html body :where(
+    .docs-hero,
+    .reports-hero,
+    .navi-module-hero
+) > div:first-child {
+    grid-column: 1 !important;
+
+    min-width: 0 !important;
+
+    padding: 0 !important;
+    margin: 0 !important;
+
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+
+    text-align: left !important;
+}
+
+html body :where(
+    .docs-pill,
+    .reports-pill,
+    .navi-module-pill
+) {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    width: fit-content !important;
+    min-height: 22px !important;
+
+    margin: 0 0 .25rem 0 !important;
+    padding: .16rem .62rem !important;
+
+    border-radius: 999px !important;
+    border: 1px solid rgba(255,255,255,.45) !important;
+    background: rgba(255,255,255,.08) !important;
+    color: #ffffff !important;
+
+    font-size: .62rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    letter-spacing: .05em !important;
+    text-transform: uppercase !important;
+    white-space: nowrap !important;
+}
+
+html body :where(
+    .docs-hero,
+    .reports-hero,
+    .navi-module-hero
+) :where(h1, h2) {
+    margin: 0 !important;
+    padding: 0 !important;
+
+    color: #ffffff !important;
+
+    font-size: clamp(1.38rem, 1.7vw, 1.75rem) !important;
+    font-weight: 950 !important;
+    line-height: 1.06 !important;
+    letter-spacing: -.045em !important;
+    text-align: left !important;
+}
+
+html body :where(
+    .docs-hero,
+    .reports-hero,
+    .navi-module-hero
+) p {
+    max-width: 980px !important;
+
+    margin: .24rem 0 0 0 !important;
+    padding: 0 !important;
+
+    color: rgba(255,255,255,.84) !important;
+
+    font-size: .82rem !important;
+    font-weight: 650 !important;
+    line-height: 1.28 !important;
+    text-align: left !important;
+}
+
+/* Zona derecha del banner */
+html body :where(
+    .docs-hero-actions,
+    .reports-hero-actions,
+    .navi-module-hero-actions
+) {
+    grid-column: 2 !important;
+
+    width: 190px !important;
+    min-width: 190px !important;
+    max-width: 190px !important;
+
+    height: 100% !important;
+    min-height: 34px !important;
+
+    align-self: stretch !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding: 0 !important;
+    margin: 0 !important;
+
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+html body :where(
+    .docs-hero-btn,
+    .reports-hero-btn,
+    .navi-module-hero-btn
+) {
+    width: 145px !important;
+    min-width: 145px !important;
+    max-width: 145px !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding: 0 .72rem !important;
+    margin: 0 auto !important;
+
+    border-radius: .58rem !important;
+    border: 1px solid rgba(255,255,255,.62) !important;
+
+    background: transparent !important;
+    color: #ffffff !important;
+
+    font-family: var(--navi-font, 'Poppins', system-ui, sans-serif) !important;
+    font-size: .72rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    text-align: center !important;
+    text-decoration: none !important;
+
+    box-shadow: none !important;
+}
+
+html body :where(
+    .docs-hero-btn,
+    .reports-hero-btn,
+    .navi-module-hero-btn
+):hover {
+    background: #ffffff !important;
+    color: #4b005c !important;
+    border-color: #ffffff !important;
+    transform: translateY(-1px) !important;
+}
+
+
+/* ==========================================================================
+   2. KPIS
+   ========================================================================== */
+
+html body :where(
+    .docs-kpis,
+    .docs-physical-summary,
+    .reports-kpis,
+    .reports-summary-grid
+) {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)) !important;
+    gap: .55rem !important;
+
+    margin: 0 0 .72rem 0 !important;
+    padding: 0 !important;
+
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+}
+
+html body :where(
+    .docs-kpis,
+    .docs-physical-summary,
+    .reports-kpis,
+    .reports-summary-grid
+) > article,
+html body .docs-physical-summary > div {
+    position: relative !important;
+
+    min-height: 54px !important;
+    height: 54px !important;
+    max-height: 54px !important;
+
+    display: grid !important;
+    align-content: center !important;
+    gap: .08rem !important;
+
+    padding: .46rem .72rem .44rem .82rem !important;
+
+    border-radius: .58rem !important;
+
+    border-top: 1px solid #dfe3e8 !important;
+    border-right: 1px solid #dfe3e8 !important;
+    border-bottom: 1px solid #dfe3e8 !important;
+    border-left-width: 4px !important;
+    border-left-style: solid !important;
+
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    background-image: none !important;
+
+    box-shadow:
+        0 .08rem .22rem rgba(15, 23, 42, .035),
+        inset 0 1px 0 rgba(255, 255, 255, .75) !important;
+
+    overflow: hidden !important;
+}
+
+html body :where(
+    .docs-kpis,
+    .docs-physical-summary,
+    .reports-kpis,
+    .reports-summary-grid
+) > article::after,
+html body .docs-physical-summary > div::after {
+    content: "" !important;
+
+    position: absolute !important;
+    top: -.16rem !important;
+    right: -.12rem !important;
+
+    width: 26px !important;
+    height: 26px !important;
+
+    border-radius: 999px !important;
+    background: rgba(123, 13, 142, .07) !important;
+
+    pointer-events: none !important;
+}
+
+html body :where(
+    .docs-kpis,
+    .docs-physical-summary,
+    .reports-kpis,
+    .reports-summary-grid
+) > article::before,
+html body .docs-physical-summary > div::before {
+    display: none !important;
+    content: none !important;
+}
+
+html body :where(
+    .docs-kpis,
+    .docs-physical-summary,
+    .reports-kpis,
+    .reports-summary-grid
+) :where(span, .kpi-title, .kpi-label) {
+    display: block !important;
+
+    margin: 0 !important;
+
+    color: #667085 !important;
+
+    font-size: .56rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    letter-spacing: .04em !important;
+    text-transform: uppercase !important;
+}
+
+html body :where(
+    .docs-kpis,
+    .docs-physical-summary,
+    .reports-kpis,
+    .reports-summary-grid
+) :where(strong, .kpi-value, .kpi-number) {
+    display: block !important;
+
+    margin: .08rem 0 0 0 !important;
+
+    color: #1b0b2b !important;
+
+    font-size: 1.08rem !important;
+    font-weight: 950 !important;
+    line-height: .96 !important;
+    letter-spacing: -.035em !important;
+}
+
+html body :where(
+    .docs-kpis,
+    .docs-physical-summary,
+    .reports-kpis,
+    .reports-summary-grid
+) :where(small, .kpi-description, .kpi-subtitle) {
+    display: block !important;
+
+    margin: .1rem 0 0 0 !important;
+
+    color: #667085 !important;
+
+    font-size: .56rem !important;
+    font-weight: 750 !important;
+    line-height: 1.05 !important;
+
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+/* Colores KPI */
+html body :where(.docs-kpis, .docs-physical-summary, .reports-kpis, .reports-summary-grid) > :nth-child(1) {
+    border-left-color: #7b0d8e !important;
+}
+
+html body :where(.docs-kpis, .docs-physical-summary, .reports-kpis, .reports-summary-grid) > :nth-child(2) {
+    border-left-color: #2186d9 !important;
+}
+
+html body :where(.docs-kpis, .docs-physical-summary, .reports-kpis, .reports-summary-grid) > :nth-child(3) {
+    border-left-color: #039855 !important;
+}
+
+html body :where(.docs-kpis, .docs-physical-summary, .reports-kpis, .reports-summary-grid) > :nth-child(4) {
+    border-left-color: #f0a224 !important;
+}
+
+html body :where(.docs-kpis, .docs-physical-summary, .reports-kpis, .reports-summary-grid) > :nth-child(5) {
+    border-left-color: #d92d20 !important;
+}
+
+html body :where(.docs-kpis, .docs-physical-summary, .reports-kpis, .reports-summary-grid) > :nth-child(6) {
+    border-left-color: #5b21b6 !important;
+}
+
+
+/* ==========================================================================
+   3. LAYOUTS
+   ========================================================================== */
+
+html body .docs-workspace {
+    display: grid !important;
+    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) !important;
+    gap: .72rem !important;
+    align-items: start !important;
+}
+
+html body .reports-workspace {
+    display: grid !important;
+    grid-template-columns: minmax(230px, 280px) minmax(0, 1fr) minmax(240px, 300px) !important;
+    gap: .72rem !important;
+    align-items: start !important;
+}
+
+html body :where(
+    .docs-card,
+    .reports-card,
+    .settings-tech-card
+) {
+    border: 1px solid #dfe3e8 !important;
+    border-radius: .78rem !important;
+    background: #ffffff !important;
+    box-shadow: 0 .16rem .42rem rgba(15,23,42,.045) !important;
+
+    overflow: hidden !important;
+}
+
+html body :where(
+    .docs-card,
+    .reports-card
+) {
+    padding: .72rem !important;
+}
+
+html body :where(
+    .docs-card-title,
+    .reports-card-title
+) {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: .65rem !important;
+
+    margin: 0 0 .62rem 0 !important;
+}
+
+html body :where(
+    .docs-card-title,
+    .reports-card-title
+) :where(h2, h3) {
+    margin: 0 !important;
+
+    color: #111827 !important;
+
+    font-size: .96rem !important;
+    font-weight: 950 !important;
+    line-height: 1.08 !important;
+    letter-spacing: -.035em !important;
+}
+
+html body :where(
+    .docs-card-title,
+    .reports-card-title
+) p {
+    margin: .16rem 0 0 0 !important;
+
+    color: #667085 !important;
+
+    font-size: .66rem !important;
+    font-weight: 650 !important;
+    line-height: 1.16 !important;
+}
+
+
+/* ==========================================================================
+   4. MENÚS LATERALES DOCUMENTOS / REPORTES
+   ========================================================================== */
+
+html body :where(
+    .docs-category-list,
+    .docs-manual-list,
+    .reports-menu,
+    .reports-resume-list
+) {
+    display: grid !important;
+    gap: .42rem !important;
+}
+
+html body :where(
+    .docs-category-list button,
+    .docs-manual-list > div,
+    .reports-menu button,
+    .reports-resume-list > div
+) {
+    width: 100% !important;
+
+    display: grid !important;
+    grid-template-columns: 28px minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    gap: .45rem !important;
+
+    min-height: 48px !important;
+
+    padding: .45rem .5rem !important;
+
+    border-radius: .58rem !important;
+    border: 1px solid #e5e7eb !important;
+
+    background: #ffffff !important;
+    color: #111827 !important;
+
+    text-align: left !important;
+
+    box-shadow: none !important;
+}
+
+html body .reports-menu button {
+    grid-template-columns: 28px minmax(0, 1fr) !important;
+}
+
+html body :where(
+    .docs-category-list button:hover,
+    .docs-manual-list > div:hover,
+    .reports-menu button:hover,
+    .reports-resume-list > div:hover
+) {
+    border-color: #d98bea !important;
+    background: #fbf0ff !important;
+}
+
+html body :where(
+    .docs-category-list button.active,
+    .docs-manual-list > div.active,
+    .reports-menu button.active,
+    .reports-menu button.selected
+) {
+    border-color: #76008f !important;
+    background: #fbf0ff !important;
+    box-shadow: inset 3px 0 0 #76008f !important;
+}
+
+html body :where(
+    .docs-category-list button > span,
+    .docs-manual-list > div > span,
+    .reports-menu button > span,
+    .reports-resume-list > div > span
+) {
+    width: 28px !important;
+    height: 28px !important;
+
+    display: grid !important;
+    place-items: center !important;
+
+    border-radius: .5rem !important;
+    background: #f2f4f7 !important;
+
+    font-size: .82rem !important;
+}
+
+html body :where(
+    .docs-category-list strong,
+    .docs-manual-list strong,
+    .reports-menu strong,
+    .reports-resume-list strong
+) {
+    display: block !important;
+
+    color: #111827 !important;
+
+    font-size: .68rem !important;
+    font-weight: 950 !important;
+    line-height: 1.08 !important;
+
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+html body :where(
+    .docs-category-list small,
+    .docs-manual-list small,
+    .reports-menu small,
+    .reports-resume-list small
+) {
+    display: block !important;
+
+    margin-top: .08rem !important;
+
+    color: #667085 !important;
+
+    font-size: .56rem !important;
+    font-weight: 750 !important;
+    line-height: 1.05 !important;
+
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+
+/* ==========================================================================
+   5. FILTROS / FORMULARIOS
+   ========================================================================== */
+
+html body :where(
+    .docs-form-grid,
+    .reports-filters
+) {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: .5rem !important;
+}
+
+html body .docs-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+html body :where(
+    .docs-form-grid > div,
+    .reports-filters > div
+) {
+    min-height: 48px !important;
+
+    padding: .48rem .55rem !important;
+
+    border: 1px solid #edf0f4 !important;
+    border-radius: .55rem !important;
+    background: #f8fafc !important;
+}
+
+html body :where(
+    .docs-form-grid .span-2,
+    .reports-filters .span-2
+) {
+    grid-column: span 2 !important;
+}
+
+html body :where(
+    .docs-form-grid label,
+    .reports-filters label
+) {
+    display: block !important;
+
+    margin: 0 0 .22rem 0 !important;
+
+    color: #667085 !important;
+
+    font-size: .6rem !important;
+    font-weight: 950 !important;
+    line-height: 1.05 !important;
+    letter-spacing: .035em !important;
+    text-transform: uppercase !important;
+}
+
+html body :where(
+    .docs-card,
+    .reports-card
+) :where(input, select, textarea, .form-control, .form-select) {
+    width: 100% !important;
+
+    min-height: 32px !important;
+    height: 32px !important;
+
+    border-radius: .46rem !important;
+    border: 1px solid #cfd6df !important;
+
+    color: #111827 !important;
+    background: #ffffff !important;
+
+    font-size: .7rem !important;
+    font-weight: 700 !important;
+
+    box-shadow: none !important;
+}
+
+html body :where(
+    .docs-card,
+    .reports-card
+) textarea {
+    min-height: 70px !important;
+    height: auto !important;
+    resize: vertical !important;
+}
+
+
+/* ==========================================================================
+   6. TABLAS
+   ========================================================================== */
+
+html body :where(
+    .docs-table-wrapper,
+    .reports-table-wrapper
+) {
+    width: 100% !important;
+    max-width: 100% !important;
+
+    overflow-x: auto !important;
+
+    border: 1px solid #e5e7eb !important;
+    border-radius: .78rem !important;
+    background: #ffffff !important;
+}
+
+html body :where(
+    .docs-table,
+    .reports-table
+) {
+    width: 100% !important;
+
+    border-collapse: collapse !important;
+
+    font-size: .66rem !important;
+}
+
+html body :where(
+    .docs-table,
+    .reports-table
+) th {
+    padding: .42rem .48rem !important;
+
+    color: #111827 !important;
+    border-bottom: 1.5px solid #111827 !important;
+    background: #ffffff !important;
+
+    font-size: .56rem !important;
+    font-weight: 950 !important;
+    letter-spacing: .035em !important;
+    text-transform: uppercase !important;
+    white-space: nowrap !important;
+}
+
+html body :where(
+    .docs-table,
+    .reports-table
+) td {
+    padding: .46rem .48rem !important;
+
+    border-bottom: 1px solid #e5e7eb !important;
+    vertical-align: middle !important;
+
+    color: #111827 !important;
+
+    font-size: .64rem !important;
+    font-weight: 700 !important;
+}
+
+html body :where(
+    .docs-table,
+    .reports-table
+) tr:hover td {
+    background: #fbf7fd !important;
+}
+
+
+/* ==========================================================================
+   7. BOTONES Y ACCIONES
+   ========================================================================== */
+
+html body :where(
+    .docs-physical-actions,
+    .reports-actions
+) {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    flex-wrap: wrap !important;
+    gap: .34rem !important;
+
+    margin-top: .62rem !important;
+}
+
+html body :where(
+    .docs-card,
+    .reports-card,
+    .settings-tech-card,
+    .docs-physical-actions,
+    .reports-actions
+) :where(button, a, .btn) {
+    min-height: 29px !important;
+    height: 29px !important;
+
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding: 0 .68rem !important;
+
+    border-radius: .5rem !important;
+    border-width: 1px !important;
+    border-style: solid !important;
+
+    font-family: var(--navi-font, 'Poppins', system-ui, sans-serif) !important;
+    font-size: .62rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    text-align: center !important;
+    text-decoration: none !important;
+    white-space: nowrap !important;
+
+    box-shadow: none !important;
+}
+
+/* Morado / principal */
+html body :where(
+    .docs-card,
+    .reports-card,
+    .settings-tech-card
+) :where(button, a, .btn, .btn-outline-primary) {
+    color: #76008f !important;
+    background: #fbf0ff !important;
+    border-color: #d98bea !important;
+}
+
+html body :where(
+    .docs-card,
+    .reports-card,
+    .settings-tech-card
+) :where(button, a, .btn, .btn-outline-primary):hover {
+    color: #ffffff !important;
+    background: #76008f !important;
+    border-color: #76008f !important;
+}
+
+html body :where(
+    .docs-disabled-action,
+    .btn-outline-secondary
+) {
+    color: #667085 !important;
+    background: #f2f4f7 !important;
+    border-color: #d0d5dd !important;
+    cursor: not-allowed !important;
+}
+
+
+/* ==========================================================================
+   8. BADGES / PILLS
+   ========================================================================== */
+
+html body :where(
+    .docs-selected-pill,
+    .reports-selected-pill,
+    .docs-status,
+    .reports-status,
+    .report-badge,
+    .docs-badge
+) {
+    min-height: 20px !important;
+
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding: .1rem .44rem !important;
+
+    border-radius: 999px !important;
+    border: 1px solid #d0d5dd !important;
+
+    color: #344054 !important;
+    background: #f2f4f7 !important;
+
+    font-size: .56rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+
+    box-shadow: none !important;
+}
+
+
+/* ==========================================================================
+   9. CONFIGURACIÓN
+   ========================================================================== */
+
+html body .settings-tech-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)) !important;
+    gap: .62rem !important;
+
+    align-items: stretch !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+html body .settings-tech-card {
+    position: relative !important;
+
+    min-height: 118px !important;
+
+    display: grid !important;
+    grid-template-rows: auto auto minmax(0, 1fr) auto !important;
+    gap: .28rem !important;
+
+    padding: .7rem !important;
+
+    border-radius: .72rem !important;
+    border: 1px solid #dfe3e8 !important;
+    border-left: 4px solid #7b0d8e !important;
+
+    background: #ffffff !important;
+
+    box-shadow:
+        0 .08rem .22rem rgba(15, 23, 42, .035),
+        inset 0 1px 0 rgba(255, 255, 255, .75) !important;
+
+    overflow: hidden !important;
+}
+
+html body .settings-tech-card::after {
+    content: "" !important;
+
+    position: absolute !important;
+    top: -.16rem !important;
+    right: -.12rem !important;
+
+    width: 26px !important;
+    height: 26px !important;
+
+    border-radius: 999px !important;
+    background: rgba(123, 13, 142, .07) !important;
+
+    pointer-events: none !important;
+}
+
+html body .settings-tech-card:hover {
+    border-color: #d98bea !important;
+    border-left-color: #76008f !important;
+    box-shadow: 0 .32rem .75rem rgba(75,0,92,.10) !important;
+    transform: translateY(-1px) !important;
+}
+
+html body .settings-tech-card span {
+    display: block !important;
+
+    margin: 0 !important;
+
+    color: #667085 !important;
+
+    font-size: .56rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    letter-spacing: .04em !important;
+    text-transform: uppercase !important;
+}
+
+html body .settings-tech-card h3 {
+    margin: 0 !important;
+
+    color: #111827 !important;
+
+    font-size: .88rem !important;
+    font-weight: 950 !important;
+    line-height: 1.08 !important;
+    letter-spacing: -.025em !important;
+}
+
+html body .settings-tech-card p {
+    margin: 0 !important;
+
+    color: #667085 !important;
+
+    font-size: .62rem !important;
+    font-weight: 650 !important;
+    line-height: 1.16 !important;
+}
+
+html body .settings-tech-card .btn,
+html body .settings-tech-card a,
+html body .settings-tech-card button {
+    width: 100% !important;
+
+    margin-top: .35rem !important;
+
+    min-height: 29px !important;
+    height: 29px !important;
+
+    font-size: .62rem !important;
+    font-weight: 950 !important;
+}
+
+/* Colores por tipo de tarjeta */
+html body .settings-tech-card:nth-child(6n + 1) {
+    border-left-color: #7b0d8e !important;
+}
+
+html body .settings-tech-card:nth-child(6n + 2) {
+    border-left-color: #2186d9 !important;
+}
+
+html body .settings-tech-card:nth-child(6n + 3) {
+    border-left-color: #039855 !important;
+}
+
+html body .settings-tech-card:nth-child(6n + 4) {
+    border-left-color: #f0a224 !important;
+}
+
+html body .settings-tech-card:nth-child(6n + 5) {
+    border-left-color: #d92d20 !important;
+}
+
+html body .settings-tech-card:nth-child(6n + 6) {
+    border-left-color: #5b21b6 !important;
+}
+
+
+/* ==========================================================================
+   10. EMPTY / ALERTAS / MENSAJES
+   ========================================================================== */
+
+html body :where(
+    .docs-empty,
+    .reports-empty,
+    .docs-message,
+    .reports-message
+) {
+    min-height: 42px !important;
+
+    display: flex !important;
+    align-items: center !important;
+
+    padding: .55rem .65rem !important;
+
+    border-radius: .58rem !important;
+    border: 1px dashed #d0d5dd !important;
+    background: #f8fafc !important;
+    color: #667085 !important;
+
+    font-size: .7rem !important;
+    font-weight: 750 !important;
+}
+
+
+/* ==========================================================================
+   11. RESPONSIVE
+   ========================================================================== */
+
+@@media (max-width: 1350px) {
+    html body .reports-workspace {
+        grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) !important;
+    }
+
+    html body .reports-right {
+        grid-column: 1 / -1 !important;
+    }
+}
+
+@@media (max-width: 1200px) {
+    html body .docs-workspace,
+    html body .reports-workspace {
+        grid-template-columns: 1fr !important;
+    }
+
+    html body .reports-filters {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+}
+
+@@media (max-width: 820px) {
+    html body :where(
+        .docs-hero,
+        .reports-hero,
+        .navi-module-hero
+    ) {
+        grid-template-columns: 1fr !important;
+        padding: 1.05rem 1.2rem !important;
+    }
+
+    html body :where(
+        .docs-hero-actions,
+        .reports-hero-actions,
+        .navi-module-hero-actions
+    ) {
+        grid-column: 1 !important;
+
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+
+        height: auto !important;
+
+        align-items: stretch !important;
+
+        margin-top: .75rem !important;
+    }
+
+    html body :where(
+        .docs-hero-btn,
+        .reports-hero-btn,
+        .navi-module-hero-btn
+    ) {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+    }
+
+    html body :where(
+        .docs-kpis,
+        .docs-physical-summary,
+        .reports-kpis,
+        .reports-summary-grid
+    ) {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    html body :where(
+        .docs-form-grid,
+        .reports-filters
+    ) {
+        grid-template-columns: 1fr !important;
+    }
+
+    html body :where(
+        .docs-form-grid .span-2,
+        .reports-filters .span-2
+    ) {
+        grid-column: 1 !important;
+    }
+
+    html body :where(
+        .docs-card-title,
+        .reports-card-title
+    ) {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+}
+
+@@media (max-width: 520px) {
+    html body :where(
+        .docs-kpis,
+        .docs-physical-summary,
+        .reports-kpis,
+        .reports-summary-grid
+    ) {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* NAVI PROMPTS 29 30 31 DOCUMENTS REPORTS SETTINGS STANDARD 20260705 END */
+
+/* NAVI FIX FINAL PROMPTS 29 30 31 CLEANUP 20260705 START */
+
+/* ============================================================
+   FIX FINAL DOCUMENTOS / REPORTES / CONFIGURACIÓN
+
+   Objetivo:
+   - KPIs blancos, sin fondos de colores.
+   - Menús laterales más limpios.
+   - Seleccionados sin relleno morado fuerte.
+   - Mensajes compactos.
+   - Menos espacios vacíos.
+   ============================================================ */
+
+
+/* ============================================================
+   1. KPIs ESTÁNDAR DEFINITIVO
+   ============================================================ */
+
+html body :where(
+    .docs-kpis,
+    .reports-kpis,
+    .reports-summary-grid,
+    .docs-physical-summary
+) {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)) !important;
+    gap: .55rem !important;
+
+    margin: 0 0 .72rem 0 !important;
+    padding: 0 !important;
+
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+html body :where(
+    .docs-kpis > article,
+    .reports-kpis > article,
+    .reports-summary-grid > article,
+    .docs-physical-summary > div
+),
+html body :where(
+    .docs-kpis > article.success,
+    .docs-kpis > article.warning,
+    .docs-kpis > article.purple,
+    .reports-kpis > article.success,
+    .reports-kpis > article.warning,
+    .reports-kpis > article.purple,
+    .reports-summary-grid > article.success,
+    .reports-summary-grid > article.warning,
+    .reports-summary-grid > article.purple
+) {
+    position: relative !important;
+
+    min-height: 54px !important;
+    height: 54px !important;
+    max-height: 54px !important;
+
+    display: grid !important;
+    align-content: center !important;
+    gap: .08rem !important;
+
+    padding: .46rem .72rem .44rem .82rem !important;
+
+    border-radius: .58rem !important;
+
+    border-top: 1px solid #dfe3e8 !important;
+    border-right: 1px solid #dfe3e8 !important;
+    border-bottom: 1px solid #dfe3e8 !important;
+    border-left-width: 4px !important;
+    border-left-style: solid !important;
+
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    background-image: none !important;
+
+    box-shadow:
+        0 .08rem .22rem rgba(15, 23, 42, .035),
+        inset 0 1px 0 rgba(255, 255, 255, .75) !important;
+
+    overflow: hidden !important;
+}
+
+html body :where(
+    .docs-kpis > article::before,
+    .reports-kpis > article::before,
+    .reports-summary-grid > article::before,
+    .docs-physical-summary > div::before
+) {
+    display: none !important;
+    content: none !important;
+}
+
+html body :where(
+    .docs-kpis > article::after,
+    .reports-kpis > article::after,
+    .reports-summary-grid > article::after,
+    .docs-physical-summary > div::after
+) {
+    content: "" !important;
+
+    position: absolute !important;
+    top: -.16rem !important;
+    right: -.12rem !important;
+
+    width: 26px !important;
+    height: 26px !important;
+
+    border-radius: 999px !important;
+    background: rgba(123, 13, 142, .07) !important;
+
+    pointer-events: none !important;
+}
+
+html body :where(
+    .docs-kpis,
+    .reports-kpis,
+    .reports-summary-grid,
+    .docs-physical-summary
+) :where(span, .kpi-title, .kpi-label) {
+    display: block !important;
+
+    margin: 0 !important;
+
+    color: #667085 !important;
+
+    font-size: .56rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    letter-spacing: .04em !important;
+    text-transform: uppercase !important;
+
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+html body :where(
+    .docs-kpis,
+    .reports-kpis,
+    .reports-summary-grid,
+    .docs-physical-summary
+) :where(strong, .kpi-value, .kpi-number) {
+    display: block !important;
+
+    margin: .08rem 0 0 0 !important;
+
+    color: #1b0b2b !important;
+
+    font-size: 1.08rem !important;
+    font-weight: 950 !important;
+    line-height: .96 !important;
+    letter-spacing: -.035em !important;
+}
+
+html body :where(
+    .docs-kpis,
+    .reports-kpis,
+    .reports-summary-grid,
+    .docs-physical-summary
+) :where(small, .kpi-description, .kpi-subtitle) {
+    display: block !important;
+
+    margin: .1rem 0 0 0 !important;
+
+    color: #667085 !important;
+
+    font-size: .56rem !important;
+    font-weight: 750 !important;
+    line-height: 1.05 !important;
+
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+/* Colores de línea izquierda */
+html body :where(.docs-kpis, .reports-kpis, .reports-summary-grid, .docs-physical-summary) > :nth-child(1) {
+    border-left-color: #7b0d8e !important;
+}
+
+html body :where(.docs-kpis, .reports-kpis, .reports-summary-grid, .docs-physical-summary) > :nth-child(2) {
+    border-left-color: #2186d9 !important;
+}
+
+html body :where(.docs-kpis, .reports-kpis, .reports-summary-grid, .docs-physical-summary) > :nth-child(3) {
+    border-left-color: #039855 !important;
+}
+
+html body :where(.docs-kpis, .reports-kpis, .reports-summary-grid, .docs-physical-summary) > :nth-child(4) {
+    border-left-color: #f0a224 !important;
+}
+
+html body :where(.docs-kpis, .reports-kpis, .reports-summary-grid, .docs-physical-summary) > :nth-child(5) {
+    border-left-color: #d92d20 !important;
+}
+
+html body :where(.docs-kpis, .reports-kpis, .reports-summary-grid, .docs-physical-summary) > :nth-child(6) {
+    border-left-color: #5b21b6 !important;
+}
+
+
+/* ============================================================
+   2. MENÚ LATERAL REPORTES Y DOCUMENTOS MÁS LIMPIO
+   ============================================================ */
+
+html body :where(
+    .reports-menu,
+    .docs-category-list,
+    .docs-manual-list,
+    .reports-resume-list
+) {
+    display: grid !important;
+    gap: .38rem !important;
+}
+
+html body :where(
+    .reports-menu button,
+    .docs-category-list button,
+    .docs-manual-list > div,
+    .reports-resume-list > div
+) {
+    width: 100% !important;
+
+    min-height: 44px !important;
+
+    display: grid !important;
+    grid-template-columns: 28px minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    gap: .45rem !important;
+
+    padding: .4rem .48rem !important;
+
+    border-radius: .58rem !important;
+    border: 1px solid #e5e7eb !important;
+
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    background-image: none !important;
+
+    color: #111827 !important;
+
+    text-align: left !important;
+
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+html body .reports-menu button {
+    grid-template-columns: 28px minmax(0, 1fr) !important;
+}
+
+/* Hover suave */
+html body :where(
+    .reports-menu button:hover,
+    .docs-category-list button:hover,
+    .docs-manual-list > div:hover,
+    .reports-resume-list > div:hover
+) {
+    border-color: #d98bea !important;
+    background: #fbf0ff !important;
+    color: #111827 !important;
+}
+
+/* Seleccionado sin relleno morado fuerte */
+html body :where(
+    .reports-menu button.active,
+    .reports-menu button.selected,
+    .reports-menu button[aria-selected="true"],
+    .docs-category-list button.active,
+    .docs-category-list button.selected,
+    .docs-category-list button[aria-selected="true"],
+    .docs-manual-list > div.active,
+    .docs-manual-list > div.selected
+),
+html body :where(
+    .reports-menu button[class*="active"],
+    .reports-menu button[class*="selected"],
+    .docs-category-list button[class*="active"],
+    .docs-category-list button[class*="selected"],
+    .docs-manual-list > div[class*="active"],
+    .docs-manual-list > div[class*="selected"]
+) {
+    border-color: #d98bea !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+
+    box-shadow: inset 4px 0 0 #76008f !important;
+}
+
+/* Íconos */
+html body :where(
+    .reports-menu button > span,
+    .docs-category-list button > span,
+    .docs-manual-list > div > span,
+    .reports-resume-list > div > span
+) {
+    width: 28px !important;
+    min-width: 28px !important;
+    height: 28px !important;
+
+    display: grid !important;
+    place-items: center !important;
+
+    border-radius: .46rem !important;
+
+    background: #f2f4f7 !important;
+    color: #344054 !important;
+
+    font-size: .78rem !important;
+    line-height: 1 !important;
+}
+
+html body :where(
+    .reports-menu button.active > span,
+    .reports-menu button.selected > span,
+    .reports-menu button[class*="active"] > span,
+    .reports-menu button[class*="selected"] > span,
+    .docs-category-list button.active > span,
+    .docs-category-list button.selected > span,
+    .docs-category-list button[class*="active"] > span,
+    .docs-category-list button[class*="selected"] > span
+) {
+    background: #fbf0ff !important;
+    color: #76008f !important;
+}
+
+/* Texto menú */
+html body :where(
+    .reports-menu strong,
+    .docs-category-list strong,
+    .docs-manual-list strong,
+    .reports-resume-list strong
+) {
+    display: block !important;
+
+    color: #111827 !important;
+
+    font-size: .66rem !important;
+    font-weight: 950 !important;
+    line-height: 1.06 !important;
+
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+html body :where(
+    .reports-menu small,
+    .docs-category-list small,
+    .docs-manual-list small,
+    .reports-resume-list small
+) {
+    display: block !important;
+
+    margin-top: .08rem !important;
+
+    color: #667085 !important;
+
+    font-size: .55rem !important;
+    font-weight: 750 !important;
+    line-height: 1.05 !important;
+
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+
+/* ============================================================
+   3. MENSAJES / ALERTAS MÁS COMPACTAS
+   ============================================================ */
+
+html body :where(
+    .reports-message,
+    .docs-message
+) {
+    min-height: 36px !important;
+
+    display: flex !important;
+    align-items: center !important;
+
+    margin: 0 0 .65rem 0 !important;
+    padding: .46rem .65rem !important;
+
+    border-radius: .58rem !important;
+    border: 1px solid #d0d5dd !important;
+
+    background: #f8fafc !important;
+    color: #344054 !important;
+
+    font-size: .68rem !important;
+    font-weight: 800 !important;
+    line-height: 1.15 !important;
+
+    box-shadow: none !important;
+}
+
+
+/* ============================================================
+   4. COMPACTAR REPORTES
+   ============================================================ */
+
+html body .reports-workspace {
+    grid-template-columns: 290px minmax(0, 1fr) 290px !important;
+    gap: .65rem !important;
+    align-items: start !important;
+}
+
+html body .reports-main {
+    display: grid !important;
+    gap: .65rem !important;
+    align-content: start !important;
+}
+
+html body .reports-main > .reports-card:first-child {
+    min-height: 0 !important;
+    height: auto !important;
+}
+
+html body .reports-filters {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: .48rem !important;
+}
+
+html body .reports-filters > div {
+    min-height: 50px !important;
+    padding: .46rem .52rem !important;
+}
+
+html body .reports-summary-grid {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+
+/* ============================================================
+   5. COMPACTAR DOCUMENTOS
+   ============================================================ */
+
+html body .docs-workspace {
+    grid-template-columns: 320px minmax(0, 1fr) !important;
+    gap: .65rem !important;
+    align-items: start !important;
+}
+
+html body .docs-left-panel {
+    max-height: calc(100vh - 230px) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+
+html body .docs-left-panel::-webkit-scrollbar {
+    width: 7px !important;
+}
+
+html body .docs-left-panel::-webkit-scrollbar-thumb {
+    background: rgba(118, 0, 143, .26) !important;
+    border-radius: 999px !important;
+}
+
+html body .docs-main {
+    display: grid !important;
+    gap: .65rem !important;
+    align-content: start !important;
+}
+
+html body .docs-card {
+    padding: .68rem !important;
+}
+
+
+/* ============================================================
+   6. BOTONES DOCUMENTOS / REPORTES
+   ============================================================ */
+
+html body :where(
+    .docs-card,
+    .reports-card,
+    .docs-manual-list,
+    .reports-actions
+) :where(button, a, .btn) {
+    min-height: 29px !important;
+    height: 29px !important;
+
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding: 0 .68rem !important;
+
+    border-radius: .5rem !important;
+    border: 1px solid #d98bea !important;
+
+    background: #fbf0ff !important;
+    color: #76008f !important;
+
+    font-size: .62rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    text-decoration: none !important;
+    white-space: nowrap !important;
+
+    box-shadow: none !important;
+}
+
+html body :where(
+    .docs-card,
+    .reports-card,
+    .docs-manual-list,
+    .reports-actions
+) :where(button, a, .btn):hover {
+    background: #76008f !important;
+    color: #ffffff !important;
+    border-color: #76008f !important;
+}
+
+
+/* ============================================================
+   7. CONFIGURACIÓN MÁS UNIFORME
+   ============================================================ */
+
+html body .settings-tech-grid {
+    grid-template-columns: repeat(auto-fit, minmax(205px, 1fr)) !important;
+    gap: .62rem !important;
+
+    margin-top: 0 !important;
+}
+
+html body .settings-tech-card {
+    min-height: 118px !important;
+
+    padding: .7rem !important;
+
+    border-radius: .72rem !important;
+    border: 1px solid #dfe3e8 !important;
+    border-left-width: 4px !important;
+    border-left-style: solid !important;
+
+    background: #ffffff !important;
+
+    box-shadow:
+        0 .08rem .22rem rgba(15,23,42,.035),
+        inset 0 1px 0 rgba(255,255,255,.75) !important;
+}
+
+html body .settings-tech-card h3 {
+    font-size: .88rem !important;
+    line-height: 1.08 !important;
+}
+
+html body .settings-tech-card p {
+    font-size: .62rem !important;
+    line-height: 1.16 !important;
+}
+
+
+/* ============================================================
+   8. RESPONSIVE
+   ============================================================ */
+
+@@media (max-width: 1400px) {
+    html body .reports-workspace {
+        grid-template-columns: 260px minmax(0, 1fr) !important;
+    }
+
+    html body .reports-right {
+        grid-column: 1 / -1 !important;
+    }
+}
+
+@@media (max-width: 1200px) {
+    html body .docs-workspace,
+    html body .reports-workspace {
+        grid-template-columns: 1fr !important;
+    }
+
+    html body .docs-left-panel {
+        max-height: none !important;
+    }
+
+    html body .reports-filters {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+}
+
+@@media (max-width: 760px) {
+    html body .reports-filters {
+        grid-template-columns: 1fr !important;
+    }
+
+    html body :where(
+        .docs-kpis,
+        .reports-kpis,
+        .reports-summary-grid,
+        .docs-physical-summary
+    ) {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* NAVI FIX FINAL PROMPTS 29 30 31 CLEANUP 20260705 END */
 </style>
 
 @code {

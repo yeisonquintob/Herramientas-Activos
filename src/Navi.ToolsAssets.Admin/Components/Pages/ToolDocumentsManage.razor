@@ -5,28 +5,26 @@
 @using Microsoft.AspNetCore.Components.Forms
 @inject IHttpClientFactory HttpClientFactory
 @using Navi.ToolsAssets.Admin.Services.Auth
+@using Navi.ToolsAssets.Admin.Components.Shared
 @inject NavigationManager NavigationManager
 @inject WebAuthSessionService AuthSession
 
 <PageTitle>Documentos - NAVI Herramientas</PageTitle>
 
-<div class="page-header navi-life-subheader">
-    <div>
-        <span class="navi-page-pill">DOCUMENTOS</span>
-        <h1>Gestión de documentos</h1>
-        <p>Carga fichas técnicas, fotografías, evidencias y documentos asociados a la herramienta.</p>
-    </div>
+<NaviPageHero
+    Pill="ACTIVOS FIJOS"
+    Title="Gestión de documentos"
+    Description="Carga fichas técnicas, fotografías, evidencias y documentos asociados a la herramienta.">
 
-    <div class="navi-header-actions-stack">
-        <button class="btn btn-sm btn-outline-light navi-header-btn" @onclick="GoBack">
-                ← Volver a hoja de vida
-            </button>
+    <button type="button" @onclick="GoBack">
+        ← Volver a hoja de vida
+    </button>
 
-        <button class="btn btn-sm btn-outline-light navi-header-btn" @onclick="LoadAsync" disabled="@isLoading">
+    <button type="button" @onclick="LoadAsync" disabled="@isLoading">
         @(isLoading ? "Cargando..." : "Recargar")
     </button>
-    </div>
-</div>
+
+</NaviPageHero>
 
 @if (!string.IsNullOrWhiteSpace(errorMessage))
 {
@@ -41,18 +39,6 @@
         @successMessage
     </div>
 }
-
-<section class="life-record-cover">
-    <div>
-        <span class="life-record-label">Documentos</span>
-        <h2>@toolName</h2>
-        <p>@internalCode</p>
-    </div>
-
-    <div class="life-record-cover-status">
-        <span class="badge bg-light text-dark">@documents.Count documento(s)</span>
-    </div>
-</section>
 
 <div class="documents-manage-grid">
     <section class="life-record-section">

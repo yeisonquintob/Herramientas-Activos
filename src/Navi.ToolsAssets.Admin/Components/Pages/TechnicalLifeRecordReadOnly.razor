@@ -5,6 +5,7 @@
 
 @using System.Net.Http.Json
 @using Navi.ToolsAssets.Admin.Services.Auth
+@using Navi.ToolsAssets.Admin.Components.Shared
 @using System.Text.Json.Nodes
 
 @inject IHttpClientFactory HttpClientFactory
@@ -28,41 +29,43 @@ else if (isLoading && record is null)
 }
 else if (record is not null)
 {
-    <section class="life-hero-banner">
-        <div class="life-hero-main">
+    <NaviPageHero
+        Pill="ACTIVOS FIJOS"
+        Title='@Show(Text("Summary", "Name"))'
+        Description="Vista solo lectura abierta desde el detalle del activo fijo. Para editar o gestionar, ingresa desde el módulo Hoja de Vida de Herramientas y AF.">
 
-            <span class="life-hero-pill">CONSULTA HOJA DE VIDA</span>
+        <button type="button" @onclick="LoadAsync" disabled="@isLoading">
+            @(isLoading ? "Actualizando..." : "Actualizar")
+        </button>
 
-            <h2>@Show(Text("Summary", "Name"))</h2>
+    </NaviPageHero>
 
-            <div class="life-hero-code">
-                @Show(Text("Summary", "InternalCode"))
-            </div>
+    <section class="life-record-summary-shell">
+        <section class="life-record-kpis navi-final-kpi-row life-record-summary-kpis">
+            <article>
+                <span>Código interno</span>
+                <strong>@Show(Text("Summary", "InternalCode"))</strong>
+                <small>Activo fijo</small>
+            </article>
 
-            <div class="life-hero-inline-badges">
-                <span class="@GetStatusBadgeClass(Text("Summary", "OperationalStatus"))">
-                    @GetStatusLabel(Text("Summary", "OperationalStatus"))
-                </span>
+            <article>
+                <span>Estado operativo</span>
+                <strong>@GetStatusLabel(Text("Summary", "OperationalStatus"))</strong>
+                <small>Control actual</small>
+            </article>
 
-                <span class="badge bg-light text-dark">
-                    @(BoolValue("Summary", "IsSpecialized") ? "Especializada" : "No especializada")
-                </span>
-            </div>
+            <article>
+                <span>Clasificación</span>
+                <strong>@(BoolValue("Summary", "IsSpecialized") ? "Especializada" : "No especializada")</strong>
+                <small>Tipo de activo</small>
+            </article>
+        </section>
 
-            <p>Vista solo lectura abierta desde el detalle del activo fijo. Para editar o gestionar, ingresa desde el módulo Hoja de Vida de Herramientas y AF.</p>
-        </div>
-
-                <div class="life-hero-side navi-header-actions-stack">
-            <button class="btn btn-sm btn-outline-light life-hero-refresh"
-                    @onclick="LoadAsync"
-                    disabled="@isLoading">
-                @(isLoading ? "Actualizando..." : "Actualizar")
-            </button>
-
+        <aside class="life-record-summary-actions">
             <button class="btn-life-back" type="button" @onclick="GoBack">
                 Volver al detalle
             </button>
-        </div>
+        </aside>
     </section>
 
     <section class="life-readonly-note">
@@ -931,16 +934,16 @@ else if (record is not null)
     {
         return status switch
         {
-            "Available" => "badge bg-success",
-            "PendingValidation" => "badge bg-warning text-dark",
-            "Loaned" => "badge bg-info text-dark",
-            "InMaintenance" => "badge bg-primary",
-            "Damaged" => "badge bg-danger",
-            "NotSuitable" => "badge bg-danger",
-            "NotLocated" => "badge bg-dark",
-            "Inconsistent" => "badge bg-danger",
-            "Disposed" => "badge bg-secondary",
-            _ => "badge bg-secondary"
+            "Available" => "navi-status-badge navi-status-available",
+            "PendingValidation" => "navi-status-badge navi-status-pending",
+            "Loaned" => "navi-status-badge navi-status-assigned",
+            "InMaintenance" => "navi-status-badge navi-status-maintenance",
+            "Damaged" => "navi-status-badge navi-status-damaged",
+            "NotSuitable" => "navi-status-badge navi-status-not-suitable",
+            "NotLocated" => "navi-status-badge navi-status-not-located",
+            "Inconsistent" => "navi-status-badge navi-status-damaged",
+            "Disposed" => "navi-status-badge navi-status-disposed",
+            _ => "navi-status-badge navi-status-muted"
         };
     }
 }

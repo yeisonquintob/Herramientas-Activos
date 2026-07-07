@@ -1,4 +1,5 @@
 @using Navi.ToolsAssets.Admin.Services.Auth
+@using Navi.ToolsAssets.Admin.Components.Shared
 @page "/tools/{ToolId:guid}/technical-life-record"
 @rendermode InteractiveServer
 @inject IHttpClientFactory HttpClientFactory
@@ -25,38 +26,43 @@ else if (isLoading && record is null)
 }
 else if (record is not null)
 {
-        <section class="life-hero-banner">
-        <div class="life-hero-main"><span class="life-hero-pill">HOJA DE VIDA TÉCNICA</span>
+        <NaviPageHero
+        Pill="ACTIVOS FIJOS"
+        Title="@record.Summary.Name"
+        Description="Formato técnico del activo fijo con datos generales, accesorios, documentos, mantenimiento, evidencias, prácticas seguras y trazabilidad.">
 
-            <h2>@record.Summary.Name</h2>
+        <button type="button" @onclick="LoadAsync" disabled="@isLoading">
+            @(isLoading ? "Actualizando..." : "Actualizar")
+        </button>
 
-            <div class="life-hero-code">
-                @record.Summary.InternalCode
-            </div>
+    </NaviPageHero>
 
-            <div class="life-hero-inline-badges">
-                <span class="@GetStatusBadgeClass(record.Summary.OperationalStatus)">
-                    @GetStatusLabel(record.Summary.OperationalStatus)
-                </span>
+    <section class="life-record-summary-shell">
+        <section class="life-record-kpis navi-final-kpi-row life-record-summary-kpis">
+            <article>
+                <span>Código interno</span>
+                <strong>@record.Summary.InternalCode</strong>
+                <small>Activo fijo</small>
+            </article>
 
-                <span class="badge bg-light text-dark">
-                    @(record.Summary.IsSpecialized ? "Especializada" : "No especializada")
-                </span>
-            </div>
+            <article>
+                <span>Estado operativo</span>
+                <strong>@GetStatusLabel(record.Summary.OperationalStatus)</strong>
+                <small>Control actual</small>
+            </article>
 
-            <p>Formato técnico del activo fijo con datos generales, accesorios, documentos, mantenimiento, evidencias, prácticas seguras y trazabilidad.</p>
-        </div>
+            <article>
+                <span>Clasificación</span>
+                <strong>@(record.Summary.IsSpecialized ? "Especializada" : "No especializada")</strong>
+                <small>Tipo de activo</small>
+            </article>
+        </section>
 
-                <div class="life-hero-side navi-header-actions-stack">
+        <aside class="life-record-summary-actions">
             <button class="btn-life-back" type="button" @onclick="GoBack">
-                Volver a hojas de vida del Herramientas y AF
+                Volver a hojas de vida
             </button>
-<button class="btn btn-sm btn-outline-light life-hero-refresh"
-                    @onclick="LoadAsync"
-                    disabled="@isLoading">
-                @(isLoading ? "Actualizando..." : "Actualizar")
-            </button>
-        </div>
+        </aside>
     </section>
 <section class="life-record-quick-actions">
     <div class="quick-action-card">
@@ -652,7 +658,7 @@ else if (record is not null)
 
         if (query.Contains("from=life-records", StringComparison.OrdinalIgnoreCase))
         {
-            BackButtonText = "Volver a hojas de vida del Herramientas y AF";
+            BackButtonText = "Volver a hojas de vida";
             BackUrl = "/technical-life-records";
             return;
         }
@@ -742,7 +748,7 @@ else if (record is not null)
             "NotLocated" => "No localizada",
             "PendingDisposal" => "Pendiente de baja",
             "Disposed" => "Dada de baja",
-            _ => string.IsNullOrWhiteSpace(status) ? "Sin estado" : status
+            _ => NaviStatusLabels.ToSpanish(status)
         };
     }
 
@@ -750,16 +756,16 @@ else if (record is not null)
     {
         return status switch
         {
-            "Available" => "badge bg-success",
-            "PendingValidation" => "badge bg-warning text-dark",
-            "Loaned" => "badge bg-info text-dark",
-            "InMaintenance" => "badge bg-primary",
-            "Damaged" => "badge bg-danger",
-            "NotSuitable" => "badge bg-danger",
-            "NotLocated" => "badge bg-dark",
-            "Inconsistent" => "badge bg-danger",
-            "Disposed" => "badge bg-secondary",
-            _ => "badge bg-secondary"
+            "Available" => "navi-status-badge navi-status-available",
+            "PendingValidation" => "navi-status-badge navi-status-pending",
+            "Loaned" => "navi-status-badge navi-status-assigned",
+            "InMaintenance" => "navi-status-badge navi-status-maintenance",
+            "Damaged" => "navi-status-badge navi-status-damaged",
+            "NotSuitable" => "navi-status-badge navi-status-not-suitable",
+            "NotLocated" => "navi-status-badge navi-status-not-located",
+            "Inconsistent" => "navi-status-badge navi-status-damaged",
+            "Disposed" => "navi-status-badge navi-status-disposed",
+            _ => "navi-status-badge navi-status-muted"
         };
     }
 

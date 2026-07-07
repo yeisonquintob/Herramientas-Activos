@@ -1,6 +1,7 @@
 @page "/tools"
 @rendermode InteractiveServer
 @using Navi.ToolsAssets.Admin.Services.Auth
+@using Navi.ToolsAssets.Admin.Components.Shared
 @inject IHttpClientFactory HttpClientFactory
 @inject NaviAccessScopeService AccessScope
 @inject WebAuthSessionService AuthSession
@@ -9,18 +10,16 @@
 
 <PermissionGuard Permission="Tools.View" ModuleName="Inventario de Herramientas y AF">
 
-<section class="inventory-hero-banner">
-    <div>
-        <span class="inventory-hero-pill">ACTIVOS FIJOS</span>
-        <h2>Inventario de Herramientas y AF</h2>
-        <p>Consulta general de herramientas y activos fijos registrados en NAVI.</p>
-    </div>
+<NaviPageHero
+    Pill="ACTIVOS FIJOS"
+    Title="Inventario de Herramientas y AF"
+    Description="Consulta general de herramientas y activos fijos registrados en NAVI.">
 
-    <div class="inventory-hero-side"><button class="btn btn-sm btn-outline-light inventory-hero-refresh" @onclick="LoadToolsAsync" disabled="@isLoading">
-            @(isLoading ? "Actualizando..." : "Actualizar")
-        </button>
-    </div>
-</section>
+    <button type="button" @onclick="LoadToolsAsync" disabled="@isLoading">
+        @(isLoading ? "Actualizando..." : "Actualizar")
+    </button>
+
+</NaviPageHero>
 @if (!string.IsNullOrWhiteSpace(errorMessage))
 {
     <div class="alert alert-danger">
@@ -39,21 +38,25 @@ else
         <article class="inventory-kpi-card total">
             <span>Total Herramientas y AF</span>
             <strong>@ScopedTools.Count()</strong>
+            <small>Inventario activo</small>
         </article>
 
         <article class="inventory-kpi-card success">
             <span>Disponibles</span>
             <strong>@ScopedTools.Count(x => x.OperationalStatus == "Available")</strong>
+            <small>Para asignar</small>
         </article>
 
         <article class="inventory-kpi-card warning">
             <span>Pendientes validación</span>
             <strong>@ScopedTools.Count(x => x.OperationalStatus == "PendingValidation")</strong>
+            <small>Por validar</small>
         </article>
 
         <article class="inventory-kpi-card danger">
             <span>Bloqueadas</span>
             <strong>@ScopedTools.Count(IsBlocked)</strong>
+            <small>Requieren atención</small>
         </article>
     </section>
 
@@ -76,31 +79,27 @@ else
         }
     </section>
 
-    <section class="inventory-panel">
-        <div class="inventory-toolbar">
-            <input class="form-control"
-                   placeholder="Buscar por código, nombre, serial, sede, ubicación, estantería, tipo o categoría..."
-                   @bind="searchText"
-                   @bind:event="oninput" />
+    <section class="inventory-page-filters" aria-label="Filtros del inventario">
+        <input class="form-control form-control-sm"
+               placeholder="Buscar por código, nombre, serial, referencia, sede, ubicación o categoría..."
+               @bind="searchText"
+               @bind:event="oninput" />
 
-            <select class="form-select" @bind="selectedStatus">
-                <option value="">Todos los estados</option>
-                @foreach (var status in tools.Select(x => x.OperationalStatus).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x))
-                {
-                    <option value="@status">@GetStatusLabel(status)</option>
-                }
-            </select>
+        <select class="form-select form-select-sm inventory-type-filter" @bind="selectedType">
+            <option value="">Todos los tipos</option>
+            @foreach (var type in ScopedTools
+                .Select(x => x.ToolTypeName)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct()
+                .OrderBy(x => x))
+            {
+                <option value="@type">@type</option>
+            }
+        </select>
+    </section>
 
-            <select class="form-select" @bind="selectedBranch">
-                <option value="">@(AccessScope.IsAllBranchScope() ? "Todas las sedes" : AccessScope.GetDefaultBranchFilterText())</option>
-                @foreach (var branch in ScopedTools.Select(x => x.BranchCode).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x))
-                {
-                    <option value="@branch">@branch</option>
-                }
-            </select>
-        </div>
-
-        <div class="inventory-count">
+<section class="inventory-panel">
+<div class="inventory-count">
             Mostrando <strong>@FilteredTools.Count()</strong> de <strong>@ScopedTools.Count()</strong> herramientas y activos fijos.
         </div>
 
@@ -203,6 +202,7 @@ else
     private string searchText = string.Empty;
     private string selectedStatus = string.Empty;
     private string selectedBranch = string.Empty;
+    private string selectedType = string.Empty;
 
     private List<ToolListItem> tools = new();
 
@@ -229,6 +229,9 @@ else
             .Where(MatchesSearch)
             .Where(x => string.IsNullOrWhiteSpace(selectedStatus) || x.OperationalStatus == selectedStatus)
             .Where(x => string.IsNullOrWhiteSpace(selectedBranch) || x.BranchCode == selectedBranch)
+            .Where(x => string.IsNullOrWhiteSpace(selectedType) ||
+                        string.Equals(x.ToolTypeName, selectedType, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(x.ToolTypeCode, selectedType, StringComparison.OrdinalIgnoreCase))
             .OrderBy(x => x.BranchCode)
             .ThenBy(x => x.InternalCode);
 
@@ -263,16 +266,32 @@ else
         selectedStatus = status;
     }
 
-    private string GetStatusFilterChipClass(string status)
+    private static string GetInventoryStatusClass(string? status)
     {
+        return $"{NaviStatusLabels.BadgeClass(status)} inventory-status-pill";
+    }
+
+    private string GetStatusFilterChipClass(string? status)
+    {
+        var normalizedStatus = status ?? string.Empty;
+
         var isActive = string.Equals(
             selectedStatus ?? string.Empty,
-            status ?? string.Empty,
+            normalizedStatus,
             StringComparison.OrdinalIgnoreCase);
 
+        var baseClass = string.IsNullOrWhiteSpace(normalizedStatus)
+            ? "inventory-status-filter-chip inventory-status-all"
+            : $"{NaviStatusLabels.BadgeClass(normalizedStatus)} inventory-status-filter-chip";
+
         return isActive
-            ? $"{GetInventoryStatusClass(status)} inventory-status-filter-chip active"
-            : $"{GetInventoryStatusClass(status)} inventory-status-filter-chip";
+            ? $"{baseClass} active"
+            : baseClass;
+    }
+
+    private static string GetStatusBadgeClass(string? status)
+    {
+        return NaviStatusLabels.BadgeClass(status);
     }
 
     private bool MatchesSearch(ToolListItem tool)
@@ -336,43 +355,7 @@ else
             "NotLocated" => "No localizada",
             "PendingDisposal" => "Pendiente de baja",
             "Disposed" => "Dada de baja",
-            _ => string.IsNullOrWhiteSpace(status) ? "Sin estado" : status
-        };
-    }
-
-    private static string GetInventoryStatusClass(string? status)
-    {
-        return status switch
-        {
-            "Available" => "inventory-status-pill status-success",
-            "Assigned" => "inventory-status-pill status-success",
-            "Loaned" => "inventory-status-pill status-info",
-            "InMaintenance" => "inventory-status-pill status-warning",
-            "PendingValidation" => "inventory-status-pill status-warning",
-            "Damaged" => "inventory-status-pill status-danger",
-            "NotSuitable" => "inventory-status-pill status-danger",
-            "Inconsistent" => "inventory-status-pill status-danger",
-            "NotLocated" => "inventory-status-pill status-danger",
-            "PendingDisposal" => "inventory-status-pill status-danger",
-            "Disposed" => "inventory-status-pill status-neutral",
-            _ => "inventory-status-pill status-neutral"
-        };
-    }
-
-    private static string GetStatusBadgeClass(string? status)
-    {
-        return status switch
-        {
-            "Available" => "badge bg-success",
-            "PendingValidation" => "badge bg-warning text-dark",
-            "Loaned" => "badge bg-info text-dark",
-            "InMaintenance" => "badge bg-primary",
-            "Damaged" => "badge bg-danger",
-            "NotSuitable" => "badge bg-danger",
-            "NotLocated" => "badge bg-dark",
-            "Inconsistent" => "badge bg-danger",
-            "Disposed" => "badge bg-secondary",
-            _ => "badge bg-secondary"
+            _ => NaviStatusLabels.ToSpanish(status)
         };
     }
 
@@ -746,5 +729,431 @@ else
         font-weight: 900;
         white-space: nowrap;
     }
+
+
+/* NAVI KPI DEFINITIVO BLANCO LINEA IZQUIERDA 20260705 START */
+
+/* ============================================================
+   KPI FINAL APROBADO
+   - Fondo blanco.
+   - Sin fondo completo de color.
+   - Línea vertical izquierda como único color fuerte.
+   - Círculo decorativo suave arriba derecha.
+   - Título, valor y descripción.
+   ============================================================ */
+
+
+/* CONTENEDORES DE KPIS */
+html body .inventory-kpi-grid,
+html body .spc-hero-kpi-row,
+html body .history-kpis,
+html body .history-kpi-grid,
+html body .assignment-history-kpis,
+html body .consult-kpi-grid,
+html body .plans-kpis,
+html body .dash-kpis,
+html body .kpi-grid,
+html body .navi-kpi-grid,
+html body .physical-kpi-grid,
+html body .physical-count-kpis,
+html body .availability-kpi-grid,
+html body .assignment-kpi-grid,
+html body .tools-kpi-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)) !important;
+    gap: .55rem !important;
+    margin: 0 0 .72rem 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+}
+
+
+/* TARJETAS KPI BASE */
+html body .inventory-kpi-grid > article.inventory-kpi-card:not(#navi-kpi-lock),
+html body .spc-hero-kpi-row > article.spc-hero-kpi:not(#navi-kpi-lock),
+html body .history-kpis > article:not(#navi-kpi-lock),
+html body .history-kpi-grid > article:not(#navi-kpi-lock),
+html body .assignment-history-kpis > article:not(#navi-kpi-lock),
+html body .consult-kpi-grid > article:not(#navi-kpi-lock),
+html body .plans-kpis > article:not(#navi-kpi-lock),
+html body .dash-kpis > article:not(#navi-kpi-lock),
+html body .kpi-grid > article:not(#navi-kpi-lock),
+html body .navi-kpi-grid > article:not(#navi-kpi-lock),
+html body .physical-kpi-grid > article:not(#navi-kpi-lock),
+html body .physical-count-kpis > article:not(#navi-kpi-lock),
+html body .availability-kpi-grid > article:not(#navi-kpi-lock),
+html body .assignment-kpi-grid > article:not(#navi-kpi-lock),
+html body .tools-kpi-grid > article:not(#navi-kpi-lock) {
+    position: relative !important;
+
+    min-height: 54px !important;
+    height: 54px !important;
+    max-height: 54px !important;
+
+    display: grid !important;
+    align-content: center !important;
+    gap: .08rem !important;
+
+    padding: .46rem .72rem .44rem .82rem !important;
+
+    border-radius: .58rem !important;
+
+    border-top: 1px solid #dfe3e8 !important;
+    border-right: 1px solid #dfe3e8 !important;
+    border-bottom: 1px solid #dfe3e8 !important;
+    border-left-width: 4px !important;
+    border-left-style: solid !important;
+
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    background-image: none !important;
+
+    box-shadow:
+        0 .08rem .22rem rgba(15, 23, 42, .035),
+        inset 0 1px 0 rgba(255, 255, 255, .75) !important;
+
+    overflow: hidden !important;
+}
+
+
+/* FORZAR BLANCO EN LOS KPI QUE VENÍAN CON FONDO POR ESTADO */
+html body .spc-hero-kpi-row > article.spc-hero-kpi.pending:not(#navi-kpi-lock),
+html body .spc-hero-kpi-row > article.spc-hero-kpi.quotation:not(#navi-kpi-lock),
+html body .spc-hero-kpi-row > article.spc-hero-kpi.review:not(#navi-kpi-lock),
+html body .spc-hero-kpi-row > article.spc-hero-kpi.approved:not(#navi-kpi-lock),
+html body .spc-hero-kpi-row > article.spc-hero-kpi.closed:not(#navi-kpi-lock),
+html body .spc-hero-kpi-row > article.spc-hero-kpi.rejected:not(#navi-kpi-lock),
+html body .inventory-kpi-grid > article.inventory-kpi-card.total:not(#navi-kpi-lock),
+html body .inventory-kpi-grid > article.inventory-kpi-card.success:not(#navi-kpi-lock),
+html body .inventory-kpi-grid > article.inventory-kpi-card.warning:not(#navi-kpi-lock),
+html body .inventory-kpi-grid > article.inventory-kpi-card.danger:not(#navi-kpi-lock) {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    background-image: none !important;
+
+    border-top-color: #dfe3e8 !important;
+    border-right-color: #dfe3e8 !important;
+    border-bottom-color: #dfe3e8 !important;
+
+    box-shadow:
+        0 .08rem .22rem rgba(15, 23, 42, .035),
+        inset 0 1px 0 rgba(255, 255, 255, .75) !important;
+}
+
+
+/* CÍRCULO DECORATIVO */
+html body .inventory-kpi-grid > article.inventory-kpi-card:not(#navi-kpi-lock)::after,
+html body .spc-hero-kpi-row > article.spc-hero-kpi:not(#navi-kpi-lock)::after,
+html body .history-kpis > article:not(#navi-kpi-lock)::after,
+html body .history-kpi-grid > article:not(#navi-kpi-lock)::after,
+html body .assignment-history-kpis > article:not(#navi-kpi-lock)::after,
+html body .consult-kpi-grid > article:not(#navi-kpi-lock)::after,
+html body .plans-kpis > article:not(#navi-kpi-lock)::after,
+html body .dash-kpis > article:not(#navi-kpi-lock)::after,
+html body .kpi-grid > article:not(#navi-kpi-lock)::after,
+html body .navi-kpi-grid > article:not(#navi-kpi-lock)::after,
+html body .physical-kpi-grid > article:not(#navi-kpi-lock)::after,
+html body .physical-count-kpis > article:not(#navi-kpi-lock)::after,
+html body .availability-kpi-grid > article:not(#navi-kpi-lock)::after,
+html body .assignment-kpi-grid > article:not(#navi-kpi-lock)::after,
+html body .tools-kpi-grid > article:not(#navi-kpi-lock)::after {
+    content: "" !important;
+
+    position: absolute !important;
+    top: -.16rem !important;
+    right: -.12rem !important;
+
+    width: 26px !important;
+    height: 26px !important;
+
+    border-radius: 999px !important;
+    background: rgba(123, 13, 142, .07) !important;
+
+    pointer-events: none !important;
+}
+
+html body .inventory-kpi-grid > article.inventory-kpi-card:not(#navi-kpi-lock)::before,
+html body .spc-hero-kpi-row > article.spc-hero-kpi:not(#navi-kpi-lock)::before,
+html body .history-kpis > article:not(#navi-kpi-lock)::before,
+html body .history-kpi-grid > article:not(#navi-kpi-lock)::before,
+html body .assignment-history-kpis > article:not(#navi-kpi-lock)::before,
+html body .consult-kpi-grid > article:not(#navi-kpi-lock)::before,
+html body .plans-kpis > article:not(#navi-kpi-lock)::before,
+html body .dash-kpis > article:not(#navi-kpi-lock)::before,
+html body .kpi-grid > article:not(#navi-kpi-lock)::before,
+html body .navi-kpi-grid > article:not(#navi-kpi-lock)::before,
+html body .physical-kpi-grid > article:not(#navi-kpi-lock)::before,
+html body .physical-count-kpis > article:not(#navi-kpi-lock)::before,
+html body .availability-kpi-grid > article:not(#navi-kpi-lock)::before,
+html body .assignment-kpi-grid > article:not(#navi-kpi-lock)::before,
+html body .tools-kpi-grid > article:not(#navi-kpi-lock)::before {
+    display: none !important;
+    content: none !important;
+}
+
+
+/* TIPOGRAFÍA */
+html body .inventory-kpi-grid > article.inventory-kpi-card:not(#navi-kpi-lock) span,
+html body .spc-hero-kpi-row > article.spc-hero-kpi:not(#navi-kpi-lock) span,
+html body .history-kpis > article:not(#navi-kpi-lock) span,
+html body .history-kpi-grid > article:not(#navi-kpi-lock) span,
+html body .assignment-history-kpis > article:not(#navi-kpi-lock) span,
+html body .consult-kpi-grid > article:not(#navi-kpi-lock) span,
+html body .plans-kpis > article:not(#navi-kpi-lock) span,
+html body .dash-kpis > article:not(#navi-kpi-lock) span,
+html body .kpi-grid > article:not(#navi-kpi-lock) span,
+html body .navi-kpi-grid > article:not(#navi-kpi-lock) span {
+    display: block !important;
+    margin: 0 !important;
+
+    color: #667085 !important;
+
+    font-size: .56rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    letter-spacing: .04em !important;
+    text-transform: uppercase !important;
+}
+
+html body .inventory-kpi-grid > article.inventory-kpi-card:not(#navi-kpi-lock) strong,
+html body .spc-hero-kpi-row > article.spc-hero-kpi:not(#navi-kpi-lock) strong,
+html body .history-kpis > article:not(#navi-kpi-lock) strong,
+html body .history-kpi-grid > article:not(#navi-kpi-lock) strong,
+html body .assignment-history-kpis > article:not(#navi-kpi-lock) strong,
+html body .consult-kpi-grid > article:not(#navi-kpi-lock) strong,
+html body .plans-kpis > article:not(#navi-kpi-lock) strong,
+html body .dash-kpis > article:not(#navi-kpi-lock) strong,
+html body .kpi-grid > article:not(#navi-kpi-lock) strong,
+html body .navi-kpi-grid > article:not(#navi-kpi-lock) strong {
+    display: block !important;
+    margin: .08rem 0 0 0 !important;
+
+    color: #1b0b2b !important;
+
+    font-size: 1.08rem !important;
+    font-weight: 950 !important;
+    line-height: .96 !important;
+    letter-spacing: -.035em !important;
+}
+
+html body .inventory-kpi-grid > article.inventory-kpi-card:not(#navi-kpi-lock) small,
+html body .spc-hero-kpi-row > article.spc-hero-kpi:not(#navi-kpi-lock) small,
+html body .history-kpis > article:not(#navi-kpi-lock) small,
+html body .history-kpi-grid > article:not(#navi-kpi-lock) small,
+html body .assignment-history-kpis > article:not(#navi-kpi-lock) small,
+html body .consult-kpi-grid > article:not(#navi-kpi-lock) small,
+html body .plans-kpis > article:not(#navi-kpi-lock) small,
+html body .dash-kpis > article:not(#navi-kpi-lock) small,
+html body .kpi-grid > article:not(#navi-kpi-lock) small,
+html body .navi-kpi-grid > article:not(#navi-kpi-lock) small {
+    display: block !important;
+    margin: .1rem 0 0 0 !important;
+
+    color: #667085 !important;
+
+    font-size: .56rem !important;
+    font-weight: 750 !important;
+    line-height: 1.05 !important;
+
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+
+/* COLORES INVENTARIO */
+html body .inventory-kpi-grid > article.inventory-kpi-card.total:not(#navi-kpi-lock) {
+    border-left-color: #7b0d8e !important;
+}
+
+html body .inventory-kpi-grid > article.inventory-kpi-card.success:not(#navi-kpi-lock) {
+    border-left-color: #039855 !important;
+}
+
+html body .inventory-kpi-grid > article.inventory-kpi-card.warning:not(#navi-kpi-lock) {
+    border-left-color: #f0a224 !important;
+}
+
+html body .inventory-kpi-grid > article.inventory-kpi-card.danger:not(#navi-kpi-lock) {
+    border-left-color: #d92d20 !important;
+}
+
+
+/* COLORES COMPRA / MANTENIMIENTO */
+html body .spc-hero-kpi-row > article.spc-hero-kpi.pending:not(#navi-kpi-lock) {
+    border-left-color: #f0a224 !important;
+}
+
+html body .spc-hero-kpi-row > article.spc-hero-kpi.quotation:not(#navi-kpi-lock) {
+    border-left-color: #2186d9 !important;
+}
+
+html body .spc-hero-kpi-row > article.spc-hero-kpi.review:not(#navi-kpi-lock) {
+    border-left-color: #7b0d8e !important;
+}
+
+html body .spc-hero-kpi-row > article.spc-hero-kpi.approved:not(#navi-kpi-lock) {
+    border-left-color: #039855 !important;
+}
+
+html body .spc-hero-kpi-row > article.spc-hero-kpi.closed:not(#navi-kpi-lock) {
+    border-left-color: #667085 !important;
+}
+
+html body .spc-hero-kpi-row > article.spc-hero-kpi.rejected:not(#navi-kpi-lock) {
+    border-left-color: #d92d20 !important;
+}
+
+
+/* COLORES POR POSICIÓN GENERAL */
+html body .history-kpis > article:nth-child(1):not(#navi-kpi-lock),
+html body .history-kpi-grid > article:nth-child(1):not(#navi-kpi-lock),
+html body .assignment-history-kpis > article:nth-child(1):not(#navi-kpi-lock),
+html body .consult-kpi-grid > article:nth-child(1):not(#navi-kpi-lock),
+html body .plans-kpis > article:nth-child(1):not(#navi-kpi-lock),
+html body .dash-kpis > article:nth-child(1):not(#navi-kpi-lock),
+html body .kpi-grid > article:nth-child(1):not(#navi-kpi-lock),
+html body .navi-kpi-grid > article:nth-child(1):not(#navi-kpi-lock) {
+    border-left-color: #7b0d8e !important;
+}
+
+html body .history-kpis > article:nth-child(2):not(#navi-kpi-lock),
+html body .history-kpi-grid > article:nth-child(2):not(#navi-kpi-lock),
+html body .assignment-history-kpis > article:nth-child(2):not(#navi-kpi-lock),
+html body .consult-kpi-grid > article:nth-child(2):not(#navi-kpi-lock),
+html body .plans-kpis > article:nth-child(2):not(#navi-kpi-lock),
+html body .dash-kpis > article:nth-child(2):not(#navi-kpi-lock),
+html body .kpi-grid > article:nth-child(2):not(#navi-kpi-lock),
+html body .navi-kpi-grid > article:nth-child(2):not(#navi-kpi-lock) {
+    border-left-color: #2186d9 !important;
+}
+
+html body .history-kpis > article:nth-child(3):not(#navi-kpi-lock),
+html body .history-kpi-grid > article:nth-child(3):not(#navi-kpi-lock),
+html body .assignment-history-kpis > article:nth-child(3):not(#navi-kpi-lock),
+html body .consult-kpi-grid > article:nth-child(3):not(#navi-kpi-lock),
+html body .plans-kpis > article:nth-child(3):not(#navi-kpi-lock),
+html body .dash-kpis > article:nth-child(3):not(#navi-kpi-lock),
+html body .kpi-grid > article:nth-child(3):not(#navi-kpi-lock),
+html body .navi-kpi-grid > article:nth-child(3):not(#navi-kpi-lock) {
+    border-left-color: #039855 !important;
+}
+
+html body .history-kpis > article:nth-child(4):not(#navi-kpi-lock),
+html body .history-kpi-grid > article:nth-child(4):not(#navi-kpi-lock),
+html body .assignment-history-kpis > article:nth-child(4):not(#navi-kpi-lock),
+html body .consult-kpi-grid > article:nth-child(4):not(#navi-kpi-lock),
+html body .plans-kpis > article:nth-child(4):not(#navi-kpi-lock),
+html body .dash-kpis > article:nth-child(4):not(#navi-kpi-lock),
+html body .kpi-grid > article:nth-child(4):not(#navi-kpi-lock),
+html body .navi-kpi-grid > article:nth-child(4):not(#navi-kpi-lock) {
+    border-left-color: #f0a224 !important;
+}
+
+html body .history-kpis > article:nth-child(5):not(#navi-kpi-lock),
+html body .history-kpi-grid > article:nth-child(5):not(#navi-kpi-lock),
+html body .assignment-history-kpis > article:nth-child(5):not(#navi-kpi-lock),
+html body .consult-kpi-grid > article:nth-child(5):not(#navi-kpi-lock),
+html body .plans-kpis > article:nth-child(5):not(#navi-kpi-lock),
+html body .dash-kpis > article:nth-child(5):not(#navi-kpi-lock),
+html body .kpi-grid > article:nth-child(5):not(#navi-kpi-lock),
+html body .navi-kpi-grid > article:nth-child(5):not(#navi-kpi-lock) {
+    border-left-color: #d92d20 !important;
+}
+
+html body .history-kpis > article:nth-child(6):not(#navi-kpi-lock),
+html body .history-kpi-grid > article:nth-child(6):not(#navi-kpi-lock),
+html body .assignment-history-kpis > article:nth-child(6):not(#navi-kpi-lock),
+html body .consult-kpi-grid > article:nth-child(6):not(#navi-kpi-lock),
+html body .plans-kpis > article:nth-child(6):not(#navi-kpi-lock),
+html body .dash-kpis > article:nth-child(6):not(#navi-kpi-lock),
+html body .kpi-grid > article:nth-child(6):not(#navi-kpi-lock),
+html body .navi-kpi-grid > article:nth-child(6):not(#navi-kpi-lock) {
+    border-left-color: #5b21b6 !important;
+}
+
+/* NAVI KPI DEFINITIVO BLANCO LINEA IZQUIERDA 20260705 END */
+
+    
+
+
+    /* NAVI INVENTORY FILTERS OUTSIDE TABLE TYPE START */
+
+    .inventory-status-filters-modern {
+        margin: 0 0 .58rem 0 !important;
+        padding: .46rem .50rem !important;
+
+        border: 1px solid #dfe3e8 !important;
+        border-radius: .72rem !important;
+
+        background: #ffffff !important;
+        box-shadow: 0 .08rem .22rem rgba(15, 23, 42, .035) !important;
+    }
+
+    .inventory-page-filters {
+        display: grid !important;
+        grid-template-columns: minmax(420px, 1fr) 230px !important;
+        align-items: center !important;
+        gap: .45rem !important;
+
+        margin: 0 0 .72rem 0 !important;
+        padding: .56rem .62rem !important;
+
+        border: 1px solid #dfe3e8 !important;
+        border-radius: .72rem !important;
+
+        background: #ffffff !important;
+        box-shadow: 0 .08rem .22rem rgba(15, 23, 42, .035) !important;
+    }
+
+    .inventory-page-filters :where(input, select),
+    .inventory-type-filter {
+        width: 100% !important;
+        height: 34px !important;
+        min-height: 34px !important;
+        max-height: 34px !important;
+
+        border-radius: .52rem !important;
+        border: 1px solid #cfd6df !important;
+
+        background-color: #ffffff !important;
+        color: #101828 !important;
+
+        font-size: .68rem !important;
+        font-weight: 800 !important;
+        line-height: 1 !important;
+
+        box-shadow: none !important;
+    }
+
+    .inventory-page-filters :where(input, select):focus,
+    .inventory-type-filter:focus {
+        border-color: #7b0d8e !important;
+        box-shadow: 0 0 0 .14rem rgba(123, 13, 142, .10) !important;
+    }
+
+    .inventory-panel {
+        padding-top: .72rem !important;
+    }
+
+    .inventory-count {
+        margin: 0 0 .58rem 0 !important;
+        padding: 0 !important;
+
+        color: #475467 !important;
+
+        font-size: .68rem !important;
+        font-weight: 800 !important;
+    }
+
+    @@media (max-width: 980px) {
+        .inventory-page-filters {
+            grid-template-columns: 1fr !important;
+        }
+    }
+
+    /* NAVI INVENTORY FILTERS OUTSIDE TABLE TYPE END */
 
 </style>

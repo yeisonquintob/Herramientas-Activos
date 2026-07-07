@@ -6,6 +6,7 @@
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Forms
 @using Navi.ToolsAssets.Admin.Components.Security
+@using Navi.ToolsAssets.Admin.Components.Shared
 @using Navi.ToolsAssets.Admin.Services.Auth
 @inject IHttpClientFactory HttpClientFactory
 @inject WebAuthSessionService AuthSession
@@ -15,34 +16,16 @@
 
 <PermissionGuard Permission="PhysicalCounts.View" ModuleName="Validar herramienta asignada">
 
-<section class="validation-hero @(IsRejectMode ? "reject-mode" : "confirm-mode")">
-    <div>
-        <span>@(IsRejectMode ? "RECHAZAR HERRAMIENTA ASIGNADA" : "VALIDAR HERRAMIENTA ASIGNADA")</span>
-        <h1>@Display(tool?.Name)</h1>
-        <p>
-            @if (IsRejectMode)
-            {
-                <text>La herramienta aparece asignada al usuario, pero el usuario indica que no la tiene físicamente. Este caso queda para conciliación.</text>
-            }
-            else
-            {
-                <text>El usuario valida su inventario físico: confirma ubicación, estado, comentario, evidencia y accesorios encontrados.</text>
-            }
-        </p>
-    </div>
+<NaviPageHero
+    Pill="CONTROL"
+    Title="@Display(tool?.Name)"
+    Description="@PendingToolHeroDescription">
 
-    <div class="hero-actions">
-        <button class="btn btn-light" @onclick="GoBack">Volver a la toma</button>
-        @if (CanOpenToolDetail)
-        {
-            <a class="btn btn-outline-light" href="@($"/tools/{ToolAssetId}")">Ver activo</a>
-        }
-        @if (CanOpenLifeRecord)
-        {
-            <a class="btn btn-outline-light" href="@($"/tools/{ToolAssetId}/technical-life-record")">Hoja de vida</a>
-        }
-    </div>
-</section>
+    <button type="button" @onclick="GoBack">
+        Volver a la toma
+    </button>
+
+</NaviPageHero>
 
 @if (!string.IsNullOrWhiteSpace(successMessage))
 {
@@ -973,9 +956,57 @@ else
         cursor: not-allowed;
         filter: grayscale(.20);
     }
+
+    /* NAVI PENDING TOOL HERO STANDARD START */
+
+    /* Esta vista usa el banner oficial NaviPageHero.
+       Solo debe mostrar el botón Volver a la toma. */
+
+    .validation-hero,
+    .hero-actions {
+        all: unset;
+    }
+
+    html body .navi-page-hero.navi-page-hero--official .navi-page-hero__actions {
+        gap: .45rem !important;
+    }
+
+    html body .navi-page-hero.navi-page-hero--official .navi-page-hero__actions button {
+        width: 160px !important;
+        min-width: 160px !important;
+        max-width: 160px !important;
+
+        height: 34px !important;
+        min-height: 34px !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+
+        border-radius: .52rem !important;
+        border: 1px solid rgba(255, 255, 255, .70) !important;
+
+        background: transparent !important;
+        color: inherit !important;
+
+        font-size: .68rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+
+        box-shadow: none !important;
+    }
+
+    /* NAVI PENDING TOOL HERO STANDARD END */
+
 </style>
 
 @code {
+
+    private string PendingToolHeroDescription =>
+        IsRejectMode
+            ? "La herramienta aparece asignada al usuario, pero el usuario indica que no la tiene físicamente. Este caso queda para conciliación."
+            : "El usuario valida su inventario físico: confirma ubicación, estado, comentario, evidencia y accesorios encontrados.";
+
 
     private bool CanReportPhysicalCount =>
         PendingHasPermission("PhysicalCounts.Report");
@@ -1589,7 +1620,7 @@ private void OnEvidenceSelected(InputFileChangeEventArgs args)
     }
 
     private static string Pick(string? primary, string? fallback) =>
-        !string.IsNullOrWhiteSpace(primary) ? primary : fallback;
+        !string.IsNullOrWhiteSpace(primary) ? primary : (fallback ?? "—");
 
     private static string Display(string? value) =>
         string.IsNullOrWhiteSpace(value) ? "—" : value;

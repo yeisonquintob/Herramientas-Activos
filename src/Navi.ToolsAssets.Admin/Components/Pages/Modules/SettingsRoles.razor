@@ -2,29 +2,22 @@
 @rendermode InteractiveServer
 @using System.Net.Http.Json
 @using Navi.ToolsAssets.Admin.Services.Auth
+@using Navi.ToolsAssets.Admin.Components.Shared
 @inject IHttpClientFactory HttpClientFactory
 @inject WebAuthSessionService AuthSession
 
 <PageTitle>Roles y permisos - NAVI</PageTitle>
 
-<section class="navi-module-hero">
-    <div>
-        <span class="navi-module-pill">SEGURIDAD · MATRIZ DE ACCIÓN · PERMISOS</span>
-        <h2>Roles y permisos</h2>
-        <p>Define qué puede ver, crear, editar, aprobar, rechazar, reportar, exportar o administrar cada rol del sistema NAVI.</p>
-    </div>
+<NaviPageHero
+    Pill="SEGURIDAD"
+    Title="Roles y permisos"
+    Description="Define qué puede ver, crear, editar, aprobar, rechazar, reportar, exportar o administrar cada rol del sistema NAVI.">
 
-    <div class="navi-module-hero-actions">
-        <div class="navi-module-hero-counter">
-            <span>Roles</span>
-            <strong>@roles.Count</strong>
-        </div>
+    <a href="/settings">
+        Volver a Configuración
+    </a>
 
-        <a class="navi-module-hero-btn" href="/settings">
-            Volver a Configuración
-        </a>
-    </div>
-</section>
+</NaviPageHero>
 
 <section class="rolesx-kpis">
     <article>
@@ -57,7 +50,7 @@
     <div class="@messageClass rolesx-message">@message</div>
 }
 
-<section class="rolesx-workspace">
+<section class="rolesx-workspace rolesx-workspace-three">
     <aside class="rolesx-card rolesx-left">
         <div class="rolesx-card-title">
             <div>
@@ -306,87 +299,87 @@
                 }
             </div>
         </article>
+</main>
 
-        <article class="rolesx-card rolesx-role-table">
-            <div class="rolesx-card-title">
-                <div>
-                    <h3>Roles registrados</h3>
-                    <p>Perfiles guardados en base de datos y permisos activos por rol.</p>
-                </div>
-
-                <button class="rolesx-light-btn" type="button" @onclick="LoadAsync">Actualizar</button>
+    <aside class="rolesx-card rolesx-right rolesx-registered-panel">
+        <div class="rolesx-card-title rolesx-registered-title">
+            <div>
+                <h3>Roles registrados</h3>
+                <p>Perfiles guardados y permisos activos.</p>
             </div>
 
-            @if (isLoading)
+            <button class="rolesx-light-btn" type="button" @onclick="LoadAsync">
+                Actualizar
+            </button>
+        </div>
+
+        <div class="rolesx-registered-filter">
+            <input class="form-control form-control-sm"
+                   placeholder="Buscar rol, nombre, perfil, permiso o estado..."
+                   @bind="registeredRoleSearchText"
+                   @bind:event="oninput" />
+
+            @if (!string.IsNullOrWhiteSpace(registeredRoleSearchText))
             {
-                <div class="rolesx-empty">Cargando roles...</div>
+                <button type="button" @onclick="() => registeredRoleSearchText = string.Empty">
+                    Limpiar
+                </button>
             }
-            else if (roles.Count == 0)
-            {
-                <div class="rolesx-empty">No hay roles registrados.</div>
-            }
-            else
-            {
-                <div class="rolesx-table-wrapper">
-                    <table class="rolesx-table">
-                        <thead>
-                            <tr>
-                                <th>Rol</th>
-                                <th>Perfil detectado</th>
-                                <th>Permisos</th>
-                                <th>Estado</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
+        </div>
 
-                        <tbody>
-                            @foreach (var role in roles.OrderBy(x => x.Code))
-                            {
-                                <tr>
-                                    <td>
-                                        <strong>@role.Code</strong>
-                                        <small>@role.Name</small>
-                                    </td>
+        @if (isLoading)
+        {
+            <div class="rolesx-empty">Cargando roles...</div>
+        }
+        else if (!FilteredRegisteredRoles.Any())
+        {
+            <div class="rolesx-empty">No hay roles registrados para los filtros aplicados.</div>
+        }
+        else
+        {
+            <div class="rolesx-role-card-list">
+                @foreach (var role in FilteredRegisteredRoles)
+                {
+                    <article class="@(role.IsActive ? "rolesx-role-card-mini active" : "rolesx-role-card-mini inactive")">
+                        <div class="rolesx-role-card-head">
+                            <div>
+                                <strong>@role.Code</strong>
+                                <small>@role.Name</small>
+                            </div>
 
-                                    <td>
-                                        <span class="rolesx-profile-pill">@GetRoleProfileName(role)</span>
-                                        <small>@role.Description</small>
-                                    </td>
+                            <span class="@(role.IsActive ? "rolesx-status active" : "rolesx-status inactive")">
+                                @(role.IsActive ? "Activo" : "Inactivo")
+                            </span>
+                        </div>
 
-                                    <td>
-                                        <div class="rolesx-permission-count">
-                                            <strong>@GetRolePermissionCount(role)</strong>
-                                            <small>@GetRolePermissionPreview(role)</small>
-                                        </div>
-                                    </td>
+                        <div class="rolesx-role-card-body">
+                            <div>
+                                <span>Perfil</span>
+                                <em>@GetRoleProfileName(role)</em>
+                            </div>
 
-                                    <td>
-                                        <span class="@(role.IsActive ? "rolesx-status active" : "rolesx-status inactive")">
-                                            @(role.IsActive ? "Activo" : "Inactivo")
-                                        </span>
-                                    </td>
+                            <div>
+                                <span>Permisos</span>
+                                <em>@GetRolePermissionCount(role)</em>
+                            </div>
+                        </div>
 
-                                    <td>
-                                        <div class="rolesx-row-actions">
-                                            <button type="button" @onclick="() => Edit(role)" disabled="@(!CanManageRoles)">
-                                                Editar
-                                            </button>
+                        <p>@GetRolePermissionPreview(role)</p>
 
-                                            <button type="button" class="danger" @onclick="() => DeleteAsync(role.Id)" disabled="@(!CanManageRoles)">
-                                                Eliminar
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            }
-        </article>
-    </main>
+                        <div class="rolesx-role-card-actions">
+                            <button type="button" @onclick="() => Edit(role)" disabled="@(!CanManageRoles)">
+                                Editar
+                            </button>
 
-
+                            <button type="button" class="danger" @onclick="() => DeleteAsync(role.Id)" disabled="@(!CanManageRoles)">
+                                Eliminar
+                            </button>
+                        </div>
+                    </article>
+                }
+            </div>
+        }
+    </aside>
 </section>
 
 <style>
@@ -1344,9 +1337,1302 @@
     }
 }
 
+
+/* NAVI ROLES REAL THREE COLUMNS START */
+
+/* ============================================================
+   Roles y permisos
+   Tres columnas reales:
+   1. Crear / editar rol
+   2. Matriz de acción por módulo
+   3. Roles registrados
+   ============================================================ */
+
+html body .rolesx-workspace.rolesx-workspace-three,
+html body .rolesx-workspace {
+    display: grid !important;
+    grid-template-columns: 270px minmax(0, 1fr) 285px !important;
+    gap: .56rem !important;
+    align-items: start !important;
+
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+
+    overflow: visible !important;
+}
+
+/* Columna 1 */
+html body .rolesx-workspace-three > .rolesx-left,
+html body .rolesx-left {
+    grid-column: 1 !important;
+
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+
+    position: sticky !important;
+    top: .56rem !important;
+
+    width: 270px !important;
+    max-width: 270px !important;
+    min-width: 0 !important;
+
+    max-height: calc(100vh - 245px) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+
+    padding: .58rem !important;
+
+    background: #ffffff !important;
+    border: 1px solid #dfe3e8 !important;
+    border-radius: .78rem !important;
+}
+
+/* Columna 2 */
+html body .rolesx-workspace-three > .rolesx-main,
+html body .rolesx-main {
+    grid-column: 2 !important;
+
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+html body .rolesx-workspace-three > .rolesx-main > .rolesx-card,
+html body .rolesx-main > .rolesx-card {
+    max-height: calc(100vh - 245px) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+
+    padding: .58rem !important;
+}
+
+/* Columna 3 */
+html body .rolesx-workspace-three > .rolesx-right,
+html body .rolesx-right,
+html body .rolesx-registered-panel {
+    grid-column: 3 !important;
+
+    display: grid !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+
+    grid-template-columns: 1fr !important;
+    gap: .45rem !important;
+
+    position: sticky !important;
+    top: .56rem !important;
+
+    width: 285px !important;
+    max-width: 285px !important;
+    min-width: 0 !important;
+
+    max-height: calc(100vh - 245px) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+
+    padding: .58rem !important;
+
+    background: #ffffff !important;
+    border: 1px solid #dfe3e8 !important;
+    border-radius: .78rem !important;
+
+    box-shadow: 0 .08rem .22rem rgba(15, 23, 42, .035) !important;
+}
+
+/* Forzar que CSS viejo no oculte la derecha */
+html body .rolesx-right[style],
+html body .rolesx-registered-panel[style] {
+    display: grid !important;
+}
+
+/* KPIs compactos */
+html body .rolesx-kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: .45rem !important;
+    margin-bottom: .56rem !important;
+}
+
+/* Crear / editar rol compacto */
+html body .rolesx-form-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: .36rem !important;
+}
+
+html body .rolesx-form-grid .span-2 {
+    grid-column: 1 / -1 !important;
+}
+
+html body .rolesx-form-grid label {
+    margin: 0 0 .12rem 0 !important;
+
+    color: #344054 !important;
+
+    font-size: .54rem !important;
+    font-weight: 950 !important;
+    line-height: 1.05 !important;
+}
+
+html body .rolesx-form-grid input,
+html body .rolesx-form-grid textarea {
+    width: 100% !important;
+
+    min-height: 28px !important;
+
+    border-radius: .44rem !important;
+    border: 1px solid #cfd6df !important;
+
+    background: #ffffff !important;
+    color: #101828 !important;
+
+    font-size: .58rem !important;
+    font-weight: 800 !important;
+    line-height: 1.1 !important;
+}
+
+html body .rolesx-form-grid textarea {
+    min-height: 54px !important;
+}
+
+html body .rolesx-actions {
+    display: flex !important;
+    gap: .32rem !important;
+    flex-wrap: wrap !important;
+    margin-top: .38rem !important;
+}
+
+html body .rolesx-actions button,
+html body .rolesx-actions .secondary {
+    height: 28px !important;
+    min-height: 28px !important;
+
+    padding: 0 .52rem !important;
+
+    border-radius: .42rem !important;
+
+    font-size: .54rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+}
+
+/* Plantillas compactas */
+html body .rolesx-template-list {
+    display: grid !important;
+    gap: .32rem !important;
+}
+
+html body .rolesx-template-list button {
+    min-height: 38px !important;
+    padding: .30rem .36rem !important;
+    border-radius: .52rem !important;
+}
+
+html body .rolesx-template-list button span {
+    width: 22px !important;
+    height: 22px !important;
+    min-width: 22px !important;
+    font-size: .64rem !important;
+}
+
+html body .rolesx-template-list button strong {
+    font-size: .58rem !important;
+    line-height: 1.05 !important;
+}
+
+html body .rolesx-template-list button small {
+    font-size: .48rem !important;
+    line-height: 1.05 !important;
+}
+
+html body .rolesx-template-list button em {
+    font-size: .52rem !important;
+}
+
+/* Matriz central más compacta para que quepa la tercera columna */
+html body .rolesx-tools {
+    display: grid !important;
+    grid-template-columns: minmax(240px, 1fr) auto !important;
+    gap: .34rem !important;
+    align-items: center !important;
+}
+
+html body .rolesx-tools input {
+    height: 30px !important;
+    min-height: 30px !important;
+
+    border-radius: .46rem !important;
+
+    font-size: .58rem !important;
+    font-weight: 800 !important;
+}
+
+html body .rolesx-tool-actions {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: flex-end !important;
+    gap: .24rem !important;
+}
+
+html body .rolesx-tool-actions button {
+    height: 28px !important;
+    min-height: 28px !important;
+
+    padding: 0 .40rem !important;
+
+    border-radius: .40rem !important;
+
+    font-size: .50rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+}
+
+html body .rolesx-matrix {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: .46rem !important;
+}
+
+html body .rolesx-permission-group {
+    min-width: 0 !important;
+    border-radius: .60rem !important;
+}
+
+html body .rolesx-permission-group header {
+    padding: .38rem .42rem !important;
+}
+
+html body .rolesx-permission-group header strong {
+    font-size: .62rem !important;
+    line-height: 1.05 !important;
+}
+
+html body .rolesx-permission-group header small,
+html body .rolesx-permission-group header span {
+    font-size: .45rem !important;
+    line-height: 1 !important;
+}
+
+html body .rolesx-collapse-btn {
+    height: 23px !important;
+    min-height: 23px !important;
+
+    padding: 0 .38rem !important;
+
+    border-radius: .38rem !important;
+
+    font-size: .48rem !important;
+    font-weight: 950 !important;
+}
+
+html body .rolesx-permission-list {
+    gap: .28rem !important;
+    padding: .40rem !important;
+}
+
+html body .rolesx-permission-list label {
+    min-height: 30px !important;
+
+    padding: .26rem .30rem !important;
+
+    border-radius: .46rem !important;
+}
+
+html body .rolesx-permission-list label input {
+    width: 13px !important;
+    min-width: 13px !important;
+
+    height: 13px !important;
+    min-height: 13px !important;
+}
+
+html body .rolesx-permission-list label span strong {
+    font-size: .52rem !important;
+    line-height: 1.05 !important;
+}
+
+html body .rolesx-permission-list label span small {
+    font-size: .43rem !important;
+    line-height: 1.05 !important;
+}
+
+html body .rolesx-permission-list label em {
+    font-size: .43rem !important;
+    padding: .06rem .22rem !important;
+}
+
+/* Roles registrados en tarjetas */
+html body .rolesx-role-card-list {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: .38rem !important;
+}
+
+html body .rolesx-registered-title {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: .38rem !important;
+
+    margin-bottom: .46rem !important;
+}
+
+html body .rolesx-registered-title h3 {
+    margin: 0 !important;
+
+    color: #101828 !important;
+
+    font-size: .82rem !important;
+    font-weight: 950 !important;
+    line-height: 1.05 !important;
+}
+
+html body .rolesx-registered-title p {
+    margin: .06rem 0 0 0 !important;
+
+    color: #667085 !important;
+
+    font-size: .50rem !important;
+    font-weight: 750 !important;
+    line-height: 1.08 !important;
+}
+
+html body .rolesx-registered-title .rolesx-light-btn {
+    width: 72px !important;
+    min-width: 72px !important;
+
+    height: 25px !important;
+    min-height: 25px !important;
+
+    padding: 0 .36rem !important;
+
+    border-radius: .40rem !important;
+
+    font-size: .48rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+}
+
+html body .rolesx-role-card-mini {
+    display: grid !important;
+    gap: .32rem !important;
+
+    padding: .44rem !important;
+
+    border: 1px solid #dfe3e8 !important;
+    border-left: 4px solid #12a150 !important;
+    border-radius: .60rem !important;
+
+    background: #ffffff !important;
+    color: #101828 !important;
+
+    box-shadow: 0 .06rem .18rem rgba(15, 23, 42, .035) !important;
+}
+
+html body .rolesx-role-card-mini.inactive {
+    border-left-color: #dc2626 !important;
+    opacity: .82 !important;
+}
+
+html body .rolesx-role-card-head {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: flex-start !important;
+    gap: .34rem !important;
+}
+
+html body .rolesx-role-card-head strong {
+    display: block !important;
+
+    color: #101828 !important;
+
+    font-size: .60rem !important;
+    font-weight: 950 !important;
+    line-height: 1.05 !important;
+
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+html body .rolesx-role-card-head small {
+    display: block !important;
+
+    margin-top: .04rem !important;
+
+    color: #667085 !important;
+
+    font-size: .46rem !important;
+    font-weight: 800 !important;
+    line-height: 1.05 !important;
+
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+html body .rolesx-role-card-body {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 58px !important;
+    gap: .28rem !important;
+}
+
+html body .rolesx-role-card-body div {
+    padding: .27rem .30rem !important;
+
+    border: 1px solid #eef0f3 !important;
+    border-radius: .44rem !important;
+
+    background: #f8fafc !important;
+}
+
+html body .rolesx-role-card-body span {
+    display: block !important;
+
+    margin-bottom: .05rem !important;
+
+    color: #667085 !important;
+
+    font-size: .40rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    text-transform: uppercase !important;
+}
+
+html body .rolesx-role-card-body em {
+    display: block !important;
+
+    color: #101828 !important;
+
+    font-size: .50rem !important;
+    font-style: normal !important;
+    font-weight: 950 !important;
+    line-height: 1.05 !important;
+
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+html body .rolesx-role-card-mini p {
+    margin: 0 !important;
+
+    color: #667085 !important;
+
+    font-size: .46rem !important;
+    font-weight: 750 !important;
+    line-height: 1.08 !important;
+
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+}
+
+html body .rolesx-role-card-actions {
+    display: flex !important;
+    justify-content: flex-end !important;
+    gap: .26rem !important;
+}
+
+html body .rolesx-role-card-actions button {
+    width: 64px !important;
+    min-width: 64px !important;
+
+    height: 24px !important;
+    min-height: 24px !important;
+
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding: 0 .28rem !important;
+
+    border-radius: .38rem !important;
+    border: 1px solid #0d6efd !important;
+
+    background: #ffffff !important;
+    color: #0d6efd !important;
+
+    font-size: .48rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+}
+
+html body .rolesx-role-card-actions button.danger {
+    border-color: #dc2626 !important;
+    color: #dc2626 !important;
+}
+
+/* Sobrescribir reglas viejas que ocultaban la derecha */
+@@media (max-width: 1450px) {
+    html body .rolesx-workspace.rolesx-workspace-three,
+    html body .rolesx-workspace {
+        grid-template-columns: 255px minmax(0, 1fr) 270px !important;
+    }
+
+    html body .rolesx-left {
+        width: 255px !important;
+        max-width: 255px !important;
+    }
+
+    html body .rolesx-right,
+    html body .rolesx-registered-panel {
+        display: grid !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+
+        width: 270px !important;
+        max-width: 270px !important;
+    }
+
+    html body .rolesx-matrix {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+}
+
+@@media (max-width: 1180px) {
+    html body .rolesx-workspace.rolesx-workspace-three,
+    html body .rolesx-workspace {
+        grid-template-columns: 245px minmax(0, 1fr) 250px !important;
+    }
+
+    html body .rolesx-left {
+        width: 245px !important;
+        max-width: 245px !important;
+    }
+
+    html body .rolesx-right,
+    html body .rolesx-registered-panel {
+        display: grid !important;
+        width: 250px !important;
+        max-width: 250px !important;
+    }
+
+    html body .rolesx-matrix {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+@@media (max-width: 980px) {
+    html body .rolesx-workspace.rolesx-workspace-three,
+    html body .rolesx-workspace {
+        grid-template-columns: 1fr !important;
+    }
+
+    html body .rolesx-left,
+    html body .rolesx-main,
+    html body .rolesx-right,
+    html body .rolesx-registered-panel {
+        grid-column: 1 !important;
+
+        position: static !important;
+
+        width: 100% !important;
+        max-width: none !important;
+        max-height: none !important;
+
+        overflow: visible !important;
+    }
+}
+
+/* NAVI ROLES REAL THREE COLUMNS END */
+
+
+/* NAVI ROLES MATRIX SMALLER REGISTERED FILTER START */
+
+/* ============================================================
+   Roles y permisos
+   Ajuste solicitado:
+   - Matriz central un poco más pequeña.
+   - Roles registrados más grande.
+   - Filtro en Roles registrados.
+   - Botones estándar.
+   ============================================================ */
+
+html body .rolesx-workspace.rolesx-workspace-three,
+html body .rolesx-workspace {
+    grid-template-columns: 255px minmax(0, 1fr) 365px !important;
+    gap: .56rem !important;
+}
+
+/* Izquierda compacta */
+html body .rolesx-workspace-three > .rolesx-left,
+html body .rolesx-left {
+    width: 255px !important;
+    max-width: 255px !important;
+    padding: .56rem !important;
+}
+
+/* Centro más compacto */
+html body .rolesx-workspace-three > .rolesx-main,
+html body .rolesx-main {
+    min-width: 0 !important;
+}
+
+html body .rolesx-workspace-three > .rolesx-main > .rolesx-card,
+html body .rolesx-main > .rolesx-card {
+    padding: .52rem !important;
+}
+
+/* Derecha más grande */
+html body .rolesx-workspace-three > .rolesx-right,
+html body .rolesx-right,
+html body .rolesx-registered-panel {
+    width: 365px !important;
+    max-width: 365px !important;
+    padding: .62rem !important;
+}
+
+/* ============================================================
+   Filtro de Roles registrados
+   ============================================================ */
+
+html body .rolesx-registered-filter {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: .34rem !important;
+
+    margin: 0 0 .50rem 0 !important;
+    padding: .42rem !important;
+
+    border: 1px solid #dfe3e8 !important;
+    border-radius: .62rem !important;
+
+    background: #ffffff !important;
+    box-shadow: 0 .05rem .14rem rgba(15, 23, 42, .030) !important;
+}
+
+html body .rolesx-registered-filter input {
+    width: 100% !important;
+
+    height: 30px !important;
+    min-height: 30px !important;
+    max-height: 30px !important;
+
+    border-radius: .46rem !important;
+    border: 1px solid #cfd6df !important;
+
+    background: #ffffff !important;
+    color: #101828 !important;
+
+    font-size: .58rem !important;
+    font-weight: 800 !important;
+    line-height: 1 !important;
+
+    box-shadow: none !important;
+}
+
+html body .rolesx-registered-filter input:focus {
+    border-color: #7b0d8e !important;
+    box-shadow: 0 0 0 .13rem rgba(123, 13, 142, .10) !important;
+}
+
+html body .rolesx-registered-filter button {
+    height: 30px !important;
+    min-height: 30px !important;
+
+    padding: 0 .58rem !important;
+
+    border-radius: .46rem !important;
+    border: 1px solid #0d6efd !important;
+
+    background: #ffffff !important;
+    color: #0d6efd !important;
+
+    font-size: .56rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+
+    box-shadow: none !important;
+}
+
+html body .rolesx-registered-filter button:hover {
+    background: #0d6efd !important;
+    color: #ffffff !important;
+}
+
+/* ============================================================
+   Matriz de acción por módulo más pequeña
+   ============================================================ */
+
+html body .rolesx-tools {
+    grid-template-columns: minmax(210px, 1fr) auto !important;
+    gap: .30rem !important;
+}
+
+html body .rolesx-tools input {
+    height: 28px !important;
+    min-height: 28px !important;
+    max-height: 28px !important;
+
+    border-radius: .42rem !important;
+
+    font-size: .54rem !important;
+    font-weight: 800 !important;
+}
+
+html body .rolesx-tool-actions {
+    gap: .22rem !important;
+}
+
+html body .rolesx-tool-actions button {
+    height: 26px !important;
+    min-height: 26px !important;
+
+    padding: 0 .34rem !important;
+
+    border-radius: .38rem !important;
+
+    font-size: .46rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+}
+
+html body .rolesx-legend {
+    gap: .26rem !important;
+    margin: .36rem 0 .46rem 0 !important;
+}
+
+html body .rolesx-legend span {
+    height: 22px !important;
+    min-height: 22px !important;
+
+    padding: 0 .36rem !important;
+
+    border-radius: 999px !important;
+
+    font-size: .43rem !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+}
+
+html body .rolesx-matrix {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: .38rem !important;
+}
+
+html body .rolesx-permission-group {
+    border-radius: .56rem !important;
+}
+
+html body .rolesx-permission-group header {
+    padding: .32rem .36rem !important;
+}
+
+html body .rolesx-permission-group header strong {
+    font-size: .56rem !important;
+    line-height: 1.04 !important;
+}
+
+html body .rolesx-permission-group header span,
+html body .rolesx-permission-group header small {
+    font-size: .40rem !important;
+    line-height: 1 !important;
+}
+
+html body .rolesx-collapse-btn {
+    height: 21px !important;
+    min-height: 21px !important;
+
+    padding: 0 .30rem !important;
+
+    border-radius: .34rem !important;
+
+    font-size: .42rem !important;
+    font-weight: 950 !important;
+}
+
+html body .rolesx-permission-list {
+    padding: .34rem !important;
+    gap: .24rem !important;
+}
+
+html body .rolesx-permission-list label {
+    min-height: 28px !important;
+
+    padding: .22rem .26rem !important;
+
+    border-radius: .42rem !important;
+}
+
+html body .rolesx-permission-list label input {
+    width: 12px !important;
+    min-width: 12px !important;
+
+    height: 12px !important;
+    min-height: 12px !important;
+}
+
+html body .rolesx-permission-list label span strong {
+    font-size: .48rem !important;
+    line-height: 1.04 !important;
+}
+
+html body .rolesx-permission-list label span small {
+    font-size: .39rem !important;
+    line-height: 1.04 !important;
+}
+
+html body .rolesx-permission-list label em {
+    font-size: .39rem !important;
+
+    padding: .05rem .20rem !important;
+    border-radius: 999px !important;
+}
+
+/* ============================================================
+   Roles registrados más legibles
+   ============================================================ */
+
+html body .rolesx-role-card-list {
+    gap: .46rem !important;
+}
+
+html body .rolesx-role-card-mini {
+    padding: .56rem !important;
+    gap: .40rem !important;
+    border-radius: .68rem !important;
+}
+
+html body .rolesx-role-card-head strong {
+    font-size: .68rem !important;
+    line-height: 1.05 !important;
+}
+
+html body .rolesx-role-card-head small {
+    font-size: .52rem !important;
+    line-height: 1.05 !important;
+}
+
+html body .rolesx-role-card-body {
+    grid-template-columns: minmax(0, 1fr) 74px !important;
+    gap: .34rem !important;
+}
+
+html body .rolesx-role-card-body div {
+    padding: .34rem .38rem !important;
+    border-radius: .52rem !important;
+}
+
+html body .rolesx-role-card-body span {
+    font-size: .45rem !important;
+}
+
+html body .rolesx-role-card-body em {
+    font-size: .56rem !important;
+}
+
+html body .rolesx-role-card-mini p {
+    font-size: .52rem !important;
+    line-height: 1.12 !important;
+}
+
+/* ============================================================
+   Botones estándar para esta vista
+   ============================================================ */
+
+html body .rolesx-actions button,
+html body .rolesx-actions .secondary,
+html body .rolesx-tool-actions button,
+html body .rolesx-light-btn,
+html body .rolesx-role-card-actions button,
+html body .rolesx-role-card-actions button.danger,
+html body .rolesx-collapse-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    border-radius: .46rem !important;
+
+    font-weight: 950 !important;
+    line-height: 1 !important;
+
+    box-shadow: none !important;
+    text-decoration: none !important;
+
+    cursor: pointer !important;
+}
+
+/* Botón primario */
+html body .rolesx-actions button:not(.secondary),
+html body .rolesx-role-card-actions button:not(.danger) {
+    border: 1px solid #7b0d8e !important;
+    background: #7b0d8e !important;
+    color: #ffffff !important;
+}
+
+html body .rolesx-actions button:not(.secondary):hover,
+html body .rolesx-role-card-actions button:not(.danger):hover {
+    background: #4b005c !important;
+    border-color: #4b005c !important;
+    color: #ffffff !important;
+}
+
+/* Botón secundario */
+html body .rolesx-actions .secondary,
+html body .rolesx-tool-actions button,
+html body .rolesx-light-btn,
+html body .rolesx-collapse-btn {
+    border: 1px solid #cfd6df !important;
+    background: #ffffff !important;
+    color: #344054 !important;
+}
+
+html body .rolesx-actions .secondary:hover,
+html body .rolesx-tool-actions button:hover,
+html body .rolesx-light-btn:hover,
+html body .rolesx-collapse-btn:hover {
+    border-color: #7b0d8e !important;
+    background: #fbf7fd !important;
+    color: #7b0d8e !important;
+}
+
+/* Botón peligro */
+html body .rolesx-role-card-actions button.danger {
+    border: 1px solid #dc2626 !important;
+    background: #ffffff !important;
+    color: #dc2626 !important;
+}
+
+html body .rolesx-role-card-actions button.danger:hover {
+    background: #dc2626 !important;
+    color: #ffffff !important;
+}
+
+/* Tamaños estándar de acciones en tarjetas de roles */
+html body .rolesx-role-card-actions button {
+    width: 78px !important;
+    min-width: 78px !important;
+
+    height: 27px !important;
+    min-height: 27px !important;
+
+    padding: 0 .36rem !important;
+
+    font-size: .52rem !important;
+}
+
+/* Tamaños estándar de botones del formulario */
+html body .rolesx-actions button,
+html body .rolesx-actions .secondary {
+    height: 28px !important;
+    min-height: 28px !important;
+
+    padding: 0 .58rem !important;
+
+    font-size: .54rem !important;
+}
+
+/* ============================================================
+   Responsive manteniendo derecha lo más amplia posible
+   ============================================================ */
+
+@@media (max-width: 1450px) {
+    html body .rolesx-workspace.rolesx-workspace-three,
+    html body .rolesx-workspace {
+        grid-template-columns: 245px minmax(0, 1fr) 340px !important;
+    }
+
+    html body .rolesx-left {
+        width: 245px !important;
+        max-width: 245px !important;
+    }
+
+    html body .rolesx-right,
+    html body .rolesx-registered-panel {
+        width: 340px !important;
+        max-width: 340px !important;
+    }
+}
+
+@@media (max-width: 1250px) {
+    html body .rolesx-workspace.rolesx-workspace-three,
+    html body .rolesx-workspace {
+        grid-template-columns: 235px minmax(0, 1fr) 320px !important;
+    }
+
+    html body .rolesx-left {
+        width: 235px !important;
+        max-width: 235px !important;
+    }
+
+    html body .rolesx-right,
+    html body .rolesx-registered-panel {
+        width: 320px !important;
+        max-width: 320px !important;
+    }
+
+    html body .rolesx-matrix {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+@@media (max-width: 980px) {
+    html body .rolesx-workspace.rolesx-workspace-three,
+    html body .rolesx-workspace {
+        grid-template-columns: 1fr !important;
+    }
+
+    html body .rolesx-left,
+    html body .rolesx-main,
+    html body .rolesx-right,
+    html body .rolesx-registered-panel {
+        grid-column: 1 !important;
+
+        position: static !important;
+
+        width: 100% !important;
+        max-width: none !important;
+        max-height: none !important;
+
+        overflow: visible !important;
+    }
+}
+
+/* NAVI ROLES MATRIX SMALLER REGISTERED FILTER END */
+
+
+/* NAVI ROLES MATRIX READABLE TEXT START */
+
+/* ============================================================
+   Roles y permisos
+   Ajuste:
+   - Mantiene las 3 columnas.
+   - Aumenta la letra dentro de la matriz de acción por módulo.
+   - Mejora lectura de permisos, códigos y etiquetas.
+   ============================================================ */
+
+/* Encabezado de la matriz */
+html body .rolesx-main .rolesx-card-title h3 {
+    font-size: 1rem !important;
+    font-weight: 950 !important;
+    line-height: 1.08 !important;
+    color: #101828 !important;
+}
+
+html body .rolesx-main .rolesx-card-title p {
+    font-size: .68rem !important;
+    font-weight: 800 !important;
+    line-height: 1.14 !important;
+    color: #475467 !important;
+}
+
+/* Buscador y botones superiores de matriz */
+html body .rolesx-tools input {
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+
+    font-size: .68rem !important;
+    font-weight: 850 !important;
+    line-height: 1 !important;
+}
+
+html body .rolesx-tool-actions button {
+    height: 30px !important;
+    min-height: 30px !important;
+
+    padding: 0 .48rem !important;
+
+    font-size: .56rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+}
+
+/* Leyenda de colores */
+html body .rolesx-legend span {
+    height: 24px !important;
+    min-height: 24px !important;
+
+    padding: 0 .44rem !important;
+
+    font-size: .52rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+}
+
+/* Tarjetas de módulo */
+html body .rolesx-permission-group {
+    border-radius: .70rem !important;
+}
+
+html body .rolesx-permission-group header {
+    padding: .52rem .58rem !important;
+}
+
+html body .rolesx-permission-group header span {
+    font-size: .50rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    letter-spacing: .025em !important;
+}
+
+html body .rolesx-permission-group header strong {
+    font-size: .78rem !important;
+    font-weight: 950 !important;
+    line-height: 1.08 !important;
+    color: #101828 !important;
+}
+
+html body .rolesx-permission-group header small {
+    font-size: .58rem !important;
+    font-weight: 850 !important;
+    line-height: 1.05 !important;
+    color: #475467 !important;
+}
+
+html body .rolesx-collapse-btn {
+    height: 26px !important;
+    min-height: 26px !important;
+
+    padding: 0 .46rem !important;
+
+    font-size: .54rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+}
+
+/* Lista interna de permisos */
+html body .rolesx-permission-list {
+    padding: .52rem !important;
+    gap: .38rem !important;
+}
+
+/* Cada permiso */
+html body .rolesx-permission-list label {
+    min-height: 42px !important;
+
+    display: grid !important;
+    grid-template-columns: 18px minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    gap: .44rem !important;
+
+    padding: .40rem .46rem !important;
+
+    border-radius: .56rem !important;
+}
+
+/* Checkbox */
+html body .rolesx-permission-list label input {
+    width: 16px !important;
+    min-width: 16px !important;
+    max-width: 16px !important;
+
+    height: 16px !important;
+    min-height: 16px !important;
+    max-height: 16px !important;
+
+    margin: 0 !important;
+
+    accent-color: #7b0d8e !important;
+}
+
+/* Nombre del permiso */
+html body .rolesx-permission-list label span strong {
+    display: block !important;
+
+    font-size: .68rem !important;
+    font-weight: 950 !important;
+    line-height: 1.10 !important;
+
+    color: #101828 !important;
+
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: unset !important;
+}
+
+/* Código interno del permiso */
+html body .rolesx-permission-list label span small {
+    display: block !important;
+
+    margin-top: .08rem !important;
+
+    font-size: .55rem !important;
+    font-weight: 800 !important;
+    line-height: 1.08 !important;
+
+    color: #667085 !important;
+
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: unset !important;
+}
+
+/* Etiqueta de alcance: sede, propio, admin, etc. */
+html body .rolesx-permission-list label em {
+    min-width: 46px !important;
+    height: 22px !important;
+
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding: 0 .38rem !important;
+
+    border-radius: 999px !important;
+
+    font-size: .52rem !important;
+    font-style: normal !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+
+    white-space: nowrap !important;
+}
+
+/* Mantener dos columnas en la matriz, pero con texto legible */
+html body .rolesx-matrix {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: .52rem !important;
+}
+
+/* Evitar que la columna derecha pierda ancho */
+html body .rolesx-workspace.rolesx-workspace-three,
+html body .rolesx-workspace {
+    grid-template-columns: 255px minmax(0, 1fr) 365px !important;
+}
+
+/* NAVI ROLES MATRIX READABLE TEXT END */
+
 </style>
 
 @code {
+
+    private string registeredRoleSearchText = string.Empty;
+
+    private IEnumerable<RoleDto> FilteredRegisteredRoles =>
+        roles
+            .Where(MatchesRegisteredRoleSearch)
+            .OrderBy(x => x.Code);
+
+    private bool MatchesRegisteredRoleSearch(RoleDto role)
+    {
+        if (string.IsNullOrWhiteSpace(registeredRoleSearchText))
+        {
+            return true;
+        }
+
+        var term = registeredRoleSearchText.Trim();
+
+        return ContainsRoleText(role.Code, term) ||
+               ContainsRoleText(role.Name, term) ||
+               ContainsRoleText(role.Description, term) ||
+               ContainsRoleText(GetRoleProfileName(role), term) ||
+               ContainsRoleText(GetRolePermissionPreview(role), term) ||
+               ContainsRoleText(role.IsActive ? "Activo" : "Inactivo", term);
+    }
+
+    private static bool ContainsRoleText(string? source, string term)
+    {
+        return !string.IsNullOrWhiteSpace(source) &&
+               source.Contains(term, StringComparison.OrdinalIgnoreCase);
+    }
+
     private bool CanManageRoles => AuthSession.HasPermission("Security.Roles");
     private HttpClient Api => HttpClientFactory.CreateClient("NaviApi");
 

@@ -2,41 +2,108 @@
 @rendermode InteractiveServer
 
 @using System.Net.Http.Json
+@using Microsoft.JSInterop
 @using Navi.ToolsAssets.Admin.Services.Auth
+@using Navi.ToolsAssets.Admin.Components.Shared
 
 @inject IHttpClientFactory HttpClientFactory
 @inject WebAuthSessionService AuthSession
+@inject IJSRuntime JS
 
 <PageTitle>Usuarios - Configuración</PageTitle>
 
 <section class="users-page">
-    <section class="navi-module-hero">
-    <div>
-        <span class="navi-module-pill">SEGURIDAD · USUARIOS · ACCESOS</span>
-        <h2>Usuarios</h2>
-        <p>Administra usuarios del sistema, roles asignados, estado de acceso, cambio de contraseña y alcance operativo por sede o perfil.</p>
-    </div>
+    <NaviPageHero
+        Pill="SEGURIDAD"
+        Title="Usuarios"
+        Description="Administra usuarios del sistema, roles asignados, estado de acceso, cambio de contraseña y alcance operativo por sede o perfil.">
 
-    <div class="navi-module-hero-actions">
-        <a class="navi-module-hero-btn" href="/settings">
+        <a href="/settings">
             Volver a Configuración
         </a>
-    </div>
-</section>
+
+    </NaviPageHero>
 
     @if (!string.IsNullOrWhiteSpace(message))
     {
         <div class="@messageClass">@message</div>
     }
 
-    <section class="users-grid"><div class="users-left-stack">
+    
+    <section class="users-kpi-grid users-kpi-grid-standard">
+        <article>
+            <span>Total usuarios</span>
+            <strong>@FilteredUsers.Count()</strong>
+            <small>Según filtros activos</small>
+        </article>
+
+        <article class="success">
+            <span>Activos</span>
+            <strong>@FilteredUsers.Count(x => x.IsActive)</strong>
+            <small>Con acceso habilitado</small>
+        </article>
+
+        <article class="danger">
+            <span>Inactivos</span>
+            <strong>@FilteredUsers.Count(x => !x.IsActive)</strong>
+            <small>Acceso deshabilitado</small>
+        </article>
+
+        <article class="blue">
+            <span>Roles</span>
+            <strong>@FilteredUsers.Select(x => x.Role?.Code).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Count()</strong>
+            <small>Roles visibles</small>
+        </article>
+
+        <article class="warning">
+            <span>Sedes</span>
+            <strong>@FilteredUsers.Select(x => x.Branch?.Code ?? "Todas").Distinct(StringComparer.OrdinalIgnoreCase).Count()</strong>
+            <small>Alcance operativo</small>
+        </article>
+    </section>
+
+    <section class="users-page-filters" aria-label="Filtros de usuarios">
+        <input class="form-control form-control-sm"
+               placeholder="Buscar documento, nombre, correo electrónico, rol o sede..."
+               @bind="searchText"
+               @bind:event="oninput" />
+
+        <select class="form-select form-select-sm" @bind="selectedBranchFilter">
+            <option value="">Todas las sedes</option>
+            <option value="__ALL__">Usuarios con alcance Todas</option>
+            @foreach (var branch in UserBranchFilterOptions)
+            {
+                <option value="@branch.Code">@branch.Code - @branch.Name</option>
+            }
+        </select>
+
+        <select class="form-select form-select-sm" @bind="selectedRoleFilter">
+            <option value="">Todos los roles</option>
+            @foreach (var role in UserRoleFilterOptions)
+            {
+                <option value="@role.Code">@DisplayRoleOption(role)</option>
+            }
+        </select>
+
+        <select class="form-select form-select-sm" @bind="selectedStatusFilter">
+            <option value="">Todos los estados</option>
+            <option value="active">Activos</option>
+            <option value="inactive">Inactivos</option>
+        </select>
+
+        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="ClearUserFilters">
+            Limpiar
+        </button>
+    </section>
+
+<section class="users-grid"><div class="users-left-stack">
         <div class="users-card users-create-card">
             <h3>@(editingId is null ? "Crear usuario" : "Editar usuario")</h3>
 
-            <EditForm Model="formModel" OnValidSubmit="SaveAsync">
+            <EditForm Model="formModel" OnValidSubmit="SaveAsync" class="users-create-form-standard">
                 <DataAnnotationsValidator />
 
-                <label>
+                <label class="users-field-half">
                     Documento / identificación <strong class="users-required-star">*</strong>
                     <InputText class="form-control"
                                @bind-Value="formModel.UserName"
@@ -44,7 +111,7 @@
                                disabled="@(!CanManageUsers)" />
                 </label>
 
-                <label>
+                <label class="users-field-half">
                     Nombre completo <strong class="users-required-star">*</strong>
                     <InputText class="form-control"
                                @bind-Value="formModel.DisplayName"
@@ -52,7 +119,7 @@
                                disabled="@(!CanManageUsers)" />
                 </label>
 
-                <label>
+                <label class="users-field-half">
                     Correo
                     <InputText class="form-control"
                                @bind-Value="formModel.Email"
@@ -60,7 +127,7 @@
                                disabled="@(!CanManageUsers)" />
                 </label>
 
-                <label>
+                <label class="users-field-half">
                     Cargo
                     <InputText class="form-control"
                                @bind-Value="formModel.Position"
@@ -68,7 +135,7 @@
                                disabled="@(!CanManageUsers)" />
                 </label>
 
-                <label>
+                <label class="users-field-half">
                     Área
                     <InputText class="form-control"
                                @bind-Value="formModel.Area"
@@ -76,7 +143,7 @@
                                disabled="@(!CanManageUsers)" />
                 </label>
 
-                <label>
+                <label class="users-field-half">
                     Rol <strong class="users-required-star">*</strong>
                     <InputSelect class="form-select" @bind-Value="formModel.AppRoleId" disabled="@(!CanManageUsers)">
                         <option value="">Seleccione rol</option>
@@ -87,7 +154,7 @@
                     </InputSelect>
                 </label>
 
-                <label>
+                <label class="users-field-full users-branch-field">
                     Sede operativa
                     <InputSelect class="form-select" @bind-Value="formModel.BranchId" disabled="@(!CanManageUsers)">
                         <option value="">Seleccione sede operativa</option>
@@ -101,16 +168,16 @@
                     </small>
                 </label>
 
-                <div class="users-operational-box">
+                <div class="users-operational-box users-field-full">
                     <label class="users-switch-row">
                         <InputCheckbox class="form-check-input"
                                        @bind-Value="formModel.CreateOperationalResponsibleFromUser"
                                        disabled="@(!CanManageUsers)" />
-                        <span>Crear/actualizar solicitante operativo con los datos de este usuario</span>
+                        <span>Solicitante operativo del usuario</span>
                     </label>
 
                     <small class="users-help">
-                        Recomendado. Así la solicitud queda a nombre del usuario logueado, no a nombre del herramentero.
+                        Recomendado. Así las solicitudes y procesos quedan asociados al usuario que estás creando o editando, no al usuario que está logueado.
                     </small>
 
                     @if (!formModel.CreateOperationalResponsibleFromUser)
@@ -137,12 +204,12 @@
                     }
                 </div>
 
-                <label class="users-switch-row">
+                <label class="users-switch-row users-field-full">
                     <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive" disabled="@(!CanManageUsers)" />
-                    <span>Usuario activo en el sistema</span>
+                    <span>Usuario activo</span>
                 </label>
 
-                <div class="users-actions">
+                <div class="users-actions users-field-full">
                     @if (CanManageUsers)
                     {
                         <button class="btn btn-primary" type="submit">
@@ -253,11 +320,6 @@
         <div class="users-card users-table-card">
             <div class="users-table-head">
                 <h3>Usuarios registrados</h3>
-
-                <input class="form-control users-search"
-                       placeholder="Buscar por documento, nombre, correo o rol..."
-                       @bind="searchText"
-                       @bind:event="oninput" />
             </div>
 
             @if (isLoading)
@@ -303,8 +365,19 @@
                                         @if (CanManageUsers)
                                         {
                                             <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(user)">Editar</button>
-                                            <button class="btn btn-sm btn-outline-purple" @onclick="() => SelectPasswordUser(user)">Cambiar contraseña</button>
-                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(user.Id)">Eliminar</button>
+                                            <button class="btn btn-sm btn-outline-purple" @onclick="() => SelectPasswordUser(user)">Contraseña</button>
+                                            @if (user.IsActive)
+                                        {
+                                            <button class="btn btn-sm btn-outline-warning" @onclick="() => SetUserStatusAsync(user, false)">
+                                                Deshabilitar
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-sm btn-outline-success" @onclick="() => SetUserStatusAsync(user, true)">
+                                                Habilitar
+                                            </button>
+                                        }
                                         }
                                     </td>
                                 </tr>
@@ -490,11 +563,69 @@
     private UserDto? selectedUser;
     private bool isLoading;
     private string? searchText;
+    private string selectedBranchFilter = string.Empty;
+    private string selectedRoleFilter = string.Empty;
+    private string selectedStatusFilter = string.Empty;
     private string message = string.Empty;
     private string messageClass = "alert alert-info";
 
     private IEnumerable<UserDto> FilteredUsers =>
-        users.Where(MatchesSearch).OrderBy(x => x.UserName);
+        users
+            .Where(MatchesSearch)
+            .Where(MatchesBranchFilter)
+            .Where(MatchesRoleFilter)
+            .Where(MatchesStatusFilter)
+            .OrderBy(x => x.UserName);
+
+
+    private IEnumerable<RoleDto> UserRoleFilterOptions =>
+        roles
+            .OrderBy(x => x.Code)
+            .ThenBy(x => x.Name);
+
+    private IEnumerable<BranchDto> UserBranchFilterOptions =>
+        branches
+            .OrderBy(x => x.Code)
+            .ThenBy(x => x.Name);
+
+    private bool MatchesBranchFilter(UserDto user)
+    {
+        if (string.IsNullOrWhiteSpace(selectedBranchFilter))
+        {
+            return true;
+        }
+
+        if (selectedBranchFilter == "__ALL__")
+        {
+            return user.Branch is null;
+        }
+
+        return string.Equals(user.Branch?.Code ?? string.Empty, selectedBranchFilter, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool MatchesRoleFilter(UserDto user)
+    {
+        return string.IsNullOrWhiteSpace(selectedRoleFilter) ||
+               string.Equals(user.Role?.Code ?? string.Empty, selectedRoleFilter, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool MatchesStatusFilter(UserDto user)
+    {
+        return selectedStatusFilter switch
+        {
+            "active" => user.IsActive,
+            "inactive" => !user.IsActive,
+            _ => true
+        };
+    }
+
+    private void ClearUserFilters()
+    {
+        searchText = string.Empty;
+        selectedBranchFilter = string.Empty;
+        selectedRoleFilter = string.Empty;
+        selectedStatusFilter = string.Empty;
+    }
 
     private IEnumerable<RoleDto> RolesForForm
     {
@@ -763,12 +894,32 @@ if (string.IsNullOrWhiteSpace(formModel.UserName) ||
     {
         Edit(user);
     }
-
-    private async Task DeleteAsync(Guid id)
+    private async Task SetUserStatusAsync(UserDto user, bool isActive)
     {
+        var action = isActive ? "habilitar" : "deshabilitar";
+
+        var question = isActive
+            ? $"El usuario {user.DisplayName} está deshabilitado. Al habilitarlo recuperará acceso al sistema según su rol y sede. Al aceptar confirmas que revisaste su información y que debe volver a operar en NAVI. ¿Deseas habilitarlo?"
+            : $"Vas a deshabilitar el usuario {user.DisplayName}. El registro se conservará para trazabilidad, pero el usuario no podrá ingresar ni operar en el sistema. ¿Deseas continuar?";
+
+        var confirmed = await JS.InvokeAsync<bool>("confirm", question);
+
+        if (!confirmed)
+        {
+            return;
+        }
+
         try
         {
-            var response = await Api.DeleteAsync($"api/settings/users/{id}?changedBy={AuthSession.AuditUser}");
+            var response = await Api.PutAsJsonAsync($"api/settings/users/{user.Id}/status", new
+            {
+                isActive,
+                acceptedReactivationTerms = isActive,
+                changedBy = AuthSession.AuditUser,
+                reason = isActive
+                    ? "Reactivación confirmada desde configuración de usuarios."
+                    : "Deshabilitación confirmada desde configuración de usuarios."
+            });
 
             if (!response.IsSuccessStatusCode)
             {
@@ -776,15 +927,20 @@ if (string.IsNullOrWhiteSpace(formModel.UserName) ||
                 return;
             }
 
-            ShowSuccess("Usuario eliminado correctamente.");
+            ShowSuccess(isActive
+                ? "Usuario habilitado correctamente."
+                : "Usuario deshabilitado correctamente. El registro se conserva para trazabilidad.");
+
             ClearForm();
             await LoadAsync();
         }
         catch (Exception ex)
         {
-            ShowError($"Error eliminando usuario: {ex.Message}");
+            ShowError($"Error al {action} usuario: {ex.Message}");
         }
     }
+
+
 
     private void ClearForm()
     {
@@ -1287,6 +1443,513 @@ if (string.IsNullOrWhiteSpace(formModel.UserName) ||
         margin-top: .25rem;
     }
 
+
+    /* NAVI USERS KPIS FILTERS FORM STANDARD START */
+
+    /* ============================================================
+       Usuarios
+       Estándar:
+       - Banner
+       - KPIs compactos
+       - Filtros horizontales debajo de KPIs
+       - Formulario de creación mejor estructurado
+       - Tabla sin búsqueda dentro del encabezado
+       ============================================================ */
+
+    html body .users-kpi-grid-standard {
+        display: grid !important;
+        grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+        gap: .48rem !important;
+
+        margin: 0 0 .62rem 0 !important;
+        padding: 0 !important;
+
+        width: 100% !important;
+    }
+
+    html body .users-kpi-grid-standard article,
+    html body .users-kpi-grid-standard article.success,
+    html body .users-kpi-grid-standard article.danger,
+    html body .users-kpi-grid-standard article.blue,
+    html body .users-kpi-grid-standard article.warning {
+        position: relative !important;
+        overflow: hidden !important;
+
+        min-height: 58px !important;
+        height: 58px !important;
+        max-height: 58px !important;
+
+        padding: .38rem .52rem .36rem .62rem !important;
+
+        border: 1px solid #dfe3e8 !important;
+        border-left-width: 4px !important;
+        border-radius: .62rem !important;
+
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        background-image: none !important;
+
+        color: #101828 !important;
+
+        box-shadow: 0 .06rem .18rem rgba(15, 23, 42, .035) !important;
+    }
+
+    html body .users-kpi-grid-standard article {
+        border-left-color: #7b0d8e !important;
+    }
+
+    html body .users-kpi-grid-standard article.success {
+        border-left-color: #12a150 !important;
+    }
+
+    html body .users-kpi-grid-standard article.danger {
+        border-left-color: #dc2626 !important;
+    }
+
+    html body .users-kpi-grid-standard article.blue {
+        border-left-color: #2f80ed !important;
+    }
+
+    html body .users-kpi-grid-standard article.warning {
+        border-left-color: #f59e0b !important;
+    }
+
+    html body .users-kpi-grid-standard article::after {
+        content: "" !important;
+        position: absolute !important;
+
+        width: 24px !important;
+        height: 24px !important;
+
+        right: .42rem !important;
+        top: .32rem !important;
+
+        border-radius: 999px !important;
+        background: #f6eef8 !important;
+        opacity: .88 !important;
+
+        pointer-events: none !important;
+    }
+
+    html body .users-kpi-grid-standard article.success::after {
+        background: #e9f9ef !important;
+    }
+
+    html body .users-kpi-grid-standard article.danger::after {
+        background: #feecec !important;
+    }
+
+    html body .users-kpi-grid-standard article.blue::after {
+        background: #eaf3ff !important;
+    }
+
+    html body .users-kpi-grid-standard article.warning::after {
+        background: #fff4da !important;
+    }
+
+    html body .users-kpi-grid-standard span,
+    html body .users-kpi-grid-standard strong,
+    html body .users-kpi-grid-standard small {
+        position: relative !important;
+        z-index: 1 !important;
+        display: block !important;
+    }
+
+    html body .users-kpi-grid-standard span {
+        margin: 0 0 .10rem 0 !important;
+
+        color: #667085 !important;
+
+        font-size: .52rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+        letter-spacing: .025em !important;
+        text-transform: uppercase !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    html body .users-kpi-grid-standard strong {
+        margin: 0 !important;
+
+        color: #101828 !important;
+
+        font-size: 1.04rem !important;
+        font-weight: 950 !important;
+        line-height: 1.03 !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    html body .users-kpi-grid-standard small {
+        margin: .08rem 0 0 0 !important;
+
+        color: #475467 !important;
+
+        font-size: .50rem !important;
+        font-weight: 850 !important;
+        line-height: 1.05 !important;
+
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    /* Filtros debajo de KPIs */
+    html body .users-page-filters {
+        display: grid !important;
+        grid-template-columns: minmax(360px, 1fr) 220px 220px 170px 120px !important;
+        align-items: center !important;
+        gap: .45rem !important;
+
+        margin: 0 0 .72rem 0 !important;
+        padding: .56rem .62rem !important;
+
+        border: 1px solid #dfe3e8 !important;
+        border-radius: .72rem !important;
+
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        background-image: none !important;
+
+        box-shadow: 0 .08rem .22rem rgba(15, 23, 42, .035) !important;
+    }
+
+    html body .users-page-filters :where(input, select, button) {
+        width: 100% !important;
+
+        height: 34px !important;
+        min-height: 34px !important;
+        max-height: 34px !important;
+
+        border-radius: .52rem !important;
+
+        font-size: .68rem !important;
+        font-weight: 850 !important;
+        line-height: 1 !important;
+
+        box-shadow: none !important;
+    }
+
+    html body .users-page-filters :where(input, select) {
+        border: 1px solid #cfd6df !important;
+
+        background: #ffffff !important;
+        color: #101828 !important;
+    }
+
+    html body .users-page-filters :where(input, select):focus {
+        border-color: #7b0d8e !important;
+        box-shadow: 0 0 0 .14rem rgba(123, 13, 142, .10) !important;
+    }
+
+    html body .users-page-filters button {
+        border: 1px solid #0d6efd !important;
+        background: #ffffff !important;
+        color: #0d6efd !important;
+        font-weight: 950 !important;
+    }
+
+    html body .users-page-filters button:hover {
+        background: #0d6efd !important;
+        color: #ffffff !important;
+    }
+
+    /* Ocultar búsqueda vieja si algún CSS anterior intenta mostrarla */
+    html body .users-table-head .users-search {
+        display: none !important;
+    }
+
+    html body .users-table-head {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        margin-bottom: .62rem !important;
+    }
+
+    html body .users-table-head h3 {
+        margin: 0 !important;
+        font-size: .96rem !important;
+        font-weight: 950 !important;
+        color: #101828 !important;
+    }
+
+    /* ============================================================
+       Crear usuario mejor estructurado
+       ============================================================ */
+
+    html body .users-grid {
+        grid-template-columns: 420px minmax(0, 1fr) !important;
+        gap: .78rem !important;
+        align-items: start !important;
+    }
+
+    html body .users-left-stack {
+        display: grid !important;
+        gap: .78rem !important;
+        align-self: start !important;
+    }
+
+    html body .users-create-card,
+    html body .users-password-panel-left {
+        padding: .82rem !important;
+        border: 1px solid #dfe3e8 !important;
+        border-radius: .82rem !important;
+        background: #ffffff !important;
+        box-shadow: 0 .08rem .22rem rgba(15, 23, 42, .035) !important;
+    }
+
+    html body .users-create-card h3,
+    html body .users-password-panel-left h3 {
+        margin: 0 0 .62rem 0 !important;
+        color: #101828 !important;
+        font-size: .96rem !important;
+        font-weight: 950 !important;
+        line-height: 1.05 !important;
+    }
+
+    html body .users-create-form-standard {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: .52rem .58rem !important;
+        align-items: start !important;
+    }
+
+    html body .users-create-form-standard label {
+        margin: 0 !important;
+        min-width: 0 !important;
+
+        display: grid !important;
+        gap: .22rem !important;
+
+        color: #344054 !important;
+
+        font-size: .66rem !important;
+        font-weight: 950 !important;
+        line-height: 1.05 !important;
+    }
+
+    html body .users-create-form-standard .users-field-half {
+        grid-column: span 1 !important;
+    }
+
+    html body .users-create-form-standard .users-field-full,
+    html body .users-create-form-standard .users-operational-box,
+    html body .users-create-form-standard .users-switch-row,
+    html body .users-create-form-standard .users-actions {
+        grid-column: 1 / -1 !important;
+    }
+
+    html body .users-create-form-standard :where(input, select, .form-control, .form-select) {
+        width: 100% !important;
+
+        height: 34px !important;
+        min-height: 34px !important;
+        max-height: 34px !important;
+
+        margin: 0 !important;
+
+        border-radius: .52rem !important;
+        border: 1px solid #cfd6df !important;
+
+        background: #ffffff !important;
+        color: #101828 !important;
+
+        font-size: .68rem !important;
+        font-weight: 800 !important;
+        line-height: 1 !important;
+
+        box-shadow: none !important;
+    }
+
+    html body .users-create-form-standard :where(input, select, .form-control, .form-select):focus {
+        border-color: #7b0d8e !important;
+        box-shadow: 0 0 0 .14rem rgba(123, 13, 142, .10) !important;
+    }
+
+    html body .users-create-form-standard .users-help {
+        margin: .08rem 0 0 0 !important;
+        color: #667085 !important;
+        font-size: .56rem !important;
+        font-weight: 750 !important;
+        line-height: 1.12 !important;
+    }
+
+    html body .users-create-form-standard .users-operational-box {
+        margin: 0 !important;
+        padding: .52rem .58rem !important;
+
+        border: 1px solid #dfe3e8 !important;
+        border-left: 4px solid #7b0d8e !important;
+        border-radius: .62rem !important;
+
+        background: #fbf7fd !important;
+        box-shadow: none !important;
+    }
+
+    html body .users-create-form-standard .users-switch-row {
+        display: flex !important;
+        align-items: center !important;
+        gap: .42rem !important;
+
+        margin: 0 !important;
+
+        min-height: 32px !important;
+
+        color: #101828 !important;
+        font-size: .66rem !important;
+        font-weight: 900 !important;
+    }
+
+    html body .users-create-form-standard .users-actions {
+        display: flex !important;
+        gap: .42rem !important;
+        justify-content: flex-start !important;
+        align-items: center !important;
+
+        margin: 0 !important;
+        padding: .10rem 0 0 0 !important;
+        border-top: 0 !important;
+    }
+
+    html body .users-create-form-standard .users-actions .btn {
+        height: 32px !important;
+        min-height: 32px !important;
+
+        padding: 0 .80rem !important;
+
+        border-radius: .52rem !important;
+
+        font-size: .66rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+    }
+
+    /* Contraseña */
+    html body .users-password-change-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: .52rem !important;
+    }
+
+    html body .users-edit-box {
+        padding: .70rem !important;
+        border: 1px solid #dfe3e8 !important;
+        border-radius: .70rem !important;
+        background: #ffffff !important;
+    }
+
+    html body .users-edit-box p {
+        margin: 0 0 .55rem 0 !important;
+        font-size: .64rem !important;
+        line-height: 1.15 !important;
+        color: #667085 !important;
+        font-weight: 750 !important;
+    }
+
+    html body .users-edit-box label {
+        margin: 0 !important;
+        font-size: .66rem !important;
+        font-weight: 950 !important;
+        color: #344054 !important;
+    }
+
+    html body .users-edit-box :where(input, .form-control) {
+        height: 34px !important;
+        min-height: 34px !important;
+        border-radius: .52rem !important;
+        font-size: .68rem !important;
+        font-weight: 800 !important;
+    }
+
+    /* Tabla */
+    html body .users-table-card {
+        padding: .82rem !important;
+    }
+
+    html body .users-table {
+        font-size: .76rem !important;
+    }
+
+    html body .users-table th {
+        font-size: .62rem !important;
+        font-weight: 950 !important;
+        color: #101828 !important;
+        border-bottom: 1px solid #111827 !important;
+    }
+
+    html body .users-table td {
+        vertical-align: middle !important;
+    }
+
+    html body .users-table td.text-end {
+        min-width: 210px !important;
+    }
+
+    html body .users-table td.text-end .btn {
+        height: 28px !important;
+        min-height: 28px !important;
+        padding: 0 .52rem !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+
+        border-radius: .46rem !important;
+
+        font-size: .58rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+    }
+
+    @@media (max-width: 1450px) {
+        html body .users-page-filters {
+            grid-template-columns: 1fr 180px 180px 150px 110px !important;
+        }
+
+        html body .users-grid {
+            grid-template-columns: 390px minmax(0, 1fr) !important;
+        }
+    }
+
+    @@media (max-width: 1180px) {
+        html body .users-kpi-grid-standard {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        }
+
+        html body .users-page-filters,
+        html body .users-grid {
+            grid-template-columns: 1fr !important;
+        }
+
+        html body .users-create-form-standard {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+    }
+
+    @@media (max-width: 760px) {
+        html body .users-kpi-grid-standard,
+        html body .users-create-form-standard,
+        html body .users-password-change-grid {
+            grid-template-columns: 1fr !important;
+        }
+
+        html body .users-page-filters {
+            grid-template-columns: 1fr !important;
+        }
+
+        html body .users-kpi-grid-standard article {
+            height: auto !important;
+            max-height: none !important;
+        }
+    }
+
+    /* NAVI USERS KPIS FILTERS FORM STANDARD END */
+
 </style>
 
 
@@ -1308,4 +1971,783 @@ if (string.IsNullOrWhiteSpace(formModel.UserName) ||
     .users-operational-box label {
         margin: 0;
     }
+
+    
+
+
+    /* NAVI USERS COMPACT TABLE SWITCHES FIX START */
+
+    /* ============================================================
+       Usuarios
+       - Tabla más compacta para ver acciones.
+       - Checks circulares, no barras alargadas.
+       - Formulario de usuario más limpio.
+       ============================================================ */
+
+    html body .users-grid {
+        grid-template-columns: 370px minmax(0, 1fr) !important;
+        gap: .70rem !important;
+        align-items: start !important;
+    }
+
+    html body .users-create-card,
+    html body .users-password-panel-left {
+        padding: .72rem !important;
+    }
+
+    html body .users-create-form-standard {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: .46rem .50rem !important;
+    }
+
+    html body .users-create-form-standard label {
+        font-size: .62rem !important;
+        line-height: 1.05 !important;
+    }
+
+    html body .users-create-form-standard :where(input, select, .form-control, .form-select) {
+        height: 32px !important;
+        min-height: 32px !important;
+        max-height: 32px !important;
+
+        font-size: .64rem !important;
+        font-weight: 800 !important;
+    }
+
+    /* Evitar que los checkbox hereden width:100% y height:34px */
+    html body .users-create-form-standard .form-check-input,
+    html body .users-operational-box .form-check-input,
+    html body .users-switch-row .form-check-input {
+        appearance: auto !important;
+        -webkit-appearance: checkbox !important;
+
+        width: 17px !important;
+        min-width: 17px !important;
+        max-width: 17px !important;
+
+        height: 17px !important;
+        min-height: 17px !important;
+        max-height: 17px !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+
+        flex: 0 0 17px !important;
+
+        border-radius: 999px !important;
+        border: 1px solid #7b0d8e !important;
+
+        background-color: #ffffff !important;
+
+        accent-color: #7b0d8e !important;
+
+        box-shadow: none !important;
+        cursor: pointer !important;
+    }
+
+    html body .users-create-form-standard .form-check-input:checked,
+    html body .users-operational-box .form-check-input:checked,
+    html body .users-switch-row .form-check-input:checked {
+        background-color: #7b0d8e !important;
+        border-color: #7b0d8e !important;
+    }
+
+    html body .users-create-form-standard .users-switch-row,
+    html body .users-operational-box .users-switch-row,
+    html body .users-switch-row.users-field-full {
+        display: flex !important;
+        align-items: center !important;
+        gap: .42rem !important;
+
+        width: 100% !important;
+        min-height: 28px !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+
+        color: #101828 !important;
+
+        font-size: .64rem !important;
+        font-weight: 900 !important;
+        line-height: 1.1 !important;
+    }
+
+    html body .users-create-form-standard .users-switch-row span,
+    html body .users-operational-box .users-switch-row span,
+    html body .users-switch-row.users-field-full span {
+        display: inline !important;
+        min-width: 0 !important;
+
+        color: #101828 !important;
+
+        font-size: .64rem !important;
+        font-weight: 900 !important;
+        line-height: 1.1 !important;
+    }
+
+    html body .users-create-form-standard .users-operational-box {
+        margin: 0 !important;
+        padding: .48rem .54rem !important;
+
+        display: grid !important;
+        gap: .28rem !important;
+
+        border: 1px solid #dfe3e8 !important;
+        border-left: 4px solid #7b0d8e !important;
+        border-radius: .64rem !important;
+
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        background-image: none !important;
+
+        box-shadow: 0 .06rem .16rem rgba(15, 23, 42, .035) !important;
+    }
+
+    html body .users-create-form-standard .users-operational-box .users-help {
+        margin: 0 0 0 1.62rem !important;
+
+        color: #667085 !important;
+
+        font-size: .54rem !important;
+        font-weight: 750 !important;
+        line-height: 1.14 !important;
+    }
+
+    html body .users-create-form-standard .users-actions {
+        margin: 0 !important;
+        padding: .08rem 0 0 0 !important;
+
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: .38rem !important;
+    }
+
+    html body .users-create-form-standard .users-actions .btn {
+        height: 30px !important;
+        min-height: 30px !important;
+
+        padding: 0 .72rem !important;
+
+        font-size: .62rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+    }
+
+    /* ============================================================
+       Tabla compacta y acciones visibles
+       ============================================================ */
+
+    html body .users-table-card {
+        min-width: 0 !important;
+        overflow: hidden !important;
+        padding: .72rem !important;
+    }
+
+    html body .users-table-wrapper {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: auto !important;
+        overflow-y: visible !important;
+        padding-bottom: .35rem !important;
+    }
+
+    html body .users-table {
+        width: 100% !important;
+        min-width: 980px !important;
+
+        table-layout: fixed !important;
+
+        font-size: .70rem !important;
+    }
+
+    html body .users-table th,
+    html body .users-table td {
+        padding: .42rem .42rem !important;
+        vertical-align: middle !important;
+    }
+
+    html body .users-table th {
+        font-size: .56rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+        letter-spacing: .015em !important;
+    }
+
+    html body .users-table td {
+        font-size: .66rem !important;
+        font-weight: 800 !important;
+        line-height: 1.08 !important;
+    }
+
+    html body .users-table th:nth-child(1),
+    html body .users-table td:nth-child(1) {
+        width: 92px !important;
+    }
+
+    html body .users-table th:nth-child(2),
+    html body .users-table td:nth-child(2) {
+        width: 128px !important;
+    }
+
+    html body .users-table th:nth-child(3),
+    html body .users-table td:nth-child(3) {
+        width: 185px !important;
+    }
+
+    html body .users-table th:nth-child(4),
+    html body .users-table td:nth-child(4) {
+        width: 170px !important;
+    }
+
+    html body .users-table th:nth-child(5),
+    html body .users-table td:nth-child(5) {
+        width: 120px !important;
+    }
+
+    html body .users-table th:nth-child(6),
+    html body .users-table td:nth-child(6) {
+        width: 90px !important;
+    }
+
+    html body .users-table th:nth-child(7),
+    html body .users-table td:nth-child(7) {
+        width: 76px !important;
+    }
+
+    html body .users-table th:nth-child(8),
+    html body .users-table td:nth-child(8) {
+        width: 176px !important;
+        min-width: 176px !important;
+    }
+
+    html body .users-table td:not(:last-child) {
+        white-space: normal !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    html body .users-table th.text-end,
+    html body .users-table td.text-end {
+        position: sticky !important;
+        right: 0 !important;
+        z-index: 5 !important;
+
+        background: #ffffff !important;
+
+        box-shadow: -8px 0 12px rgba(15, 23, 42, .035) !important;
+    }
+
+    html body .users-table th.text-end {
+        z-index: 6 !important;
+    }
+
+    html body .users-table td.text-end {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        flex-wrap: wrap !important;
+        gap: .24rem !important;
+
+        min-width: 176px !important;
+    }
+
+    html body .users-table td.text-end .btn {
+        width: 76px !important;
+        min-width: 76px !important;
+        max-width: 76px !important;
+
+        height: 26px !important;
+        min-height: 26px !important;
+
+        padding: 0 .30rem !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+
+        border-radius: .42rem !important;
+
+        font-size: .54rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+
+        white-space: nowrap !important;
+    }
+
+    html body .users-status {
+        height: 22px !important;
+        min-height: 22px !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+
+        padding: 0 .46rem !important;
+
+        font-size: .56rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+    }
+
+    /* Ajuste para no sentir la ventana tan pesada */
+    html body .users-page-filters {
+        margin-bottom: .56rem !important;
+    }
+
+    html body .users-kpi-grid-standard {
+        margin-bottom: .56rem !important;
+    }
+
+    @@media (max-width: 1450px) {
+        html body .users-grid {
+            grid-template-columns: 350px minmax(0, 1fr) !important;
+        }
+
+        html body .users-table {
+            min-width: 940px !important;
+        }
+    }
+
+    @@media (max-width: 1180px) {
+        html body .users-grid {
+            grid-template-columns: 1fr !important;
+        }
+
+        html body .users-table th.text-end,
+        html body .users-table td.text-end {
+            position: static !important;
+            box-shadow: none !important;
+        }
+    }
+
+    @@media (max-width: 760px) {
+        html body .users-create-form-standard {
+            grid-template-columns: 1fr !important;
+        }
+    }
+
+    /* NAVI USERS COMPACT TABLE SWITCHES FIX END */
+
+
+    /* NAVI USERS NO DELETE DISABLE ENABLE START */
+
+    html body .users-table td.text-end .btn-outline-warning {
+        border-color: #f59e0b !important;
+        background: #ffffff !important;
+        color: #9a3412 !important;
+    }
+
+    html body .users-table td.text-end .btn-outline-warning:hover {
+        background: #f59e0b !important;
+        color: #ffffff !important;
+    }
+
+    html body .users-table td.text-end .btn-outline-success {
+        border-color: #12a150 !important;
+        background: #ffffff !important;
+        color: #166534 !important;
+    }
+
+    html body .users-table td.text-end .btn-outline-success:hover {
+        background: #12a150 !important;
+        color: #ffffff !important;
+    }
+
+    html body .users-table td.text-end .btn {
+        width: 88px !important;
+        min-width: 88px !important;
+        max-width: 88px !important;
+        height: 26px !important;
+        min-height: 26px !important;
+        padding: 0 .30rem !important;
+        font-size: .52rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+        white-space: nowrap !important;
+    }
+
+    html body .users-table th:nth-child(8),
+    html body .users-table td:nth-child(8) {
+        width: 205px !important;
+        min-width: 205px !important;
+    }
+
+    html body .users-table td.text-end {
+        min-width: 205px !important;
+        display: flex !important;
+        flex-wrap: wrap !important;
+        justify-content: flex-end !important;
+        gap: .24rem !important;
+    }
+
+    /* NAVI USERS NO DELETE DISABLE ENABLE END */
+
+
+    /* NAVI USERS ONE COLUMN FORM WIDER TABLE START */
+
+    /* ============================================================
+       Usuarios
+       Objetivo:
+       - Crear usuario en una sola columna.
+       - Reducir ancho del panel izquierdo.
+       - Dar más espacio a Usuarios registrados.
+       - Mantener botones de acciones visibles.
+       ============================================================ */
+
+    html body .users-grid {
+        grid-template-columns: 315px minmax(0, 1fr) !important;
+        gap: .70rem !important;
+        align-items: start !important;
+    }
+
+    html body .users-left-stack {
+        width: 315px !important;
+        max-width: 315px !important;
+        min-width: 0 !important;
+
+        display: grid !important;
+        gap: .62rem !important;
+        align-self: start !important;
+    }
+
+    html body .users-create-card,
+    html body .users-password-panel-left {
+        padding: .66rem !important;
+        border-radius: .76rem !important;
+    }
+
+    html body .users-create-card h3,
+    html body .users-password-panel-left h3 {
+        margin-bottom: .52rem !important;
+        font-size: .88rem !important;
+        line-height: 1.05 !important;
+    }
+
+    /* Crear usuario en una sola columna */
+    html body .users-create-form-standard {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: .42rem !important;
+        align-items: start !important;
+    }
+
+    html body .users-create-form-standard .users-field-half,
+    html body .users-create-form-standard .users-field-full,
+    html body .users-create-form-standard .users-branch-field,
+    html body .users-create-form-standard .users-operational-box,
+    html body .users-create-form-standard .users-switch-row,
+    html body .users-create-form-standard .users-actions {
+        grid-column: 1 / -1 !important;
+    }
+
+    html body .users-create-form-standard label {
+        gap: .18rem !important;
+        font-size: .60rem !important;
+        line-height: 1.05 !important;
+    }
+
+    html body .users-create-form-standard :where(input, select, .form-control, .form-select) {
+        height: 30px !important;
+        min-height: 30px !important;
+        max-height: 30px !important;
+
+        border-radius: .48rem !important;
+
+        font-size: .62rem !important;
+        font-weight: 800 !important;
+        line-height: 1 !important;
+    }
+
+    html body .users-create-form-standard .users-help {
+        margin-top: .05rem !important;
+        font-size: .51rem !important;
+        line-height: 1.10 !important;
+    }
+
+    html body .users-create-form-standard .users-operational-box {
+        padding: .46rem .50rem !important;
+        border-radius: .58rem !important;
+    }
+
+    html body .users-create-form-standard .users-operational-box .users-help {
+        margin-left: 1.48rem !important;
+        font-size: .50rem !important;
+        line-height: 1.10 !important;
+    }
+
+    html body .users-create-form-standard .form-check-input,
+    html body .users-operational-box .form-check-input,
+    html body .users-switch-row .form-check-input {
+        width: 16px !important;
+        min-width: 16px !important;
+        max-width: 16px !important;
+
+        height: 16px !important;
+        min-height: 16px !important;
+        max-height: 16px !important;
+
+        flex: 0 0 16px !important;
+
+        border-radius: 999px !important;
+        accent-color: #7b0d8e !important;
+    }
+
+    html body .users-create-form-standard .users-switch-row {
+        min-height: 26px !important;
+        font-size: .60rem !important;
+    }
+
+    html body .users-create-form-standard .users-actions {
+        display: flex !important;
+        gap: .36rem !important;
+        margin-top: .04rem !important;
+    }
+
+    html body .users-create-form-standard .users-actions .btn {
+        height: 29px !important;
+        min-height: 29px !important;
+
+        padding: 0 .66rem !important;
+
+        border-radius: .46rem !important;
+
+        font-size: .60rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+    }
+
+    /* Contraseña también en una sola columna para no ocupar ancho */
+    html body .users-password-change-grid {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: .42rem !important;
+    }
+
+    html body .users-edit-box {
+        padding: .58rem !important;
+        border-radius: .62rem !important;
+    }
+
+    html body .users-edit-box p {
+        margin-bottom: .44rem !important;
+        font-size: .58rem !important;
+        line-height: 1.12 !important;
+    }
+
+    html body .users-edit-box label {
+        font-size: .60rem !important;
+        line-height: 1.05 !important;
+    }
+
+    html body .users-edit-box :where(input, .form-control) {
+        height: 30px !important;
+        min-height: 30px !important;
+        max-height: 30px !important;
+
+        border-radius: .48rem !important;
+
+        font-size: .62rem !important;
+    }
+
+    /* Dar más ancho real a la tabla */
+    html body .users-table-card {
+        min-width: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: .72rem !important;
+        overflow: hidden !important;
+    }
+
+    html body .users-table-wrapper {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: auto !important;
+        overflow-y: visible !important;
+    }
+
+    html body .users-table {
+        width: 100% !important;
+        min-width: 1080px !important;
+        table-layout: fixed !important;
+    }
+
+    html body .users-table th,
+    html body .users-table td {
+        padding: .40rem .38rem !important;
+        vertical-align: middle !important;
+    }
+
+    html body .users-table th {
+        font-size: .55rem !important;
+        line-height: 1 !important;
+    }
+
+    html body .users-table td {
+        font-size: .64rem !important;
+        line-height: 1.08 !important;
+    }
+
+    /* Distribución de columnas más usable */
+    html body .users-table th:nth-child(1),
+    html body .users-table td:nth-child(1) {
+        width: 92px !important;
+    }
+
+    html body .users-table th:nth-child(2),
+    html body .users-table td:nth-child(2) {
+        width: 135px !important;
+    }
+
+    html body .users-table th:nth-child(3),
+    html body .users-table td:nth-child(3) {
+        width: 210px !important;
+    }
+
+    html body .users-table th:nth-child(4),
+    html body .users-table td:nth-child(4) {
+        width: 175px !important;
+    }
+
+    html body .users-table th:nth-child(5),
+    html body .users-table td:nth-child(5) {
+        width: 135px !important;
+    }
+
+    html body .users-table th:nth-child(6),
+    html body .users-table td:nth-child(6) {
+        width: 78px !important;
+    }
+
+    html body .users-table th:nth-child(7),
+    html body .users-table td:nth-child(7) {
+        width: 72px !important;
+    }
+
+    html body .users-table th:nth-child(8),
+    html body .users-table td:nth-child(8) {
+        width: 185px !important;
+        min-width: 185px !important;
+    }
+
+    html body .users-table td:not(:last-child) {
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    html body .users-table th.text-end,
+    html body .users-table td.text-end {
+        position: sticky !important;
+        right: 0 !important;
+        z-index: 5 !important;
+
+        background: #ffffff !important;
+        box-shadow: -8px 0 12px rgba(15, 23, 42, .035) !important;
+    }
+
+    html body .users-table th.text-end {
+        z-index: 6 !important;
+    }
+
+    html body .users-table td.text-end {
+        min-width: 185px !important;
+
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        flex-wrap: wrap !important;
+        gap: .22rem !important;
+    }
+
+    html body .users-table td.text-end .btn {
+        width: 82px !important;
+        min-width: 82px !important;
+        max-width: 82px !important;
+
+        height: 25px !important;
+        min-height: 25px !important;
+
+        padding: 0 .28rem !important;
+
+        border-radius: .40rem !important;
+
+        font-size: .51rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+
+        white-space: nowrap !important;
+    }
+
+    html body .users-status {
+        height: 21px !important;
+        min-height: 21px !important;
+        padding: 0 .42rem !important;
+        font-size: .54rem !important;
+    }
+
+    /* Filtros no deben agrandar la pantalla */
+    html body .users-page-filters {
+        grid-template-columns: minmax(320px, 1fr) 190px 190px 155px 110px !important;
+        gap: .42rem !important;
+        padding: .52rem .58rem !important;
+        margin-bottom: .62rem !important;
+    }
+
+    html body .users-page-filters :where(input, select, button) {
+        height: 32px !important;
+        min-height: 32px !important;
+        max-height: 32px !important;
+        font-size: .64rem !important;
+    }
+
+    @@media (max-width: 1280px) {
+        html body .users-grid {
+            grid-template-columns: 300px minmax(0, 1fr) !important;
+        }
+
+        html body .users-left-stack {
+            width: 300px !important;
+            max-width: 300px !important;
+        }
+
+        html body .users-page-filters {
+            grid-template-columns: 1fr 170px 170px 145px 105px !important;
+        }
+    }
+
+    @@media (max-width: 1050px) {
+        html body .users-grid {
+            grid-template-columns: 1fr !important;
+        }
+
+        html body .users-left-stack {
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+
+        html body .users-page-filters {
+            grid-template-columns: 1fr 1fr !important;
+        }
+
+        html body .users-page-filters input {
+            grid-column: span 2 !important;
+        }
+
+        html body .users-table th.text-end,
+        html body .users-table td.text-end {
+            position: static !important;
+            box-shadow: none !important;
+        }
+    }
+
+    @@media (max-width: 680px) {
+        html body .users-page-filters {
+            grid-template-columns: 1fr !important;
+        }
+
+        html body .users-page-filters input {
+            grid-column: auto !important;
+        }
+    }
+
+    /* NAVI USERS ONE COLUMN FORM WIDER TABLE END */
+
 </style>

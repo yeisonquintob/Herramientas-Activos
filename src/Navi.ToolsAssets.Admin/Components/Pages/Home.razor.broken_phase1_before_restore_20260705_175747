@@ -1,0 +1,3668 @@
+@page "/"
+@page "/dashboard"
+@rendermode InteractiveServer
+
+@using System.Globalization
+@using System.Net.Http.Json
+@using Navi.ToolsAssets.Admin.Components.Shared
+@using System.Text.Json
+@using System.Text.RegularExpressions
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Dashboard - NAVI</PageTitle>
+
+<PermissionGuard Permission="Dashboard.View" ModuleName="Dashboard">
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+else if (isLoading && dashboard is null)
+{
+    <div class="alert alert-info">Cargando dashboard...</div>
+}
+else if (dashboard is not null)
+{
+    <section class="dash-board dash-board-v5">
+        <section class="dash-hero">
+            <div>
+                <span class="dash-hero-pill">DASHBOARD · CONTROL</span>
+                <h2>Dashboard</h2>
+                <p>Vista ejecutiva de inventario, responsables, mantenimiento, documentos y avance de toma física.</p>
+            </div>
+
+            <div class="dash-hero-actions navi-hero-actions>
+                <button type="button" class="dash-hero-refresh navi-hero-refresh-btn @onclick="LoadDashboardAsync" disabled="@isLoading">
+                    @(isLoading ? "Actualizando..." : "Actualizar")
+                </button>
+            </div>
+        </section>
+
+        <section class="navi-dashboard-filter-panel">
+            <label>
+                <span>Sede</span>
+                <input value="@filterBranchCode"
+                       @oninput="OnFilterBranchChanged"
+                       placeholder="Todas / AGU / Medellín..." />
+            </label>
+
+            <label>
+                <span class="dash-hero-pill">DASHBOARD · CONTROL</span>
+                <select value="@filterOperationalStatus" @onchange="OnFilterStatusChanged">
+                    <option value="">Todos</option>
+                    @foreach (var item in dashboardStatusFilters)
+                    {
+                        <option value="@item.Value">@item.Text</option>
+                    }
+                </select>
+            </label>
+
+            <label>
+                <span>Buscar</span>
+                <input value="@filterText"
+                       @oninput="OnFilterTextChanged"
+                       placeholder="Código, nombre, serial, responsable..." />
+            </label>
+
+            <div>
+                <button type="button" class="btn btn-primary dash-filter-btn" @onclick="ApplyDashboardFiltersAsync" disabled="@isLoading">Filtrar</button>
+                <button type="button" class="btn btn-outline-secondary dash-filter-btn secondary" @onclick="ClearDashboardFiltersAsync" disabled="@isLoading">Limpiar</button>
+            </div>
+        </section>
+
+        <section class="dash-kpis">
+            <article class="purple">
+                <span>Participantes</span>
+                <strong>@dashboard.Summary.ActiveResponsibles</strong>
+                <small>Usuario / responsable</small>
+            </article>
+
+            <article class="cyan">
+                <span>En proceso</span>
+                <strong>@GetInProcess()</strong>
+                <small>Inventario activo</small>
+            </article>
+
+            <article class="green">
+                <span>Finalizados</span>
+                <strong>@dashboard.Summary.WithLifeRecord</strong>
+                <small>Con hoja de vida</small>
+            </article>
+
+            <article class="yellow">
+                <span>Pendientes</span>
+                <strong>@GetPendingTotal()</strong>
+                <small>Por validar</small>
+            </article>
+
+            <article class="red">
+                <span>Diferencias</span>
+                <strong>@GetDifferences()</strong>
+                <small>Conciliación</small>
+            </article>
+
+            <article class="purple">
+                <span>Avance</span>
+                <strong>@GetAdvancePercent()%</strong>
+                <small>@dashboard.Summary.WithLifeRecord de @dashboard.Summary.TotalTools</small>
+            </article>
+        </section>
+
+        <section class="dash-layout">
+            <section class="dash-main-left">
+                <div class="dash-overview-grid">
+                    <article class="dash-card dash-local">
+                        <h3>Local de herramientas</h3>
+
+                        <div class="dash-local-list">
+                            <div><span><i class="dash-local-symbol dash-local-symbol-total">🧰</i>Total herramientas</span><strong>@dashboard.Summary.TotalTools.ToString("N0")</strong></div>
+                            <div><span><i class="dash-local-symbol dash-local-symbol-ok">✓</i>Disponibles</span><strong>@dashboard.Summary.AvailableTools.ToString("N0")</strong></div>
+                            <div><span><i class="dash-local-symbol dash-local-symbol-assigned">↗</i>Asignadas</span><strong>@dashboard.Summary.AssignedTools.ToString("N0")</strong></div>
+                            <div><span><i class="dash-local-symbol dash-local-symbol-maintenance">⚙</i>En mantenimiento</span><strong>@dashboard.Summary.InMaintenanceTools.ToString("N0")</strong></div>
+                            <div><span><i class="dash-local-symbol dash-local-symbol-warning">!</i>Pendientes validación</span><strong>@dashboard.Summary.PendingValidationTools.ToString("N0")</strong></div>
+                            <div><span><i class="dash-local-symbol dash-local-symbol-danger">×</i>Desactivados / baja</span><strong>@dashboard.Summary.DisposedTools.ToString("N0")</strong></div>
+                        </div></article>
+
+                    <article class="dash-card dash-maintenance">
+                        <div class="dash-card-head">
+                            <h3>Mantenimientos realizados</h3>
+
+                            <div class="dash-tabs">
+                                <button type="button" class="@GetMaintenanceTabClass("month")" @onclick="@(() => SetMaintenanceTab("month"))">Por mes</button>
+                                <button type="button" class="@GetMaintenanceTabClass("day")" @onclick="@(() => SetMaintenanceTab("day"))">Por día</button>
+                            </div>
+                        </div>
+
+                        <div class="dash-maintenance-list">
+                            <div><span>@(maintenanceTab == "month" ? "Por mes" : "Por día")</span><strong>@GetSelectedMaintenanceValue()</strong></div>
+                            <div><span>En proceso</span><strong>@dashboard.Summary.InMaintenanceTools</strong></div>
+                            <div><span>Pendientes</span><strong>@dashboard.Summary.RequiresMaintenance</strong></div>
+                            <div><span>Otras</span><strong>@GetOtherStatusTools()</strong></div>
+                        </div>
+                    </article>
+
+                    <article class="dash-card dash-vs">
+                        <h3>Mantenimientos vs compras</h3>
+
+                        <div class="dash-vs-content">
+                            <div class="dash-donut md" style="@GetOperationsCostDonut()">
+                                <div>
+                                    <strong>@FormatDashboardMoneyCompact(GetOperationsCostTotal())</strong>
+                                    <span>Total</span>
+                                </div>
+                            </div>
+
+                            <div class="dash-legend compact dash-cost-legend">
+                                <div>
+                                    <i class="purple"></i>
+                                    <span>Mantenimientos</span>
+                                    <strong>@FormatDashboardMoney(operationCosts.MaintenanceCost)</strong>
+                                    <small>@GetOperationsCostTotalPercentLabel(operationCosts.MaintenanceCost)</small>
+                                </div>
+
+                                <div>
+                                    <i class="blue"></i>
+                                    <span>Compras</span>
+                                    <strong>@FormatDashboardMoney(operationCosts.PurchaseCost)</strong>
+                                    <small>@GetOperationsCostTotalPercentLabel(operationCosts.PurchaseCost)</small>
+                                </div>
+
+                                <div class="dash-total-row">
+                                    <i class="gray"></i>
+                                    <span>Total</span>
+                                    <strong>@FormatDashboardMoney(GetOperationsCostTotal())</strong>
+                                    <small>100%</small>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+
+                <article class="dash-card dash-table-card">
+                    <div class="dash-section-head">
+                        <div>
+                            <h3>Resumen por sede / responsable</h3>
+                            <p>Seguimiento de asignaciones, validaciones, pendientes, diferencias y avance.</p>
+                        </div>
+
+                        <span>@dashboard.ToolsByBranch.Count sedes</span>
+                    </div>
+
+                    <table class="dash-table">
+                        <thead>
+                            <tr>
+                                <th>Usuario / Responsable</th>
+                                <th>Asignadas</th>
+                                <th>Validadas</th>
+                                <th>Pendientes</th>
+                                <th>Diferencias</th>
+                                <th>Avance</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var item in dashboard.ToolsByBranch.Take(7))
+                            {
+                                var assigned = GetBranchAssigned(item.Total);
+                                var valid = GetBranchValidated(item.Total);
+                                var pending = GetBranchPending(item.Total);
+                                var difference = GetBranchDifferences(item.Total);
+                                var percent = GetBranchAdvance(item.Total);
+
+                                <tr>
+                                    <td>
+                                        <div class="dash-branch-name">
+                                            <strong>@item.BranchName</strong>
+                                            <span>@item.BranchCode</span>
+                                            <small>Responsable sede</small>
+                                        </div>
+                                    </td>
+
+                                    <td>@assigned</td>
+                                    <td>@valid</td>
+                                    <td><span class="dash-pending">@pending</span></td>
+                                    <td><span class="dash-difference">@difference</span></td>
+
+                                    <td>
+                                        <div class="dash-progress">
+                                            <span style="@GetProgressStyle(percent)"></span>
+                                        </div>
+                                        <small>@percent%</small>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+
+                    <div class="dash-pending-panel">
+                        <div>
+                            <h3>@GetPendingPanelTitle()</h3>
+                            <p>Herramientas o activos pendientes de validación por el participante.</p>
+                        </div>
+
+                        <button type="button">Cerrar</button>
+                    </div>
+                </article>
+            </section>
+
+            <section class="dash-main-right">
+                <article class="dash-card dash-branch">
+                    <div class="dash-section-head">
+                        <div>
+                            <h3>Herramientas por sede</h3>
+                            <p>Distribución proporcional por sede.</p>
+                        </div>
+
+                        <span>Máx. @GetMaxBranch()</span>
+                    </div>
+
+                    <div class="dash-branch-chart">
+                        <div class="dash-axis">
+                            <span>100</span>
+                            <span>75</span>
+                            <span>50</span>
+                            <span>25</span>
+                            <span>0</span>
+                        </div>
+
+                        <div class="dash-branch-bars">
+                            @foreach (var item in GetBranchChartItems())
+                            {
+                                <div class="dash-branch-bar-item" title="@($"{item.Branch.BranchCode} - {item.Branch.BranchName}: {item.Branch.Total}")">
+                                    <strong style="@GetBranchBarStyle(item.Branch.Total, item.Index)">
+                                        <em>@item.Branch.Total</em>
+                                    </strong>
+<small>@ShortName(item.Branch.BranchName)</small>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </article>
+
+                <div class="dash-chart-grid">
+                    <article class="dash-card dash-donut-card">
+                        <h3>Distribución de activos fijos</h3>
+
+                        <div class="dash-donut-row">
+                            <div class="dash-donut lg" style="@GetToolsVsAssetsDonut()">
+                                <div>
+                                    <strong>@GetToolsVsAssetsTotal().ToString("N0")</strong>
+                                    <span>Total</span>
+                                </div>
+                            </div>
+
+                            <div class="dash-legend">
+                                <div><i class="purple"></i><span>Herramientas</span><strong>@dashboard.Summary.ToolsOnly</strong><small>@GetPercentLabel(dashboard.Summary.ToolsOnly, GetToolsVsAssetsTotal())</small></div>
+                                <div><i class="blue"></i><span>Activos fijos</span><strong>@dashboard.Summary.FixedAssets</strong><small>@GetPercentLabel(dashboard.Summary.FixedAssets, GetToolsVsAssetsTotal())</small></div>
+                                <div><i class="orange"></i><span>Sin código Herramientas y AF</span><strong>@dashboard.Summary.ToolsWithoutFixedAssetCode</strong><small>@GetPercentLabel(dashboard.Summary.ToolsWithoutFixedAssetCode, GetToolsVsAssetsTotal())</small></div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="dash-card dash-donut-card">
+                        <h3>Herramientas por mes</h3>
+
+                        <div class="dash-donut-row">
+                            <div class="dash-donut lg" style="@GetStatusDonut()">
+                                <div>
+                                    <strong>@GetStatusDonutTotal().ToString("N0")</strong>
+                                    <span>Total</span>
+                                </div>
+                            </div>
+
+                            <div class="dash-legend">
+                                <div><i class="purple"></i><span>Asignada</span><strong>@dashboard.Summary.AssignedTools</strong><small>@GetPercentLabel(dashboard.Summary.AssignedTools, GetStatusDonutTotal())</small></div>
+                                <div><i class="blue"></i><span>Disponible</span><strong>@dashboard.Summary.AvailableTools</strong><small>@GetPercentLabel(dashboard.Summary.AvailableTools, GetStatusDonutTotal())</small></div>
+                                <div><i class="orange"></i><span>Pendientes</span><strong>@dashboard.Summary.PendingValidationTools</strong><small>@GetPercentLabel(dashboard.Summary.PendingValidationTools, GetStatusDonutTotal())</small></div>
+                                <div><i class="red"></i><span>Técnico</span><strong>@dashboard.Summary.InMaintenanceTools</strong><small>@GetPercentLabel(dashboard.Summary.InMaintenanceTools, GetStatusDonutTotal())</small></div>
+                                <div><i class="gray"></i><span>Otras</span><strong>@GetOtherStatusTools()</strong><small>@GetPercentLabel(GetOtherStatusTools(), GetStatusDonutTotal())</small></div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="dash-card dash-donut-card">
+                        <h3>Hojas de vida</h3>
+
+                        <div class="dash-donut-row">
+                            <div class="dash-donut lg" style="@GetLifeRecordDonut()">
+                                <div>
+                                    <strong>@GetLifeRecordDonutTotal().ToString("N0")</strong>
+                                    <span>Total</span>
+                                </div>
+                            </div>
+
+                            <div class="dash-legend">
+                                <div><i class="purple"></i><span>Con hoja</span><strong>@dashboard.Summary.WithLifeRecord</strong><small>@GetPercentLabel(dashboard.Summary.WithLifeRecord, GetLifeRecordDonutTotal())</small></div>
+                                <div><i class="blue"></i><span>Sin hoja</span><strong>@dashboard.Summary.WithoutLifeRecord</strong><small>@GetPercentLabel(dashboard.Summary.WithoutLifeRecord, GetLifeRecordDonutTotal())</small></div>
+                                <div><i class="orange"></i><span>Incompletos</span><strong>@dashboard.LifeRecordCoverage.MissingTechnicalData</strong><small>@GetPercentLabel(dashboard.LifeRecordCoverage.MissingTechnicalData, GetLifeRecordDonutTotal())</small></div>
+                                <div><i class="red"></i><span>Activos fijos</span><strong>@dashboard.Summary.FixedAssets</strong><small>@GetPercentLabel(dashboard.Summary.FixedAssets, GetLifeRecordDonutTotal())</small></div>
+                                <div><i class="gray"></i><span>Otras</span><strong>@GetOtherLifeRecords()</strong><small>@GetPercentLabel(GetOtherLifeRecords(), GetLifeRecordDonutTotal())</small></div>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+
+                <article class="dash-card dash-day">
+                    <h3>Mantenimientos por día</h3>
+
+                    <div class="dash-day-metrics">
+                        <div><strong>@dashboard.MaintenanceSummary.ThisMonth</strong><span>Por mes</span></div>
+                        <div><strong>@dashboard.MaintenanceSummary.Today</strong><span>Por día</span></div>
+                        <div><strong>@dashboard.Summary.RequiresMaintenance</strong><span>Pendientes</span></div>
+                    </div>
+
+                    <div class="dash-physical-row">
+                        <div>
+                            <h3>Toma física</h3>
+                            <p>Acciones rápidas para control y cierre.</p>
+                        </div>
+
+                        <div class="dash-actions">
+                            <a href="/physical-counts">Volver</a>
+                            <a href="/physical-counts">Generar participantes</a>
+                            <a href="/physical-counts">Activar toma</a>
+                            <a href="/reconciliation">Cerrar toma</a>
+                        </div>
+                    </div>
+                </article>
+            </section>
+        </section>
+
+        <section class="dash-card dash-history">
+            <div class="dash-section-head">
+                <div>
+                    <h3>Histórico de procesos</h3>
+                    <p>Últimos movimientos, desarrollos, validaciones y eventos registrados en NAVI.</p>
+                </div>
+
+                <span>@dashboard.RecentActivity.Count eventos</span>
+            </div>
+
+            @if (dashboard.RecentActivity.Any())
+            {
+                <div class="dash-history-list">
+                    @foreach (var item in dashboard.RecentActivity.OrderByDescending(x => x.RegisteredAt).Take(8))
+                    {
+                        <article>
+                            <div class="dash-history-icon">@GetActivityIcon(item.EventType)</div>
+                            <div>
+                                <strong>@item.Title</strong>
+                                <p>@Display(item.Description)</p>
+                                <small>@Display(item.ToolInternalCode) · @FormatDateTime(item.RegisteredAt) · @Display(item.User)</small>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="dash-history-list">
+                    <article>
+                        <div class="dash-history-icon">📊</div>
+                        <div>
+                            <strong>Dashboard ejecutivo actualizado</strong>
+                            <p>Se consolidaron indicadores, gráficos de porcentaje, barras por sede y resumen operativo.</p>
+                            <small>NAVI · Desarrollo visual</small>
+                        </div>
+                    </article>
+
+                    <article>
+                        <div class="dash-history-icon">🧰</div>
+                        <div>
+                            <strong>Inventario y hoja de vida integrados</strong>
+                            <p>Se agrupan activos, responsables, disponibilidad, mantenimientos y trazabilidad.</p>
+                            <small>NAVI · Gestión de activos</small>
+                        </div>
+                    </article>
+
+                    <article>
+                        <div class="dash-history-icon">⚖️</div>
+                        <div>
+                            <strong>Conciliación y toma física</strong>
+                            <p>Se habilita seguimiento de pendientes, diferencias, validaciones y cierre de toma.</p>
+                            <small>NAVI · Control operativo</small>
+                        </div>
+                    </article>
+                </div>
+            }
+        </section>
+    </section>
+}
+
+</PermissionGuard>
+
+<style>
+    .dash-board-v5 {
+        display: grid;
+        gap: .48rem;
+        padding-bottom: .8rem;
+    }
+
+    .dash-hero {
+        color: #fff;
+        border-radius: .85rem;
+        padding: .68rem .95rem;
+        min-height: 82px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .75rem;
+        background: linear-gradient(105deg, #050507 0%, #07070b 34%, #120017 58%, #350040 78%, #710083 100%) !important;
+        box-shadow: 0 .55rem 1.2rem rgba(75, 0, 92, .17);
+    }
+
+    .dash-hero span {
+        display: inline-flex;
+        width: fit-content;
+        border: 1px solid rgba(255,255,255,.45);
+        border-radius: 999px;
+        padding: .15rem .55rem;
+        font-size: .64rem;
+        font-weight: 950;
+        letter-spacing: .04rem;
+        text-transform: uppercase;
+    }
+
+    .dash-hero h2 {
+        margin: .18rem 0 .04rem;
+        color: #fff;
+        font-size: 1.2rem;
+        font-weight: 950;
+        line-height: 1.08;
+    }
+
+    .dash-hero p {
+        margin: 0;
+        color: rgba(255,255,255,.88);
+        font-size: .82rem;
+        font-weight: 650;
+    }
+
+    .dash-hero-actions {
+        width: auto;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+    }
+
+    .dash-hero-refresh,
+    .dash-hero-actions button {
+        min-width: 128px;
+        min-height: 32px;
+        border-radius: .55rem;
+        color: #fff;
+        background: transparent;
+        border: 1px solid rgba(255,255,255,.50);
+        padding: .32rem .75rem;
+        font-size: .7rem;
+        font-weight: 950;
+        text-align: center;
+        transition: background-color .18s ease, color .18s ease, border-color .18s ease;
+    }
+
+    .dash-hero-refresh:hover,
+    .dash-hero-actions button:hover {
+        background: #fff;
+        color: #4b005c;
+        border-color: #fff;
+    }
+
+    .dash-hero-refresh:disabled,
+    .dash-hero-actions button:disabled {
+        opacity: .72;
+        cursor: not-allowed;
+    }
+
+    .dash-kpis {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: .4rem;
+    }
+
+    .dash-kpis article {
+        background: #fff;
+        border-radius: .56rem;
+        border: 1px solid #eadff0;
+        border-left: 4px solid #7b0d8e;
+        padding: .42rem .5rem;
+        min-height: 58px;
+        box-shadow: 0 .18rem .5rem rgba(75,0,92,.045);
+    }
+
+    .dash-kpis article.cyan { border-left-color: #2186d9; }
+    .dash-kpis article.green { border-left-color: #16a34a; }
+    .dash-kpis article.yellow { border-left-color: #f0a224; }
+    .dash-kpis article.red { border-left-color: #b4232e; }
+
+    .dash-kpis span {
+        display: block;
+        color: #1f1427;
+        font-size: .55rem;
+        font-weight: 950;
+        text-transform: uppercase;
+    }
+
+    .dash-kpis strong {
+        display: block;
+        color: #060009;
+        font-size: 1.35rem;
+        font-weight: 950;
+        line-height: 1;
+    }
+
+    .dash-kpis small {
+        color: #55445f;
+        font-size: .58rem;
+        font-weight: 760;
+    }
+
+    .dash-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr);
+        gap: .48rem;
+        align-items: start;
+    }
+
+    .dash-main-left,
+    .dash-main-right {
+        display: grid;
+        gap: .48rem;
+        min-width: 0;
+    }
+
+    .dash-overview-grid {
+        display: grid;
+        grid-template-columns: .88fr .88fr 1.24fr;
+        gap: .48rem;
+    }
+
+    .dash-card {
+        background: #fff;
+        border: 1px solid #eadff0;
+        border-radius: .72rem;
+        padding: .56rem;
+        box-shadow: 0 .18rem .55rem rgba(75,0,92,.045);
+        min-width: 0;
+    }
+
+    .dash-card h3 {
+        margin: 0 0 .38rem;
+        color: #100018;
+        font-size: .86rem;
+        font-weight: 950;
+        line-height: 1.08;
+    }
+
+    .dash-section-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: .65rem;
+        margin-bottom: .38rem;
+    }
+
+    .dash-section-head p {
+        margin: .08rem 0 0;
+        color: #66536f;
+        font-size: .64rem;
+        font-weight: 720;
+    }
+
+    .dash-section-head span {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 25px;
+        padding: .15rem .5rem;
+        border-radius: .5rem;
+        background: #fbf4ff;
+        color: #4b005c;
+        border: 1px solid #eadff0;
+        font-size: .62rem;
+        font-weight: 950;
+    }
+
+    .dash-local-list,
+    .dash-maintenance-list {
+        display: grid;
+        gap: .15rem;
+    }
+
+    .dash-local-list div,
+    .dash-maintenance-list div {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: .35rem;
+        align-items: center;
+        font-size: .68rem;
+    }
+
+    .dash-local-list span,
+    .dash-maintenance-list span {
+        display: flex;
+        align-items: center;
+        gap: .32rem;
+        color: #24102e;
+        font-weight: 820;
+        min-width: 0;
+    }
+
+    .dash-local-list strong,
+    .dash-maintenance-list strong {
+        color: #0d0013;
+        font-weight: 950;
+    }
+
+    .dash-local-icon {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        display: inline-grid;
+        place-items: center;
+        border: 1px solid currentColor;
+        font-style: normal;
+        font-size: .62rem;
+        line-height: 1;
+        background: #fff;
+        flex: 0 0 18px;
+    }
+
+    .dash-local-icon.purple { color: #7b0d8e; }
+    .dash-local-icon.green  { color: #16a34a; }
+    .dash-local-icon.blue   { color: #2186d9; }
+    .dash-local-icon.cyan   { color: #0ea5e9; }
+    .dash-local-icon.yellow { color: #f0a224; }
+    .dash-local-icon.red    { color: #b4232e; }
+
+    .mini-dot {
+        width: 17px;
+        height: 17px;
+        border-radius: 50%;
+        display: inline-grid;
+        place-items: center;
+        border: 1px solid currentColor;
+        font-size: .62rem;
+        line-height: 1;
+        background: #fff;
+    }
+
+    .mini-dot.green { color: #16a34a; }
+    .mini-dot.blue { color: #2186d9; }
+    .mini-dot.cyan { color: #0ea5e9; }
+    .mini-dot.yellow { color: #f0a224; }
+    .mini-dot.red { color: #b4232e; }
+
+    .dash-card-head {
+        display: flex;
+        justify-content: space-between;
+        gap: .45rem;
+        align-items: flex-start;
+        margin-bottom: .28rem;
+    }
+
+    .dash-tabs {
+        display: flex;
+        gap: .22rem;
+        flex: 0 0 auto;
+    }
+
+    .dash-tabs button {
+        border: 1px solid #eadff0;
+        background: #f7eef9;
+        color: #32103d;
+        border-radius: .42rem;
+        padding: .24rem .42rem;
+        font-size: .62rem;
+        font-weight: 950;
+    }
+
+    .dash-tabs button.active {
+        background: #7b0d8e;
+        color: #fff;
+        border-color: #7b0d8e;
+    }
+
+    .dash-vs-content {
+        display: grid;
+        grid-template-columns: 92px minmax(0, 1fr);
+        align-items: center;
+        gap: .45rem;
+    }
+
+    .dash-chart-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: .48rem;
+    }
+
+    .dash-chart-grid .dash-donut-card:first-child {
+        grid-column: 1 / -1;
+    }
+
+    .dash-donut-row {
+        display: grid;
+        grid-template-columns: 112px minmax(0, 1fr);
+        align-items: center;
+        gap: .55rem;
+    }
+
+    .dash-donut {
+        border-radius: 50%;
+        position: relative;
+        display: grid;
+        place-items: center;
+        box-shadow: inset 0 0 0 1px rgba(75,0,92,.12), 0 .2rem .5rem rgba(75,0,92,.08);
+    }
+
+    .dash-donut.md {
+        width: 86px;
+        height: 86px;
+    }
+
+    .dash-donut.lg {
+        width: 104px;
+        height: 104px;
+    }
+
+    .dash-donut::after {
+        content: "";
+        position: absolute;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: inset 0 0 0 1px #eadff0;
+        inset: 24px;
+    }
+
+    .dash-donut.md::after {
+        inset: 21px;
+    }
+
+    .dash-donut div {
+        position: relative;
+        z-index: 1;
+        text-align: center;
+    }
+
+    .dash-donut strong {
+        display: block;
+        color: #07000d;
+        font-size: 1.1rem;
+        font-weight: 950;
+        line-height: 1;
+    }
+
+    .dash-donut span {
+        display: block;
+        color: #5d4a67;
+        font-size: .52rem;
+        font-weight: 850;
+        margin-top: .12rem;
+    }
+
+    .dash-legend {
+        display: grid;
+        gap: .22rem;
+        font-size: .62rem;
+    }
+
+    .dash-legend.compact {
+        font-size: .6rem;
+    }
+
+    .dash-legend div {
+        display: grid;
+        grid-template-columns: 8px minmax(0, 1fr) auto auto;
+        gap: .26rem;
+        align-items: center;
+    }
+
+    .dash-legend i {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    .purple { background: #7b0d8e; }
+    .blue { background: #2186d9; }
+    .orange { background: #f0a224; }
+    .red { background: #b4232e; }
+    .gray { background: #64748b; }
+
+    .dash-legend span {
+        color: #2a1734;
+        font-weight: 820;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .dash-legend strong {
+        color: #0a0010;
+        font-weight: 950;
+    }
+
+    .dash-legend small {
+        min-width: 33px;
+        text-align: right;
+        color: #66536f;
+        font-weight: 850;
+        font-size: .54rem;
+    }
+
+    .dash-total-row {
+        padding-top: .16rem;
+        border-top: 1px dashed #eadff0;
+        margin-top: .12rem;
+    }
+
+    .dash-branch-chart {
+        display: grid;
+        grid-template-columns: 28px 1fr;
+        gap: .32rem;
+        min-height: 196px;
+        margin-top: .32rem;
+    }
+
+    .dash-axis {
+        height: 168px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        color: #2a1734;
+        font-size: .54rem;
+        font-weight: 850;
+        padding-top: .48rem;
+    }
+
+    .dash-branch-bars {
+        height: 168px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(50px, 1fr));
+        gap: .38rem;
+        align-items: end;
+        padding: 1.12rem .4rem .25rem;
+        border-left: 1px solid #d9cce3;
+        border-bottom: 1px solid #d9cce3;
+        background: repeating-linear-gradient(to top, transparent 0, transparent 30px, rgba(123,13,142,.10) 31px);
+        border-radius: .55rem;
+    }
+
+    .dash-branch-bar-item {
+        height: 100%;
+        display: grid;
+        align-items: end;
+        text-align: center;
+        min-width: 0;
+    }
+
+    .dash-branch-bars strong {
+        position: relative;
+        display: block;
+        min-height: 8px;
+        border-radius: .42rem .42rem 0 0;
+        box-shadow: 0 -.2rem .5rem rgba(75,0,92,.09);
+    }
+
+    .dash-branch-bars strong em {
+        position: absolute;
+        top: -1.12rem;
+        left: 50%;
+        transform: translateX(-50%);
+        color: #100018;
+        background: #fff;
+        border: 1px solid #eadff0;
+        border-radius: 999px;
+        font-size: .52rem;
+        font-style: normal;
+        font-weight: 950;
+        padding: .06rem .25rem;
+    }
+
+    .dash-branch-bars span {
+        display: block;
+        margin-top: .22rem;
+        color: #1e1128;
+        font-size: .56rem;
+        font-weight: 950;
+    }
+
+    .dash-branch-bars small {
+        display: block;
+        color: #6b5a73;
+        font-size: .5rem;
+        line-height: 1;
+        font-weight: 800;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .dash-table-card {
+        overflow: hidden;
+        min-height: 440px;
+    }
+
+    .dash-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: .64rem;
+    }
+
+    .dash-table th {
+        color: #160020;
+        border-bottom: 1px solid #1f1427;
+        padding: .3rem .28rem;
+        font-size: .52rem;
+        text-align: left;
+        white-space: nowrap;
+        text-transform: uppercase;
+    }
+
+    .dash-table td {
+        border-bottom: 1px solid #f0e7f5;
+        padding: .3rem .28rem;
+        vertical-align: middle;
+    }
+
+    .dash-branch-name strong {
+        display: block;
+        color: #0a0010;
+        font-size: .68rem;
+        font-weight: 950;
+        line-height: 1;
+    }
+
+    .dash-branch-name span,
+    .dash-branch-name small {
+        display: block;
+        color: #5c4a66;
+        font-size: .56rem;
+        font-weight: 750;
+        line-height: 1.08;
+        margin-top: .06rem;
+    }
+
+    .dash-pending,
+    .dash-difference {
+        min-width: 30px;
+        display: inline-flex;
+        justify-content: center;
+        border-radius: .28rem;
+        padding: .1rem .24rem;
+        font-weight: 950;
+    }
+
+    .dash-pending {
+        border: 1px solid rgba(240, 162, 36, .45);
+        color: #9a5b00;
+        background: #fff8e8;
+    }
+
+    .dash-difference {
+        border: 1px solid rgba(180, 35, 46, .38);
+        color: #9f1239;
+        background: #fff1f2;
+    }
+
+    .dash-progress {
+        height: 8px;
+        border-radius: 999px;
+        background: #ffffff;
+        border: 1px solid #eadff0;
+        overflow: hidden;
+        min-width: 70px;
+    }
+
+    .dash-progress span {
+        display: block;
+        height: 100%;
+        background: linear-gradient(90deg, #7b0d8e 0%, #2186d9 100%);
+    }
+
+    .dash-table small {
+        color: #6d5b76;
+        font-size: .54rem;
+        font-weight: 800;
+    }
+
+    .dash-row-actions {
+        display: grid;
+        gap: .1rem;
+    }
+
+    .dash-row-actions button {
+        min-height: 20px;
+        border-radius: .28rem;
+        border: 1px solid #86b7fe;
+        color: #075985;
+        background: #f0f8ff;
+        font-size: .52rem;
+        font-weight: 850;
+        padding: .04rem .28rem;
+    }
+
+    .dash-row-actions button:nth-child(2) {
+        border-color: #b4232e;
+        color: #9f1239;
+        background: #fff1f2;
+    }
+
+    .dash-pending-panel {
+        margin-top: .48rem;
+        border-top: 1px solid #eadff0;
+        padding-top: .45rem;
+        display: flex;
+        justify-content: space-between;
+        gap: .65rem;
+        align-items: flex-start;
+    }
+
+    .dash-pending-panel h3 {
+        margin: 0;
+    }
+
+    .dash-pending-panel p {
+        margin: .08rem 0 0;
+        color: #5c4a66;
+        font-size: .62rem;
+        font-weight: 750;
+    }
+
+    .dash-pending-panel button {
+        border: 1px solid #343a40;
+        background: #fff;
+        color: #111827;
+        border-radius: .38rem;
+        font-size: .62rem;
+        font-weight: 850;
+        padding: .25rem .52rem;
+    }
+
+    .dash-day-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        align-items: center;
+        text-align: center;
+        margin-bottom: .65rem;
+    }
+
+    .dash-day-metrics div + div {
+        border-left: 1px solid #eadff0;
+    }
+
+    .dash-day-metrics strong {
+        display: block;
+        color: #050507;
+        font-size: 1.45rem;
+        line-height: 1;
+        font-weight: 950;
+    }
+
+    .dash-day-metrics span {
+        color: #55445f;
+        font-size: .62rem;
+        font-weight: 850;
+    }
+
+    .dash-physical-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .65rem;
+        border-top: 1px solid #eadff0;
+        padding-top: .5rem;
+    }
+
+    .dash-physical-row p {
+        margin: .05rem 0 0;
+        color: #66536f;
+        font-size: .62rem;
+        font-weight: 720;
+    }
+
+    .dash-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: .28rem;
+    }
+
+    .dash-actions a {
+        text-decoration: none;
+        border-radius: .4rem;
+        padding: .3rem .46rem;
+        color: #fff;
+        background: linear-gradient(135deg, #7b0d8e, #4b005c);
+        font-size: .6rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .dash-history {
+        margin-top: .1rem;
+    }
+
+    .dash-history-list {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: .45rem;
+    }
+
+    .dash-history-list article {
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr);
+        gap: .38rem;
+        align-items: flex-start;
+        border: 1px solid #eadff0;
+        background: #fcf8ff;
+        border-radius: .58rem;
+        padding: .45rem;
+        min-height: 80px;
+    }
+
+    .dash-history-icon {
+        width: 30px;
+        height: 30px;
+        border-radius: .55rem;
+        display: grid;
+        place-items: center;
+        color: #fff;
+        background: linear-gradient(145deg, #7b0d8e, #4b005c);
+        font-size: .92rem;
+    }
+
+    .dash-history-list strong {
+        color: #100018;
+        font-size: .72rem;
+        font-weight: 950;
+        line-height: 1.1;
+    }
+
+    .dash-history-list p {
+        margin: .08rem 0;
+        color: #55445f;
+        font-size: .62rem;
+        line-height: 1.2;
+        font-weight: 720;
+    }
+
+    .dash-history-list small {
+        color: #7a6784;
+        font-size: .55rem;
+        font-weight: 800;
+    }
+
+    @@media (max-width: 1500px) {
+        .dash-kpis {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .dash-layout,
+        .dash-overview-grid,
+        .dash-chart-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .dash-history-list {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @@media (max-width: 900px) {
+        .dash-hero {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .dash-hero-actions {
+            width: 100%;
+        }
+
+        .dash-kpis,
+        .dash-history-list {
+            grid-template-columns: 1fr;
+        }
+
+        .dash-donut-row,
+        .dash-vs-content {
+            grid-template-columns: 1fr;
+            text-align: center;
+        }
+
+        .dash-table-card {
+            overflow-x: auto;
+        }
+
+        .dash-physical-row {
+            display: grid;
+        }
+
+        .dash-actions {
+            justify-content: flex-start;
+        }
+    }
+
+    /* NAVI DASHBOARD WEB FILTER CSS */
+    .navi-dashboard-filter-panel {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1.4fr auto;
+        gap: .75rem;
+        align-items: end;
+        margin: 1rem 0;
+        padding: .9rem;
+        border: 1px solid rgba(126, 0, 143, .16);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, .94);
+        box-shadow: 0 12px 28px rgba(42, 0, 54, .08);
+    }
+
+    .navi-dashboard-filter-panel label {
+        display: grid;
+        gap: .3rem;
+        margin: 0;
+    }
+
+    .navi-dashboard-filter-panel span {
+        font-size: .72rem;
+        font-weight: 800;
+        color: #60316c;
+    }
+
+    .navi-dashboard-filter-panel input,
+    .navi-dashboard-filter-panel select {
+        width: 100%;
+        min-height: 38px;
+        border: 1px solid #eadff0;
+        border-radius: 10px;
+        padding: .45rem .65rem;
+        font-weight: 700;
+        color: #21002c;
+        background: #fff;
+    }
+
+    .navi-dashboard-filter-panel div {
+        display: flex;
+        gap: .45rem;
+    }
+
+    .navi-dashboard-filter-panel button {
+        min-height: 38px;
+        border: 1px solid #7b0d8e;
+        border-radius: 10px;
+        background: #7b0d8e;
+        color: #fff;
+        padding: .45rem .8rem;
+        font-weight: 900;
+    }
+
+    .navi-dashboard-filter-panel button.secondary {
+        background: #fff;
+        color: #7b0d8e;
+    }
+
+    @@media (max-width: 900px) {
+        .navi-dashboard-filter-panel {
+            grid-template-columns: 1fr;
+        }
+    }
+
+
+/* NAVI ADMIN DASHBOARD STANDARD 20260702 START */
+
+/* ==========================================================================
+   PROMPT 9 - Dashboard Admin Web
+
+   Objetivo:
+   - Dashboard compacto y ejecutivo.
+   - Hero homogéneo con el estándar global.
+   - Filtros más pequeños.
+   - KPIs visibles sin robar espacio.
+   - Cards, gráficas y tablas más limpias.
+   ========================================================================== */
+
+.dash-board-v5 {
+    display: grid !important;
+    gap: .56rem !important;
+    padding-bottom: .75rem !important;
+}
+
+/* --------------------------------------------------------------------------
+   Hero
+   -------------------------------------------------------------------------- */
+
+.dash-board-v5 .dash-hero {
+    min-height: 92px !important;
+    padding: .78rem 1rem !important;
+    margin: 0 0 .6rem 0 !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: .85rem !important;
+
+    border-radius: .82rem !important;
+    border: 1px solid rgba(255,255,255,.12) !important;
+    background:
+        radial-gradient(circle at 90% 18%, rgba(175, 0, 210, .32), transparent 30%),
+        linear-gradient(135deg, #050008 0%, #0b0710 34%, #280032 66%, #72008d 100%) !important;
+    box-shadow: 0 .28rem .75rem rgba(15, 23, 42, .08) !important;
+}
+
+.dash-board-v5 .dash-hero > div:first-child {
+    min-width: 0 !important;
+}
+
+.dash-board-v5 .dash-hero-pill,
+.dash-board-v5 .dash-hero > div:first-child > span:first-child {
+    min-height: 20px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    width: fit-content !important;
+
+    padding: .12rem .54rem !important;
+    margin-bottom: .2rem !important;
+
+    border-radius: 999px !important;
+    border: 1px solid rgba(255,255,255,.38) !important;
+    background: rgba(255,255,255,.075) !important;
+    color: #ffffff !important;
+
+    font-size: .59rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    letter-spacing: .055em !important;
+    text-transform: uppercase !important;
+}
+
+.dash-board-v5 .dash-hero h2 {
+    margin: 0 !important;
+    color: #ffffff !important;
+    font-size: 1.48rem !important;
+    font-weight: 950 !important;
+    line-height: 1.02 !important;
+    letter-spacing: -.045em !important;
+}
+
+.dash-board-v5 .dash-hero p {
+    max-width: 860px !important;
+    margin: .18rem 0 0 0 !important;
+    color: rgba(255,255,255,.83) !important;
+    font-size: .78rem !important;
+    font-weight: 650 !important;
+    line-height: 1.22 !important;
+}
+
+.dash-board-v5 .dash-hero-actions {
+    width: 146px !important;
+    min-width: 146px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: center !important;
+    gap: .36rem !important;
+}
+
+.dash-board-v5 .dash-hero-status,
+.dash-board-v5 .dash-hero-actions strong {
+    min-height: 25px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding: 0 .55rem !important;
+    border-radius: .55rem !important;
+    border: 1px solid rgba(255,255,255,.28) !important;
+    background: rgba(255,255,255,.10) !important;
+    color: #ffffff !important;
+
+    font-size: .66rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+}
+
+.dash-board-v5 .dash-hero-actions button {
+    width: 146px !important;
+    height: 30px !important;
+    min-height: 30px !important;
+
+    border-radius: .55rem !important;
+    border: 1px solid rgba(255,255,255,.68) !important;
+    background: rgba(255,255,255,.08) !important;
+    color: #ffffff !important;
+
+    font-size: .69rem !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+}
+
+.dash-board-v5 .dash-hero-actions button:hover {
+    background: rgba(255,255,255,.18) !important;
+    border-color: #ffffff !important;
+}
+
+/* --------------------------------------------------------------------------
+   Filtros
+   -------------------------------------------------------------------------- */
+
+.dash-board-v5 .navi-dashboard-filter-panel {
+    display: grid !important;
+    grid-template-columns: minmax(145px, .85fr) minmax(145px, .85fr) minmax(220px, 1.3fr) auto !important;
+    gap: .5rem !important;
+    align-items: end !important;
+
+    margin: 0 0 .62rem 0 !important;
+    padding: .62rem !important;
+
+    border: 1px solid #dfe3e8 !important;
+    border-radius: .72rem !important;
+    background: #ffffff !important;
+    box-shadow: 0 .16rem .42rem rgba(15,23,42,.045) !important;
+}
+
+.dash-board-v5 .navi-dashboard-filter-panel label {
+    display: grid !important;
+    gap: .2rem !important;
+    margin: 0 !important;
+    min-width: 0 !important;
+}
+
+.dash-board-v5 .navi-dashboard-filter-panel label > span {
+    color: #111827 !important;
+    font-size: .68rem !important;
+    font-weight: 900 !important;
+    line-height: 1.05 !important;
+}
+
+.dash-board-v5 .navi-dashboard-filter-panel input,
+.dash-board-v5 .navi-dashboard-filter-panel select {
+    width: 100% !important;
+    height: 32px !important;
+    min-height: 32px !important;
+
+    padding: .3rem .52rem !important;
+    border: 1px solid #cfd6df !important;
+    border-radius: .42rem !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+
+    font-size: .73rem !important;
+    font-weight: 650 !important;
+}
+
+.dash-board-v5 .navi-dashboard-filter-panel div {
+    display: flex !important;
+    align-items: end !important;
+    gap: .38rem !important;
+}
+
+.dash-board-v5 .dash-filter-btn,
+.dash-board-v5 .navi-dashboard-filter-panel button {
+    height: 32px !important;
+    min-height: 32px !important;
+    min-width: 78px !important;
+
+    border-radius: .44rem !important;
+    font-size: .7rem !important;
+    font-weight: 900 !important;
+}
+
+/* --------------------------------------------------------------------------
+   KPIs
+   -------------------------------------------------------------------------- */
+
+.dash-board-v5 .dash-kpis {
+    display: grid !important;
+    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+    gap: .45rem !important;
+    margin: 0 0 .62rem 0 !important;
+}
+
+.dash-board-v5 .dash-kpis article {
+    min-height: 56px !important;
+    padding: .48rem .58rem !important;
+
+    border-radius: .62rem !important;
+    border: 1px solid #dfe3e8 !important;
+    border-left: 4px solid #76008f !important;
+
+    background: linear-gradient(180deg, #ffffff 0%, #ffffff 72%, #fbfbfd 100%) !important;
+    box-shadow: 0 .16rem .42rem rgba(15,23,42,.045) !important;
+}
+
+.dash-board-v5 .dash-kpis article.cyan {
+    border-left-color: #0ea5e9 !important;
+}
+
+.dash-board-v5 .dash-kpis article.green {
+    border-left-color: #198754 !important;
+}
+
+.dash-board-v5 .dash-kpis article.yellow {
+    border-left-color: #f59e0b !important;
+}
+
+.dash-board-v5 .dash-kpis article.red {
+    border-left-color: #dc3545 !important;
+}
+
+.dash-board-v5 .dash-kpis span {
+    display: block !important;
+    margin: 0 0 .12rem 0 !important;
+
+    color: #667085 !important;
+    font-size: .57rem !important;
+    font-weight: 950 !important;
+    line-height: 1.02 !important;
+    letter-spacing: .035em !important;
+    text-transform: uppercase !important;
+
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+.dash-board-v5 .dash-kpis strong {
+    display: block !important;
+    margin: 0 !important;
+
+    color: #21002b !important;
+    font-size: 1.25rem !important;
+    font-weight: 950 !important;
+    line-height: .96 !important;
+    letter-spacing: -.04em !important;
+}
+
+.dash-board-v5 .dash-kpis small {
+    display: block !important;
+    margin-top: .12rem !important;
+
+    color: #667085 !important;
+    font-size: .61rem !important;
+    font-weight: 700 !important;
+    line-height: 1.05 !important;
+
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+/* --------------------------------------------------------------------------
+   Layout principal
+   -------------------------------------------------------------------------- */
+
+.dash-board-v5 .dash-layout {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1.55fr) minmax(340px, .9fr) !important;
+    gap: .56rem !important;
+    align-items: start !important;
+}
+
+.dash-board-v5 .dash-main-left,
+.dash-board-v5 .dash-main-right {
+    display: grid !important;
+    gap: .56rem !important;
+    min-width: 0 !important;
+}
+
+.dash-board-v5 .dash-overview-grid {
+    display: grid !important;
+    grid-template-columns: .9fr .9fr 1.2fr !important;
+    gap: .56rem !important;
+}
+
+/* --------------------------------------------------------------------------
+   Cards internas
+   -------------------------------------------------------------------------- */
+
+.dash-board-v5 .dash-card {
+    min-width: 0 !important;
+    padding: .62rem !important;
+
+    border: 1px solid #dfe3e8 !important;
+    border-radius: .72rem !important;
+    background: #ffffff !important;
+
+    box-shadow: 0 .16rem .42rem rgba(15,23,42,.045) !important;
+}
+
+.dash-board-v5 .dash-card h3 {
+    margin: 0 !important;
+    color: #111827 !important;
+    font-size: .9rem !important;
+    font-weight: 950 !important;
+    line-height: 1.08 !important;
+    letter-spacing: -.035em !important;
+}
+
+.dash-board-v5 .dash-card p {
+    margin: .15rem 0 0 0 !important;
+    color: #667085 !important;
+    font-size: .66rem !important;
+    font-weight: 650 !important;
+    line-height: 1.12 !important;
+}
+
+.dash-board-v5 .dash-card-head,
+.dash-board-v5 .dash-section-head {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: .52rem !important;
+    margin-bottom: .5rem !important;
+}
+
+.dash-board-v5 .dash-section-head > span,
+.dash-board-v5 .dash-card-head > span {
+    min-height: 20px !important;
+    padding: .12rem .45rem !important;
+    border-radius: 999px !important;
+    border: 1px solid #d0d5dd !important;
+    background: #f8fafc !important;
+    color: #475467 !important;
+    font-size: .58rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+}
+
+/* --------------------------------------------------------------------------
+   Lista local de herramientas
+   -------------------------------------------------------------------------- */
+
+.dash-board-v5 .dash-local-list {
+    display: grid !important;
+    gap: .34rem !important;
+    margin-top: .52rem !important;
+}
+
+.dash-board-v5 .dash-local-list > div {
+    min-height: 28px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: .55rem !important;
+
+    padding: .3rem .42rem !important;
+    border-radius: .48rem !important;
+    background: #f8fafc !important;
+    border: 1px solid #edf0f4 !important;
+}
+
+.dash-board-v5 .dash-local-list span {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: .28rem !important;
+    color: #344054 !important;
+    font-size: .66rem !important;
+    font-weight: 780 !important;
+    line-height: 1.05 !important;
+}
+
+.dash-board-v5 .dash-local-list strong {
+    color: #21002b !important;
+    font-size: .78rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+}
+
+.dash-board-v5 .mini-dot {
+    width: 18px !important;
+    height: 18px !important;
+    min-width: 18px !important;
+    display: inline-grid !important;
+    place-items: center !important;
+    border-radius: 999px !important;
+    color: #ffffff !important;
+    font-size: .58rem !important;
+    font-weight: 950 !important;
+}
+
+/* --------------------------------------------------------------------------
+   Tabs, gráficas y barras
+   -------------------------------------------------------------------------- */
+
+.dash-board-v5 .dash-tabs {
+    display: inline-flex !important;
+    gap: .28rem !important;
+    padding: .18rem !important;
+    border-radius: 999px !important;
+    background: #f8fafc !important;
+    border: 1px solid #edf0f4 !important;
+}
+
+.dash-board-v5 .dash-tabs button {
+    height: 24px !important;
+    min-height: 24px !important;
+    padding: 0 .52rem !important;
+
+    border: 0 !important;
+    border-radius: 999px !important;
+    background: transparent !important;
+    color: #475467 !important;
+
+    font-size: .61rem !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+}
+
+.dash-board-v5 .dash-tabs button.active,
+.dash-board-v5 .dash-tabs button.selected,
+.dash-board-v5 .dash-tabs button:hover {
+    background: #76008f !important;
+    color: #ffffff !important;
+}
+
+.dash-board-v5 :where(
+    .dash-bar-row,
+    .dash-month-row,
+    .dash-chart-row,
+    .dash-progress-row
+) {
+    display: grid !important;
+    gap: .22rem !important;
+    margin-bottom: .42rem !important;
+}
+
+.dash-board-v5 :where(
+    .dash-bar-track,
+    .dash-progress-track,
+    .dash-month-track
+) {
+    height: 9px !important;
+    border-radius: 999px !important;
+    overflow: hidden !important;
+    background: #edf0f4 !important;
+}
+
+.dash-board-v5 :where(
+    .dash-bar-fill,
+    .dash-progress-fill,
+    .dash-month-fill
+) {
+    height: 100% !important;
+    border-radius: 999px !important;
+}
+
+/* --------------------------------------------------------------------------
+   Tablas del Dashboard
+   -------------------------------------------------------------------------- */
+
+.dash-board-v5 .dash-table-card table,
+.dash-board-v5 .dash-history table {
+    width: 100% !important;
+    margin: 0 !important;
+    font-size: .72rem !important;
+}
+
+.dash-board-v5 .dash-table-card th,
+.dash-board-v5 .dash-history th {
+    padding: .42rem .48rem !important;
+    border-bottom: 1.5px solid #111827 !important;
+    color: #111827 !important;
+    background: #ffffff !important;
+    font-size: .6rem !important;
+    font-weight: 950 !important;
+    text-transform: uppercase !important;
+    letter-spacing: .028em !important;
+}
+
+.dash-board-v5 .dash-table-card td,
+.dash-board-v5 .dash-history td {
+    padding: .42rem .48rem !important;
+    border-bottom: 1px solid #e5e7eb !important;
+    color: #111827 !important;
+    font-size: .7rem !important;
+    font-weight: 650 !important;
+    vertical-align: middle !important;
+}
+
+.dash-board-v5 .dash-table-card tr:hover,
+.dash-board-v5 .dash-history tr:hover {
+    background: #fbf8fd !important;
+}
+
+/* --------------------------------------------------------------------------
+   Gráfico por sede
+   -------------------------------------------------------------------------- */
+
+.dash-board-v5 .dash-branch-chart {
+    min-height: 220px !important;
+    display: grid !important;
+    grid-template-columns: 34px 1fr !important;
+    gap: .46rem !important;
+    align-items: stretch !important;
+}
+
+.dash-board-v5 .dash-axis {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    color: #667085 !important;
+    font-size: .58rem !important;
+    font-weight: 850 !important;
+}
+
+.dash-board-v5 .dash-branch-bars {
+    display: flex !important;
+    align-items: end !important;
+    gap: .38rem !important;
+    min-width: 0 !important;
+    overflow-x: auto !important;
+    padding-bottom: .25rem !important;
+}
+
+/* --------------------------------------------------------------------------
+   Responsive
+   -------------------------------------------------------------------------- */
+
+@@media (max-width: 1320px) {
+    .dash-board-v5 .dash-kpis {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+
+    .dash-board-v5 .dash-layout {
+        grid-template-columns: 1fr !important;
+    }
+
+    .dash-board-v5 .dash-overview-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+}
+
+@@media (max-width: 980px) {
+    .dash-board-v5 .navi-dashboard-filter-panel {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    .dash-board-v5 .navi-dashboard-filter-panel div {
+        grid-column: 1 / -1 !important;
+        justify-content: flex-end !important;
+    }
+
+    .dash-board-v5 .dash-overview-grid {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+@@media (max-width: 720px) {
+    .dash-board-v5 .dash-hero {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+
+    .dash-board-v5 .dash-hero-actions {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .dash-board-v5 .dash-hero-actions button {
+        width: 100% !important;
+    }
+
+    .dash-board-v5 .dash-kpis {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    .dash-board-v5 .navi-dashboard-filter-panel {
+        grid-template-columns: 1fr !important;
+    }
+
+    .dash-board-v5 .navi-dashboard-filter-panel div {
+        justify-content: stretch !important;
+    }
+
+    .dash-board-v5 .navi-dashboard-filter-panel button {
+        flex: 1 1 auto !important;
+    }
+}
+
+@@media (max-width: 460px) {
+    .dash-board-v5 .dash-kpis {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* NAVI ADMIN DASHBOARD STANDARD 20260702 END */
+
+
+
+/* NAVI DASHBOARD FINAL USER FIX 20260702 START */
+
+/* Banner igual a Asignar Herramientas y AF */
+.dash-board-v5 .dash-hero {
+    min-height: 92px !important;
+    padding: 1.05rem 1.2rem !important;
+    border-radius: .95rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 1rem !important;
+    background:
+        radial-gradient(circle at 88% 16%, rgba(175, 0, 210, .34), transparent 32%),
+        linear-gradient(135deg, #050008 0%, #100016 36%, #30003c 66%, #76008f 100%) !important;
+    box-shadow: 0 .45rem 1.05rem rgba(75,0,92,.15) !important;
+}
+
+.dash-board-v5 .dash-hero-actions {
+    flex: 0 0 145px !important;
+    width: 145px !important;
+    min-width: 145px !important;
+    max-width: 145px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    outline: none !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+}
+
+.dash-board-v5 .dash-hero-actions::before,
+.dash-board-v5 .dash-hero-actions::after {
+    display: none !important;
+    content: none !important;
+}
+
+.dash-board-v5 .dash-hero-actions > strong {
+    display: none !important;
+}
+
+.dash-board-v5 .dash-hero-refresh,
+.dash-board-v5 .dash-hero-actions button {
+    width: 145px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    padding: 0 .75rem !important;
+    border-radius: .58rem !important;
+    border: 1px solid rgba(255,255,255,.58) !important;
+    background: transparent !important;
+    color: #ffffff !important;
+    box-shadow: none !important;
+    font-size: .72rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    text-align: center !important;
+}
+
+.dash-board-v5 .dash-hero-refresh:hover,
+.dash-board-v5 .dash-hero-actions button:hover {
+    background: #ffffff !important;
+    color: #4b005c !important;
+    border-color: #ffffff !important;
+}
+
+/* Local de herramientas: iconos visibles y separados */
+.dash-board-v5 .dash-local-list {
+    display: grid !important;
+    gap: .28rem !important;
+}
+
+.dash-board-v5 .dash-local-list > div {
+    min-height: 30px !important;
+    padding: .28rem .45rem !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    gap: .45rem !important;
+    border: 1px solid #edf0f4 !important;
+    border-radius: .46rem !important;
+    background: #f8fafc !important;
+}
+
+.dash-board-v5 .dash-local-list span {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: .35rem !important;
+    min-width: 0 !important;
+    color: #344054 !important;
+    font-size: .66rem !important;
+    font-weight: 850 !important;
+}
+
+.dash-board-v5 .dash-local-symbol {
+    width: 18px !important;
+    height: 18px !important;
+    min-width: 18px !important;
+    display: inline-grid !important;
+    place-items: center !important;
+    border-radius: 999px !important;
+    border: 1px solid currentColor !important;
+    background: #ffffff !important;
+    font-style: normal !important;
+    font-size: .58rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+}
+
+.dash-board-v5 .dash-local-symbol-total { color: #7b0d8e !important; }
+.dash-board-v5 .dash-local-symbol-ok { color: #16a34a !important; }
+.dash-board-v5 .dash-local-symbol-assigned { color: #2186d9 !important; }
+.dash-board-v5 .dash-local-symbol-maintenance { color: #0ea5e9 !important; }
+.dash-board-v5 .dash-local-symbol-warning { color: #f0a224 !important; }
+.dash-board-v5 .dash-local-symbol-danger { color: #b4232e !important; }
+
+/* Mantenimientos vs compras */
+.dash-board-v5 .dash-vs-content {
+    display: grid !important;
+    grid-template-columns: 92px minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: .55rem !important;
+}
+
+.dash-board-v5 .dash-total-row {
+    padding-top: .18rem !important;
+    margin-top: .14rem !important;
+    border-top: 1px dashed #eadff0 !important;
+}
+
+/* Distribución de activos fijos restaurada */
+.dash-board-v5 .dash-donut-card .dash-donut-row {
+    display: grid !important;
+    grid-template-columns: 112px minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: .6rem !important;
+}
+
+/* Herramientas por sede: mismo recuadro, solo bajar la gráfica */
+.dash-board-v5 .dash-branch-chart {
+    min-height: 180px !important;
+    height: auto !important;
+    margin-top: .38rem !important;
+}
+
+.dash-board-v5 .dash-axis {
+    height: 155px !important;
+    padding-top: .42rem !important;
+}
+
+.dash-board-v5 .dash-branch-bars {
+    height: 155px !important;
+    padding-top: 1.05rem !important;
+}
+
+/* Resumen por sede / responsable compacto y sin acciones */
+.dash-board-v5 .dash-table-card {
+    min-height: auto !important;
+}
+
+.dash-board-v5 .dash-table {
+    width: 100% !important;
+    table-layout: fixed !important;
+    font-size: .64rem !important;
+}
+
+.dash-board-v5 .dash-table th,
+.dash-board-v5 .dash-table td {
+    padding: .28rem .24rem !important;
+    vertical-align: middle !important;
+}
+
+.dash-board-v5 .dash-table th:nth-child(1),
+.dash-board-v5 .dash-table td:nth-child(1) {
+    width: 28% !important;
+}
+
+.dash-board-v5 .dash-table th:nth-child(2),
+.dash-board-v5 .dash-table td:nth-child(2),
+.dash-board-v5 .dash-table th:nth-child(3),
+.dash-board-v5 .dash-table td:nth-child(3),
+.dash-board-v5 .dash-table th:nth-child(4),
+.dash-board-v5 .dash-table td:nth-child(4),
+.dash-board-v5 .dash-table th:nth-child(5),
+.dash-board-v5 .dash-table td:nth-child(5) {
+    width: 11% !important;
+    text-align: center !important;
+}
+
+.dash-board-v5 .dash-table th:nth-child(6),
+.dash-board-v5 .dash-table td:nth-child(6) {
+    width: 28% !important;
+}
+
+.dash-board-v5 .dash-progress {
+    min-width: 90px !important;
+    max-width: 150px !important;
+}
+
+.dash-board-v5 .dash-row-actions {
+    display: none !important;
+}
+
+/* NAVI DASHBOARD FINAL USER FIX 20260702 END */
+
+
+
+/* NAVI DASHBOARD COSTS AND REFRESH FIX 20260702 START */
+
+/* Botón Actualizar centrado y sin caja adicional */
+.dash-board-v5 .dash-hero-actions {
+    flex: 0 0 155px !important;
+    width: 155px !important;
+    min-width: 155px !important;
+    max-width: 155px !important;
+
+    align-self: stretch !important;
+
+    display: grid !important;
+    place-items: center !important;
+
+    padding: 0 !important;
+    margin: 0 !important;
+
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+.dash-board-v5 .dash-hero-actions::before,
+.dash-board-v5 .dash-hero-actions::after {
+    display: none !important;
+    content: none !important;
+}
+
+.dash-board-v5 .dash-hero-actions > strong {
+    display: none !important;
+}
+
+.dash-board-v5 .dash-hero-refresh,
+.dash-board-v5 .dash-hero-actions button {
+    width: 145px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    margin: auto !important;
+    padding: 0 .85rem !important;
+
+    border-radius: .58rem !important;
+    border: 1px solid rgba(255,255,255,.62) !important;
+
+    background: transparent !important;
+    color: #ffffff !important;
+
+    font-family: var(--navi-font, 'Poppins', system-ui, sans-serif) !important;
+    font-size: .74rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    letter-spacing: -.01em !important;
+    text-align: center !important;
+
+    box-shadow: none !important;
+
+    transition:
+        background-color .16s ease,
+        color .16s ease,
+        border-color .16s ease,
+        transform .12s ease !important;
+}
+
+.dash-board-v5 .dash-hero-refresh:hover,
+.dash-board-v5 .dash-hero-actions button:hover {
+    background: #ffffff !important;
+    color: #4b005c !important;
+    border-color: #ffffff !important;
+    transform: translateY(-1px) !important;
+}
+
+.dash-board-v5 .dash-hero-refresh:disabled,
+.dash-board-v5 .dash-hero-actions button:disabled {
+    opacity: .72 !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+}
+
+/* Tarjeta Mantenimientos vs compras: contenido centrado */
+.dash-board-v5 .dash-vs {
+    min-height: 190px !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+.dash-board-v5 .dash-vs h3 {
+    flex: 0 0 auto !important;
+    margin-bottom: .35rem !important;
+}
+
+.dash-board-v5 .dash-vs-content {
+    flex: 1 1 auto !important;
+
+    display: grid !important;
+    grid-template-columns: 118px minmax(0, 1fr) !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: .7rem !important;
+
+    min-height: 125px !important;
+    margin: auto 0 !important;
+    padding: .2rem .1rem .35rem .1rem !important;
+}
+
+.dash-board-v5 .dash-vs .dash-donut.md {
+    width: 108px !important;
+    height: 108px !important;
+    justify-self: center !important;
+    align-self: center !important;
+}
+
+.dash-board-v5 .dash-vs .dash-donut.md::after {
+    inset: 26px !important;
+}
+
+.dash-board-v5 .dash-vs .dash-donut strong {
+    font-size: .82rem !important;
+    line-height: .95 !important;
+    white-space: nowrap !important;
+}
+
+.dash-board-v5 .dash-vs .dash-donut span {
+    font-size: .5rem !important;
+}
+
+.dash-board-v5 .dash-cost-legend {
+    align-self: center !important;
+    gap: .34rem !important;
+}
+
+.dash-board-v5 .dash-cost-legend div {
+    display: grid !important;
+    grid-template-columns: 8px minmax(92px, 1fr) minmax(76px, auto) 42px !important;
+    align-items: center !important;
+    gap: .32rem !important;
+}
+
+.dash-board-v5 .dash-cost-legend span {
+    font-size: .62rem !important;
+    font-weight: 900 !important;
+}
+
+.dash-board-v5 .dash-cost-legend strong {
+    color: #0a0010 !important;
+    font-size: .66rem !important;
+    font-weight: 950 !important;
+    text-align: right !important;
+    white-space: nowrap !important;
+}
+
+.dash-board-v5 .dash-cost-legend small {
+    min-width: 38px !important;
+    color: #66536f !important;
+    font-size: .56rem !important;
+    font-weight: 900 !important;
+    text-align: right !important;
+}
+
+.dash-board-v5 .dash-total-row {
+    padding-top: .18rem !important;
+    margin-top: .16rem !important;
+    border-top: 1px dashed #eadff0 !important;
+}
+
+/* NAVI DASHBOARD COSTS AND REFRESH FIX 20260702 END */
+
+
+
+/* NAVI DASHBOARD TOTAL_PERCENT_BRANCH_BARS 20260702 START */
+
+/* Botón Actualizar centrado, mismo peso visual del banner de Asignación */
+.dash-board-v5 .dash-hero-actions {
+    flex: 0 0 155px !important;
+    width: 155px !important;
+    min-width: 155px !important;
+    max-width: 155px !important;
+
+    align-self: stretch !important;
+
+    display: grid !important;
+    place-items: center !important;
+
+    padding: 0 !important;
+    margin: 0 !important;
+
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+.dash-board-v5 .dash-hero-actions::before,
+.dash-board-v5 .dash-hero-actions::after {
+    display: none !important;
+    content: none !important;
+}
+
+.dash-board-v5 .dash-hero-actions > strong {
+    display: none !important;
+}
+
+.dash-board-v5 .dash-hero-refresh,
+.dash-board-v5 .dash-hero-actions button {
+    width: 145px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    margin: auto !important;
+    padding: 0 .85rem !important;
+
+    border-radius: .58rem !important;
+    border: 1px solid rgba(255,255,255,.62) !important;
+
+    background: transparent !important;
+    color: #ffffff !important;
+
+    font-family: var(--navi-font, 'Poppins', system-ui, sans-serif) !important;
+    font-size: .74rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    letter-spacing: -.01em !important;
+    text-align: center !important;
+
+    box-shadow: none !important;
+}
+
+.dash-board-v5 .dash-hero-refresh:hover,
+.dash-board-v5 .dash-hero-actions button:hover {
+    background: #ffffff !important;
+    color: #4b005c !important;
+    border-color: #ffffff !important;
+}
+
+/* Mantenimientos vs compras: porcentaje del total */
+.dash-board-v5 .dash-vs {
+    min-height: 190px !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+.dash-board-v5 .dash-vs h3 {
+    flex: 0 0 auto !important;
+    margin-bottom: .35rem !important;
+}
+
+.dash-board-v5 .dash-vs-content {
+    flex: 1 1 auto !important;
+
+    display: grid !important;
+    grid-template-columns: 122px minmax(0, 1fr) !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: .75rem !important;
+
+    min-height: 135px !important;
+    margin: auto 0 !important;
+    padding: .25rem .15rem .35rem .15rem !important;
+}
+
+.dash-board-v5 .dash-vs .dash-donut.md {
+    width: 112px !important;
+    height: 112px !important;
+    justify-self: center !important;
+    align-self: center !important;
+}
+
+.dash-board-v5 .dash-vs .dash-donut.md::after {
+    inset: 27px !important;
+}
+
+.dash-board-v5 .dash-vs .dash-donut strong {
+    font-size: .78rem !important;
+    line-height: .95 !important;
+    white-space: nowrap !important;
+}
+
+.dash-board-v5 .dash-vs .dash-donut span {
+    font-size: .5rem !important;
+}
+
+.dash-board-v5 .dash-cost-legend {
+    align-self: center !important;
+    gap: .34rem !important;
+}
+
+.dash-board-v5 .dash-cost-legend div {
+    display: grid !important;
+    grid-template-columns: 8px minmax(92px, 1fr) minmax(84px, auto) 42px !important;
+    align-items: center !important;
+    gap: .34rem !important;
+}
+
+.dash-board-v5 .dash-cost-legend span {
+    font-size: .62rem !important;
+    font-weight: 900 !important;
+}
+
+.dash-board-v5 .dash-cost-legend strong {
+    color: #0a0010 !important;
+    font-size: .66rem !important;
+    font-weight: 950 !important;
+    text-align: right !important;
+    white-space: nowrap !important;
+}
+
+.dash-board-v5 .dash-cost-legend small {
+    min-width: 38px !important;
+    color: #66536f !important;
+    font-size: .56rem !important;
+    font-weight: 900 !important;
+    text-align: right !important;
+}
+
+/* Herramientas por sede: sin siglas, barras más anchas y un poco más abajo */
+.dash-board-v5 .dash-branch-chart {
+    min-height: 198px !important;
+    height: auto !important;
+    margin-top: .56rem !important;
+}
+
+.dash-board-v5 .dash-axis {
+    height: 168px !important;
+    padding-top: .62rem !important;
+}
+
+.dash-board-v5 .dash-branch-bars {
+    height: 168px !important;
+
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(74px, 1fr)) !important;
+    gap: .56rem !important;
+    align-items: end !important;
+
+    padding: 1.28rem .72rem .36rem .72rem !important;
+
+    overflow-x: auto !important;
+    border-left: 1px solid #d9cce3 !important;
+    border-bottom: 1px solid #d9cce3 !important;
+    background: repeating-linear-gradient(to top, transparent 0, transparent 30px, rgba(123,13,142,.10) 31px) !important;
+    border-radius: .55rem !important;
+}
+
+.dash-board-v5 .dash-branch-bar-item {
+    min-width: 66px !important;
+}
+
+.dash-board-v5 .dash-branch-bars strong {
+    min-height: 14px !important;
+    border-radius: .46rem .46rem 0 0 !important;
+}
+
+.dash-board-v5 .dash-branch-bars strong em {
+    top: -1.18rem !important;
+    font-size: .53rem !important;
+    padding: .06rem .27rem !important;
+}
+
+/* Oculta cualquier sigla que haya quedado por CSS */
+.dash-board-v5 .dash-branch-bars span {
+    display: none !important;
+}
+
+/* Solo queda el nombre de sede */
+.dash-board-v5 .dash-branch-bars small {
+    display: block !important;
+    margin-top: .34rem !important;
+
+    color: #4c3b57 !important;
+    font-size: .56rem !important;
+    font-weight: 850 !important;
+    line-height: 1.05 !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+}
+
+/* NAVI DASHBOARD TOTAL_PERCENT_BRANCH_BARS 20260702 END */
+
+
+
+/* NAVI DASHBOARD BRANCH SINGLE ROW 20260702 START */
+
+/* Card de herramientas por sede */
+.dash-board-v5 .dash-branch-card {
+    overflow: hidden !important;
+}
+
+/* Mantiene el eje 0-100 con una sola zona de medición */
+.dash-board-v5 .dash-branch-chart {
+    display: grid !important;
+    grid-template-columns: 30px minmax(0, 1fr) !important;
+    gap: .34rem !important;
+
+    min-height: 190px !important;
+    height: 190px !important;
+    margin-top: .42rem !important;
+    align-items: stretch !important;
+}
+
+/* Eje vertical 100-0 */
+.dash-board-v5 .dash-axis {
+    height: 150px !important;
+    padding-top: .2rem !important;
+    padding-bottom: 1.45rem !important;
+
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+
+    color: #3b2a45 !important;
+    font-size: .56rem !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+}
+
+/* Contenedor: una sola fila horizontal, nunca se parte en dos líneas */
+.dash-board-v5 .dash-branch-bars {
+    height: 150px !important;
+    min-height: 150px !important;
+
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: flex-end !important;
+    justify-content: flex-start !important;
+
+    gap: .58rem !important;
+
+    padding: 1.05rem .68rem 1.58rem .68rem !important;
+
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+
+    border-left: 1px solid #d9cce3 !important;
+    border-bottom: 1px solid #d9cce3 !important;
+    border-radius: .55rem !important;
+
+    background:
+        repeating-linear-gradient(
+            to top,
+            transparent 0,
+            transparent 29px,
+            rgba(123, 13, 142, .10) 30px
+        ) !important;
+
+    scrollbar-width: thin !important;
+    scrollbar-color: rgba(123, 13, 142, .35) transparent !important;
+}
+
+.dash-board-v5 .dash-branch-bars::-webkit-scrollbar {
+    height: 6px !important;
+}
+
+.dash-board-v5 .dash-branch-bars::-webkit-scrollbar-thumb {
+    border-radius: 999px !important;
+    background: rgba(123, 13, 142, .35) !important;
+}
+
+/* Cada sede ocupa un ancho fijo para no romper el eje */
+.dash-board-v5 .dash-branch-bar-item {
+    flex: 0 0 58px !important;
+    width: 58px !important;
+    min-width: 58px !important;
+    max-width: 58px !important;
+
+    height: 100% !important;
+
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+
+    text-align: center !important;
+}
+
+/* Barra delgada vertical */
+.dash-board-v5 .dash-branch-bars strong {
+    position: relative !important;
+
+    display: block !important;
+
+    width: 42px !important;
+    min-width: 42px !important;
+    max-width: 42px !important;
+
+    min-height: 8px !important;
+
+    border-radius: .4rem .4rem 0 0 !important;
+    box-shadow: 0 -.16rem .42rem rgba(75,0,92,.09) !important;
+}
+
+/* Numeración arriba de la barra */
+.dash-board-v5 .dash-branch-bars strong em {
+    position: absolute !important;
+    top: -1.14rem !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+
+    min-width: 22px !important;
+
+    padding: .05rem .22rem !important;
+
+    border-radius: 999px !important;
+    border: 1px solid #eadff0 !important;
+
+    background: #ffffff !important;
+    color: #100018 !important;
+
+    font-size: .52rem !important;
+    font-style: normal !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+}
+
+/* Oculta siglas tipo AGU, TIN, SOL */
+.dash-board-v5 .dash-branch-bars span {
+    display: none !important;
+}
+
+/* Nombre de sede debajo de la barra */
+.dash-board-v5 .dash-branch-bars small {
+    display: block !important;
+
+    width: 76px !important;
+    max-width: 76px !important;
+
+    margin-top: .34rem !important;
+
+    color: #4c3b57 !important;
+
+    font-size: .52rem !important;
+    font-weight: 850 !important;
+    line-height: 1.05 !important;
+    text-align: center !important;
+
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+/* En pantallas amplias las barras siguen en una sola fila */
+@@media (min-width: 1300px) {
+    .dash-board-v5 .dash-branch-bars {
+        justify-content: space-between !important;
+        gap: .48rem !important;
+    }
+
+    .dash-board-v5 .dash-branch-bar-item {
+        flex: 0 0 62px !important;
+        width: 62px !important;
+        min-width: 62px !important;
+        max-width: 62px !important;
+    }
+
+    .dash-board-v5 .dash-branch-bars strong {
+        width: 46px !important;
+        min-width: 46px !important;
+        max-width: 46px !important;
+    }
+}
+
+/* En pantallas medianas no se parte; solo aparece scroll horizontal */
+@@media (max-width: 1100px) {
+    .dash-board-v5 .dash-branch-bar-item {
+        flex: 0 0 56px !important;
+        width: 56px !important;
+        min-width: 56px !important;
+        max-width: 56px !important;
+    }
+
+    .dash-board-v5 .dash-branch-bars strong {
+        width: 38px !important;
+        min-width: 38px !important;
+        max-width: 38px !important;
+    }
+}
+
+/* NAVI DASHBOARD BRANCH SINGLE ROW 20260702 END */
+
+</style>
+
+@code {
+    private bool isLoading;
+    private string? errorMessage;
+    private ExecutiveDashboard? dashboard;
+    private DashboardOperationCosts operationCosts = new();
+    private string maintenanceTab = "month";
+    private string? filterBranchCode;
+    private string? filterOperationalStatus;
+    private string? filterText;
+
+    private readonly (string Value, string Text)[] dashboardStatusFilters =
+    {
+        ("Available", "Disponible"),
+        ("Assigned", "Asignada"),
+        ("Loaned", "Prestada"),
+        ("InMaintenance", "En mantenimiento"),
+        ("Damaged", "Dañada"),
+        ("NotSuitable", "No apta"),
+        ("PendingValidation", "Pendiente validación"),
+        ("NotLocated", "No localizada"),
+        ("Disposed", "Dada de baja")
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardAsync();
+    }
+
+    private async Task LoadDashboardAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            dashboard = await client.GetFromJsonAsync<ExecutiveDashboard>(BuildDashboardEndpoint());
+            operationCosts = await LoadDashboardOperationCostsAsync(client);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo cargar el dashboard. Valida que la API esté activa en http://localhost:5218. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+
+
+
+    // NAVI DASHBOARD WEB FILTERS START
+    private void OnFilterBranchChanged(ChangeEventArgs args)
+    {
+        filterBranchCode = args.Value?.ToString();
+    }
+
+    private void OnFilterStatusChanged(ChangeEventArgs args)
+    {
+        filterOperationalStatus = args.Value?.ToString();
+    }
+
+    private void OnFilterTextChanged(ChangeEventArgs args)
+    {
+        filterText = args.Value?.ToString();
+    }
+
+    private async Task ApplyDashboardFiltersAsync()
+    {
+        await LoadDashboardAsync();
+    }
+
+    private async Task ClearDashboardFiltersAsync()
+    {
+        filterBranchCode = null;
+        filterOperationalStatus = null;
+        filterText = null;
+
+        await LoadDashboardAsync();
+    }
+
+    private async Task<DashboardOperationCosts> LoadDashboardOperationCostsAsync(HttpClient client)
+    {
+        var result = new DashboardOperationCosts();
+
+        try
+        {
+            result.PurchaseCost = await LoadDashboardCostTotalAsync(client, "api/purchase-requests");
+            result.MaintenanceCost = await LoadDashboardCostTotalAsync(client, "api/maintenance-requests");
+        }
+        catch
+        {
+            // Los costos son apoyo visual del dashboard. No deben romper la pantalla.
+        }
+
+        return result;
+    }
+
+    private static async Task<decimal> LoadDashboardCostTotalAsync(HttpClient client, string endpoint)
+    {
+        try
+        {
+            using var response = await client.GetAsync(endpoint);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return 0;
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync();
+            using var document = await JsonDocument.ParseAsync(stream);
+
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                return 0;
+            }
+
+            decimal total = 0;
+
+            foreach (var item in document.RootElement.EnumerateArray())
+            {
+                var status = GetDashboardJsonString(item, "Status", "status", "State", "state", "StatusText", "statusText");
+                var costText = GetDashboardJsonString(
+                    item,
+                    "EstimatedCostText",
+                    "estimatedCostText",
+                    "Cost",
+                    "cost",
+                    "Total",
+                    "total",
+                    "TotalBeforeTax",
+                    "totalBeforeTax",
+                    "PriceBeforeVat",
+                    "priceBeforeVat");
+
+                var cost = ParseDashboardMoney(costText);
+
+                if (cost > 0 && IsDashboardPositiveCostStatus(status))
+                {
+                    total += cost;
+                }
+            }
+
+            return total;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    private static string? GetDashboardJsonString(JsonElement element, params string[] names)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        foreach (var name in names)
+        {
+            if (!element.TryGetProperty(name, out var property))
+            {
+                continue;
+            }
+
+            if (property.ValueKind == JsonValueKind.String)
+            {
+                return property.GetString();
+            }
+
+            if (property.ValueKind == JsonValueKind.Number)
+            {
+                return property.ToString();
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsDashboardPositiveCostStatus(string? status)
+    {
+        var value = NormalizeDashboardStatus(status);
+
+        return value is "Approved"
+            or "Scheduled"
+            or "InExecution"
+            or "Executed"
+            or "Completed"
+            or "Closed"
+            or "Generated"
+            or "SentToDynamics";
+    }
+
+    private static string NormalizeDashboardStatus(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return string.Empty;
+        }
+
+        return status.Trim() switch
+        {
+            "Aprobado" => "Approved",
+            "Aprobada" => "Approved",
+            "Programado" => "Scheduled",
+            "Programada" => "Scheduled",
+            "En ejecución" => "InExecution",
+            "Ejecutado" => "Executed",
+            "Ejecutada" => "Executed",
+            "Completado" => "Completed",
+            "Completada" => "Completed",
+            "Cerrado" => "Closed",
+            "Cerrada" => "Closed",
+            "Generado" => "Generated",
+            "Generada" => "Generated",
+            "Enviado a Dynamics" => "SentToDynamics",
+            _ => status.Trim()
+        };
+    }
+
+    private static decimal ParseDashboardMoney(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return 0;
+        }
+
+        var cleaned = Regex.Replace(value, @"[^0-9,\.\-]", string.Empty);
+
+        if (string.IsNullOrWhiteSpace(cleaned))
+        {
+            return 0;
+        }
+
+        var comma = cleaned.LastIndexOf(',');
+        var dot = cleaned.LastIndexOf('.');
+
+        if (comma >= 0 && dot >= 0)
+        {
+            cleaned = comma > dot
+                ? cleaned.Replace(".", string.Empty).Replace(",", ".")
+                : cleaned.Replace(",", string.Empty);
+        }
+        else if (dot >= 0)
+        {
+            var decimals = cleaned.Length - dot - 1;
+
+            if (decimals == 3)
+            {
+                cleaned = cleaned.Replace(".", string.Empty);
+            }
+        }
+        else if (comma >= 0)
+        {
+            var decimals = cleaned.Length - comma - 1;
+
+            cleaned = decimals == 3
+                ? cleaned.Replace(",", string.Empty)
+                : cleaned.Replace(",", ".");
+        }
+
+        return decimal.TryParse(cleaned, NumberStyles.Number, CultureInfo.InvariantCulture, out var result)
+            ? result
+            : 0;
+    }
+
+    private string BuildDashboardEndpoint()
+    {
+        var query = new List<string>();
+
+        AddDashboardQuery(query, "branchCode", filterBranchCode);
+        AddDashboardQuery(query, "operationalStatus", filterOperationalStatus);
+        AddDashboardQuery(query, "q", filterText);
+
+        return query.Count == 0
+            ? "api/dashboard/executive"
+            : $"api/dashboard/executive?{string.Join("&", query)}";
+    }
+
+    private static void AddDashboardQuery(List<string> query, string key, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        query.Add($"{Uri.EscapeDataString(key)}={Uri.EscapeDataString(value.Trim())}");
+    }
+    // NAVI DASHBOARD WEB FILTERS END
+
+    private void SetMaintenanceTab(string value)
+    {
+        maintenanceTab = value;
+    }
+
+    private string GetMaintenanceTabClass(string value)
+    {
+        return maintenanceTab == value ? "active" : string.Empty;
+    }
+
+    private int GetSelectedMaintenanceValue()
+    {
+        if (dashboard is null)
+        {
+            return 0;
+        }
+
+        return maintenanceTab == "day"
+            ? dashboard.MaintenanceSummary.Today
+            : dashboard.MaintenanceSummary.ThisMonth;
+    }
+
+    private int GetInProcess()
+    {
+        if (dashboard is null)
+        {
+            return 0;
+        }
+
+        return dashboard.Summary.AssignedTools + dashboard.Summary.LoanedTools + dashboard.Summary.InMaintenanceTools;
+    }
+
+    private int GetPendingTotal()
+    {
+        if (dashboard is null)
+        {
+            return 0;
+        }
+
+        return dashboard.Summary.PendingValidationTools + dashboard.Summary.WithoutLifeRecord;
+    }
+
+    private int GetDifferences()
+    {
+        if (dashboard is null)
+        {
+            return 0;
+        }
+
+        return dashboard.Summary.DamagedTools + dashboard.Summary.NotLocatedTools + dashboard.Summary.PendingValidationTools;
+    }
+
+    private int GetAdvancePercent()
+    {
+        if (dashboard is null || dashboard.Summary.TotalTools <= 0)
+        {
+            return 0;
+        }
+
+        return Math.Min(100, Math.Max(0, (int)Math.Round((decimal)dashboard.Summary.WithLifeRecord / dashboard.Summary.TotalTools * 100)));
+    }
+
+    private int GetToolsVsAssetsTotal()
+    {
+        if (dashboard is null)
+        {
+            return 1;
+        }
+
+        return Math.Max(
+            1,
+            dashboard.Summary.ToolsOnly
+            + dashboard.Summary.FixedAssets
+            + dashboard.Summary.ToolsWithoutFixedAssetCode);
+    }
+
+    private decimal GetOperationsCostTotal()
+    {
+        return Math.Max(0, operationCosts.MaintenanceCost + operationCosts.PurchaseCost);
+    }
+
+    private int GetOperationsDonutTotal()
+    {
+        if (dashboard is null)
+        {
+            return 1;
+        }
+
+        return Math.Max(1, dashboard.MaintenanceSummary.Total + dashboard.PurchaseSummary.Total);
+    }
+
+    private int GetStatusDonutTotal()
+    {
+        if (dashboard is null)
+        {
+            return 1;
+        }
+
+        return Math.Max(
+            1,
+            dashboard.Summary.AssignedTools
+            + dashboard.Summary.AvailableTools
+            + dashboard.Summary.PendingValidationTools
+            + dashboard.Summary.InMaintenanceTools
+            + GetOtherStatusTools());
+    }
+
+    private int GetLifeRecordDonutTotal()
+    {
+        if (dashboard is null)
+        {
+            return 1;
+        }
+
+        return Math.Max(
+            1,
+            dashboard.Summary.WithLifeRecord
+            + dashboard.Summary.WithoutLifeRecord
+            + dashboard.LifeRecordCoverage.MissingTechnicalData
+            + dashboard.Summary.FixedAssets
+            + GetOtherLifeRecords());
+    }
+
+    private int GetOtherStatusTools()
+    {
+        if (dashboard is null)
+        {
+            return 0;
+        }
+
+        return Math.Max(
+            0,
+            dashboard.Summary.TotalTools
+            - dashboard.Summary.AssignedTools
+            - dashboard.Summary.AvailableTools
+            - dashboard.Summary.PendingValidationTools
+            - dashboard.Summary.InMaintenanceTools);
+    }
+
+    private int GetOtherLifeRecords()
+    {
+        if (dashboard is null)
+        {
+            return 0;
+        }
+
+        return Math.Max(
+            0,
+            dashboard.Summary.TotalTools
+            - dashboard.Summary.WithLifeRecord
+            - dashboard.Summary.WithoutLifeRecord
+            - dashboard.LifeRecordCoverage.MissingTechnicalData);
+    }
+
+    private int GetBranchAssigned(int total)
+    {
+        return Math.Max(0, total);
+    }
+
+    private int GetBranchPending(int total)
+    {
+        return Math.Max(0, (int)Math.Round(total * 0.08m));
+    }
+
+    private int GetBranchDifferences(int total)
+    {
+        if (dashboard is null || dashboard.Summary.TotalTools <= 0)
+        {
+            return 0;
+        }
+
+        var totalDiff = GetDifferences();
+
+        return Math.Max(0, (int)Math.Round((decimal)total / dashboard.Summary.TotalTools * totalDiff));
+    }
+
+    private int GetBranchValidated(int total)
+    {
+        var pending = GetBranchPending(total);
+        var diff = GetBranchDifferences(total);
+
+        return Math.Max(0, total - pending - diff);
+    }
+
+    private int GetBranchAdvance(int total)
+    {
+        if (total <= 0)
+        {
+            return 0;
+        }
+
+        var valid = GetBranchValidated(total);
+
+        return Math.Min(100, Math.Max(0, (int)Math.Round((decimal)valid / total * 100)));
+    }
+
+    private int GetMaxBranch()
+    {
+        if (dashboard is null || dashboard.ToolsByBranch.Count == 0)
+        {
+            return 1;
+        }
+
+        return Math.Max(1, dashboard.ToolsByBranch.Max(x => x.Total));
+    }
+
+    private IEnumerable<BranchChartItem> GetBranchChartItems()
+    {
+        if (dashboard is null)
+        {
+            return Enumerable.Empty<BranchChartItem>();
+        }
+
+        return dashboard.ToolsByBranch.Take(8).Select((branch, index) => new BranchChartItem(branch, index));
+    }
+
+    private string GetBranchBarStyle(int value, int index)
+    {
+        var percent = GetPercent(value, GetMaxBranch());
+
+        var colors = new[]
+        {
+            "#7b0d8e",
+            "#2186d9",
+            "#f0a224",
+            "#16a34a",
+            "#b4232e",
+            "#0ea5e9",
+            "#8b5cf6",
+            "#64748b"
+        };
+
+        var color = colors[index % colors.Length];
+
+        return $"height:{percent}%; background:{color};";
+    }
+
+    private static int GetPercent(int value, int max)
+    {
+        if (value <= 0 || max <= 0)
+        {
+            return 0;
+        }
+
+        return Math.Max(5, (int)Math.Round((decimal)value / max * 100));
+    }
+
+    private string GetToolsVsAssetsDonut()
+    {
+        if (dashboard is null)
+        {
+            return "background: conic-gradient(#eadff0 0 100%);";
+        }
+
+        return BuildDonut(
+            new DashboardSegment(dashboard.Summary.ToolsOnly, "#7b0d8e"),
+            new DashboardSegment(dashboard.Summary.FixedAssets, "#2186d9"),
+            new DashboardSegment(dashboard.Summary.ToolsWithoutFixedAssetCode, "#f0a224"));
+    }
+
+    private string GetOperationsCostDonut()
+    {
+        if (operationCosts.MaintenanceCost <= 0 && operationCosts.PurchaseCost <= 0)
+        {
+            return "background: conic-gradient(#eadff0 0 100%);";
+        }
+
+        return BuildMoneyDonut(
+            new DashboardMoneySegment(operationCosts.MaintenanceCost, "#7b0d8e"),
+            new DashboardMoneySegment(operationCosts.PurchaseCost, "#2186d9"));
+    }
+
+    private string GetOperationsDonut()
+    {
+        if (dashboard is null)
+        {
+            return "background: conic-gradient(#eadff0 0 100%);";
+        }
+
+        return BuildDonut(
+            new DashboardSegment(dashboard.MaintenanceSummary.Total, "#7b0d8e"),
+            new DashboardSegment(dashboard.PurchaseSummary.Total, "#2186d9"));
+    }
+
+    private string GetStatusDonut()
+    {
+        if (dashboard is null)
+        {
+            return "background: conic-gradient(#eadff0 0 100%);";
+        }
+
+        return BuildDonut(
+            new DashboardSegment(dashboard.Summary.AssignedTools, "#7b0d8e"),
+            new DashboardSegment(dashboard.Summary.AvailableTools, "#2186d9"),
+            new DashboardSegment(dashboard.Summary.PendingValidationTools, "#f0a224"),
+            new DashboardSegment(dashboard.Summary.InMaintenanceTools, "#b4232e"),
+            new DashboardSegment(GetOtherStatusTools(), "#64748b"));
+    }
+
+    private string GetLifeRecordDonut()
+    {
+        if (dashboard is null)
+        {
+            return "background: conic-gradient(#eadff0 0 100%);";
+        }
+
+        return BuildDonut(
+            new DashboardSegment(dashboard.Summary.WithLifeRecord, "#7b0d8e"),
+            new DashboardSegment(dashboard.Summary.WithoutLifeRecord, "#2186d9"),
+            new DashboardSegment(dashboard.LifeRecordCoverage.MissingTechnicalData, "#f0a224"),
+            new DashboardSegment(dashboard.Summary.FixedAssets, "#b4232e"),
+            new DashboardSegment(GetOtherLifeRecords(), "#64748b"));
+    }
+
+    private static string BuildMoneyDonut(params DashboardMoneySegment[] segments)
+    {
+        var validSegments = segments
+            .Where(x => x.Value > 0)
+            .ToList();
+
+        var total = validSegments.Sum(x => x.Value);
+
+        if (total <= 0)
+        {
+            return "background: conic-gradient(#eadff0 0 100%);";
+        }
+
+        var parts = new List<string>();
+        decimal start = 0;
+
+        for (var i = 0; i < validSegments.Count; i++)
+        {
+            var segment = validSegments[i];
+            var percent = Math.Round(segment.Value / total * 100, 2);
+            var end = i == validSegments.Count - 1 ? 100 : Math.Min(100, start + percent);
+
+            parts.Add($"{segment.Color} {CssNumber(start)}% {CssNumber(end)}%");
+            start = end;
+        }
+
+        return $"background: conic-gradient({string.Join(", ", parts)});";
+    }
+
+    private static string BuildDonut(params DashboardSegment[] segments)
+    {
+        var validSegments = segments
+            .Where(x => x.Value > 0)
+            .ToList();
+
+        var total = validSegments.Sum(x => x.Value);
+
+        if (total <= 0)
+        {
+            return "background: conic-gradient(#eadff0 0 100%);";
+        }
+
+        var parts = new List<string>();
+        decimal start = 0;
+
+        for (var i = 0; i < validSegments.Count; i++)
+        {
+            var segment = validSegments[i];
+            var percent = Math.Round((decimal)segment.Value / total * 100, 2);
+            var end = i == validSegments.Count - 1 ? 100 : Math.Min(100, start + percent);
+
+            parts.Add($"{segment.Color} {CssNumber(start)}% {CssNumber(end)}%");
+            start = end;
+        }
+
+        return $"background: conic-gradient({string.Join(", ", parts)});";
+    }
+
+    private static string CssNumber(decimal value)
+    {
+        return value.ToString("0.##", CultureInfo.InvariantCulture);
+    }
+
+    private decimal GetOperationsCostTotalPercentValue(decimal value)
+    {
+        var total = GetOperationsCostTotal();
+
+        if (value <= 0 || total <= 0)
+        {
+            return 0;
+        }
+
+        return Math.Min(100, Math.Round(value / total * 100, 1));
+    }
+
+    private string GetOperationsCostTotalPercentLabel(decimal value)
+    {
+        return $"{GetOperationsCostTotalPercentValue(value).ToString("0.#", CultureInfo.InvariantCulture)}%";
+    }
+
+    private string GetOperationsMaxPercentLabel(int value)
+    {
+        if (dashboard is null || value <= 0)
+        {
+            return "0%";
+        }
+
+        var max = Math.Max(dashboard.MaintenanceSummary.Total, dashboard.PurchaseSummary.Total);
+
+        if (max <= 0)
+        {
+            return "0%";
+        }
+
+        return $"{Math.Round((decimal)value / max * 100, 1)}%";
+    }
+
+    private static string FormatDashboardMoney(decimal value)
+    {
+        return value <= 0
+            ? "$ 0"
+            : $"$ {value.ToString("N0", CultureInfo.GetCultureInfo("es-CO"))}";
+    }
+
+    private static string FormatDashboardMoneyCompact(decimal value)
+    {
+        if (value <= 0)
+        {
+            return "$ 0";
+        }
+
+        if (value >= 1_000_000)
+        {
+            return $"$ {(value / 1_000_000m).ToString("0.#", CultureInfo.GetCultureInfo("es-CO"))}M";
+        }
+
+        if (value >= 1_000)
+        {
+            return $"$ {(value / 1_000m).ToString("0.#", CultureInfo.GetCultureInfo("es-CO"))}K";
+        }
+
+        return $"$ {value.ToString("N0", CultureInfo.GetCultureInfo("es-CO"))}";
+    }
+
+    private static string GetPercentLabel(int value, int total)
+    {
+        if (value <= 0 || total <= 0)
+        {
+            return "0%";
+        }
+
+        return $"{Math.Round((decimal)value / total * 100, 1)}%";
+    }
+
+    private static string GetProgressStyle(int percent)
+    {
+        return $"width:{Math.Min(100, Math.Max(0, percent))}%";
+    }
+
+    private string GetPendingPanelTitle()
+    {
+        if (dashboard is null || dashboard.ToolsByBranch.Count == 0)
+        {
+            return "Pendientes";
+        }
+
+        var branch = dashboard.ToolsByBranch
+            .OrderByDescending(x => GetBranchPending(x.Total) + GetBranchDifferences(x.Total))
+            .First();
+
+        return $"Pendientes de {branch.BranchName}";
+    }
+
+    private static string ShortName(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "Sin sede";
+        }
+
+        return value.Length <= 12 ? value : value[..12];
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "—" : value;
+    }
+
+    private static string FormatDateTime(DateTime value)
+    {
+        return value.ToString("dd/MM/yyyy HH:mm");
+    }
+
+    private static string GetActivityIcon(string? eventType)
+    {
+        if (string.IsNullOrWhiteSpace(eventType))
+        {
+            return "📌";
+        }
+
+        var value = eventType.ToLowerInvariant();
+
+        if (value.Contains("maintenance"))
+        {
+            return "🛠️";
+        }
+
+        if (value.Contains("assignment"))
+        {
+            return "🔁";
+        }
+
+        if (value.Contains("document"))
+        {
+            return "📄";
+        }
+
+        if (value.Contains("purchase"))
+        {
+            return "🛒";
+        }
+
+        if (value.Contains("physical") || value.Contains("count"))
+        {
+            return "📦";
+        }
+
+        return "📌";
+    }
+
+    private sealed record DashboardMoneySegment(decimal Value, string Color);
+
+    private sealed record DashboardSegment(int Value, string Color);
+
+    private sealed record BranchChartItem(BranchItem Branch, int Index);
+
+    private sealed class DashboardOperationCosts
+    {
+        public decimal PurchaseCost { get; set; }
+        public decimal MaintenanceCost { get; set; }
+    }
+
+    private sealed class ExecutiveDashboard
+    {
+        public DateTime GeneratedAt { get; set; }
+        public DashboardSummary Summary { get; set; } = new();
+        public List<StatusItem> ToolsByStatus { get; set; } = new();
+        public List<BranchItem> ToolsByBranch { get; set; } = new();
+        public List<MaintenancePeriodItem> MaintenanceByMonth { get; set; } = new();
+        public List<MaintenancePeriodItem> MaintenanceByDay { get; set; } = new();
+        public LifeRecordCoverage LifeRecordCoverage { get; set; } = new();
+        public MaintenanceSummary MaintenanceSummary { get; set; } = new();
+        public DocumentSummary DocumentSummary { get; set; } = new();
+        public PurchaseSummary PurchaseSummary { get; set; } = new();
+        public List<RecentActivityItem> RecentActivity { get; set; } = new();
+    }
+
+    private sealed class DashboardSummary
+    {
+        public int TotalTools { get; set; }
+        public int AvailableTools { get; set; }
+        public int PendingValidationTools { get; set; }
+        public int AssignedTools { get; set; }
+        public int LoanedTools { get; set; }
+        public int InMaintenanceTools { get; set; }
+        public int DamagedTools { get; set; }
+        public int NotLocatedTools { get; set; }
+        public int DisposedTools { get; set; }
+        public int FixedAssets { get; set; }
+        public int ToolsWithoutFixedAssetCode { get; set; }
+        public int ToolsOnly { get; set; }
+        public int NonToolAssets { get; set; }
+        public int SpecializedTools { get; set; }
+        public int RequiresMaintenance { get; set; }
+        public int ActiveResponsibles { get; set; }
+        public int InactiveResponsibles { get; set; }
+        public int ActiveBranches { get; set; }
+        public int InactiveBranches { get; set; }
+        public int WithLifeRecord { get; set; }
+        public int WithoutLifeRecord { get; set; }
+    }
+
+    private sealed class StatusItem
+    {
+        public string Status { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
+    private sealed class BranchItem
+    {
+        public string BranchCode { get; set; } = string.Empty;
+        public string BranchName { get; set; } = string.Empty;
+        public int Total { get; set; }
+    }
+
+    private sealed class MaintenancePeriodItem
+    {
+        public string Label { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
+    private sealed class LifeRecordCoverage
+    {
+        public int MissingTechnicalData { get; set; }
+        public List<MissingTechnicalItem> MissingTechnicalDataItems { get; set; } = new();
+    }
+
+    private sealed class MissingTechnicalItem
+    {
+        public string InternalCode { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? BranchCode { get; set; }
+        public string? Missing { get; set; }
+    }
+
+    private sealed class MaintenanceSummary
+    {
+        public int Total { get; set; }
+        public int ThisMonth { get; set; }
+        public int Today { get; set; }
+    }
+
+    private sealed class DocumentSummary
+    {
+        public int Total { get; set; }
+        public List<DocumentItem> Recent { get; set; } = new();
+    }
+
+    private sealed class DocumentItem
+    {
+        public string FileName { get; set; } = string.Empty;
+        public string DocumentType { get; set; } = string.Empty;
+        public DateTime UploadedAt { get; set; }
+        public string? UploadedBy { get; set; }
+    }
+
+    private sealed class PurchaseSummary
+    {
+        public int Total { get; set; }
+        public int Completed { get; set; }
+        public int Pending { get; set; }
+        public int Rejected { get; set; }
+        public string ModuleStatus { get; set; } = string.Empty;
+        public string Note { get; set; } = string.Empty;
+    }
+
+    private sealed class RecentActivityItem
+    {
+        public string EventType { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string? ToolInternalCode { get; set; }
+        public DateTime RegisteredAt { get; set; }
+        public string? User { get; set; }
+    }
+}
