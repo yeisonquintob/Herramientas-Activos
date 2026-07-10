@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text;
 using Navi.ToolsAssets.Api.Security;
 using Navi.ToolsAssets.Domain.Entities.Purchases;
 using Navi.ToolsAssets.Infrastructure.Persistence.Context;
@@ -626,6 +627,19 @@ public sealed class PurchaseRequestsController : ControllerBase
 
     private string? GetResponsiblePersonName()
     {
+        if (Request.Headers.TryGetValue("X-Navi-ResponsiblePersonName-B64", out var encodedValue) &&
+            !string.IsNullOrWhiteSpace(encodedValue))
+        {
+            try
+            {
+                return Encoding.UTF8.GetString(Convert.FromBase64String(encodedValue.ToString()));
+            }
+            catch (FormatException)
+            {
+                return null;
+            }
+        }
+
         return Request.Headers.TryGetValue("X-Navi-ResponsiblePersonName", out var value) && !string.IsNullOrWhiteSpace(value)
             ? value.ToString()
             : null;

@@ -102,10 +102,14 @@ public sealed class AuthController : ControllerBase
 
 
 
+    [HttpGet("mobile-session")]
     [HttpGet("mobile-session/{userName}")]
-    public async Task<IActionResult> GetMobileSession(string userName, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetMobileSession(
+        [FromRoute] string? userName,
+        [FromQuery(Name = "userName")] string? queryUserName,
+        CancellationToken cancellationToken)
     {
-        var normalizedUserName = userName?.Trim();
+        var normalizedUserName = (queryUserName ?? userName)?.Trim();
 
         if (string.IsNullOrWhiteSpace(normalizedUserName))
         {

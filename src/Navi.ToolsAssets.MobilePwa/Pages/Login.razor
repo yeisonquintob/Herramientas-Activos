@@ -1,50 +1,112 @@
-﻿@page "/login"
+@page "/login"
 
 @inject NaviMobileApiClient Api
 @inject MobileAuthSessionService Auth
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <PageTitle>Login móvil - NAVI Herramientas y AF</PageTitle>
 
-<section class="mobile-login-page">
-    <div class="mobile-login-brand">
-        <div class="mobile-brand-mark">N</div>
-        <h1>NAVI Herramientas y AF</h1>
-        <p>Aplicación móvil operativa</p>
-    </div>
+<section class="mobile-login-page navi-mobile-login-v6">
+    <aside class="navi-mobile-login-v6-brand" aria-label="NAVI Herramientas y AF">
+        <div class="navi-mobile-login-v6-brand-inner">
+            <div class="navi-mobile-login-v6-logo-row">
+                <div class="navi-mobile-login-v6-logo">N</div>
 
-    <div class="mobile-login-card">
-        <span class="mobile-pill">ACCESO MÓVIL</span>
-        <h2>Ingreso técnico</h2>
-        <p>Ingresa con tu documento y contraseña para consultar tus activos y reportar novedades.</p>
+                <div>
+<h1>Navitrans<br />Herramientas y AF</h1>
+                    <p>Consulta activos, reporta novedades y acompaña la operación desde campo.</p>
+                </div>
+            </div>
 
-        @if (!string.IsNullOrWhiteSpace(message))
-        {
-            <div class="mobile-alert">@message</div>
-        }
+            <div class="navi-mobile-login-v6-brand-lines" aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
 
-        <EditForm Model="model" OnValidSubmit="LoginAsync">
-            <label>
-                Documento / usuario
-                <InputText class="mobile-input" @bind-Value="model.UserName" placeholder="Documento o usuario" />
-            </label>
+            <div class="navi-mobile-login-v6-brand-footer">
+                <strong>Navitrans 40 años</strong>
+                <span>Operación segura y controlada</span>
+            </div>
+        </div>
+    </aside>
 
-            <label>
-                Contraseña
-                <InputText class="mobile-input" type="password" @bind-Value="model.Password" placeholder="Contraseña" />
-            </label>
+    <main class="navi-mobile-login-v6-main">
+        <section class="navi-mobile-login-v6-card" aria-label="Ingreso móvil">
+            <div class="navi-mobile-login-v6-user-icon" aria-hidden="true">
+                <span></span>
+            </div>
 
-            <button class="mobile-primary-button" type="submit" disabled="@isLoading">
-                @(isLoading ? "Ingresando..." : "Ingresar")
-            </button>
-        </EditForm>
-    </div>
+            <span class="navi-mobile-login-v6-pill">Acceso móvil</span>
+
+            <h2>Ingreso</h2>
+            <p>Ingresa con tu documento y contraseña.</p>
+
+            @if (!string.IsNullOrWhiteSpace(message))
+            {
+                <div class="mobile-alert navi-mobile-login-v6-alert">@message</div>
+            }
+
+            <EditForm Model="model" OnValidSubmit="LoginAsync">
+                <label class="navi-mobile-login-v6-field">
+                    <span>Documento / usuario</span>
+
+                    <div class="navi-mobile-login-v6-input-wrap">
+                        <span class="navi-mobile-login-v6-input-icon" aria-hidden="true">👤</span>
+                        <InputText class="mobile-input"
+                                   @bind-Value="model.UserName"
+                                   placeholder="Documento o usuario" />
+                    </div>
+                </label>
+
+                <label class="navi-mobile-login-v6-field">
+                    <span>Contraseña</span>
+
+                    <div class="navi-mobile-login-v6-input-wrap navi-mobile-login-v6-password-wrap">
+                        <span class="navi-mobile-login-v6-input-icon" aria-hidden="true">🔒</span>
+
+                        <InputText class="mobile-input"
+                                   type="@PasswordInputType"
+                                   @bind-Value="model.Password"
+                                   placeholder="Contraseña" />
+
+                        <button class="navi-mobile-login-v6-eye"
+                                type="button"
+                                @onclick="TogglePasswordVisibility"
+                                aria-label="@PasswordToggleLabel">
+                            @(showPassword ? "Ocultar" : "Ver")
+                        </button>
+                    </div>
+                </label>
+
+                <NaviMobileActionButton Type="submit"
+                                        Tone="primary"
+                                        Class="mobile-primary-button navi-mobile-login-v6-submit"
+                                        Disabled="@isLoading"
+                                        Block="true">
+                    @(isLoading ? "Ingresando..." : "Ingresar")
+                </NaviMobileActionButton>
+            </EditForm>
+        </section>
+    </main>
 </section>
 
 @code {
+    // NAVI MOBILE LOGIN HISTORY FIX:
+    // Si ya existe sesión, /login debe volver al inicio reemplazando el historial.
+    // Después de iniciar sesión, atrás no debe volver al login.
+    private const string RememberEnabledKey = "navi-mobile-login-remember-enabled";
+    private const string RememberUserNameKey = "navi-mobile-login-remember-username";
+    private const string RememberPasswordKey = "navi-mobile-login-remember-password";
+
     private LoginForm model = new();
     private bool isLoading;
+    private bool showPassword;
     private string? message;
+
+    private string PasswordInputType => showPassword ? "text" : "password";
+    private string PasswordToggleLabel => showPassword ? "Ocultar contraseña" : "Ver contraseña";
 
     protected override async Task OnInitializedAsync()
     {
@@ -52,7 +114,7 @@
 
         if (Auth.IsAuthenticated)
         {
-            Navigation.NavigateTo("/");
+            Navigation.NavigateTo("/", replace: true);
         }
     }
 
@@ -71,7 +133,7 @@
         try
         {
             await Api.LoginAsync(model.UserName.Trim(), model.Password.Trim());
-            Navigation.NavigateTo("/", forceLoad: true);
+            Navigation.NavigateTo("/", replace: true);
         }
         catch (Exception ex)
         {
@@ -83,9 +145,53 @@
         }
     }
 
+    private async Task LoadRememberedCredentialsAsync()
+    {
+        try
+        {
+            var remember = await JS.InvokeAsync<string?>("localStorage.getItem", RememberEnabledKey);
+
+            if (!string.Equals(remember, "true", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            model.RememberCredentials = true;
+            model.UserName = await JS.InvokeAsync<string?>("localStorage.getItem", RememberUserNameKey);
+            model.Password = await JS.InvokeAsync<string?>("localStorage.getItem", RememberPasswordKey);
+        }
+        catch
+        {
+            model.RememberCredentials = false;
+            model.UserName = null;
+            model.Password = null;
+        }
+    }
+
+    private async Task SaveRememberedCredentialsAsync()
+    {
+        if (model.RememberCredentials)
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", RememberEnabledKey, "true");
+            await JS.InvokeVoidAsync("localStorage.setItem", RememberUserNameKey, model.UserName?.Trim() ?? string.Empty);
+            await JS.InvokeVoidAsync("localStorage.setItem", RememberPasswordKey, model.Password ?? string.Empty);
+            return;
+        }
+
+        await JS.InvokeVoidAsync("localStorage.removeItem", RememberEnabledKey);
+        await JS.InvokeVoidAsync("localStorage.removeItem", RememberUserNameKey);
+        await JS.InvokeVoidAsync("localStorage.removeItem", RememberPasswordKey);
+    }
+
+    private void TogglePasswordVisibility()
+    {
+        showPassword = !showPassword;
+    }
+
     private sealed class LoginForm
     {
         public string? UserName { get; set; }
         public string? Password { get; set; }
+        public bool RememberCredentials { get; set; }
     }
 }

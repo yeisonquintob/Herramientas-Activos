@@ -28,15 +28,15 @@
     }
     else if (tool is not null)
     {
-        <header class="mobile-compact-hero">
-            <div class="mobile-compact-top">
-                <span>DETALLE AF</span>
-                <button type="button" @onclick="GoBack">Regresar</button>
-            </div>
-
-            <h1>@Show(tool.Name)</h1>
-            <p>@Show(tool.InternalCode) · @StatusLabel(tool.OperationalStatus)</p>
-        </header>
+        <NaviMobileAppBanner Class="navi-mobile-inventory-detail-app-banner navi-mobile-app-banner--detail"
+                             Pill="ACTIVOS FIJOS · DETALLE AF"
+                             Title="@Show(tool.Name)"
+                             Description="@($"{Show(tool.InternalCode)} · {StatusLabel(tool.OperationalStatus)}")"
+                             HomeUrl="/"
+                             BackUrl="@GetNaviMobileBackUrl()"
+                             BackFallbackUrl="/all-tools"
+                             ShowHomeButton="true"
+                             ShowBackButton="@HasNaviMobileReturnUrl" />
 
         <section class="mobile-compact-kpis">
             <article>
@@ -182,9 +182,49 @@
 
     private void GoBack() => Navigation.NavigateTo("/");
 
-    private void GoLogin() => Navigation.NavigateTo("/login", forceLoad: true);
 
-    private string GetLifeRecordUrl() => "/tools/" + ToolId + "/life-record-view";
+    private string? NaviMobileReturnUrl => GetNaviMobileQueryValue("returnUrl");
+
+    private bool HasNaviMobileReturnUrl => !string.IsNullOrWhiteSpace(NaviMobileReturnUrl);
+
+    private string GetNaviMobileBackUrl()
+    {
+        return string.IsNullOrWhiteSpace(NaviMobileReturnUrl)
+            ? "/all-tools"
+            : NaviMobileReturnUrl!;
+    }
+
+    private string? GetNaviMobileQueryValue(string key)
+    {
+        var uri = new Uri(Navigation.Uri);
+        var query = uri.Query;
+
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return null;
+        }
+
+        foreach (var part in query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var pair = part.Split('=', 2, StringSplitOptions.None);
+            var name = Uri.UnescapeDataString(pair[0]);
+
+            if (!string.Equals(name, key, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            return pair.Length > 1
+                ? Uri.UnescapeDataString(pair[1])
+                : string.Empty;
+        }
+
+        return null;
+    }
+
+    private void GoLogin() => Navigation.NavigateTo("/login", replace: true);
+
+    private string GetLifeRecordUrl() => "/tools/" + ToolId + "/life-record-view?returnUrl=" + Uri.EscapeDataString("/tools/" + ToolId + "?returnUrl=" + Uri.EscapeDataString(GetNaviMobileBackUrl()));
 
     private string GetReportUrl() => "/report-damage/" + ToolId;
 

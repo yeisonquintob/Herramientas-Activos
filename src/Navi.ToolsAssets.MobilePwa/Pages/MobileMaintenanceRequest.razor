@@ -36,20 +36,13 @@
     }
     else
     {
-        <header class="mmnt-hero">
-            <div>
-                <span>MANTENIMIENTO</span>
-                <h1>Solicitud de mantenimiento</h1>
-                <p>@Display(Auth.CurrentUser?.DisplayName) · @ScopeLabel</p>
-            </div>
-
-            <div class="mmnt-hero-actions">
-                <button type="button" @onclick="GoHome">Inicio</button>
-                <button type="button" @onclick="RefreshAsync" disabled="@isLoading">
-                    @(isLoading ? "Cargando..." : "Actualizar")
-                </button>
-            </div>
-        </header>
+        <NaviMobileAppBanner Class="navi-mobile-maintenance-app-banner navi-mobile-app-banner--module"
+                             Pill="OPERACIONES · MANTENIMIENTO"
+                             Title="Solicitud de mantenimiento"
+                             Description="@($"{Display(Auth.CurrentUser?.DisplayName)} · {ScopeLabel}")"
+                             HomeUrl="/"
+                             ShowHomeButton="true"
+                             ShowBackButton="false" />
 
         @if (!string.IsNullOrWhiteSpace(successMessage))
         {
@@ -61,11 +54,11 @@
             <div class="mobile-alert error">@errorMessage</div>
         }
 
-        <section class="mmnt-kpis">
+        <section class="mmnt-kpis mmnt-kpis-compact-v2">
             <article>
                 <span>Locales</span>
                 <strong>@LocalVisibleRequests.Count()</strong>
-                <small>Borrador / cotización</small>
+                <small>Local</small>
             </article>
 
             <article>
@@ -77,13 +70,13 @@
             <article>
                 <span>Pendientes</span>
                 <strong>@FilteredRegistered.Count(x => IsOpenStatus(x.Status))</strong>
-                <small>Proceso</small>
+                <small>Abiertas</small>
             </article>
 
             <article>
                 <span>Permiso</span>
                 <strong>@PermissionMode</strong>
-                <small>Matriz</small>
+                <small>Rol</small>
             </article>
         </section>
 
@@ -120,6 +113,116 @@
                 <button type="button" @onclick="ClearTopFilters">Limpiar búsqueda</button>
             </div>
         </section>
+
+<details class="mmnt-card mmnt-requests-done-card">
+            <summary>
+                <span>Solicitudes realizadas</span>
+                <em>@(LocalVisibleRequests.Count() + FilteredRegistered.Count())</em>
+            </summary>
+
+            <section class="mmnt-bottom-filter">
+                <label>
+                    <span>Estado</span>
+                    <select value="@selectedBottomStatus" @onchange="OnBottomStatusChanged">
+                        <option value="">Todos los estados</option>
+                        @foreach (var status in BottomStatusOptions)
+                        {
+                            <option value="@status.Value">@status.Text</option>
+                        }
+                    </select>
+                </label>
+
+                <button type="button" @onclick="ClearBottomStatus">
+                    Limpiar estado
+                </button>
+            </section>
+
+            @if (!LocalVisibleRequests.Any() && !FilteredRegistered.Any())
+            {
+                <div class="mobile-empty compact">No hay solicitudes realizadas para los filtros actuales.</div>
+            }
+            else
+            {
+                <div class="mmnt-list">
+                    @foreach (var item in LocalVisibleRequests)
+                    {
+                        <article class="@GetStoredRowClass(item)">
+                            <div>
+                                <strong>@item.LocalNumber</strong>
+                                <span>@Display(item.Header.RequestName)</span>
+                                <small>@Display(item.Header.RequestType) · @Display(item.Header.Priority)</small>
+                                <small>@GetStoredStatusLabel(item.Status) · @DateTimeLabel(item.UpdatedAt)</small>
+                                <small>Equipos: @item.Lines.Count · Cotizaciones: @item.Quotations.Count</small>
+                            </div>
+
+                            <div class="mmnt-row-actions">
+                                @if (item.Status == LocalStatusDraft && CanCreateOrConfirmRequest)
+                                {
+                                    <button type="button" @onclick="() => LoadDraftForEdit(item.Id)">Editar</button>
+                                    <button type="button" class="primary" @onclick="() => ConfirmStoredRequestAsync(item.Id)">Confirmar</button>
+                                }
+                                else if (item.Status == LocalStatusConfirmed && CanRegisterQuotation)
+                                {
+                                    <button type="button" class="warning" @onclick="() => StartQuotationAsync(item.Id)">Realizar cotización</button>
+                                }
+                                else if (item.Status == LocalStatusQuoting && CanRegisterQuotation)
+                                {
+                                    <button type="button" class="warning" @onclick="() => ContinueQuotation(item.Id)">Continuar cotización</button>
+                                }
+
+                                <button type="button" class="danger" @onclick="() => DeleteLocalRequestAsync(item.Id)">Eliminar</button>
+                            </div>
+                        </article>
+                    }
+
+                    @if (CanViewGeneratedRequests)
+                    {
+                        @foreach (var item in FilteredRegistered.Take(80))
+                        {
+                            <article>
+                                <div>
+                                    <strong>@item.RequestNumber</strong>
+                                    <span>@item.Title</span>
+                                    <small>@Display(item.BranchCode) · @Display(item.Priority) · @StatusLabel(item.Status)</small>
+                                    <small>@Display(item.RequestedBy) · @DateTimeLabel(item.CreatedAt)</small>
+                                </div>
+
+                                <div class="mmnt-row-actions">
+                                    @if (CanApproveRequest && item.Status == "InReview")
+                                    {
+                                        <button type="button" class="approve" @onclick="() => ApproveAsync(item)">Aprobar</button>
+                                    }
+
+                                    @if (CanRejectRequest && item.Status == "InReview")
+                                    {
+                                        <button type="button" class="danger" @onclick="() => RejectAsync(item)">Rechazar</button>
+                                    }
+
+                                    @if (CanApproveRequest && item.Status == "Approved")
+                                    {
+                                        <button type="button" class="warning" @onclick="() => ScheduleAsync(item)">Programar</button>
+                                    }
+
+                                    @if (CanExecuteMaintenance && (item.Status == "Approved" || item.Status == "Scheduled"))
+                                    {
+                                        <button type="button" class="primary" @onclick="() => StartExecutionAsync(item)">Iniciar</button>
+                                    }
+
+                                    @if ((CanApproveRequest || CanExecuteMaintenance) && (item.Status == "Approved" || item.Status == "Scheduled" || item.Status == "InExecution"))
+                                    {
+                                        <button type="button" class="approve" @onclick="() => CloseAsync(item)">Cerrar</button>
+                                    }
+                                </div>
+                            </article>
+                        }
+                    }
+                </div>
+            }
+        </details>
+
+
+
+
 
         @if (CanCreateOrConfirmRequest)
         {
@@ -248,7 +351,7 @@
 
                 <div class="mmnt-action-row">
                     <button type="button" class="primary" @onclick="AddLine" disabled="@(!CanEditRequest)">
-                        @(editingLineId.HasValue ? "Actualizar equipo" : "Agregar equipo")
+                        @(editingLineId.HasValue ? "Actualizar" : "Agregar")
                     </button>
 
                     <button type="button" @onclick="ClearLine">
@@ -476,111 +579,7 @@
             </details>
         }
 
-        <details class="mmnt-card" open>
-            <summary>
-                <span>Solicitudes realizadas</span>
-                <em>@(LocalVisibleRequests.Count() + FilteredRegistered.Count())</em>
-            </summary>
-
-            <section class="mmnt-bottom-filter">
-                <label>
-                    <span>Estado</span>
-                    <select value="@selectedBottomStatus" @onchange="OnBottomStatusChanged">
-                        <option value="">Todos los estados</option>
-                        @foreach (var status in BottomStatusOptions)
-                        {
-                            <option value="@status.Value">@status.Text</option>
-                        }
-                    </select>
-                </label>
-
-                <button type="button" @onclick="ClearBottomStatus">
-                    Limpiar estado
-                </button>
-            </section>
-
-            @if (!LocalVisibleRequests.Any() && !FilteredRegistered.Any())
-            {
-                <div class="mobile-empty compact">No hay solicitudes realizadas para los filtros actuales.</div>
-            }
-            else
-            {
-                <div class="mmnt-list">
-                    @foreach (var item in LocalVisibleRequests)
-                    {
-                        <article class="@GetStoredRowClass(item)">
-                            <div>
-                                <strong>@item.LocalNumber</strong>
-                                <span>@Display(item.Header.RequestName)</span>
-                                <small>@Display(item.Header.RequestType) · @Display(item.Header.Priority)</small>
-                                <small>@GetStoredStatusLabel(item.Status) · @DateTimeLabel(item.UpdatedAt)</small>
-                                <small>Equipos: @item.Lines.Count · Cotizaciones: @item.Quotations.Count</small>
-                            </div>
-
-                            <div class="mmnt-row-actions">
-                                @if (item.Status == LocalStatusDraft && CanCreateOrConfirmRequest)
-                                {
-                                    <button type="button" @onclick="() => LoadDraftForEdit(item.Id)">Editar</button>
-                                    <button type="button" class="primary" @onclick="() => ConfirmStoredRequestAsync(item.Id)">Confirmar</button>
-                                }
-                                else if (item.Status == LocalStatusConfirmed && CanRegisterQuotation)
-                                {
-                                    <button type="button" class="warning" @onclick="() => StartQuotationAsync(item.Id)">Realizar cotización</button>
-                                }
-                                else if (item.Status == LocalStatusQuoting && CanRegisterQuotation)
-                                {
-                                    <button type="button" class="warning" @onclick="() => ContinueQuotation(item.Id)">Continuar cotización</button>
-                                }
-
-                                <button type="button" class="danger" @onclick="() => DeleteLocalRequestAsync(item.Id)">Eliminar</button>
-                            </div>
-                        </article>
-                    }
-
-                    @if (CanViewGeneratedRequests)
-                    {
-                        @foreach (var item in FilteredRegistered.Take(80))
-                        {
-                            <article>
-                                <div>
-                                    <strong>@item.RequestNumber</strong>
-                                    <span>@item.Title</span>
-                                    <small>@Display(item.BranchCode) · @Display(item.Priority) · @StatusLabel(item.Status)</small>
-                                    <small>@Display(item.RequestedBy) · @DateTimeLabel(item.CreatedAt)</small>
-                                </div>
-
-                                <div class="mmnt-row-actions">
-                                    @if (CanApproveRequest && item.Status == "InReview")
-                                    {
-                                        <button type="button" class="approve" @onclick="() => ApproveAsync(item)">Aprobar</button>
-                                    }
-
-                                    @if (CanRejectRequest && item.Status == "InReview")
-                                    {
-                                        <button type="button" class="danger" @onclick="() => RejectAsync(item)">Rechazar</button>
-                                    }
-
-                                    @if (CanApproveRequest && item.Status == "Approved")
-                                    {
-                                        <button type="button" class="warning" @onclick="() => ScheduleAsync(item)">Programar</button>
-                                    }
-
-                                    @if (CanExecuteMaintenance && (item.Status == "Approved" || item.Status == "Scheduled"))
-                                    {
-                                        <button type="button" class="primary" @onclick="() => StartExecutionAsync(item)">Iniciar</button>
-                                    }
-
-                                    @if ((CanApproveRequest || CanExecuteMaintenance) && (item.Status == "Approved" || item.Status == "Scheduled" || item.Status == "InExecution"))
-                                    {
-                                        <button type="button" class="approve" @onclick="() => CloseAsync(item)">Cerrar</button>
-                                    }
-                                </div>
-                            </article>
-                        }
-                    }
-                </div>
-            }
-        </details>
+        
     }
 </section>
 
@@ -757,7 +756,7 @@
 
         if (refreshedUser is null || !Auth.IsAuthenticated)
         {
-            Navigation.NavigateTo("/login", forceLoad: true);
+            Navigation.NavigateTo("/login", replace: true);
             return;
         }
 
@@ -1678,7 +1677,7 @@
     }
 
     private void GoHome() => Navigation.NavigateTo("/");
-    private void GoLogin() => Navigation.NavigateTo("/login", forceLoad: true);
+    private void GoLogin() => Navigation.NavigateTo("/login", replace: true);
 
     private static bool ContainsText(string? value, string expected)
     {

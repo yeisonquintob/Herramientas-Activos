@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Components.Forms;
@@ -73,34 +74,49 @@ public sealed class NaviMobileApiClient
             return null;
         }
 
-        using var request = new HttpRequestMessage(
-            HttpMethod.Get,
-            $"api/auth/mobile-session/{Uri.EscapeDataString(userName)}");
+        try
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"api/auth/mobile-session/{Uri.EscapeDataString(userName)}");
 
-        ApplySecurityHeaders(request);
+            ApplySecurityHeaders(request);
 
-        using var response = await _http.SendAsync(request);
+            using var response = await _http.SendAsync(request);
 
-        if (!response.IsSuccessStatusCode)
+            if (!response.IsSuccessStatusCode)
+            {
+                await _auth.LogoutAsync();
+                ClearCache();
+                return null;
+            }
+
+            var user = await response.Content.ReadFromJsonAsync<MobileUser>(JsonOptions);
+
+            if (user is null)
+            {
+                await _auth.LogoutAsync();
+                ClearCache();
+                return null;
+            }
+
+            ClearCache();
+            await _auth.LoginAsync(user);
+
+            return user;
+        }
+        catch (HttpRequestException)
         {
             await _auth.LogoutAsync();
             ClearCache();
             return null;
         }
-
-        var user = await response.Content.ReadFromJsonAsync<MobileUser>(JsonOptions);
-
-        if (user is null)
+        catch (TaskCanceledException)
         {
             await _auth.LogoutAsync();
             ClearCache();
             return null;
         }
-
-        ClearCache();
-        await _auth.LoginAsync(user);
-
-        return user;
     }
 
     public async Task<MobileExecutiveDashboard> GetDashboardAsync(
@@ -444,7 +460,7 @@ public sealed class NaviMobileApiClient
     {
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, "api/settings/locations");
+            using var request = new HttpRequestMessage(HttpMethod.Get, "api/organization/locations");
 
             ApplySecurityHeaders(request);
 
@@ -652,6 +668,7 @@ public sealed class NaviMobileApiClient
         request.Headers.Remove("X-Navi-BranchId");
         request.Headers.Remove("X-Navi-ResponsiblePersonId");
         request.Headers.Remove("X-Navi-ResponsiblePersonName");
+        request.Headers.Remove("X-Navi-ResponsiblePersonName-B64");
 
         request.Headers.Add("X-Navi-UserName", user.UserName);
         request.Headers.Add("X-Navi-RoleCode", user.RoleCode);
@@ -669,7 +686,8 @@ public sealed class NaviMobileApiClient
 
         if (!string.IsNullOrWhiteSpace(user.ResponsiblePersonName))
         {
-            request.Headers.Add("X-Navi-ResponsiblePersonName", user.ResponsiblePersonName);
+            var encodedName = Convert.ToBase64String(Encoding.UTF8.GetBytes(user.ResponsiblePersonName));
+            request.Headers.Add("X-Navi-ResponsiblePersonName-B64", encodedName);
         }
     }
 

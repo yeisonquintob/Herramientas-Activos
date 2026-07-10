@@ -1,0 +1,30 @@
+NAVI - FIX LOGIN HISTORY SESSION GUARD
+
+Fecha: 2026-07-08 23:08:54
+
+Problema:
+- Al estar autenticado, el usuario podía volver a /login usando atrás o escribiendo /login.
+- Después de avanzar, la sesión aparecía nuevamente, generando comportamiento inconsistente.
+- Esto era una falla de flujo de navegación e historial.
+
+Corrección:
+- Admin Login:
+  - Navigation.NavigateTo(..., forceLoad: true)
+  - se cambia por:
+  - Navigation.NavigateTo(..., replace: true)
+
+- Mobile Login:
+  - Navigation.NavigateTo("/")
+  - Navigation.NavigateTo("/", forceLoad: true)
+  - se cambian por:
+  - Navigation.NavigateTo("/", replace: true)
+
+Resultado esperado:
+- Después de iniciar sesión, el botón atrás no debe regresar al login.
+- Si el usuario escribe /login estando autenticado, debe enviarlo al inicio correspondiente.
+- El login no debe quedar como página anterior del historial.
+- No se modifica API ni credenciales.
+
+Archivos modificados:
+- src/Navi.ToolsAssets.Admin/Components/Pages/Login.razor
+- src/Navi.ToolsAssets.MobilePwa/Pages/Login.razor

@@ -31,15 +31,15 @@
     }
     else if (life is not null)
     {
-        <header class="mobile-compact-hero life">
-            <div class="mobile-compact-top">
-                <span>CONSULTA HOJA DE VIDA</span>
-                <button type="button" @onclick="GoBack">Regresar</button>
-            </div>
-
-            <h1>@Show(life.EquipmentInformation.Name ?? life.Summary.Name)</h1>
-            <p>@Show(life.EquipmentInformation.InternalCode ?? life.Summary.InternalCode) · @StatusLabel(life.Summary.OperationalStatus)</p>
-        </header>
+        <NaviMobileAppBanner Class="navi-mobile-life-view-app-banner navi-mobile-app-banner--detail"
+                             Pill="ACTIVOS FIJOS · HOJA DE VIDA"
+                             Title="@Show(life.EquipmentInformation.Name ?? life.Summary.Name)"
+                             Description="@($"{Show(life.EquipmentInformation.InternalCode ?? life.Summary.InternalCode)} · {StatusLabel(life.Summary.OperationalStatus)}")"
+                             HomeUrl="/"
+                             BackUrl="@GetNaviMobileBackUrl()"
+                             BackFallbackUrl="@GetDetailUrl()"
+                             ShowHomeButton="true"
+                             ShowBackButton="true" />
 
         <section class="mobile-compact-kpis">
             <article>
@@ -306,13 +306,60 @@
     }
     private void GoBack()
     {
-        Navigation.NavigateTo("/tools/" + ToolId);
+        Navigation.NavigateTo(GetBackUrl());
     }
-private void GoLogin() => Navigation.NavigateTo("/login", forceLoad: true);
+
+    private string GetBackUrl()
+    {
+        return string.IsNullOrWhiteSpace(ReturnUrl)
+            ? GetDetailUrl()
+            : ReturnUrl;
+    }
+private void GoLogin() => Navigation.NavigateTo("/login", replace: true);
 
     private string GetDetailUrl() => "/tools/" + ToolId;
 
     private string GetReportUrl() => "/report-damage/" + ToolId;
+
+
+    private string? NaviMobileReturnUrl => GetNaviMobileQueryValue("returnUrl");
+
+    private bool HasNaviMobileReturnUrl => !string.IsNullOrWhiteSpace(NaviMobileReturnUrl);
+
+    private string GetNaviMobileBackUrl()
+    {
+        return string.IsNullOrWhiteSpace(NaviMobileReturnUrl)
+            ? "/tools/" + ToolId
+            : NaviMobileReturnUrl!;
+    }
+
+    private string? GetNaviMobileQueryValue(string key)
+    {
+        var uri = new Uri(Navigation.Uri);
+        var query = uri.Query;
+
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return null;
+        }
+
+        foreach (var part in query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var pair = part.Split('=', 2, StringSplitOptions.None);
+            var name = Uri.UnescapeDataString(pair[0]);
+
+            if (!string.Equals(name, key, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            return pair.Length > 1
+                ? Uri.UnescapeDataString(pair[1])
+                : string.Empty;
+        }
+
+        return null;
+    }
 
     private static string Show(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value;
 

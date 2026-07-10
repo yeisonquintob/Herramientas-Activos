@@ -2,25 +2,26 @@
 @inject MobileAuthSessionService Auth
 @inject NavigationManager Navigation
 
-<div class="mobile-shell">
+<div class="mobile-shell navi-mobile-standard-shell">
     <main class="mobile-main">
         @if (!isReady)
         {
             <section class="mobile-page">
-                <div class="mobile-empty">
-                    <strong>Validando permisos</strong>
-                    <span>Estamos verificando tu acceso móvil.</span>
-                </div>
+                <NaviMobileEmptyState Pill="SESIÓN"
+                                      Title="Validando permisos"
+                                      Description="Estamos verificando tu acceso móvil." />
             </section>
         }
         else if (IsRouteDenied)
         {
             <section class="mobile-page">
-                <div class="mobile-empty">
-                    <strong>Acceso restringido</strong>
-                    <span>No tienes permiso para visualizar esta pantalla en la app móvil.</span>
-                    <button class="mobile-primary-button" type="button" @onclick="GoHome">Volver al inicio</button>
-                </div>
+                <NaviMobileEmptyState Pill="SEGURIDAD"
+                                      Title="Acceso restringido"
+                                      Description="No tienes permiso para visualizar esta pantalla en la app móvil.">
+                    <NaviMobileActionButton Tone="primary" OnClick="GoHome" Block="true">
+                        Volver al inicio
+                    </NaviMobileActionButton>
+                </NaviMobileEmptyState>
             </section>
         }
         else
@@ -28,6 +29,11 @@
             @Body
         }
     </main>
+
+    @if (isReady && Auth.IsAuthenticated)
+    {
+        <NaviMobileFloatingMenu />
+    }
 
     <NavMenu />
 </div>
@@ -152,9 +158,8 @@ if (!Auth.CanAccessMobile())
         {
             return Auth.HasAnyPermission(
                 "AssetAvailability.View",
-                "AssetAvailability.Update",
-                "AssetAvailability.Manage",
-                "Tools.View");
+                "AssetAvailability.Edit",
+                "AssetAvailability.Status.Change");
         }
 
         // Detalle, hoja de vida y rutas relacionadas a un activo.

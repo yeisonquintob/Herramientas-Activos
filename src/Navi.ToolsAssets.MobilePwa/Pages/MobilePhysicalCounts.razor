@@ -3,6 +3,7 @@
 @using System.Net.Http
 @using Microsoft.AspNetCore.Components.Forms
 @using Navi.ToolsAssets.MobilePwa.Models
+@using System.Collections.Generic
 
 @inject NaviMobileApiClient Api
 @inject MobileAuthSessionService Auth
@@ -10,7 +11,7 @@
 
 <PageTitle>Toma física móvil - NAVI Herramientas y AF</PageTitle>
 
-<section class="mobile-page navi-mobile-physical-v3 mobile-physical-standard-page">
+<section class="mobile-page navi-mobile-physical-v3 mobile-physical-standard-page navi-mobile-physical-counts-v6 navi-mobile-physical-counts-kpi-inicio-v7 navi-mobile-physical-counts-kpis-standard-v8">
     @if (isLoading && !initialized)
     {
         <div class="mobile-loading">Cargando toma física...</div>
@@ -33,65 +34,59 @@
     }
     else
     {
-        <header class="mph-hero mobile-physical-hero">
-            <div>
-                <span>TOMA FÍSICA · CONTROL</span>
-                <h1>Toma física</h1>
-                <p>@Display(Auth.CurrentUser?.DisplayName) · @ScopeLabel</p>
+
+        <NaviMobileAppBanner Class="navi-mobile-physical-counts-start-banner navi-mobile-app-banner--home-only"
+                             Pill="CONTROL ∙ TOMA FÍSICA"
+                             Title="Toma física"
+                             Description="@($"{Display(Auth.CurrentUser?.DisplayName)} ∙ {ScopeLabel}")"
+                             HomeUrl="/"
+                             ShowHomeButton="true"
+                             ShowBackButton="false" />
+
+        <section class="navi-mobile-physical-kpi-board-v2 navi-mobile-physical-kpi-board-v2--counts">
+            <div class="navi-mobile-physical-kpi-tile-v2 total">
+                <span>Total</span>
+                <strong>@FilteredCounts.Count()</strong>
+                <small>Tomas visibles</small>
             </div>
 
-            <div class="mph-hero-actions">
-                <button type="button" @onclick="GoHome">Inicio</button>
-                <button type="button" @onclick="LoadAsync" disabled="@isLoading">
-                    @(isLoading ? "Cargando..." : "Actualizar")
-                </button>
+            <div class="navi-mobile-physical-kpi-tile-v2 info">
+                <span>En proceso</span>
+                <strong>@FilteredCounts.Count(x => Same(x.Status, "InProgress"))</strong>
+                <small>Activas</small>
             </div>
-        </header>
+
+            <div class="navi-mobile-physical-kpi-tile-v2 success">
+                <span>Cerradas</span>
+                <strong>@FilteredCounts.Count(x => Same(x.Status, "Completed") || Same(x.Status, "Reconciled"))</strong>
+                <small>Finalizadas</small>
+            </div>
+
+            <div class="navi-mobile-physical-kpi-tile-v2 warning">
+                <span>Reportadas</span>
+                <strong>@FilteredCounts.Sum(GetManagedAssignedItems)</strong>
+                <small>Gestionadas</small>
+            </div>
+
+            <div class="navi-mobile-physical-kpi-tile-v2 danger">
+                <span>Pendientes</span>
+                <strong>@FilteredCounts.Sum(GetPendingAssignedItems)</strong>
+                <small>Sin reportar</small>
+            </div>
+
+            <div class="navi-mobile-physical-kpi-tile-v2 purple">
+                <span>Avance</span>
+                <strong>@OverallProgressText</strong>
+                <small>@OverallProgressManagedItems de @OverallProgressExpectedItems</small>
+            </div>
+        </section>
 
         @if (!string.IsNullOrWhiteSpace(errorMessage))
         {
             <div class="mobile-alert error">@errorMessage</div>
         }
 
-        <section class="mph-kpis mobile-physical-kpis">
-            <article>
-                <span>Total</span>
-                <strong>@FilteredCounts.Count()</strong>
-                <small>Tomas visibles</small>
-            </article>
-
-            <article class="info">
-                <span>En proceso</span>
-                <strong>@FilteredCounts.Count(x => Same(x.Status, "InProgress"))</strong>
-                <small>Activas</small>
-            </article>
-
-            <article class="success">
-                <span>Cerradas</span>
-                <strong>@FilteredCounts.Count(x => Same(x.Status, "Completed") || Same(x.Status, "Reconciled"))</strong>
-                <small>Finalizadas</small>
-            </article>
-
-            <article class="warning">
-                <span>Encontradas</span>
-                <strong>@FilteredCounts.Sum(x => x.FoundItems)</strong>
-                <small>Validadas</small>
-            </article>
-
-            <article class="danger">
-                <span>Faltantes</span>
-                <strong>@FilteredCounts.Sum(x => x.MissingItems)</strong>
-                <small>Diferencias</small>
-            </article>
-
-            <article class="purple">
-                <span>Avance</span>
-                <strong>@OverallProgress%</strong>
-                <small>@FilteredCounts.Sum(x => x.FoundItems) de @FilteredCounts.Sum(x => x.TotalItems)</small>
-            </article>
-        </section>
-
-        <section class="mph-filter-card mobile-physical-filter">
+        <section class="mph-filter-card mobile-physical-filter mobile-physical-filter-v4">
             <label>
                 <span>Estado</span>
                 <select @bind="selectedStatus">
@@ -102,6 +97,24 @@
                     <option value="Reconciled">Conciliada</option>
                     <option value="Cancelled">Cancelada</option>
                 </select>
+            </label>
+
+            <label>
+                <span>Toma</span>
+                @if (UserCanSeeAllBranches)
+                {
+                    <select @bind="selectedCountId">
+                        <option value="">Todas las tomas</option>
+                        @foreach (var count in CountFilterOptions)
+                        {
+                            <option value="@count.Id.ToString()">@Display(count.CountNumber) · @Display(count.BranchCode) · @StatusLabel(count.Status, count.StatusLabel)</option>
+                        }
+                    </select>
+                }
+                else
+                {
+                    <input value="@LatestActiveCountLabel" disabled />
+                }
             </label>
 
             <label>
@@ -183,9 +196,9 @@
                                 <div><span>Responsable</span><strong>@Display(item.ResponsibleBy)</strong></div>
                                 <div><span>Inicio</span><strong>@FormatDateTime(item.StartedAt)</strong></div>
                                 <div><span>Cierre</span><strong>@FormatDateTime(item.FinishedAt)</strong></div>
-                                <div><span>Total</span><strong>@item.TotalItems</strong><small>Herramientas</small></div>
-                                <div><span>Encontradas</span><strong>@item.FoundItems</strong><small>Validadas</small></div>
-                                <div><span>Faltantes</span><strong>@item.MissingItems</strong><small>Diferencias</small></div>
+                                <div><span>Total</span><strong>@GetExpectedAssignedItems(item)</strong><small>Asignadas</small></div>
+                                <div><span>Reportadas</span><strong>@GetManagedAssignedItems(item)</strong><small>Gestionadas</small></div>
+                                <div><span>Pendientes</span><strong>@GetPendingAssignedItems(item)</strong><small>Sin reportar</small></div>
                             </section>
 
                             @if (!string.IsNullOrWhiteSpace(item.Notes))
@@ -212,6 +225,7 @@
     private bool branchFilterInitialized;
 
     private string selectedStatus = string.Empty;
+    private string selectedCountId = string.Empty;
     private string selectedBranchCode = string.Empty;
     private string searchText = string.Empty;
     private DateTime? fromDate;
@@ -220,6 +234,7 @@
 
     private List<PhysicalCountItem> counts = new();
     private List<MobileBranchDto> branches = new();
+    private Dictionary<Guid, PhysicalCountParticipantDto> participantSummaries = new();
 
     private bool IsAdmin =>
         Same(Auth.CurrentUser?.RoleCode, "ADMIN") ||
@@ -240,9 +255,7 @@
         Has("PhysicalCounts.Evidence.Upload");
 
     private bool CanAccessPhysicalCounts =>
-        CanConsultPhysicalCounts ||
-        CanReportPhysicalCounts ||
-        CanUploadPhysicalEvidence;
+        CanConsultPhysicalCounts;
 
     private bool UserCanSeeAllBranches =>
         IsAdmin ||
@@ -255,22 +268,254 @@
             .Where(x => UserCanSeeAllBranches || Same(x.Code, Auth.CurrentUser?.BranchCode) || x.Id == Auth.CurrentUser?.BranchId)
             .OrderBy(x => x.Code);
 
-    private IEnumerable<PhysicalCountItem> FilteredCounts =>
-        counts
-            .Where(MatchesBranchFilter)
-            .Where(x => string.IsNullOrWhiteSpace(selectedStatus) || Same(x.Status, selectedStatus))
-            .Where(MatchesDateFilter)
-            .Where(MatchesSearch)
-            .OrderByDescending(x => x.CreatedAt ?? x.StartedAt ?? DateTime.MinValue);
-
-    private int OverallProgress
+    private IEnumerable<PhysicalCountItem> BaseVisibleCounts
     {
         get
         {
-            var total = FilteredCounts.Sum(x => x.TotalItems);
-            var found = FilteredCounts.Sum(x => x.FoundItems);
-            return total <= 0 ? 0 : (int)Math.Round((decimal)found * 100 / total, 0);
+            var scoped = counts.Where(MatchesBranchFilter);
+
+            if (UserCanSeeAllBranches)
+            {
+                return scoped;
+            }
+
+            var latestActive = scoped
+                .Where(IsActiveCount)
+                .OrderByDescending(GetCountSortDate)
+                .Take(1)
+                .ToList();
+
+            if (latestActive.Any())
+            {
+                return latestActive;
+            }
+
+            return scoped
+                .OrderByDescending(GetCountSortDate)
+                .Take(1)
+                .ToList();
         }
+    }
+
+    private IEnumerable<PhysicalCountItem> CountFilterOptions =>
+        BaseVisibleCounts.OrderByDescending(GetCountSortDate);
+
+    private string LatestActiveCountLabel =>
+        CountFilterOptions.FirstOrDefault() is { } count
+            ? $"{Display(count.CountNumber)} · {StatusLabel(count.Status, count.StatusLabel)}"
+            : "Sin toma vigente";
+
+    private IEnumerable<PhysicalCountItem> FilteredCounts =>
+        BaseVisibleCounts
+            .Where(MatchesSelectedCountFilter)
+            .Where(x => string.IsNullOrWhiteSpace(selectedStatus) || Same(x.Status, selectedStatus))
+            .Where(MatchesDateFilter)
+            .Where(MatchesSearch)
+            .OrderByDescending(GetCountSortDate);
+    private IEnumerable<PhysicalCountItem> ProgressCounts
+    {
+        get
+        {
+            var source = FilteredCounts?.ToList() ?? new();
+
+            if (!string.IsNullOrWhiteSpace(selectedCountId))
+            {
+                var selected = source
+                    .Where(PhysicalCountMatchesSelected)
+                    .ToList();
+
+                return selected.Any()
+                    ? selected
+                    : source.Take(1);
+            }
+
+            if (source.Count == 1)
+            {
+                return source;
+            }
+
+            if (!UserCanSeeAllBranches && source.Count > 0)
+            {
+                return source.Take(1);
+            }
+
+            return Enumerable.Empty<PhysicalCountItem>();
+        }
+    }
+
+    private int OverallProgressExpectedItems =>
+        ProgressCounts.Sum(GetExpectedAssignedItems);
+
+    private int OverallProgressManagedItems =>
+        ProgressCounts.Sum(GetManagedAssignedItems);
+
+    private decimal OverallProgressPercent =>
+        OverallProgressExpectedItems <= 0
+            ? 0m
+            : Math.Round((decimal)OverallProgressManagedItems * 100m / OverallProgressExpectedItems, 2);
+
+    private string OverallProgressText
+    {
+        get
+        {
+            var format = OverallProgressPercent % 1 == 0 ? "0" : "0.##";
+            return $"{OverallProgressPercent.ToString(format, System.Globalization.CultureInfo.CurrentCulture)}%";
+        }
+    }
+
+    private int OverallProgress =>
+        (int)Math.Round(OverallProgressPercent, 0);
+
+    private bool PhysicalCountMatchesSelected(PhysicalCountItem count)
+    {
+        if (string.IsNullOrWhiteSpace(selectedCountId))
+        {
+            return true;
+        }
+
+        var selected = NormalizeCountFilterValue(selectedCountId);
+
+        foreach (var propertyName in new[] { "Id", "PhysicalCountId", "CountId", "Number", "Code", "CountNumber", "Name", "Title" })
+        {
+            var value = NormalizeCountFilterValue(GetPhysicalCountStringValue(count, propertyName));
+
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            if (string.Equals(value, selected, StringComparison.OrdinalIgnoreCase) ||
+                selected.Contains(value, StringComparison.OrdinalIgnoreCase) ||
+                value.Contains(selected, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static int GetExpectedAssignedItems(PhysicalCountItem count)
+    {
+        var expected = GetPhysicalCountIntValue(
+            count,
+            "ExpectedItems",
+            "AssignedItems",
+            "TotalAssignedItems",
+            "TotalItems",
+            "ToolsCount",
+            "AssetsCount",
+            "Total");
+
+        return Math.Max(0, expected);
+    }
+
+    private static int GetManagedAssignedItems(PhysicalCountItem count)
+    {
+        var expected = GetExpectedAssignedItems(count);
+
+        var directManaged = Math.Max(
+            GetPhysicalCountIntValue(
+                count,
+                "ValidatedItems",
+                "ManagedItems",
+                "CountedItems",
+                "ReportedItems",
+                "CompletedItems",
+                "ConfirmedItems",
+                "ClosedItems",
+                "DoneItems"),
+            0);
+
+        var pending = GetPhysicalCountIntValue(
+            count,
+            "PendingItems",
+            "PendingCount",
+            "OpenItems",
+            "RemainingItems");
+
+        var byPending = expected > 0 && pending >= 0
+            ? Math.Max(0, expected - pending)
+            : 0;
+
+        var managed = Math.Max(directManaged, byPending);
+
+        return expected > 0
+            ? Math.Min(expected, managed)
+            : managed;
+    }
+
+    private static int GetPhysicalCountIntValue(PhysicalCountItem count, params string[] propertyNames)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            var value = GetPhysicalCountObjectValue(count, propertyName);
+
+            if (value is null)
+            {
+                continue;
+            }
+
+            try
+            {
+                if (value is int intValue)
+                {
+                    return intValue;
+                }
+
+                if (value is long longValue)
+                {
+                    return (int)longValue;
+                }
+
+                if (value is decimal decimalValue)
+                {
+                    return (int)decimalValue;
+                }
+
+                if (value is double doubleValue)
+                {
+                    return (int)doubleValue;
+                }
+
+                if (int.TryParse(value.ToString(), out var parsed))
+                {
+                    return parsed;
+                }
+            }
+            catch
+            {
+                // Se ignora y se continúa con el siguiente nombre posible.
+            }
+        }
+
+        return 0;
+    }
+
+    private static string? GetPhysicalCountStringValue(PhysicalCountItem count, string propertyName)
+    {
+        var value = GetPhysicalCountObjectValue(count, propertyName);
+        return value?.ToString();
+    }
+
+    private static object? GetPhysicalCountObjectValue(PhysicalCountItem count, string propertyName)
+    {
+        var property = count
+            .GetType()
+            .GetProperty(
+                propertyName,
+                System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.Instance |
+                System.Reflection.BindingFlags.IgnoreCase);
+
+        return property?.GetValue(count);
+    }
+
+    private static string NormalizeCountFilterValue(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? string.Empty
+            : value.Trim();
     }
 
     private string ScopeLabel =>
@@ -292,7 +537,7 @@
 
         if (refreshedUser is null || !Auth.IsAuthenticated)
         {
-            Navigation.NavigateTo("/login", forceLoad: true);
+            Navigation.NavigateTo("/login", replace: true);
             return;
         }
 
@@ -313,6 +558,7 @@
             await LoadBranchesAsync();
             ApplyDefaultBranchFilterIfNeeded();
             counts = await Api.GetListJsonAsync<PhysicalCountItem>("api/physical-counts");
+            await LoadParticipantSummariesAsync();
         }
         catch (Exception ex)
         {
@@ -322,6 +568,98 @@
         {
             isLoading = false;
         }
+    }
+
+    private async Task LoadParticipantSummariesAsync()
+    {
+        participantSummaries = new();
+
+        var visibleCounts = counts
+            .Where(MatchesBranchFilter)
+            .OrderByDescending(GetCountSortDate)
+            .Take(UserCanSeeAllBranches ? 80 : 10)
+            .ToList();
+
+        foreach (var count in visibleCounts)
+        {
+            try
+            {
+                var board = await Api.GetJsonAsync<PhysicalCountBoardDto>($"api/physical-counts/{count.Id}/participants-board");
+                var participant = board?.Participants.FirstOrDefault(IsOwnParticipant);
+
+                if (participant is not null)
+                {
+                    participantSummaries[count.Id] = participant;
+                }
+            }
+            catch
+            {
+                // Si una toma no puede cargar participante, no se rompe la pantalla.
+                // El cálculo usará fallback seguro.
+            }
+        }
+    }
+
+    private bool TryGetOwnParticipant(PhysicalCountItem item, out PhysicalCountParticipantDto participant)
+    {
+        return participantSummaries.TryGetValue(item.Id, out participant!);
+    }
+
+    private int GetPendingAssignedItems(PhysicalCountItem item)
+    {
+        var expected = GetExpectedAssignedItems(item);
+        var managed = GetManagedAssignedItems(item);
+
+        return Math.Max(0, expected - managed);
+    }
+
+    private static int ManagedParticipantItems(PhysicalCountParticipantDto? participant)
+    {
+        if (participant is null)
+        {
+            return 0;
+        }
+
+        var expected = Math.Max(0, participant.ExpectedItems);
+
+        // CountedItems debe representar herramientas asignadas ya gestionadas.
+        // No suma ExtraItems, porque los no listados no afectan el avance.
+        var counted = Math.Max(0, participant.CountedItems);
+
+        if (counted > 0)
+        {
+            return expected > 0
+                ? Math.Min(expected, counted)
+                : counted;
+        }
+
+        var byPending = expected > 0 && participant.PendingItems >= 0
+            ? Math.Max(0, expected - participant.PendingItems)
+            : 0;
+
+        var byCounters =
+            Math.Max(0, participant.FoundItems) +
+            Math.Max(0, participant.MissingItems) +
+            Math.Max(0, participant.DifferentItems) +
+            Math.Max(0, participant.DamagedItems);
+
+        var managed = Math.Max(byPending, byCounters);
+
+        return expected > 0
+            ? Math.Min(expected, managed)
+            : managed;
+    }
+
+    private bool IsOwnParticipant(PhysicalCountParticipantDto participant)
+    {
+        var userName = Auth.CurrentUser?.UserName;
+        var displayName = Auth.CurrentUser?.DisplayName;
+        var responsibleId = Auth.CurrentUser?.ResponsiblePersonId;
+
+        return Same(participant.UserName, userName) ||
+               Same(participant.DisplayName, displayName) ||
+               Same(participant.DisplayName, Auth.CurrentUser?.ResponsiblePersonName) ||
+               (responsibleId.HasValue && participant.ResponsiblePersonId.HasValue && responsibleId.Value == participant.ResponsiblePersonId.Value);
     }
 
     private async Task LoadBranchesAsync()
@@ -387,6 +725,30 @@
                Contains(item.BranchName, selectedBranchCode);
     }
 
+    private bool MatchesSelectedCountFilter(PhysicalCountItem item)
+    {
+        if (string.IsNullOrWhiteSpace(selectedCountId))
+        {
+            return true;
+        }
+
+        return item.Id.ToString().Equals(selectedCountId, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsActiveCount(PhysicalCountItem item)
+    {
+        return Same(item.Status, "InProgress") ||
+               Same(item.Status, "Draft");
+    }
+
+    private static DateTime GetCountSortDate(PhysicalCountItem item)
+    {
+        return item.CreatedAt ??
+               item.StartedAt ??
+               item.FinishedAt ??
+               DateTime.MinValue;
+    }
+
     private bool MatchesDateFilter(PhysicalCountItem item)
     {
         var date = item.CreatedAt ?? item.StartedAt;
@@ -423,10 +785,12 @@
                Contains(item.Notes, searchText) ||
                Contains(item.StatusLabel, searchText);
     }
-
     private void ClearFilters()
     {
         selectedStatus = string.Empty;
+
+        selectedCountId = string.Empty;
+
         searchText = string.Empty;
         fromDate = null;
         toDate = null;
@@ -438,7 +802,7 @@
 
     private void GoDetail(Guid id) => Navigation.NavigateTo($"/mobile/physical-counts/{id}");
     private void GoHome() => Navigation.NavigateTo("/");
-    private void GoLogin() => Navigation.NavigateTo("/login", forceLoad: true);
+    private void GoLogin() => Navigation.NavigateTo("/login", replace: true);
 
     private static string StatusLabel(string? status, string? label)
     {
@@ -527,6 +891,40 @@
     private static string Display(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? "—" : value;
+    }
+
+    private sealed class PhysicalCountBoardDto
+    {
+        public Guid Id { get; set; }
+        public string CountNumber { get; set; } = string.Empty;
+        public Guid BranchId { get; set; }
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public string? StatusLabel { get; set; }
+        public List<PhysicalCountParticipantDto> Participants { get; set; } = new();
+    }
+
+    private sealed class PhysicalCountParticipantDto
+    {
+        public Guid Id { get; set; }
+        public Guid PhysicalCountId { get; set; }
+        public Guid? ResponsiblePersonId { get; set; }
+        public string? UserId { get; set; }
+        public string? UserName { get; set; }
+        public string? DisplayName { get; set; }
+        public string? Area { get; set; }
+        public string? Position { get; set; }
+        public string? Status { get; set; }
+        public string? StatusLabel { get; set; }
+        public int ExpectedItems { get; set; }
+        public int CountedItems { get; set; }
+        public int PendingItems { get; set; }
+        public int FoundItems { get; set; }
+        public int MissingItems { get; set; }
+        public int DifferentItems { get; set; }
+        public int DamagedItems { get; set; }
+        public int ExtraItems { get; set; }
     }
 
     private sealed class PhysicalCountItem

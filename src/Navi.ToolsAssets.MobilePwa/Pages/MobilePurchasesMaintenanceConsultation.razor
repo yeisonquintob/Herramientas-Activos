@@ -39,20 +39,13 @@
     }
     else
     {
-        <header class="mcon-hero">
-            <div>
-                <span>CONSULTA · COMPRAS · MTTO</span>
-                <h1>Consulta Compras y Mtto.</h1>
-                <p>@Display(Auth.CurrentUser?.DisplayName) · @ScopeLabel</p>
-            </div>
-
-            <div class="mcon-hero-actions">
-                <button type="button" @onclick="GoHome">Inicio</button>
-                <button type="button" @onclick="RefreshAsync" disabled="@isLoading">
-                    @(isLoading ? "Actualizando..." : "Actualizar")
-                </button>
-            </div>
-        </header>
+        <NaviMobileAppBanner Class="navi-mobile-consult-app-banner navi-mobile-app-banner--module"
+                             Pill="OPERACIONES · CONSULTA"
+                             Title="Consulta Compras y Mtto."
+                             Description="@($"{Display(Auth.CurrentUser?.DisplayName)} · {ScopeLabel}")"
+                             HomeUrl="/"
+                             ShowHomeButton="true"
+                             ShowBackButton="false" />
 
         @if (!string.IsNullOrWhiteSpace(successMessage))
         {
@@ -64,23 +57,23 @@
             <div class="mobile-alert error">@errorMessage</div>
         }
 
-        <section class="mcon-kpis">
+        <section class="mcon-kpis mcon-kpis-compact-v2">
             <article>
                 <span>Total</span>
                 <strong>@FilteredItems.Count()</strong>
-                <small>Solicitudes</small>
+                <small>Total</small>
             </article>
 
             <article>
                 <span>Compras</span>
                 <strong>@FilteredPurchases.Count()</strong>
-                <small>Herramientas y AF</small>
+                <small>Compras</small>
             </article>
 
             <article>
                 <span>Mtto.</span>
                 <strong>@FilteredMaintenances.Count()</strong>
-                <small>Mantenimiento</small>
+                <small>Mtto.</small>
             </article>
 
             <article>
@@ -92,13 +85,13 @@
             <article>
                 <span>Con costo</span>
                 <strong>@CostedItemsCount</strong>
-                <small>Aprobadas/cerradas</small>
+                <small>Con costo</small>
             </article>
 
             <article>
                 <span>Rechazadas</span>
                 <strong>@FilteredItems.Count(x => IsRejectedOrCanceled(x.Status))</strong>
-                <small>No suman</small>
+                <small>No costo</small>
             </article>
 
             <article>
@@ -107,6 +100,31 @@
                 <small>Estimado</small>
             </article>
         </section>
+
+        <section class="mcon-card mcon-cost-summary-fixed">
+            <header class="mcon-cost-summary-title">
+                <h2>Resumen de costos</h2>
+            </header>
+
+<section class="mcon-cost-grid">
+                <article>
+                    <span>Compras</span>
+                    <strong>@FormatMoney(PurchaseCost)</strong>
+                    <small>Promedio: @FormatMoney(PurchaseAverage)</small>
+                    <small>Mayor: @FormatMoney(PurchaseMax)</small>
+                    <small>Proveedores: @PurchaseProviders</small>
+                </article>
+
+                <article>
+                    <span>Mantenimiento</span>
+                    <strong>@FormatMoney(MaintenanceCost)</strong>
+                    <small>Promedio: @FormatMoney(MaintenanceAverage)</small>
+                    <small>Mayor: @FormatMoney(MaintenanceMax)</small>
+                    <small>Proveedores: @MaintenanceProviders</small>
+                </article>
+            </section>
+        </section>
+
 
         <section class="mcon-filter-card">
             <label>
@@ -156,30 +174,7 @@
             </div>
         </section>
 
-        <details class="mcon-card" open>
-            <summary>
-                <span>Resumen de costos</span>
-                <em>@FormatMoney(TotalEstimatedCost)</em>
-            </summary>
-
-            <section class="mcon-cost-grid">
-                <article>
-                    <span>Compras</span>
-                    <strong>@FormatMoney(PurchaseCost)</strong>
-                    <small>Promedio: @FormatMoney(PurchaseAverage)</small>
-                    <small>Mayor: @FormatMoney(PurchaseMax)</small>
-                    <small>Proveedores: @PurchaseProviders</small>
-                </article>
-
-                <article>
-                    <span>Mantenimiento</span>
-                    <strong>@FormatMoney(MaintenanceCost)</strong>
-                    <small>Promedio: @FormatMoney(MaintenanceAverage)</small>
-                    <small>Mayor: @FormatMoney(MaintenanceMax)</small>
-                    <small>Proveedores: @MaintenanceProviders</small>
-                </article>
-            </section>
-        </details>
+        
 
         @if (ShowPurchases)
         {
@@ -1280,7 +1275,7 @@ private string? successMessage;
     }
 
     private void GoHome() => Navigation.NavigateTo("/");
-    private void GoLogin() => Navigation.NavigateTo("/login", forceLoad: true);
+    private void GoLogin() => Navigation.NavigateTo("/login", replace: true);
 
     private enum RequestKind
     {

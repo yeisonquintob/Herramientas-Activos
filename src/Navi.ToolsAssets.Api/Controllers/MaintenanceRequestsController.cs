@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Navi.ToolsAssets.Api.Security;
@@ -944,6 +945,19 @@ public sealed class MaintenanceRequestsController : ControllerBase
 
     private string? GetResponsiblePersonName()
     {
+        if (Request.Headers.TryGetValue("X-Navi-ResponsiblePersonName-B64", out var encodedValue) &&
+            !string.IsNullOrWhiteSpace(encodedValue))
+        {
+            try
+            {
+                return Encoding.UTF8.GetString(Convert.FromBase64String(encodedValue.ToString()));
+            }
+            catch (FormatException)
+            {
+                return null;
+            }
+        }
+
         return Request.Headers.TryGetValue("X-Navi-ResponsiblePersonName", out var value) && !string.IsNullOrWhiteSpace(value)
             ? value.ToString()
             : null;

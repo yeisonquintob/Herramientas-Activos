@@ -1,0 +1,24 @@
+PHASE ADMIN DASHBOARD COSTS RESTORE
+
+Fecha: 2026-07-08 23:56:00
+
+Problema:
+- El bloque Mantenimientos vs compras estaba mostrando $0.
+- En el fix anterior se dejó un método temporal:
+  LoadDashboardOperationCostsAsync => return new DashboardOperationCosts()
+- Eso anulaba la carga real de costos.
+
+Corrección:
+- Se restauró LoadDashboardOperationCostsAsync.
+- Se agregaron helpers propios para sumar costos desde:
+  - api/purchase-requests
+  - api/maintenance-requests
+- Se respetan los filtros activos:
+  - sede
+  - estado
+  - búsqueda general
+- Se excluyen estados cancelados, rechazados o anulados.
+- Se preserva el filtrado real del dashboard.
+
+Archivo:
+- src/Navi.ToolsAssets.Admin/Components/Pages/Home.razor

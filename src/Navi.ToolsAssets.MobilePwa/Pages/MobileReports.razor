@@ -33,51 +33,30 @@
     }
     else
     {
-        <header class="mrep-hero">
-            <div>
-                <span>REPORTES · INDICADORES · EXPORTACIÓN</span>
-                <h1>Centro de reportes</h1>
-                <p>Consulta reportes ejecutivos y operativos de inventario, documentos, mantenimiento, compras, toma física y conciliación.</p>
-            </div>
 
-            <div class="mrep-hero-actions">
-                <button type="button" @onclick="GoHome">Inicio</button>
-                <button type="button" @onclick="LoadAsync" disabled="@isLoading">
-                    @(isLoading ? "Actualizando..." : "Actualizar")
-                </button>
-            </div>
-        </header>
+        <NaviMobileAppBanner Class="navi-mobile-reports-app-banner mrep-standard-banner-v2 navi-mobile-app-banner--home-only"
+                             Pill="CONTROL ∙ REPORTES"
+                             Title="Centro de reportes"
+                             Description="Consulta reportes ejecutivos y operativos de inventario, documentos, mantenimiento, compras y tomas."
+                             HomeUrl="/"
+                             ShowHomeButton="true"
+                             ShowBackButton="false" />
+
+        <section class="navi-mobile-reports-kpi-board-v2">
+            @foreach (var item in SelectedSummary)
+            {
+                <div class="@GetReportTopKpiClass(item.CssClass)">
+                    <span>@item.Label</span>
+                    <strong>@item.Value</strong>
+                    <small>@item.Description</small>
+                </div>
+            }
+        </section>
 
         @if (!string.IsNullOrWhiteSpace(message))
         {
             <div class="@messageClass">@message</div>
         }
-
-        <section class="mrep-kpis">
-            <article>
-                <span>Inventario</span>
-                <strong>@ScopedAssets.Count()</strong>
-                <small>Activos / herramientas</small>
-            </article>
-
-            <article class="success">
-                <span>Documentos</span>
-                <strong>@ScopedDocuments.Count()</strong>
-                <small>Soportes cargados</small>
-            </article>
-
-            <article class="warning">
-                <span>Mantenimientos</span>
-                <strong>@TotalMaintenance</strong>
-                <small>Registros y solicitudes</small>
-            </article>
-
-            <article class="purple">
-                <span>Tomas físicas</span>
-                <strong>@ScopedPhysicalCounts.Count()</strong>
-                <small>Campañas creadas</small>
-            </article>
-        </section>
 
         <section class="mrep-workspace">
             <aside class="mrep-card mrep-left">
@@ -93,7 +72,7 @@
                         @foreach (var item in Reports)
                         {
                             <button type="button"
-                                    class="@GetReportClass(item.Code)"
+                                    class="@GetReportButtonClass(item.Code)"
                                     @onclick="() => SelectReport(item.Code)">
                                 <span>@item.Icon</span>
 
@@ -261,13 +240,13 @@
 
                     @if (CanExportReports)
                     {
-                        <a href="@BuildCsvDataUrl()" download="@($"{SelectedReport.FileName}.csv")">
+                        <a class="mrep-generate-report-button-v4" href="@BuildCsvDataUrl()" download="@($"{SelectedReport.FileName}.csv")">
                             Descargar reporte
                         </a>
                     }
                     else
                     {
-                        <button type="button" disabled>
+                        <button type="button" class="mrep-generate-report-button-v4" disabled>
                             Exportación restringida
                         </button>
                     }
@@ -297,6 +276,182 @@
         </section>
     }
 </section>
+
+<!-- NAVI MOBILE REPORTS WHITE BUTTONS V5 START -->
+<style>
+    html body .mobile-reports-web .mrep-menu {
+        width: 100% !important;
+        display: grid !important;
+        gap: .38rem !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: transparent !important;
+    }
+
+    html body .mobile-reports-web .mrep-menu button,
+    html body .mobile-reports-web .mrep-menu > button,
+    html body .mobile-reports-web .mrep-menu button.mrep-report-option-v5,
+    html body .mobile-reports-web .mrep-menu button.mrep-report-option-v4,
+    html body .mobile-reports-web .mrep-menu button.mrep-report-option-v3,
+    html body .mobile-reports-web .mrep-menu button[class*="mrep-report-option"] {
+        width: 100% !important;
+        min-height: 50px !important;
+
+        display: grid !important;
+        grid-template-columns: 34px minmax(0, 1fr) !important;
+        align-items: center !important;
+        gap: .42rem !important;
+
+        margin: 0 !important;
+        padding: .44rem .50rem !important;
+
+        border-radius: .58rem !important;
+        border: 1px solid #dfe7f1 !important;
+
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        background-image: none !important;
+
+        color: #101828 !important;
+
+        text-align: left !important;
+
+        box-shadow: 0 .05rem .16rem rgba(15, 23, 42, .035) !important;
+
+        cursor: pointer !important;
+
+        filter: none !important;
+        opacity: 1 !important;
+
+        transition:
+            border-color .16s ease,
+            box-shadow .16s ease,
+            background-color .16s ease,
+            transform .12s ease !important;
+    }
+
+    html body .mobile-reports-web .mrep-menu button:hover,
+    html body .mobile-reports-web .mrep-menu button:focus,
+    html body .mobile-reports-web .mrep-menu button[class*="mrep-report-option"]:hover,
+    html body .mobile-reports-web .mrep-menu button[class*="mrep-report-option"]:focus {
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        background-image: none !important;
+
+        border-color: #8a179d !important;
+
+        color: #101828 !important;
+
+        box-shadow:
+            0 .14rem .42rem rgba(15, 23, 42, .08),
+            0 0 0 2px rgba(138, 23, 157, .10) !important;
+
+        outline: none !important;
+        filter: none !important;
+        opacity: 1 !important;
+    }
+
+    html body .mobile-reports-web .mrep-menu button.active,
+    html body .mobile-reports-web .mrep-menu button[class*="mrep-report-option"].active {
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        background-image: none !important;
+
+        border-color: #8a179d !important;
+
+        color: #101828 !important;
+
+        box-shadow:
+            0 .16rem .48rem rgba(15, 23, 42, .09),
+            0 0 0 2px rgba(138, 23, 157, .12) !important;
+
+        filter: none !important;
+        opacity: 1 !important;
+    }
+
+    html body .mobile-reports-web .mrep-menu button:active,
+    html body .mobile-reports-web .mrep-menu button[class*="mrep-report-option"]:active {
+        transform: scale(.992) !important;
+    }
+
+    html body .mobile-reports-web .mrep-menu button > span,
+    html body .mobile-reports-web .mrep-menu button[class*="mrep-report-option"] > span {
+        width: 30px !important;
+        height: 30px !important;
+        min-width: 30px !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+
+        margin: 0 !important;
+
+        border-radius: .50rem !important;
+        border: 1px solid #eadcf2 !important;
+
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        background-image: none !important;
+
+        color: #7b0d8e !important;
+
+        font-size: .80rem !important;
+        line-height: 1 !important;
+
+        box-shadow: none !important;
+
+        filter: none !important;
+        opacity: 1 !important;
+    }
+
+    html body .mobile-reports-web .mrep-menu button.active > span,
+    html body .mobile-reports-web .mrep-menu button[class*="mrep-report-option"].active > span {
+        border-color: rgba(138, 23, 157, .30) !important;
+        background: #fbf7fd !important;
+        color: #7b0d8e !important;
+    }
+
+    html body .mobile-reports-web .mrep-menu button div,
+    html body .mobile-reports-web .mrep-menu button[class*="mrep-report-option"] div {
+        min-width: 0 !important;
+        display: grid !important;
+        gap: .08rem !important;
+        background: transparent !important;
+    }
+
+    html body .mobile-reports-web .mrep-menu button strong,
+    html body .mobile-reports-web .mrep-menu button[class*="mrep-report-option"] strong {
+        display: block !important;
+
+        color: #101828 !important;
+
+        font-size: .64rem !important;
+        line-height: 1.05 !important;
+        font-weight: 950 !important;
+
+        white-space: normal !important;
+        overflow: hidden !important;
+
+        opacity: 1 !important;
+    }
+
+    html body .mobile-reports-web .mrep-menu button small,
+    html body .mobile-reports-web .mrep-menu button[class*="mrep-report-option"] small {
+        display: block !important;
+
+        color: #667085 !important;
+
+        font-size: .46rem !important;
+        line-height: 1.05 !important;
+        font-weight: 800 !important;
+
+        white-space: normal !important;
+        overflow: hidden !important;
+
+        opacity: 1 !important;
+    }
+</style>
+<!-- NAVI MOBILE REPORTS WHITE BUTTONS V5 END -->
 
 @code {
     private bool initialized;
@@ -583,8 +738,7 @@
 
             History.Insert(0, new ReportHistoryItem(SelectedReport.Title, DateTime.Now, Auth.CurrentUser?.UserName ?? Auth.CurrentUser?.DisplayName ?? "mobile"));
 
-            messageClass = "mobile-alert success";
-            message = "Reportes actualizados correctamente con información real de NAVI.";
+            message = null;
         }
         catch (Exception ex)
         {
@@ -724,6 +878,24 @@
         branchFilter = string.Empty;
         periodFilter = "all";
         statusFilter = string.Empty;
+    }
+
+    private static string GetReportTopKpiClass(string? cssClass)
+    {
+        var tone = string.IsNullOrWhiteSpace(cssClass)
+            ? "total"
+            : cssClass.Trim();
+
+        return $"navi-mobile-reports-kpi-tile-v2 {tone}";
+    }
+
+    private string GetReportButtonClass(string code)
+    {
+        var state = GetReportClass(code);
+
+        return string.IsNullOrWhiteSpace(state)
+            ? "mrep-report-option-v5"
+            : $"mrep-report-option-v5 {state}";
     }
 
     private string GetReportClass(string code)

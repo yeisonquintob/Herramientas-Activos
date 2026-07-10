@@ -1,0 +1,116 @@
+@using System.Collections.Generic
+@using Microsoft.AspNetCore.Components
+@using Microsoft.JSInterop
+
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<header @attributes="AdditionalAttributes" class="@CssClass">
+    <div class="navi-mobile-app-banner__copy">
+        @if (!string.IsNullOrWhiteSpace(Pill))
+        {
+            <span class="navi-mobile-app-banner__pill">@Pill</span>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(Title))
+        {
+            <h1>@Title</h1>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(Description))
+        {
+            <p>@Description</p>
+        }
+    </div>
+
+    @if (HasActions)
+    {
+        <nav class="navi-mobile-app-banner__actions" aria-label="Acciones de navegación">
+            @if (Actions is not null)
+            {
+                @Actions
+            }
+            else
+            {
+                @if (ShowHomeButton)
+                {
+                    <button type="button"
+                            class="navi-mobile-app-banner__button navi-mobile-app-banner__button-home"
+                            @onclick="GoHomeAsync">
+                        @HomeText
+                    </button>
+                }
+
+                @if (ShowBackButton)
+                {
+                    <button type="button"
+                            class="navi-mobile-app-banner__button navi-mobile-app-banner__button-back"
+                            @onclick="GoBackAsync">
+                        @BackText
+                    </button>
+                }
+            }
+        </nav>
+    }
+</header>
+
+@code {
+    [Parameter] public string? Pill { get; set; }
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? Description { get; set; }
+
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter] public bool ShowHomeButton { get; set; } = true;
+    [Parameter] public bool ShowBackButton { get; set; } = true;
+
+    [Parameter] public string HomeText { get; set; } = "Inicio";
+    [Parameter] public string BackText { get; set; } = "Atrás";
+
+    [Parameter] public string HomeUrl { get; set; } = "/";
+    [Parameter] public string? BackUrl { get; set; }
+    [Parameter] public string BackFallbackUrl { get; set; } = "/";
+
+    [Parameter] public bool UseBrowserHistoryWhenNoBackUrl { get; set; } = true;
+
+    [Parameter] public RenderFragment? Actions { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private bool HasActions => Actions is not null || ShowHomeButton || ShowBackButton;
+
+    private string CssClass =>
+        string.IsNullOrWhiteSpace(Class)
+            ? "navi-mobile-app-banner"
+            : $"navi-mobile-app-banner {Class}";
+
+    private Task GoHomeAsync()
+    {
+        Navigation.NavigateTo(string.IsNullOrWhiteSpace(HomeUrl) ? "/" : HomeUrl);
+        return Task.CompletedTask;
+    }
+
+    private async Task GoBackAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(BackUrl))
+        {
+            Navigation.NavigateTo(BackUrl);
+            return;
+        }
+
+        if (UseBrowserHistoryWhenNoBackUrl)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("history.back");
+                return;
+            }
+            catch
+            {
+            }
+        }
+
+        Navigation.NavigateTo(string.IsNullOrWhiteSpace(BackFallbackUrl) ? "/" : BackFallbackUrl);
+    }
+}

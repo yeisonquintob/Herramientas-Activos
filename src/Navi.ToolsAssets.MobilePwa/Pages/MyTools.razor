@@ -30,30 +30,19 @@
     }
     else
     {
-        <header class="mobile-inv-hero">
-            <div class="mobile-inv-top">
-                <span>@HeaderCode</span>
-
-                <button type="button" @onclick="GoHome">
-                    Regresar
-                </button>
-            </div>
-
-            <h1>@PageTitle</h1>
-            <p>@PageSubtitle</p>
-        </header>
+        <NaviMobileAppBanner Class="navi-mobile-inventory-app-banner navi-mobile-app-banner--module"
+                             Pill="@HeaderCode"
+                             Title="@PageTitle"
+                             Description="@PageSubtitle"
+                             HomeUrl="/"
+                             ShowHomeButton="true"
+                             ShowBackButton="false" />
 
         @if (!string.IsNullOrWhiteSpace(message))
         {
             <div class="mobile-alert">@message</div>
         }
-
-        <section class="mobile-inv-search-card">
-            <input
-                value="@searchTerm"
-                @oninput="OnSearchChanged"
-                placeholder="Buscar por código, nombre, sede, ubicación, responsable o estado..." />
-
+        <section class="mobile-inv-search-card mobile-inv-search-card-filters-v3">
             <div class="mobile-inv-counters">
                 <div>
                     <strong>@filteredTools.Count</strong>
@@ -70,6 +59,36 @@
                     <span>Disponibles</span>
                 </div>
             </div>
+
+            <div class="mobile-inv-filter-grid mobile-inv-filter-grid-v3">
+                <label>
+                    <span>Sede</span>
+                    <select value="@selectedBranchFilter"
+                            @onchange="OnBranchFilterChanged"
+                            disabled="@(!UserCanSeeAllBranches())">
+                        @foreach (var option in BranchOptions)
+                        {
+                            <option value="@option.Value">@option.Label</option>
+                        }
+                    </select>
+                </label>
+
+                <label>
+                    <span>Estado</span>
+                    <select value="@selectedStatusFilter"
+                            @onchange="OnStatusFilterChanged">
+                        @foreach (var option in StatusOptions)
+                        {
+                            <option value="@option.Value">@option.Label</option>
+                        }
+                    </select>
+                </label>
+            </div>
+
+            <input
+                value="@searchTerm"
+                @oninput="OnSearchChanged"
+                placeholder="Buscar por código, nombre, ubicación, responsable o estado..." />
         </section>
 
         @if (!filteredTools.Any())
@@ -141,13 +160,14 @@
     }
 </section>
 
-
 @code {
     private bool isLoading = true;
 
     private bool CanViewInventoryPage => IsMyToolsPage || Auth.HasPermission("Tools.View");
     private string? message;
     private string searchTerm = string.Empty;
+    private string selectedBranchFilter = string.Empty;
+    private string selectedStatusFilter = string.Empty;
 
     private List<MobileToolDto> allTools = new();
     private List<MobileToolDto> filteredTools = new();
@@ -155,9 +175,9 @@
     private bool IsMyToolsPage =>
         new Uri(Navigation.Uri).AbsolutePath.Equals("/my-tools", StringComparison.OrdinalIgnoreCase);
 
-    private string PageTitle => IsMyToolsPage ? "Mis activos asignados" : "Inventario móvil";
+    private string PageTitle => IsMyToolsPage ? "Mis activos asignados" : "Inventario AF, herramientas y AF";
 
-    private string HeaderCode => IsMyToolsPage ? "MIS AF" : "INVENTARIO AF";
+    private string HeaderCode => IsMyToolsPage ? "ACTIVOS FIJOS · MIS ACTIVOS" : "ACTIVOS FIJOS · INVENTARIO AF";
 
     private string PageSubtitle => IsMyToolsPage
         ? "Consulta únicamente activos relacionados con tu usuario."
@@ -188,7 +208,6 @@
         await LoadAsync(false);
     }
 
-
     private async Task LoadAsync(bool forceRefresh)
     {
         try
@@ -201,6 +220,7 @@
                 ? tools.Where(IsAssignedToCurrentUser).OrderBy(x => x.InternalCode).ThenBy(x => x.Name).ToList()
                 : FilterInventoryScope(tools).ToList();
 
+            EnsureValidFilters();
             ApplyFilter();
         }
         catch (Exception ex)
@@ -221,18 +241,39 @@
         ApplyFilter();
     }
 
+    private void OnBranchFilterChanged(ChangeEventArgs args)
+    {
+        selectedBranchFilter = args.Value?.ToString() ?? string.Empty;
+        ApplyFilter();
+    }
+
+    private void OnStatusFilterChanged(ChangeEventArgs args)
+    {
+        selectedStatusFilter = args.Value?.ToString() ?? string.Empty;
+        ApplyFilter();
+    }
+
     private void ApplyFilter()
     {
         var query = Normalize(searchTerm);
+        var branchFilter = selectedBranchFilter;
+        var statusFilter = selectedStatusFilter;
 
-        if (string.IsNullOrWhiteSpace(query))
+        IEnumerable<MobileToolDto> queryable = allTools;
+
+        if (!string.IsNullOrWhiteSpace(branchFilter))
         {
-            filteredTools = allTools.ToList();
-            return;
+            queryable = queryable.Where(tool => SameNormalized(GetBranchFilterKey(tool), branchFilter));
         }
 
-        filteredTools = allTools
-            .Where(tool =>
+        if (!string.IsNullOrWhiteSpace(statusFilter))
+        {
+            queryable = queryable.Where(tool => SameNormalized(tool.OperationalStatus, statusFilter));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            queryable = queryable.Where(tool =>
                 ContainsNormalized(tool.InternalCode, query) ||
                 ContainsNormalized(tool.Name, query) ||
                 ContainsNormalized(tool.BranchCode, query) ||
@@ -240,10 +281,131 @@
                 ContainsNormalized(tool.LocationName, query) ||
                 ContainsNormalized(tool.ResponsiblePersonName, query) ||
                 ContainsNormalized(tool.OperationalStatus, query) ||
-                ContainsNormalized(tool.PhysicalStatus, query))
+                ContainsNormalized(tool.PhysicalStatus, query));
+        }
+
+        filteredTools = queryable
             .OrderBy(x => x.InternalCode)
             .ThenBy(x => x.Name)
             .ToList();
+    }
+
+    private void EnsureValidFilters()
+    {
+        var branchOptions = BranchOptions;
+
+        if (!UserCanSeeAllBranches() && branchOptions.Count > 0)
+        {
+            selectedBranchFilter = branchOptions[0].Value;
+        }
+        else if (!string.IsNullOrWhiteSpace(selectedBranchFilter) &&
+                 !branchOptions.Any(option => SameNormalized(option.Value, selectedBranchFilter)))
+        {
+            selectedBranchFilter = string.Empty;
+        }
+
+        var statusOptions = StatusOptions;
+
+        if (!string.IsNullOrWhiteSpace(selectedStatusFilter) &&
+            !statusOptions.Any(option => SameNormalized(option.Value, selectedStatusFilter)))
+        {
+            selectedStatusFilter = string.Empty;
+        }
+    }
+
+    private IReadOnlyList<FilterOption> BranchOptions
+    {
+        get
+        {
+            var options = new List<FilterOption>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            if (UserCanSeeAllBranches())
+            {
+                options.Add(new FilterOption(string.Empty, "Todas las sedes"));
+            }
+
+            foreach (var tool in allTools)
+            {
+                var value = GetBranchFilterKey(tool);
+
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    continue;
+                }
+
+                var normalized = Normalize(value);
+
+                if (seen.Add(normalized))
+                {
+                    options.Add(new FilterOption(value, GetBranchFilterLabel(tool)));
+                }
+            }
+
+            if (!UserCanSeeAllBranches() && options.Count == 0)
+            {
+                var user = Auth.CurrentUser;
+                var value = !string.IsNullOrWhiteSpace(user?.BranchCode)
+                    ? user!.BranchCode!
+                    : user?.BranchName ?? string.Empty;
+
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    options.Add(new FilterOption(value, Display(value)));
+                }
+            }
+
+            return options;
+        }
+    }
+
+    private IReadOnlyList<FilterOption> StatusOptions
+    {
+        get
+        {
+            var options = new List<FilterOption>
+            {
+                new(string.Empty, "Todos los estados")
+            };
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var status in allTools
+                .Select(tool => tool.OperationalStatus)
+                .Where(status => !string.IsNullOrWhiteSpace(status))
+                .OrderBy(status => status))
+            {
+                var value = status ?? string.Empty;
+                var normalized = Normalize(value);
+
+                if (seen.Add(normalized))
+                {
+                    options.Add(new FilterOption(value, Display(value)));
+                }
+            }
+
+            return options;
+        }
+    }
+
+    private static string GetBranchFilterKey(MobileToolDto tool)
+    {
+        if (!string.IsNullOrWhiteSpace(tool.BranchCode))
+        {
+            return tool.BranchCode;
+        }
+
+        return tool.BranchName ?? string.Empty;
+    }
+
+    private static string GetBranchFilterLabel(MobileToolDto tool)
+    {
+        if (!string.IsNullOrWhiteSpace(tool.BranchCode) && !string.IsNullOrWhiteSpace(tool.BranchName))
+        {
+            return $"{tool.BranchCode} · {tool.BranchName}";
+        }
+
+        return Display(tool.BranchName ?? tool.BranchCode);
     }
 
     private IEnumerable<MobileToolDto> FilterInventoryScope(IEnumerable<MobileToolDto> source)
@@ -268,8 +430,6 @@
             .OrderBy(x => x.InternalCode)
             .ThenBy(x => x.Name);
     }
-
-
 
     private bool IsAssignedToCurrentUser(MobileToolDto tool)
     {
@@ -332,9 +492,6 @@
             || SameNormalized(user.BranchName, "ALL");
     }
 
-
-
-
     private bool HasAny(params string[] permissions)
     {
         return permissions.Any(HasPermission);
@@ -345,7 +502,6 @@
         return Auth.HasPermission(permission);
     }
 
-
     private void GoHome()
     {
         Navigation.NavigateTo("/");
@@ -353,17 +509,23 @@
 
     private void GoLogin()
     {
-        Navigation.NavigateTo("/login", forceLoad: true);
+        Navigation.NavigateTo("/login", replace: true);
     }
 
-    private static string GetDetailUrl(Guid id)
+    private string GetDetailUrl(Guid id)
     {
-        return "/tools/" + id;
+        if (IsMyToolsPage)
+        {
+            return "/tools/" + id;
+        }
+
+        return "/tools/" + id + "?returnUrl=" + Uri.EscapeDataString("/all-tools");
     }
 
-    private static string GetLifeRecordUrl(Guid id)
+    private string GetLifeRecordUrl(Guid id)
     {
-        return "/tools/" + id + "/life-record";
+        var returnUrl = IsMyToolsPage ? "/my-tools" : "/all-tools";
+        return "/tools/" + id + "/life-record?returnUrl=" + Uri.EscapeDataString(returnUrl);
     }
 
     private static string GetReportUrl(Guid id)
@@ -445,4 +607,6 @@
 
         return "mobile-inv-status neutral";
     }
+
+    private sealed record FilterOption(string Value, string Label);
 }

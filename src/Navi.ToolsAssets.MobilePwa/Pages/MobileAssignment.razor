@@ -12,7 +12,7 @@
 <section class="mobile-page mobile-assignment-page">
     @if (isLoading)
     {
-        <div class="mobile-loading">Cargando asignaciones móviles...</div>
+        <div class="mobile-loading mobile-assignment-loading-fast">Cargando herramientas visibles...</div>
     }
     else if (!Auth.IsAuthenticated)
     {
@@ -26,28 +26,27 @@
     {
         <div class="mobile-empty">
             <strong>Sin permiso</strong>
-            <span>Tu usuario no tiene permisos de asignación, préstamo ni historial.</span>
+            <span>Tu usuario no tiene permisos de asignación, devolución, aprobación ni historial.</span>
             <button class="mobile-primary-button" type="button" @onclick="GoHome">Volver</button>
         </div>
     }
     else
     {
-        <header class="mobile-assignment-hero">
-            <div class="mobile-assignment-hero-top">
-                <span>ASIGNACIÓN Y PRÉSTAMOS</span>
-                <button type="button" @onclick="GoHome">Regresar</button>
-            </div>
 
-            <h1>Asignación y préstamos</h1>
-            <p>@GetScopeText()</p>
-        </header>
+        <NaviMobileAppBanner Class="navi-mobile-assignment-app-banner mass-standard-banner-v2 navi-mobile-app-banner--home-only"
+                             Pill="ACTIVOS FIJOS · ASIGNACIÓN"
+                             Title="Asignación y préstamos"
+                             Description="Gestiona asignaciones, préstamos, aprobaciones y regresos según tus permisos."
+                             HomeUrl="/"
+                             ShowHomeButton="true"
+                             ShowBackButton="false" />
 
         @if (!string.IsNullOrWhiteSpace(message))
         {
             <div class="@messageClass">@message</div>
         }
 
-        <section class="mobile-assignment-kpis">
+        <section class="mobile-assignment-kpis mobile-assignment-kpis-standard-v4 mobile-assignment-kpis-standard-v4">
             <article>
                 <strong>@PendingRequests.Count()</strong>
                 <span>Pendientes visibles</span>
@@ -64,89 +63,6 @@
             </article>
         </section>
 
-        @if (CanRequestLoan)
-        {
-            <section class="mobile-assignment-card">
-                <div class="mobile-assignment-card-head">
-                    <div>
-                        <strong>Solicitud de préstamo</strong>
-                        <span>El solicitante será @CurrentResponsibleLabel</span>
-                    </div>
-
-                    <button type="button" @onclick="ClearLoanRequest">Limpiar</button>
-                </div>
-
-                <label class="mobile-field">
-                    <span>Buscar activo para solicitar</span>
-                    <input value="@loanSearch"
-                           @oninput="OnLoanSearchChanged"
-                           placeholder="Código, nombre, serial, sede o ubicación..." />
-                </label>
-
-                @if (ShowLoanSearchResults)
-                {
-                    <div class="mobile-request-results">
-                        @if (!LoanRequestTools.Any())
-                        {
-                            <div class="mobile-assignment-empty">No se encontraron activos dentro de tu sede.</div>
-                        }
-                        else
-                        {
-                            @foreach (var tool in LoanRequestTools.Take(8))
-                            {
-                                var selected = loanForm.ToolId == tool.Id;
-
-                                <button type="button"
-                                        class="mobile-request-result @(selected ? "selected" : "")"
-                                        @onclick="() => SelectLoanTool(tool)">
-                                    <span>
-                                        <strong>@tool.InternalCode</strong>
-                                        <small>@tool.Name</small>
-                                        <small>@Display(tool.BranchCode) · @Display(tool.LocationName)</small>
-                                    </span>
-
-                                    <em class="@GetToolStateClass(tool)">
-                                        @GetStatusLabel(tool.OperationalStatus)
-                                    </em>
-                                </button>
-                            }
-                        }
-                    </div>
-                }
-
-                @if (selectedLoanTool is not null)
-                {
-                    <div class="mobile-assignment-selected">
-                        <span>@selectedLoanTool.InternalCode</span>
-                        <strong>@selectedLoanTool.Name</strong>
-                        <small>@Display(selectedLoanTool.BranchCode) · @Display(selectedLoanTool.LocationName)</small>
-                    </div>
-                }
-
-                <label class="mobile-field">
-                    <span>Fecha estimada devolución</span>
-                    <input type="date"
-                           value="@FormatDateInput(loanForm.ExpectedReturnAt)"
-                           @onchange="OnLoanExpectedReturnChanged" />
-                </label>
-
-                <label class="mobile-field">
-                    <span>Observación</span>
-                    <textarea rows="2"
-                              value="@loanForm.Notes"
-                              @oninput="OnLoanNotesChanged"
-                              placeholder="Indique para qué requiere la herramienta..."></textarea>
-                </label>
-
-                <button class="mobile-assignment-main-button"
-                        type="button"
-                        disabled="@isSaving"
-                        @onclick="SubmitLoanRequestAsync">
-                    @(isSaving ? "Enviando..." : "Enviar solicitud de préstamo")
-                </button>
-            </section>
-        }
-
         @if (CanApproveAssignmentRequest || CanDenyAssignmentRequest)
         {
             <section class="mobile-assignment-card">
@@ -156,7 +72,7 @@
                         <span>Solo visible para roles con permiso de aprobar o denegar</span>
                     </div>
 
-                    <button type="button" @onclick="ReloadAsync">Actualizar</button>
+                    <button type="button" class="mass-refresh-button-v4" @onclick="ReloadAsync">Actualizar</button>
                 </div>
 
                 @if (!PendingRequests.Any())
@@ -180,14 +96,14 @@
                                 <div class="mobile-approval-actions mobile-approval-actions-top">
                                     @if (CanApproveAssignmentRequest)
                                     {
-                                        <button class="approve" type="button" disabled="@isSaving" @onclick="() => ApproveAsync(request)">
+                                        <button class="approve mass-approve-button-v4" type="button" disabled="@isSaving" @onclick="() => ApproveAsync(request)">
                                             Aprobar
                                         </button>
                                     }
 
                                     @if (CanDenyAssignmentRequest)
                                     {
-                                        <button class="deny" type="button" disabled="@isSaving" @onclick="() => DenyAsync(request)">
+                                        <button class="deny mass-deny-button-v4" type="button" disabled="@isSaving" @onclick="() => DenyAsync(request)">
                                             Denegar
                                         </button>
                                     }
@@ -208,7 +124,7 @@
                         <span>Solo roles con permiso de asignar o devolver</span>
                     </div>
 
-                    <button type="button" @onclick="ToggleNewAssignment">
+                    <button type="button" class="mass-toggle-button-v4 mass-toggle-new-assignment-v4" @onclick="ToggleNewAssignment">
                         @(showNewAssignment ? "Ocultar" : "Expandir")
                     </button>
                 </div>
@@ -347,7 +263,7 @@
                         <span>Movimientos visibles según sede y permisos</span>
                     </div>
 
-                    <button type="button" @onclick="ToggleHistory">
+                    <button type="button" class="mass-toggle-button-v4 mass-toggle-history-v4" @onclick="ToggleHistory">
                         @(showHistory ? "Ocultar" : "Expandir")
                     </button>
                 </div>
@@ -394,34 +310,48 @@
             <div class="mobile-assignment-card-head">
                 <div>
                     <strong>Herramientas / activos visibles</strong>
-                    <span>Consulta activos de la sede, solicita préstamo o reporta daño según permiso</span>
+                    <span>Consulta activos de la sede, asigna, devuelve o reporta daño según permiso</span>
                 </div>
             </div>
 
-            <div class="mobile-assignment-filters">
-                <input value="@toolSearch"
-                       @oninput="OnToolSearchChanged"
-                       placeholder="Buscar código, nombre, sede o ubicación..." />
+            <div class="mobile-assignment-filters mobile-assignment-tools-filter-v2">
+                <input @bind="toolSearch"
+                       @bind:event="oninput"
+                       placeholder="Buscar código, nombre, serial, sede o ubicación..." />
 
-                <div class="mobile-assignment-status-multi">
-                    <div class="mobile-assignment-status-head">
+                <section class="mobile-assignment-status-filter-v2" aria-label="Filtro de estado">
+                    <div class="mobile-assignment-status-filter-head-v2">
                         <strong>Estado</strong>
-                        <button type="button" @onclick="ClearToolStatuses">Limpiar</button>
+
+                        <button type="button"
+                                disabled="@(selectedToolStatuses.Count == 0)"
+                                @onclick="ClearToolStatuses">
+                            Limpiar
+                        </button>
                     </div>
 
-                    <div class="mobile-assignment-status-options">
+                    <div class="mobile-assignment-status-chip-grid-v2">
+                        <button type="button"
+                                class="mobile-assignment-status-chip-v2 all @(selectedToolStatuses.Count == 0 ? "active" : "")"
+                                @onclick="ClearToolStatuses">
+                            Todos
+                            <span>@ToolsBaseFiltered.Count()</span>
+                        </button>
+
                         @foreach (var status in ToolStatusFilterOptions)
                         {
                             var selected = selectedToolStatuses.Contains(status.Value);
+                            var count = CountToolsByStatus(status.Value);
 
                             <button type="button"
-                                    class="@(selected ? "selected" : "")"
+                                    class="@GetToolStatusFilterChipClass(status.Value, selected)"
                                     @onclick="() => ToggleToolStatus(status.Value)">
                                 @status.Text
+                                <span>@count</span>
                             </button>
                         }
                     </div>
-                </div>
+                </section>
             </div>
 
             @if (!FilteredTools.Any())
@@ -431,7 +361,7 @@
             else
             {
                 <div class="mobile-assignment-tools">
-                    @foreach (var tool in FilteredTools.Take(80))
+                    @foreach (var tool in FilteredTools.Take(40))
                     {
                         <article>
                             <div class="mobile-assignment-tool-head">
@@ -467,31 +397,14 @@
                                 </div>
                             </div>
 
-                            <div class="mobile-assignment-tool-actions">
-                                @if (CanViewToolDetail)
-                                {
-                                    <a href="@GetDetailUrl(tool.Id)">Detalle</a>
-                                }
+                            <div class="mobile-assignment-tool-actions mobile-assignment-tool-actions-v4">
+                                <button class="mass-tool-assign-button-v4" type="button" @onclick="() => SelectAssignmentTool(tool)">
+                                    Asignar
+                                </button>
 
-                                @if (CanViewLifeRecord)
-                                {
-                                    <a href="@GetLifeRecordUrl(tool.Id)">Hoja vida</a>
-                                }
-
-                                @if (CanDirectAssign || CanReturnAssignment)
-                                {
-                                    <button type="button" @onclick="() => SelectAssignmentTool(tool)">Asignar</button>
-                                }
-
-                                @if (CanRequestLoan)
-                                {
-                                    <button type="button" @onclick="() => RequestLoanForToolAsync(tool)">Solicitar</button>
-                                }
-
-                                @if (CanReportDamage)
-                                {
-                                    <a class="danger" href="@GetDamageUrl(tool.Id)">Daño</a>
-                                }
+                                <a class="danger mass-tool-damage-button-v4" href="@GetDamageUrl(tool.Id)">
+                                    Dañado
+                                </a>
                             </div>
                         </article>
                     }
@@ -504,6 +417,7 @@
 @code {
     private bool isLoading = true;
     private bool isSaving;
+    private bool isSecondaryLoading;
     private bool showNewAssignment;
     private bool showHistory;
     private string? message;
@@ -550,7 +464,6 @@
 
     private bool CanUseAssignmentModule =>
         HasPermission("AssetAssignment.View") ||
-        CanRequestLoan ||
         CanDirectAssign ||
         CanReturnAssignment ||
         CanApproveAssignmentRequest ||
@@ -654,19 +567,79 @@
                         x.Items.Any(i => ContainsText(i.ToolInternalCode, historySearch) || ContainsText(i.ToolName, historySearch)))
             .OrderByDescending(x => x.CreatedAt);
 
-    private IEnumerable<MobileAvailabilityToolDto> FilteredTools =>
+    private IEnumerable<MobileAvailabilityToolDto> ToolsBaseFiltered =>
         ScopedTools
-            .Where(x => string.IsNullOrWhiteSpace(toolSearch) ||
-                        ContainsText(x.InternalCode, toolSearch) ||
-                        ContainsText(x.Name, toolSearch) ||
-                        ContainsText(x.BranchCode, toolSearch) ||
-                        ContainsText(x.LocationName, toolSearch) ||
-                        ContainsText(x.ResponsiblePersonName, toolSearch))
-            .Where(x => selectedToolStatuses.Count == 0 ||
-                        selectedToolStatuses.Contains(x.OperationalStatus ?? string.Empty))
-            .OrderByDescending(x => FindPendingRequestForTool(x.Id) is not null)
-            .ThenByDescending(x => ContainsStatus(x.OperationalStatus, "Available"))
+            .Where(MatchesToolSearch)
+            .OrderByDescending(x => ContainsStatus(x.OperationalStatus, "Available"))
+            .ThenBy(x => x.BranchCode)
             .ThenBy(x => x.InternalCode);
+
+    private IEnumerable<MobileAvailabilityToolDto> FilteredTools =>
+        ToolsBaseFiltered
+            .Where(MatchesSelectedToolStatuses)
+            .OrderByDescending(x => ContainsStatus(x.OperationalStatus, "Available"))
+            .ThenBy(x => x.BranchCode)
+            .ThenBy(x => x.InternalCode);
+
+    private bool MatchesToolSearch(MobileAvailabilityToolDto tool)
+    {
+        if (string.IsNullOrWhiteSpace(toolSearch))
+        {
+            return true;
+        }
+
+        return ContainsText(tool.InternalCode, toolSearch)
+            || ContainsText(tool.Name, toolSearch)
+            || ContainsText(tool.SerialNumber, toolSearch)
+            || ContainsText(tool.BranchCode, toolSearch)
+            || ContainsText(tool.BranchName, toolSearch)
+            || ContainsText(tool.LocationName, toolSearch)
+            || ContainsText(tool.ResponsiblePersonName, toolSearch)
+            || ContainsText(tool.PhysicalStatus, toolSearch)
+            || ContainsText(tool.OperationalStatus, toolSearch)
+            || ContainsText(GetStatusLabel(tool.OperationalStatus), toolSearch);
+    }
+
+    private bool MatchesSelectedToolStatuses(MobileAvailabilityToolDto tool)
+    {
+        return selectedToolStatuses.Count == 0 ||
+               selectedToolStatuses.Contains(tool.OperationalStatus ?? string.Empty);
+    }
+
+    private int CountToolsByStatus(string status)
+    {
+        return ToolsBaseFiltered.Count(x => SameToolStatus(x.OperationalStatus, status));
+    }
+
+    private string GetToolStatusFilterChipClass(string status, bool selected)
+    {
+        var active = selected ? " active" : string.Empty;
+        return $"mobile-assignment-status-chip-v2 {NormalizeToolStatusCss(status)}{active}";
+    }
+
+    private static bool SameToolStatus(string? left, string? right)
+    {
+        return !string.IsNullOrWhiteSpace(left) &&
+               !string.IsNullOrWhiteSpace(right) &&
+               string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeToolStatusCss(string? status)
+    {
+        return status switch
+        {
+            "Available" => "available",
+            "Assigned" => "assigned",
+            "Loaned" => "loaned",
+            "InMaintenance" => "maintenance",
+            "Damaged" => "damaged",
+            "NotSuitable" => "not-suitable",
+            "PendingValidation" => "pending",
+            "NotLocated" => "not-located",
+            "Disposed" => "disposed",
+            _ => "other"
+        };
+    }
 
     private void ToggleToolStatus(string status)
     {
@@ -685,7 +658,6 @@
     {
         selectedToolStatuses.Clear();
     }
-
     protected override async Task OnInitializedAsync()
     {
         await Auth.InitializeAsync();
@@ -696,11 +668,11 @@
             return;
         }
 
-        var refreshedUser = await Api.RefreshCurrentSessionAsync();
+        await TryRefreshCurrentSessionFastAsync();
 
-        if (refreshedUser is null || !Auth.IsAuthenticated)
+        if (!Auth.IsAuthenticated)
         {
-            Navigation.NavigateTo("/login", forceLoad: true);
+            Navigation.NavigateTo("/login", replace: true);
             return;
         }
 
@@ -712,8 +684,6 @@
 
         await LoadAsync();
     }
-
-
     private async Task LoadAsync()
     {
         try
@@ -721,33 +691,23 @@
             isLoading = true;
             message = null;
 
-            tools = await Api.GetAvailabilityToolsAsync();
-            loanRequests = await Api.GetLoanRequestsAsync();
+            ApplyAssignmentDefaults();
 
-            responsibles = (await Api.GetResponsiblesAsync())
-                .OrderBy(x => x.FullName)
-                .ToList();
+            tools = await SafeLoadListAsync(
+                () => Api.GetAvailabilityToolsAsync(),
+                tools,
+                12000,
+                "herramientas visibles");
 
-            branches = (await Api.GetBranchesAsync())
-                .Where(IsVisibleBranch)
-                .OrderBy(x => x.Code)
-                .ToList();
-
-            locations = (await Api.GetLocationsAsync())
-                .Where(IsVisibleLocation)
-                .OrderBy(x => x.Code)
-                .ToList();
-
-            if (!CanDirectAssign && CanReturnAssignment)
+            if (tools.Count == 0)
             {
-                assignmentForm.AssignmentType = "Warehouse";
-            }
-            else
-            {
-                assignmentForm.AssignmentType = "Responsible";
+                ShowError("No se recibieron herramientas visibles. Valida API, permisos o alcance de sede.");
             }
 
-            showNewAssignment = CanDirectAssign || CanReturnAssignment;
+            isLoading = false;
+            await InvokeAsync(StateHasChanged);
+
+            _ = LoadAssignmentSecondaryDataAsync();
         }
         catch (Exception ex)
         {
@@ -756,12 +716,164 @@
         finally
         {
             isLoading = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
-
     private async Task ReloadAsync()
     {
         await LoadAsync();
+    }
+    private async Task TryRefreshCurrentSessionFastAsync()
+    {
+        try
+        {
+            await WithTimeoutAsync(
+                Api.RefreshCurrentSessionAsync(),
+                Auth.CurrentUser,
+                2000);
+        }
+        catch
+        {
+            // Si el refresh falla o tarda, se conserva la sesión local.
+        }
+    }
+
+    private async Task LoadAssignmentSecondaryDataAsync()
+    {
+        if (isSecondaryLoading)
+        {
+            return;
+        }
+
+        try
+        {
+            isSecondaryLoading = true;
+
+            var shouldLoadLoans =
+                CanApproveAssignmentRequest ||
+                CanDenyAssignmentRequest ||
+                CanViewAssignmentHistory;
+
+            var shouldLoadResponsibles =
+                CanDirectAssign ||
+                CanApproveAssignmentRequest ||
+                CanDenyAssignmentRequest ||
+                CanViewAssignmentHistory;
+
+            var shouldLoadBranches =
+                CanDirectAssign ||
+                CanReturnAssignment;
+
+            var shouldLoadLocations =
+                CanDirectAssign ||
+                CanReturnAssignment;
+
+            var loanTask = shouldLoadLoans
+                ? SafeLoadListAsync(() => Api.GetLoanRequestsAsync(), loanRequests, 8000, "solicitudes")
+                : Task.FromResult(loanRequests);
+
+            var responsibleTask = shouldLoadResponsibles
+                ? SafeLoadListAsync(() => Api.GetResponsiblesAsync(), responsibles, 8000, "responsables")
+                : Task.FromResult(responsibles);
+
+            var branchTask = shouldLoadBranches
+                ? SafeLoadListAsync(() => Api.GetBranchesAsync(), branches, 8000, "sedes")
+                : Task.FromResult(branches);
+
+            var locationTask = shouldLoadLocations
+                ? SafeLoadListAsync(() => Api.GetLocationsAsync(), locations, 8000, "ubicaciones")
+                : Task.FromResult(locations);
+
+            await Task.WhenAll(loanTask, responsibleTask, branchTask, locationTask);
+
+            if (shouldLoadLoans)
+            {
+                loanRequests = loanTask.Result;
+            }
+
+            if (shouldLoadResponsibles)
+            {
+                responsibles = responsibleTask.Result
+                    .OrderBy(x => x.FullName)
+                    .ToList();
+            }
+
+            if (shouldLoadBranches)
+            {
+                branches = branchTask.Result
+                    .Where(IsVisibleBranch)
+                    .OrderBy(x => x.Code)
+                    .ToList();
+            }
+
+            if (shouldLoadLocations)
+            {
+                locations = locationTask.Result
+                    .Where(IsVisibleLocation)
+                    .OrderBy(x => x.Code)
+                    .ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                ShowError($"La información complementaria tardó demasiado en cargar: {ex.Message}");
+            }
+        }
+        finally
+        {
+            isSecondaryLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void ApplyAssignmentDefaults()
+    {
+        if (!CanDirectAssign && CanReturnAssignment)
+        {
+            assignmentForm.AssignmentType = "Warehouse";
+        }
+        else
+        {
+            assignmentForm.AssignmentType = "Responsible";
+        }
+
+        showNewAssignment = CanDirectAssign || CanReturnAssignment;
+    }
+
+    private static async Task<List<T>> SafeLoadListAsync<T>(
+        Func<Task<List<T>>> loader,
+        List<T>? fallback,
+        int timeoutMs,
+        string sourceName)
+    {
+        try
+        {
+            return await WithTimeoutAsync(
+                loader(),
+                fallback ?? new List<T>(),
+                timeoutMs);
+        }
+        catch
+        {
+            return fallback ?? new List<T>();
+        }
+    }
+
+    private static async Task<T> WithTimeoutAsync<T>(
+        Task<T> task,
+        T fallback,
+        int timeoutMs)
+    {
+        var completed = await Task.WhenAny(task, Task.Delay(timeoutMs));
+
+        if (completed == task)
+        {
+            return await task;
+        }
+
+        return fallback;
     }
 
     private void ToggleNewAssignment()
@@ -824,8 +936,6 @@
         loanSearch = $"{tool.InternalCode} - {tool.Name}";
     }
 
-
-
     private void OnLoanExpectedReturnChanged(ChangeEventArgs args)
     {
         if (DateTime.TryParse(args.Value?.ToString(), out var value))
@@ -869,8 +979,6 @@
 
         await RequestLoanForToolAsync(tool);
     }
-
-
 
     private async Task RequestLoanForToolAsync(MobileAvailabilityToolDto tool)
     {
@@ -929,8 +1037,6 @@
             isSaving = false;
         }
     }
-
-
 
     private void ClearLoanRequest()
     {
@@ -1218,14 +1324,10 @@
         return permissions.Any(HasPermission);
     }
 
-
-
     private bool HasPermission(string permission)
     {
         return Auth.HasPermission(permission);
     }
-
-
 
     private bool UserCanSeeAllBranches()
     {
@@ -1243,7 +1345,6 @@
             || SameNormalized(user.BranchName, "TODAS")
             || SameNormalized(user.BranchName, "ALL");
     }
-
 
     private bool IsSameBranch(MobileAvailabilityToolDto tool)
     {
@@ -1328,7 +1429,7 @@
 
     private void GoLogin()
     {
-        Navigation.NavigateTo("/login", forceLoad: true);
+        Navigation.NavigateTo("/login", replace: true);
     }
 
     private static Guid? ParseGuid(string? value)

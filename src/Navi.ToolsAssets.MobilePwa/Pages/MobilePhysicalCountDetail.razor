@@ -4,6 +4,7 @@
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Forms
 @using Navi.ToolsAssets.MobilePwa.Models
+@using System.Collections.Generic
 
 @inject NaviMobileApiClient Api
 @inject MobileAuthSessionService Auth
@@ -11,7 +12,7 @@
 
 <PageTitle>Detalle toma física móvil - NAVI Herramientas y AF</PageTitle>
 
-<section class="mobile-page navi-mobile-physical-v3 navi-mobile-physical-detail-v3 mobile-physical-standard-page">
+<section class="mobile-page navi-mobile-physical-v3 navi-mobile-physical-detail-v3 mobile-physical-standard-page mobile-physical-detail-final-real navi-mobile-phone-view navi-mobile-physical-detail-phone-v8 navi-mobile-physical-detail-v10 navi-mobile-physical-detail-v11">
     @if (isLoading && !initialized)
     {
         <div class="mobile-loading">Cargando detalle de toma física...</div>
@@ -42,20 +43,48 @@
     }
     else
     {
-        <header class="mph-hero mobile-physical-hero">
-            <div>
-                <span>TOMA FÍSICA · DETALLE</span>
-                <h1>@Display(board.CountNumber)</h1>
-                <p>@Display(CurrentParticipant?.DisplayName ?? Auth.CurrentUser?.DisplayName) · @Display(board.BranchCode)</p>
+
+        <NaviMobileAppBanner Class="navi-mobile-physical-detail-start-banner navi-mobile-app-banner--detail"
+                             Pill="CONTROL ∙ TOMA FÍSICA"
+                             Title="@Display(board.CountNumber)"
+                             Description="@($"{Display(CurrentParticipant?.DisplayName ?? Auth.CurrentUser?.DisplayName)} ∙ {Display(board.BranchCode)}")"
+                             HomeUrl="/"
+                             BackUrl="/mobile/physical-counts"
+                             BackFallbackUrl="/mobile/physical-counts"
+                             ShowHomeButton="true"
+                             ShowBackButton="true" />
+
+        <section class="navi-mobile-physical-kpi-board-v2 navi-mobile-physical-kpi-board-v2--detail">
+            <div class="navi-mobile-physical-kpi-tile-v2 total">
+                <span>Esperados</span>
+                <strong>@CurrentExpectedItems</strong>
+                <small>Asignados</small>
             </div>
 
-            <div class="mph-hero-actions">
-                <button type="button" @onclick="GoBack">Volver</button>
-                <button type="button" @onclick="LoadAsync" disabled="@isLoading">
-                    @(isLoading ? "Cargando..." : "Actualizar")
-                </button>
+            <div class="navi-mobile-physical-kpi-tile-v2 info">
+                <span>Reportadas</span>
+                <strong>@CurrentCountedItems</strong>
+                <small>Gestionadas</small>
             </div>
-        </header>
+
+            <div class="navi-mobile-physical-kpi-tile-v2 warning">
+                <span>Pendientes</span>
+                <strong>@CurrentPendingItems</strong>
+                <small>Sin reportar</small>
+            </div>
+
+            <div class="navi-mobile-physical-kpi-tile-v2 danger">
+                <span>Diferencias</span>
+                <strong>@CurrentDifferences</strong>
+                <small>Conciliación</small>
+            </div>
+
+            <div class="navi-mobile-physical-kpi-tile-v2 purple progress">
+                <span>Avance persona</span>
+                <strong>@CurrentProgressText</strong>
+                <small>@CurrentCountedItems de @CurrentExpectedItems</small>
+            </div>
+        </section>
 
         @if (!string.IsNullOrWhiteSpace(successMessage))
         {
@@ -67,39 +96,7 @@
             <div class="mobile-alert error">@errorMessage</div>
         }
 
-        <section class="mph-kpis mobile-physical-kpis">
-            <article>
-                <span>Esperados</span>
-                <strong>@CurrentExpectedItems</strong>
-                <small>Asignados</small>
-            </article>
-
-            <article class="info">
-                <span>Validados</span>
-                <strong>@CurrentCountedItems</strong>
-                <small>Reportados</small>
-            </article>
-
-            <article class="warning">
-                <span>Pendientes</span>
-                <strong>@CurrentPendingItems</strong>
-                <small>Por validar</small>
-            </article>
-
-            <article class="danger">
-                <span>Diferencias</span>
-                <strong>@CurrentDifferences</strong>
-                <small>Conciliación</small>
-            </article>
-
-            <article class="purple">
-                <span>Avance</span>
-                <strong>@CurrentProgress%</strong>
-                <small>@CurrentCountedItems de @CurrentExpectedItems</small>
-            </article>
-        </section>
-
-        <article class="mph-card mobile-physical-card">
+        <article class="mph-card mobile-physical-card mph-participant-compact-v4">
             <section class="mph-static-head">
                 <div>
                     <strong>Participante</strong>
@@ -119,10 +116,9 @@
 
         @if (CanReportPhysicalCounts)
         {
-            <details class="mph-card mph-notlisted-card mobile-physical-card">
+            <details class="mph-card mph-notlisted-card mobile-physical-card mph-notlisted-final-v5 mph-notlisted-centered-v6">
                 <summary>
                     <span>Registrar no listado</span>
-                    <em>Agregar</em>
                 </summary>
 
                 @if (CurrentParticipant is null)
@@ -165,7 +161,7 @@
 
                         <label>
                             <span>Nombre activo / herramienta</span>
-                            <input @bind="extraForm.ReportedName" placeholder="Ej: Taladro, gato, escáner..." />
+                            <input @bind="extraForm.ReportedName" @bind:event="oninput" placeholder="Ej: Taladro, gato, escáner..." />
                         </label>
 
                         <label>
@@ -227,8 +223,8 @@
                     </label>
 
                     <div class="mph-action-row">
-                        <button type="button" class="success" @onclick="SaveExtraToolAsync" disabled="@isSaving">
-                            @(isSaving ? "Guardando..." : "Guardar registro reportado")
+                        <button type="button" class="success mph-save-extra-tool" @onclick="SaveExtraToolAsync" disabled="@(!CanSaveExtraTool || isSaving)">
+                            @(isSaving ? "Guardando..." : "Guardar")
                         </button>
 
                         <button type="button" @onclick="ResetExtraForm">Limpiar</button>
@@ -249,18 +245,18 @@
 
             @if (CurrentParticipant is null)
             {
-                <div class="mobile-empty compact">No se encontró participante asociado a la sesión.</div>
+                <div class="mobile-empty compact">No tienes activos asignados en esta toma física.</div>
             }
             else if (!PendingTools.Any())
             {
-                <div class="mobile-empty compact">No tienes activos pendientes por validar.</div>
+                <div class="mobile-empty compact">No tienes activos pendientes por reportar en esta toma física.</div>
             }
             else
             {
                 <div class="mph-list pending-tools mobile-physical-list">
                     @foreach (var tool in PendingTools)
                     {
-                        <article class="mph-pending-tool-card mobile-physical-list-card">
+                        <article class="mph-pending-tool-card mph-pending-tool-final-v5 mobile-physical-list-card">
                             <div class="mph-item-head">
                                 <div>
                                     <strong>@Display(tool.InternalCode)</strong>
@@ -287,6 +283,53 @@
                 </div>
             }
         </article>
+
+        @* NAVI MOBILE PHYSICAL DETAIL COMPLETED V11 START *@
+        @if (CompletedTools.Any())
+        {
+            <article class="mph-card mobile-physical-card mph-completed-tools-card">
+                <section class="mph-static-head">
+                    <div>
+                        <strong>Activos gestionados</strong>
+                        <span>Confirmados o rechazados durante esta revisión. Quedan al final y no permiten guardar nuevamente.</span>
+                    </div>
+
+                    <em>@CompletedTools.Count</em>
+                </section>
+
+                <div class="mph-list mobile-physical-completed-list">
+                    @foreach (var tool in CompletedTools)
+                    {
+                        <article class="mph-completed-tool-card @(tool.IsRejected ? "rejected" : "confirmed")">
+                            <div class="mph-item-head">
+                                <div>
+                                    <strong>@Display(tool.InternalCode)</strong>
+                                    <span>@Display(tool.Name)</span>
+                                </div>
+
+                                <span class="mph-pill-lite">@tool.StatusLabel</span>
+                            </div>
+
+                            <section class="mph-mini-grid">
+                                <div><span>Sede</span><strong>@Display(tool.BranchCode)</strong></div>
+                                <div><span>Ubicación</span><strong>@Display(tool.LocationName)</strong></div>
+                                <div><span>Responsable</span><strong>@Display(tool.ResponsibleName)</strong></div>
+                                <div><span>Fecha</span><strong>@tool.CompletedAt.ToString("dd/MM/yyyy HH:mm")</strong></div>
+                            </section>
+
+                            @if (!string.IsNullOrWhiteSpace(tool.Observation))
+                            {
+                                <div class="mph-completed-observation">
+                                    <span>Observación</span>
+                                    <strong>@Display(tool.Observation)</strong>
+                                </div>
+                            }
+                        </article>
+                    }
+                </div>
+            </article>
+        }
+        @* NAVI MOBILE PHYSICAL DETAIL COMPLETED V11 END *@
 
         @if (selectedTool is not null)
         {
@@ -501,21 +544,39 @@
                                 @if (isRejectMode)
                                 {
                                     <button type="button" class="danger" @onclick="RejectToolAsync" disabled="@(!CanSaveValidation)">
-                                        @(isSaving ? "Guardando..." : "Rechazar / No es mía")
+                                        @if (isSaving)
+                                        {
+                                            <span>Guardando...</span>
+                                        }
+                                        else
+                                        {
+                                            <span>Rechazar</span>
+                                            <small>No es mía</small>
+                                        }
                                     </button>
 
                                     <button type="button" @onclick="() => SetRejectMode(false)">
-                                        Cambiar a confirmar
+                                        <span>Cambiar</span>
+                                        <small>a confirmar</small>
                                     </button>
                                 }
                                 else
                                 {
                                     <button type="button" class="success" @onclick="ConfirmToolAsync" disabled="@(!CanSaveValidation)">
-                                        @(isSaving ? "Guardando..." : "Confirmar / Reportar correcto")
+                                        @if (isSaving)
+                                        {
+                                            <span>Guardando...</span>
+                                        }
+                                        else
+                                        {
+                                            <span>Confirmar</span>
+                                            <small>Reporte correcto</small>
+                                        }
                                     </button>
 
                                     <button type="button" class="danger outline" @onclick="() => SetRejectMode(true)">
-                                        Cambiar a rechazar
+                                        <span>Cambiar</span>
+                                        <small>a rechazar</small>
                                     </button>
                                 }
 
@@ -639,6 +700,7 @@
     private string? errorMessage;
 
     private PhysicalCountBoardDto? board;
+    private PhysicalCountParticipantDto? currentParticipantOverride;
     private PendingToolsResponse? selectedPending;
     private PendingToolDto? selectedTool;
     private PendingToolDto? selectedToolFull;
@@ -646,6 +708,25 @@
 
     private List<MobileLocationDto> locations = new();
     private List<DocumentDto> documents = new();
+
+    // NAVI MOBILE PHYSICAL DETAIL COMPLETED STATE V11 START
+    private readonly HashSet<Guid> completedToolIds = new();
+    private readonly List<CompletedPhysicalToolView> completedTools = new();
+
+    private IReadOnlyList<CompletedPhysicalToolView> CompletedTools =>
+        completedTools
+            .OrderBy(x => x.CompletedAt)
+            .ToList();
+
+    private bool IsSelectedToolCompleted =>
+        selectedTool is not null &&
+        completedToolIds.Contains(EffectiveToolId(selectedTool));
+
+    private bool IsToolAlreadyCompleted(PendingToolDto tool)
+    {
+        return completedToolIds.Contains(EffectiveToolId(tool));
+    }
+    // NAVI MOBILE PHYSICAL DETAIL COMPLETED STATE V11 END
 
     private bool isRejectMode;
     private ValidationForm validationForm = new();
@@ -680,29 +761,200 @@
         Has("PhysicalCounts.Evidence.Upload");
 
     private bool CanAccessPhysicalCounts =>
-        CanConsultPhysicalCounts ||
-        CanReportPhysicalCounts ||
-        CanUploadPhysicalEvidence;
+        CanConsultPhysicalCounts;
 
     private bool UserCanSeeAllParticipants =>
         IsAdmin ||
         CanConsultPhysicalCounts && IsAllBranchValue(Auth.CurrentUser?.BranchCode);
 
     private PhysicalCountParticipantDto? CurrentParticipant =>
-        UserCanSeeAllParticipants
-            ? (board?.Participants.FirstOrDefault(IsOwnParticipant) ?? board?.Participants.FirstOrDefault())
-            : board?.Participants.FirstOrDefault(IsOwnParticipant);
+        currentParticipantOverride ?? ResolveCurrentParticipant();
+
+    private PhysicalCountParticipantDto? ResolveCurrentParticipant()
+    {
+        if (board?.Participants is null || board.Participants.Count == 0)
+        {
+            return null;
+        }
+
+        var ownParticipant = board.Participants.FirstOrDefault(IsOwnParticipant);
+
+        if (ownParticipant is not null && ParticipantHasAssignedWork(ownParticipant))
+        {
+            return ownParticipant;
+        }
+
+        if (!UserCanSeeAllParticipants)
+        {
+            return ownParticipant;
+        }
+
+        return board.Participants
+            .OrderByDescending(GetParticipantWorkScore)
+            .ThenBy(x => Display(x.DisplayName))
+            .FirstOrDefault()
+            ?? ownParticipant
+            ?? board.Participants.FirstOrDefault();
+    }
+
+    private IEnumerable<PhysicalCountParticipantDto> GetCandidateParticipants()
+    {
+        if (board?.Participants is null)
+        {
+            yield break;
+        }
+
+        var current = ResolveCurrentParticipant();
+
+        if (current is not null)
+        {
+            yield return current;
+        }
+
+        if (!UserCanSeeAllParticipants)
+        {
+            yield break;
+        }
+
+        foreach (var participant in board.Participants
+            .Where(x => current is null || x.Id != current.Id)
+            .OrderByDescending(GetParticipantWorkScore)
+            .ThenBy(x => Display(x.DisplayName)))
+        {
+            yield return participant;
+        }
+    }
 
     private int CurrentExpectedItems => CurrentParticipant?.ExpectedItems ?? 0;
-    private int CurrentCountedItems => CurrentParticipant?.CountedItems ?? 0;
-    private int CurrentPendingItems => CurrentParticipant?.PendingItems ?? 0;
-    private int CurrentDifferences => (CurrentParticipant?.DifferentItems ?? 0) + (CurrentParticipant?.MissingItems ?? 0) + (CurrentParticipant?.DamagedItems ?? 0) + (CurrentParticipant?.ExtraItems ?? 0);
+
+    private int CurrentApiPendingItems =>
+        selectedPending?.Tools?.Count ?? Math.Max(0, CurrentParticipant?.PendingItems ?? 0);
+
+    private int CurrentLocalCompletedItems =>
+        completedToolIds.Count;
+
+    private int CurrentCountedItems
+    {
+        get
+        {
+            var expected = Math.Max(0, CurrentExpectedItems);
+            var boardManaged = ManagedParticipantItems(CurrentParticipant);
+
+            var pendingBased = expected > 0 && selectedPending?.Tools is not null
+                ? Math.Max(0, expected - PendingTools.Count)
+                : 0;
+
+            var managed = Math.Max(boardManaged, Math.Max(pendingBased, CurrentLocalCompletedItems));
+
+            return expected > 0
+                ? Math.Min(expected, managed)
+                : managed;
+        }
+    }
+
+    private int CurrentPendingItems
+    {
+        get
+        {
+            var expected = Math.Max(0, CurrentExpectedItems);
+
+            if (expected > 0)
+            {
+                return Math.Max(0, expected - CurrentCountedItems);
+            }
+
+            return Math.Max(0, CurrentApiPendingItems - CurrentLocalCompletedItems);
+        }
+    }
+
+    private int CurrentDifferences =>
+        Math.Max(0, CurrentParticipant?.DifferentItems ?? 0) +
+        Math.Max(0, CurrentParticipant?.MissingItems ?? 0) +
+        Math.Max(0, CurrentParticipant?.DamagedItems ?? 0);
+
+    private decimal CurrentProgressPercent =>
+        CurrentExpectedItems <= 0
+            ? 0m
+            : Math.Round((decimal)CurrentCountedItems * 100m / CurrentExpectedItems, 2);
+
+    private string CurrentProgressText
+    {
+        get
+        {
+            var formatted = CurrentProgressPercent.ToString(
+                CurrentProgressPercent % 1 == 0 ? "0" : "0.##",
+                System.Globalization.CultureInfo.CurrentCulture);
+
+            return $"{formatted}%";
+        }
+    }
 
     private int CurrentProgress =>
-        CurrentExpectedItems <= 0 ? 0 : (int)Math.Round((decimal)CurrentCountedItems * 100 / CurrentExpectedItems, 0);
+        (int)Math.Round(CurrentProgressPercent, 0);
 
     private List<PendingToolDto> PendingTools =>
-        selectedPending?.Tools ?? new();
+        selectedPending?.Tools?
+            .Where(x => !IsToolAlreadyCompleted(x))
+            .OrderByDescending(x => Normalize(x.InternalCode))
+            .ThenByDescending(x => Normalize(x.Name))
+            .ToList() ?? new();
+
+private static bool ParticipantHasAssignedWork(PhysicalCountParticipantDto? participant)
+    {
+        return GetParticipantWorkScore(participant) > 0;
+    }
+
+    private static int GetParticipantWorkScore(PhysicalCountParticipantDto? participant)
+    {
+        if (participant is null)
+        {
+            return 0;
+        }
+
+        return Math.Max(0, participant.ExpectedItems) +
+               Math.Max(0, participant.CountedItems) +
+               Math.Max(0, participant.PendingItems) +
+               Math.Max(0, participant.FoundItems) +
+               Math.Max(0, participant.MissingItems) +
+               Math.Max(0, participant.DifferentItems) +
+               Math.Max(0, participant.DamagedItems);
+    }
+
+    private static int ManagedParticipantItems(PhysicalCountParticipantDto? participant)
+    {
+        if (participant is null)
+        {
+            return 0;
+        }
+
+        var expected = Math.Max(0, participant.ExpectedItems);
+
+        // Los no listados / extras NO afectan el avance.
+        var counted = Math.Max(0, participant.CountedItems);
+
+        if (counted > 0)
+        {
+            return expected > 0
+                ? Math.Min(expected, counted)
+                : counted;
+        }
+
+        var byPending = expected > 0 && participant.PendingItems >= 0
+            ? Math.Max(0, expected - participant.PendingItems)
+            : 0;
+
+        var byCounters =
+            Math.Max(0, participant.FoundItems) +
+            Math.Max(0, participant.MissingItems) +
+            Math.Max(0, participant.DifferentItems) +
+            Math.Max(0, participant.DamagedItems);
+
+        var managed = Math.Max(byPending, byCounters);
+
+        return expected > 0
+            ? Math.Min(expected, managed)
+            : managed;
+    }
 
     private bool HasValidationChanges =>
         !Same(validationForm.LocationId?.ToString(), originalValidationForm.LocationId?.ToString()) ||
@@ -717,6 +969,7 @@
         CanReportPhysicalCounts &&
         !isSaving &&
         selectedTool is not null &&
+        !IsSelectedToolCompleted &&
         HasValidationChanges;
 
     protected override async Task OnInitializedAsync()
@@ -733,7 +986,7 @@
 
         if (refreshedUser is null || !Auth.IsAuthenticated)
         {
-            Navigation.NavigateTo("/login", forceLoad: true);
+            Navigation.NavigateTo("/login", replace: true);
             return;
         }
 
@@ -749,6 +1002,7 @@
 
         try
         {
+            currentParticipantOverride = null;
             board = await Api.GetJsonAsync<PhysicalCountBoardDto>($"api/physical-counts/{Id}/participants-board");
             locations = await Api.GetLocationsAsync();
 
@@ -767,20 +1021,56 @@
     private async Task LoadCurrentParticipantPendingAsync()
     {
         selectedPending = null;
+        currentParticipantOverride = null;
 
-        var participant = CurrentParticipant;
+        var candidates = GetCandidateParticipants().ToList();
 
-        if (participant is null)
+        foreach (var participant in candidates)
         {
-            return;
+            try
+            {
+                var pending = await Api.GetJsonAsync<PendingToolsResponse>($"api/physical-counts/participants/{participant.Id}/pending-tools");
+
+                if (pending?.Tools?.Any() == true)
+                {
+                    currentParticipantOverride = participant;
+                    selectedPending = pending;
+                    ResetExtraForm();
+                    return;
+                }
+
+                if (!UserCanSeeAllParticipants)
+                {
+                    currentParticipantOverride = participant;
+                    selectedPending = pending;
+                    ResetExtraForm();
+                    return;
+                }
+
+                if (selectedPending is null)
+                {
+                    currentParticipantOverride = participant;
+                    selectedPending = pending;
+                }
+            }
+            catch
+            {
+                // Si un participante no carga pendientes, se intenta con el siguiente.
+            }
         }
 
-        selectedPending = await Api.GetJsonAsync<PendingToolsResponse>($"api/physical-counts/participants/{participant.Id}/pending-tools");
         ResetExtraForm();
     }
 
     private async Task OpenToolDetailAsync(PendingToolDto tool)
     {
+        if (IsToolAlreadyCompleted(tool))
+        {
+            successMessage = "Este activo ya fue gestionado durante esta revisión.";
+            errorMessage = null;
+            return;
+        }
+
         selectedTool = tool;
         selectedToolFull = null;
         lifeRecord = null;
@@ -927,6 +1217,8 @@
                 ? "Activo confirmado correctamente."
                 : "Activo rechazado y enviado a conciliación.";
 
+            RegisterCompletedTool(action, validationForm.Observation);
+
             CloseToolDetail();
             await LoadAsync();
         }
@@ -939,6 +1231,59 @@
             isSaving = false;
         }
     }
+
+    // NAVI MOBILE PHYSICAL DETAIL COMPLETED METHODS V11 START
+    private void RegisterCompletedTool(string action, string? observation)
+    {
+        if (selectedTool is null)
+        {
+            return;
+        }
+
+        var toolId = EffectiveToolId(selectedTool);
+        completedToolIds.Add(toolId);
+
+        completedTools.RemoveAll(x => x.ToolAssetId == toolId);
+
+        completedTools.Add(new CompletedPhysicalToolView
+        {
+            ToolAssetId = toolId,
+            InternalCode = selectedTool.InternalCode,
+            Name = selectedTool.Name,
+            BranchCode = selectedTool.BranchCode,
+            LocationName = GetSelectedLocationName() ?? selectedTool.LocationName,
+            ResponsibleName = selectedTool.ResponsibleName ?? selectedTool.ResponsiblePersonName,
+            PhysicalStatus = validationForm.PhysicalStatus,
+            OperationalStatus = validationForm.OperationalStatus,
+            Action = action,
+            Observation = observation,
+            CompletedAt = DateTime.Now
+        });
+
+        if (selectedPending?.Tools is not null)
+        {
+            selectedPending.Tools.RemoveAll(x => EffectiveToolId(x) == toolId);
+        }
+
+        var participant = CurrentParticipant;
+
+        if (participant is not null)
+        {
+            var expected = Math.Max(0, participant.ExpectedItems);
+            var nextManaged = Math.Max(ManagedParticipantItems(participant), completedToolIds.Count);
+
+            if (expected > 0)
+            {
+                nextManaged = Math.Min(expected, nextManaged);
+            }
+
+            participant.CountedItems = nextManaged;
+            participant.PendingItems = expected > 0
+                ? Math.Max(0, expected - nextManaged)
+                : Math.Max(0, participant.PendingItems - 1);
+        }
+    }
+    // NAVI MOBILE PHYSICAL DETAIL COMPLETED METHODS V11 END
 
     private void AddAccessoryFromValidation()
     {
@@ -997,6 +1342,8 @@
             : baseObservation + Environment.NewLine + Environment.NewLine + accessoryText;
     }
 
+    private bool CanSaveExtraTool => !string.IsNullOrWhiteSpace(extraForm.ReportedName);
+
     private async Task SaveExtraToolAsync()
     {
         var participant = CurrentParticipant;
@@ -1013,9 +1360,9 @@
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(extraForm.ReportedName) && string.IsNullOrWhiteSpace(extraForm.ReportedCode))
+        if (string.IsNullOrWhiteSpace(extraForm.ReportedName))
         {
-            errorMessage = "Indica al menos el nombre o el código del activo.";
+            errorMessage = "Indica el nombre del activo o herramienta para guardar el registro no listado.";
             return;
         }
 
@@ -1358,7 +1705,7 @@
     }
 
     private void GoBack() => Navigation.NavigateTo("/mobile/physical-counts");
-    private void GoLogin() => Navigation.NavigateTo("/login", forceLoad: true);
+    private void GoLogin() => Navigation.NavigateTo("/login", replace: true);
 
     private sealed class ValidationForm
     {
@@ -1454,6 +1801,29 @@
         public int DamagedItems { get; set; }
         public int ExtraItems { get; set; }
     }
+
+    // NAVI MOBILE PHYSICAL DETAIL COMPLETED DTO V11 START
+    private sealed class CompletedPhysicalToolView
+    {
+        public Guid ToolAssetId { get; set; }
+        public string? InternalCode { get; set; }
+        public string? Name { get; set; }
+        public string? BranchCode { get; set; }
+        public string? LocationName { get; set; }
+        public string? ResponsibleName { get; set; }
+        public string? PhysicalStatus { get; set; }
+        public string? OperationalStatus { get; set; }
+        public string? Action { get; set; }
+        public string? Observation { get; set; }
+        public DateTime CompletedAt { get; set; }
+
+        public bool IsRejected =>
+            string.Equals(Action, "Rejected", StringComparison.OrdinalIgnoreCase);
+
+        public string StatusLabel =>
+            IsRejected ? "Rechazado" : "Confirmado";
+    }
+    // NAVI MOBILE PHYSICAL DETAIL COMPLETED DTO V11 END
 
     private sealed class PendingToolsResponse
     {

@@ -1,0 +1,44 @@
+FASE 4.30 - DASHBOARD FILTRADO, BITACORA DE PROCESO Y TOMA FISICA
+
+Fecha: 2026-07-08
+
+Objetivo:
+Ajustar el Dashboard Admin sin cambiar la proporcion 40/30/30, dando mas alto al resumen por sede, conectando filtros con los indicadores visuales auxiliares y convirtiendo Resumen de proceso en una bitacora ejecutiva.
+
+Archivos modificados:
+- src/Navi.ToolsAssets.Admin/Components/Pages/Home.razor
+- src/Navi.ToolsAssets.Admin/Components/Pages/Modules/ReconciliationIndex.razor
+- src/Navi.ToolsAssets.Admin/Components/Pages/Modules/PhysicalCountDetail.razor
+
+Cambios aplicados:
+- Herramientas por sede queda mas compacto verticalmente.
+- Resumen por sede gana altura y muestra hasta 12 sedes.
+- Los costos de Mantenimientos vs compras se recalculan segun sede, estado y busqueda cuando los datos del endpoint lo permiten.
+- El Resumen de proceso ahora muestra movimientos recientes con fecha, accion, descripcion, usuario y activo.
+- La actividad reciente sigue el resultado filtrado del endpoint ejecutivo.
+- La tarjeta Toma fisica detecta la ultima toma abierta compatible con sede/busqueda.
+- Ver tomas abre la ultima toma abierta.
+- Participantes abre el detalle de la toma y aterriza en la seccion de participantes.
+- Conciliacion abre /reconciliation con physicalCountId para seleccionar la toma desde URL.
+
+No se modifico:
+- Hero del Dashboard.
+- KPI superiores, salvo que ahora siguen mostrando el resultado filtrado del endpoint ejecutivo.
+- Ancho de columnas 40% / 30% / 30%.
+- API.
+- Seguridad.
+- DTOs compartidos.
+
+Backups:
+- Home.razor.bak_phase4_30_dashboard_filters_process_physical_20260708
+- ReconciliationIndex.razor.bak_phase4_30_dashboard_physical_link_20260708
+- PhysicalCountDetail.razor.bak_phase4_30_dashboard_participants_anchor_20260708
+
+Validacion:
+- git diff --check ejecutado correctamente.
+- ./build-admin.sh ejecutado correctamente.
+- Resultado: 0 errores, 1 advertencia preexistente en ToolDetail.razor(62,23) CS8602.
+- Dashboard responde HTTP 200 en http://127.0.0.1:5264/dashboard.
+- Validacion visual DOM: 3 columnas activas, tabla del resumen cabe en el 40%, 12 filas visibles y 6 movimientos de proceso.
+- Filtro por sede AGU validado: la grafica pasa de 8 sedes a 1 sede y el KPI cambia segun el filtro.
+- Conciliacion con physicalCountId validada: selecciona la toma abierta desde la URL.

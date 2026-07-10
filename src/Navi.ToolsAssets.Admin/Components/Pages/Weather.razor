@@ -1,51 +1,68 @@
-﻿@page "/weather"
+@page "/weather"
 @attribute [StreamRendering]
 
-<PageTitle>Weather</PageTitle>
+<PageTitle>Clima - NAVI</PageTitle>
 
-<h1>Weather</h1>
+<NaviPageHero Pill="DEMO"
+              Title="Clima"
+              Description="Vista técnica de prueba con tabla estandarizada del Admin Web." />
 
-<p>This component demonstrates showing data.</p>
+<section class="admin-standard-card weather-standard-card">
+    @if (forecasts == null)
+    {
+        <p><em>Cargando...</em></p>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Temp. (C)</th>
+                        <th>Temp. (F)</th>
+                        <th>Resumen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var forecast in forecasts)
+                    {
+                        <tr>
+                            <td>@forecast.Date.ToShortDateString()</td>
+                            <td>@forecast.TemperatureC</td>
+                            <td>@forecast.TemperatureF</td>
+                            <td>@forecast.Summary</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
 
-@if (forecasts == null)
-{
-    <p><em>Loading...</em></p>
-}
-else
-{
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Temp. (C)</th>
-                <th>Temp. (F)</th>
-                <th>Summary</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var forecast in forecasts)
-            {
-                <tr>
-                    <td>@forecast.Date.ToShortDateString()</td>
-                    <td>@forecast.TemperatureC</td>
-                    <td>@forecast.TemperatureF</td>
-                    <td>@forecast.Summary</td>
-                </tr>
-            }
-        </tbody>
-    </table>
-}
+<style>
+    .weather-standard-card {
+        padding: 1rem;
+    }
+
+    .weather-standard-card p {
+        margin: 0;
+        color: #5f6b7a;
+        font-size: .95rem;
+        font-weight: 700;
+    }
+</style>
 
 @code {
     private WeatherForecast[]? forecasts;
 
     protected override async Task OnInitializedAsync()
     {
-        // Simulate asynchronous loading to demonstrate streaming rendering
+        // Vista demo del template Blazor, conservada para validacion tecnica.
         await Task.Delay(500);
 
         var startDate = DateOnly.FromDateTime(DateTime.Now);
-        var summaries = new[] { "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching" };
+        var summaries = new[] { "Frio", "Fresco", "Templado", "Calido", "Seco", "Humedo", "Nublado", "Soleado" };
         forecasts = Enumerable.Range(1, 5).Select(index => new WeatherForecast
         {
             Date = startDate.AddDays(index),

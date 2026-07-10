@@ -24,51 +24,45 @@
     }
     else
     {
-        <header class="mset-hero">
-            <div>
-                <span>CONFIGURACIÓN · SEGURIDAD · PERFIL</span>
-                <h1>Configuración</h1>
-                <p>Administra parámetros permitidos por tu rol y actualiza tu información personal de forma segura.</p>
+
+        <NaviMobileAppBanner Class="navi-mobile-settings-app-banner mset-standard-banner-v2 navi-mobile-app-banner--home-only"
+                             Pill="CONTROL ∙ CONFIGURACIÓN"
+                             Title="Configuración"
+                             Description="Administra tu información, seguridad personal y permisos habilitados."
+                             HomeUrl="/"
+                             ShowHomeButton="true"
+                             ShowBackButton="false" />
+
+        <section class="navi-mobile-settings-kpi-board-v2">
+            <div class="navi-mobile-settings-kpi-tile-v2 total">
+                <span>Permisos</span>
+                <strong>@GrantedPermissionRows.Count</strong>
+                <small>Activos</small>
             </div>
 
-            <div class="mset-hero-actions">
-                <button type="button" @onclick="GoHome">Inicio</button>
-                <button type="button" @onclick="RefreshAsync" disabled="@isLoading">
-                    @(isLoading ? "Actualizando..." : "Actualizar")
-                </button>
+            <div class="navi-mobile-settings-kpi-tile-v2 purple">
+                <span>Rol</span>
+                <strong>@Display(CurrentUser?.RoleCode)</strong>
+                <small>Principal</small>
             </div>
-        </header>
+
+            <div class="navi-mobile-settings-kpi-tile-v2 success">
+                <span>Usuarios</span>
+                <strong>@(CanManageUsers ? "Sí" : "No")</strong>
+                <small>Security.Users</small>
+            </div>
+
+            <div class="navi-mobile-settings-kpi-tile-v2 warning">
+                <span>Cédula</span>
+                <strong>@(HasProtectedDocument ? "Sí" : "No")</strong>
+                <small>@(HasProtectedDocument ? "Protegida" : "Pendiente")</small>
+            </div>
+        </section>
 
         @if (!string.IsNullOrWhiteSpace(message))
         {
             <div class="@messageClass">@message</div>
         }
-
-        <section class="mset-kpis">
-            <article>
-                <strong>@GrantedPermissionRows.Count</strong>
-                <span>Permisos</span>
-                <small>Activos</small>
-            </article>
-
-            <article>
-                <strong>@Display(CurrentUser?.RoleCode)</strong>
-                <span>Rol</span>
-                <small>Principal</small>
-            </article>
-
-            <article>
-                <strong>@(CanManageUsers ? "Sí" : "No")</strong>
-                <span>Usuarios</span>
-                <small>Security.Users</small>
-            </article>
-
-            <article>
-                <strong>@(HasProtectedDocument ? "Sí" : "No")</strong>
-                <span>Cédula</span>
-                <small>@(HasProtectedDocument ? "Protegida" : "Pendiente")</small>
-            </article>
-        </section>
 
         <section class="mset-layout">
             <aside class="mset-left">
@@ -96,27 +90,27 @@
 
                         <label>
                             <span>Código empleado</span>
-                            <input @bind="profile.EmployeeCode" placeholder="Código interno" />
+                            <input @bind="profile.EmployeeCode" @bind:event="oninput" placeholder="Código interno" />
                         </label>
 
                         <label>
                             <span>Nombre completo</span>
-                            <input @bind="profile.DisplayName" placeholder="Nombre completo" />
+                            <input @bind="profile.DisplayName" @bind:event="oninput" placeholder="Nombre completo" />
                         </label>
 
                         <label>
                             <span>Correo</span>
-                            <input @bind="profile.Email" placeholder="correo@empresa.com" />
+                            <input @bind="profile.Email" @bind:event="oninput" placeholder="correo@empresa.com" />
                         </label>
 
                         <label>
                             <span>Cargo</span>
-                            <input @bind="profile.Position" placeholder="Cargo" />
+                            <input @bind="profile.Position" @bind:event="oninput" placeholder="Cargo" />
                         </label>
 
                         <label>
                             <span>Área</span>
-                            <input @bind="profile.Area" placeholder="Área" />
+                            <input @bind="profile.Area" @bind:event="oninput" placeholder="Área" />
                         </label>
 
                         <label>
@@ -131,11 +125,11 @@
                     </div>
 
                     <div class="mset-actions">
-                        <button type="button" class="primary" @onclick="SaveProfileAsync" disabled="@isSaving">
+                        <button type="button" class="success mset-save-profile-button-v2" @onclick="SaveProfileAsync" disabled="@isSaving">
                             @(isSaving ? "Guardando..." : "Guardar mi información")
                         </button>
 
-                        <button type="button" @onclick="LoadProfile">
+                        <button type="button" class="mset-undo-profile-button-v2" @onclick="UndoProfileChanges">
                             Deshacer
                         </button>
                     </div>
@@ -439,6 +433,12 @@
         };
     }
 
+    private void UndoProfileChanges()
+    {
+        LoadProfile();
+        message = null;
+    }
+
     private void OnDocumentInput(ChangeEventArgs args)
     {
         var value = args.Value?.ToString();
@@ -497,7 +497,7 @@
             await Api.RefreshCurrentSessionAsync();
             LoadProfile();
 
-            ShowSuccess("Tu información fue actualizada correctamente.");
+            ShowSuccess("Mi información ha sido guardada.");
         }
         catch (Exception ex)
         {

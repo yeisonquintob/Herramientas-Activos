@@ -39,31 +39,25 @@
     }
     else
     {
+        <NaviMobileAppBanner Class="navi-mobile-history-app-banner mhis-standard-banner-v4 navi-mobile-app-banner--home-only"
+                             Pill="ACTIVOS FIJOS · HISTORIAL"
+                             Title="Historial móvil"
+                             Description="Consulta préstamos, devoluciones y movimientos según tu alcance."
+                             HomeUrl="/"
+                             ShowHomeButton="true"
+                             ShowBackButton="false" />
+
         <section class="mhist-board">
-            <header class="mhist-hero">
-                <div class="mhist-hero-copy">
-                    <span>HISTORIAL</span>
-                    <h1>Historial móvil</h1>
-                    <p>@Display(Auth.CurrentUser?.DisplayName) · @ScopeLabel</p>
-                </div>
 
-                <div class="mhist-hero-actions">
-                    <button type="button" @onclick="GoHome">Inicio</button>
-                    <button type="button" @onclick="LoadAsync" disabled="@isRefreshing">
-                        @(isRefreshing ? "Actualizando..." : "Actualizar")
-                    </button>
-                </div>
-            </header>
-
-            <section class="mhist-kpis">
+            <section class="mhist-kpis mhist-kpis-compact-v2">
                 <article>
                     <span>Mostrando</span>
                     <strong>@FilteredHistory.Count()</strong>
-                    <small>Con filtros</small>
+                    <small>Filtros</small>
                 </article>
 
                 <article>
-                    <span>Total visible</span>
+                    <span>Total</span>
                     <strong>@VisibleHistory.Count()</strong>
                     <small>@ScopeLabel</small>
                 </article>
@@ -73,26 +67,20 @@
                     <strong>@VisibleBranchCount</strong>
                     <small>Alcance</small>
                 </article>
-
-                <article>
-                    <span>Usuario</span>
-                    <strong>@SelectedResponsibleLabel</strong>
-                    <small>Filtro actual</small>
-                </article>
             </section>
 
             <section class="mhist-filter-card">
                 <div class="mhist-filter-grid">
                     <label>
                         <span>Buscar</span>
-                        <input value="@searchText"
-                               @oninput="OnSearchChanged"
+                        <input @bind="searchText"
+                               @bind:event="oninput"
                                placeholder="Préstamo, activo, usuario, código..." />
                     </label>
 
                     <label>
                         <span>Usuario / Responsable</span>
-                        <select value="@selectedResponsibleId" @onchange="OnResponsibleChanged">
+                        <select @bind="selectedResponsibleId">
                             <option value="">Todos los usuarios</option>
                             @foreach (var responsible in VisibleResponsibles)
                             {
@@ -105,7 +93,7 @@
                     {
                         <label>
                             <span>Sede</span>
-                            <select value="@selectedBranchCode" @onchange="OnBranchChanged">
+                            <select @bind="selectedBranchCode">
                                 <option value="">Todas las sedes</option>
                                 @foreach (var branch in BranchOptions)
                                 {
@@ -123,30 +111,23 @@
                     }
                 </div>
 
-                <div class="mhist-status-head">
-                    <strong>Estado</strong>
-                    <button type="button" @onclick="ClearStatusFilter">Limpiar estados</button>
-                </div>
-
-                <div class="mhist-status-chips">
-                    @foreach (var status in StatusOptions)
-                    {
-                        var selected = selectedStatuses.Contains(status.Value);
-
-                        <button type="button"
-                                class="@(selected ? "selected" : "")"
-                                @onclick="() => ToggleStatus(status.Value)">
-                            @status.Text
-                        </button>
-                    }
-                </div>
+                <label class="mhist-status-select-v2">
+                    <span>Estado</span>
+                    <select @bind="SelectedStatusValue">
+                        <option value="">Todos los estados</option>
+                        @foreach (var status in StatusOptions)
+                        {
+                            <option value="@status.Value">@status.Text</option>
+                        }
+                    </select>
+                </label>
             </section>
 
             @if (!FilteredHistory.Any())
             {
                 <section class="mobile-empty compact">
                     <strong>Sin movimientos</strong>
-                    <span>No hay historial visible para tu sede, permisos o filtros actuales.</span>
+                    <span>No hay historial visible para tu usuario, sede, permisos o filtros actuales.</span>
                 </section>
             }
             else
@@ -213,7 +194,6 @@
 
 @code {
     private bool isLoading = true;
-    private bool isRefreshing;
     private string? errorMessage;
 
     private string searchText = string.Empty;
@@ -227,6 +207,24 @@
     private List<MobileBranchDto> branches = new();
 
     private bool CanViewHistory => Auth.HasPermission("AssetAssignment.History");
+
+    private bool HasAnyHistoryManagementPermission =>
+        HasAny(
+            "AssetAssignment.Assign",
+            "AssetAssignment.Return",
+            "AssetAssignment.Approve",
+            "AssetAssignment.Deny",
+            "AssetAssignment.Manage",
+            "AssetAssignment.ViewAll",
+            "AssetAssignment.History.All");
+
+    private bool ShouldForceOwnHistory =>
+        !UserCanSeeAllBranches() &&
+        !HasAnyHistoryManagementPermission;
+
+    private bool ShouldDefaultResponsibleFilter =>
+        ShouldForceOwnHistory &&
+        Auth.CurrentUser?.ResponsiblePersonId.HasValue == true;
 
     private string ScopeLabel =>
         UserCanSeeAllBranches()
@@ -246,6 +244,20 @@
                 x.Id.ToString().Equals(selectedResponsibleId, StringComparison.OrdinalIgnoreCase));
 
             return selected?.FullName ?? "Seleccionado";
+        }
+    }
+
+    private string SelectedStatusValue
+    {
+        get => selectedStatuses.FirstOrDefault() ?? string.Empty;
+        set
+        {
+            selectedStatuses.Clear();
+
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                selectedStatuses.Add(value);
+            }
         }
     }
 
@@ -311,7 +323,7 @@
 
         if (refreshedUser is null || !Auth.IsAuthenticated)
         {
-            Navigation.NavigateTo("/login", forceLoad: true);
+            Navigation.NavigateTo("/login", replace: true);
             return;
         }
 
@@ -328,7 +340,6 @@
     {
         try
         {
-            isRefreshing = true;
             errorMessage = null;
 
             tools = await Api.GetAvailabilityToolsAsync();
@@ -350,7 +361,6 @@
         finally
         {
             isLoading = false;
-            isRefreshing = false;
         }
     }
 
@@ -364,14 +374,17 @@
         selectedBranchCode = args.Value?.ToString() ?? string.Empty;
     }
 
-
     private void OnResponsibleChanged(ChangeEventArgs args)
     {
         selectedResponsibleId = args.Value?.ToString() ?? string.Empty;
     }
-
     private void ApplyDefaultResponsibleFilter()
     {
+        if (!ShouldDefaultResponsibleFilter)
+        {
+            return;
+        }
+
         if (!string.IsNullOrWhiteSpace(selectedResponsibleId))
         {
             return;
@@ -382,9 +395,13 @@
             selectedResponsibleId = responsibleId.ToString();
         }
     }
-
     private bool MatchesResponsibleFilter(MobileLoanRequestDto request)
     {
+        if (ShouldForceOwnHistory)
+        {
+            return MatchesCurrentUserHistory(request);
+        }
+
         if (string.IsNullOrWhiteSpace(selectedResponsibleId))
         {
             return true;
@@ -411,7 +428,6 @@
                Auth.CurrentUser?.ResponsiblePersonId == responsible.Id;
     }
 
-
     private void ToggleStatus(string status)
     {
         if (string.IsNullOrWhiteSpace(status))
@@ -429,8 +445,6 @@
     {
         selectedStatuses.Clear();
     }
-
-
     private void ClearHistoryFilters()
     {
         searchText = string.Empty;
@@ -440,7 +454,6 @@
 
         ApplyDefaultResponsibleFilter();
     }
-
 
     private bool MatchesStatusFilter(MobileLoanRequestDto request)
     {
@@ -465,6 +478,37 @@
                    ContainsText(item.ToolInternalCode, searchText) ||
                    ContainsText(item.ToolName, searchText));
     }
+    private bool MatchesCurrentUserHistory(MobileLoanRequestDto request)
+    {
+        var user = Auth.CurrentUser;
+
+        if (user is null)
+        {
+            return false;
+        }
+
+        if (user.ResponsiblePersonId.HasValue &&
+            request.RequestedByPersonId.HasValue &&
+            request.RequestedByPersonId.Value == user.ResponsiblePersonId.Value)
+        {
+            return true;
+        }
+
+        return SameNormalized(request.CreatedBy, user.UserName) ||
+               SameNormalized(request.CreatedBy, user.DisplayName) ||
+               SameNormalized(GetRequesterName(request), user.DisplayName) ||
+               SameNormalized(GetRequesterName(request), user.UserName);
+    }
+
+    private bool Has(string permission)
+    {
+        return Auth.HasPermission(permission);
+    }
+
+    private bool HasAny(params string[] permissions)
+    {
+        return permissions.Any(Has);
+    }
 
     private bool MatchesBranchFilter(MobileLoanRequestDto request)
     {
@@ -486,9 +530,18 @@
                    SameNormalized(tool.BranchCode, selectedBranchCode);
         });
     }
-
     private bool RequestInVisibleScope(MobileLoanRequestDto request)
     {
+        if (UserCanSeeAllBranches())
+        {
+            return true;
+        }
+
+        if (ShouldForceOwnHistory)
+        {
+            return MatchesCurrentUserHistory(request);
+        }
+
         var visibleIds = ScopedTools.Select(x => x.Id).ToHashSet();
 
         return request.Items.Any(item => visibleIds.Contains(item.ToolAssetId));
@@ -538,7 +591,6 @@
             ?? request.RequestedAt
             ?? request.CreatedAt;
     }
-
     private bool IsSameBranch(MobileAvailabilityToolDto tool)
     {
         var user = Auth.CurrentUser;
@@ -553,12 +605,18 @@
             return true;
         }
 
+        if (user.BranchId.HasValue &&
+            tool.BranchId.HasValue &&
+            user.BranchId.Value == tool.BranchId.Value)
+        {
+            return true;
+        }
+
         return SameNormalized(tool.BranchCode, user.BranchCode)
             || SameNormalized(tool.BranchName, user.BranchName)
             || SameNormalized(tool.BranchCode, user.BranchName)
             || SameNormalized(tool.BranchName, user.BranchCode);
     }
-
     private bool IsVisibleBranch(MobileBranchDto branch)
     {
         var user = Auth.CurrentUser;
@@ -573,8 +631,15 @@
             return true;
         }
 
+        if (user.BranchId.HasValue && branch.Id == user.BranchId.Value)
+        {
+            return true;
+        }
+
         return SameNormalized(branch.Code, user.BranchCode)
-            || SameNormalized(branch.Name, user.BranchName);
+            || SameNormalized(branch.Name, user.BranchName)
+            || SameNormalized(branch.Code, user.BranchName)
+            || SameNormalized(branch.Name, user.BranchCode);
     }
 
     private bool UserCanSeeAllBranches()
@@ -586,7 +651,7 @@
             return false;
         }
 
-        return string.IsNullOrWhiteSpace(user.BranchCode)
+        return Auth.IsAdmin()
             || SameNormalized(user.BranchCode, "TODAS")
             || SameNormalized(user.BranchCode, "ALL")
             || SameNormalized(user.BranchName, "Todas las sedes")
@@ -601,7 +666,7 @@
 
     private void GoLogin()
     {
-        Navigation.NavigateTo("/login", forceLoad: true);
+        Navigation.NavigateTo("/login", replace: true);
     }
 
     private static string GetStatusText(string? status)

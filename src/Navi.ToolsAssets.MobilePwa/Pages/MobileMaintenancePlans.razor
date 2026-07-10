@@ -31,21 +31,13 @@
     }
     else
     {
-        <header class="mplan-hero">
-            <div>
-                <span>PLANES · MANTENIMIENTO</span>
-                <h1>Planes de mantenimiento</h1>
-                <p>@Display(Auth.CurrentUser?.DisplayName) · @ScopeLabel</p>
-            </div>
-
-            <div class="mplan-hero-actions">
-                <button type="button" @onclick="GoHome">Inicio</button>
-
-                <button type="button" @onclick="LoadAsync" disabled="@isLoading">
-                    @(isLoading ? "Cargando..." : "Actualizar")
-                </button>
-            </div>
-        </header>
+        <NaviMobileAppBanner Class="navi-mobile-plans-app-banner navi-mobile-app-banner--module"
+                             Pill="OPERACIONES · PLANES"
+                             Title="Planes de mantenimiento"
+                             Description="@($"{Display(Auth.CurrentUser?.DisplayName)} · {ScopeLabel}")"
+                             HomeUrl="/"
+                             ShowHomeButton="true"
+                             ShowBackButton="false" />
 
         @if (!string.IsNullOrWhiteSpace(successMessage))
         {
@@ -57,41 +49,41 @@
             <div class="mobile-alert error">@errorMessage</div>
         }
 
-        <section class="mplan-kpis">
+        <section class="mplan-kpis mplan-kpis-compact-v2">
             <article>
                 <span>Total activos</span>
                 <strong>@FilteredPlans.Count()</strong>
-                <small>Con seguimiento</small>
+                <small>Total</small>
             </article>
 
             <article class="success">
                 <span>Al día</span>
                 <strong>@FilteredPlans.Count(x => IsStatus(x, "OnTime"))</strong>
-                <small>Sin vencimiento</small>
+                <small>OK</small>
             </article>
 
             <article class="warning">
                 <span>Por vencer</span>
                 <strong>@FilteredPlans.Count(x => IsStatus(x, "DueSoon"))</strong>
-                <small>Próximos 30 días</small>
+                <small>30 días</small>
             </article>
 
             <article class="danger">
                 <span>Vencidos</span>
                 <strong>@FilteredPlans.Count(x => IsStatus(x, "Overdue"))</strong>
-                <small>Requieren atención</small>
+                <small>Atención</small>
             </article>
 
             <article class="purple">
                 <span>Solicitudes</span>
                 <strong>@FilteredPlans.Sum(x => x.PendingRequests)</strong>
-                <small>Pendientes abiertas</small>
+                <small>Pend.</small>
             </article>
 
             <article class="info">
                 <span>Completados</span>
                 <strong>@FilteredPlans.Sum(x => x.CompletedMaintenances)</strong>
-                <small>Registros cerrados</small>
+                <small>Cerrados</small>
             </article>
         </section>
 
@@ -129,44 +121,8 @@
             </div>
         </section>
 
-        <details class="mplan-card" open>
-            <summary>
-                <span>Distribución del plan</span>
-                <em>@FilteredPlans.Count()</em>
-            </summary>
+        
 
-            <section class="mplan-distribution">
-                <div class="mplan-donut" style="@GetPlanDonutStyle()">
-                    <div>
-                        <strong>@FilteredPlans.Count()</strong>
-                        <span>Total</span>
-                    </div>
-                </div>
-
-                <div class="mplan-legend">
-                    <div>
-                        <i class="green"></i>
-                        <span>Al día</span>
-                        <strong>@FilteredPlans.Count(x => IsStatus(x, "OnTime"))</strong>
-                        <small>@GetPercentLabel(FilteredPlans.Count(x => IsStatus(x, "OnTime")), FilteredPlans.Count())</small>
-                    </div>
-
-                    <div>
-                        <i class="orange"></i>
-                        <span>Por vencer</span>
-                        <strong>@FilteredPlans.Count(x => IsStatus(x, "DueSoon"))</strong>
-                        <small>@GetPercentLabel(FilteredPlans.Count(x => IsStatus(x, "DueSoon")), FilteredPlans.Count())</small>
-                    </div>
-
-                    <div>
-                        <i class="red"></i>
-                        <span>Vencido</span>
-                        <strong>@FilteredPlans.Count(x => IsStatus(x, "Overdue"))</strong>
-                        <small>@GetPercentLabel(FilteredPlans.Count(x => IsStatus(x, "Overdue")), FilteredPlans.Count())</small>
-                    </div>
-                </div>
-            </section>
-        </details>
 
         <details class="mplan-card" open>
             <summary>
@@ -583,7 +539,7 @@
 
     private void GoLogin()
     {
-        Navigation.NavigateTo("/login", forceLoad: true);
+        Navigation.NavigateTo("/login", replace: true);
     }
 
     private bool Has(string permission) => Auth.HasPermission(permission);

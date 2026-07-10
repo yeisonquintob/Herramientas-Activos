@@ -1,0 +1,29 @@
+PHASE 5.27 - MOBILE ASSIGNMENT FAST LOAD
+
+Fecha: 2026-07-09 13:17:03
+
+Problema:
+- /mobile/assignment se quedaba demasiado tiempo en:
+  Cargando asignaciones móviles...
+- La pantalla esperaba de forma secuencial:
+  - RefreshCurrentSessionAsync
+  - GetAvailabilityToolsAsync
+  - GetLoanRequestsAsync
+  - GetResponsiblesAsync
+  - GetBranchesAsync
+  - GetLocationsAsync
+- Como se quitó Solicitud de préstamo, no era necesario bloquear toda la vista esperando préstamos/responsables/sedes/ubicaciones.
+
+Corrección:
+- RefreshCurrentSessionAsync ya no bloquea más de 2 segundos.
+- LoadAsync carga primero solo herramientas visibles.
+- La pantalla se libera apenas cargan las herramientas.
+- Solicitudes, responsables, sedes y ubicaciones cargan en segundo plano.
+- Se agregan timeouts seguros por carga secundaria.
+- Se elimina ordenamiento costoso por FindPendingRequestForTool en cada herramienta.
+- Se reduce render inicial de herramientas de 80 a 40.
+- Se cambia el mensaje a: Cargando herramientas visibles...
+
+Archivos:
+- src/Navi.ToolsAssets.MobilePwa/Pages/MobileAssignment.razor
+- src/Navi.ToolsAssets.MobilePwa/wwwroot/css/app.css

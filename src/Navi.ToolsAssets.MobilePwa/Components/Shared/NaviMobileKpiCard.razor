@@ -1,0 +1,57 @@
+@using Microsoft.AspNetCore.Components
+
+<article @attributes="AdditionalAttributes" class="@CssClass">
+    @if (!string.IsNullOrWhiteSpace(Title))
+    {
+        <span>@Title</span>
+    }
+
+    @if (ValueContent is not null)
+    {
+        <strong>@ValueContent</strong>
+    }
+    else if (!string.IsNullOrWhiteSpace(Value))
+    {
+        <strong>@Value</strong>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(Subtitle))
+    {
+        <small>@Subtitle</small>
+    }
+
+    @ChildContent
+</article>
+
+@code {
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public RenderFragment? ValueContent { get; set; }
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public string? Tone { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string CssClass
+    {
+        get
+        {
+            var classes = "navi-mobile-kpi-card";
+
+            if (!string.IsNullOrWhiteSpace(Tone))
+            {
+                classes += $" tone-{Tone}";
+            }
+
+            if (!string.IsNullOrWhiteSpace(Class))
+            {
+                classes += $" {Class}";
+            }
+
+            return classes;
+        }
+    }
+}

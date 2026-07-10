@@ -30,10 +30,11 @@
 
     <main class="login-main">
         <section class="login-card">
-            <div class="login-card-icon login-user-card-icon" aria-hidden="true">
-                <span class="login-user-head"></span>
-                <span class="login-user-body"></span>
+                        <div class="login-avatar-pro" aria-hidden="true">
+                <span class="login-avatar-pro-head"></span>
+                <span class="login-avatar-pro-body"></span>
             </div>
+
 
             <h2>Bienvenido</h2>
 
@@ -77,7 +78,18 @@
                     </div>
                 </div>
 
-                <button class="login-submit" type="submit" disabled="@isLoading">
+                                <div class="login-remember-panel">
+                    <label class="login-remember-row" for="rememberCredentials">
+                        <InputCheckbox id="rememberCredentials"
+                                       class="login-remember-check"
+                                       @bind-Value="loginModel.RememberCredentials" />
+
+                        <span class="login-remember-copy">
+                            <span class="login-remember-title">Recordar acceso</span>
+                            <span class="login-remember-subtitle">Guardar usuario y contraseña en este equipo</span>
+                        </span>
+                    </label>
+                </div><button class="login-submit" type="submit" disabled="@isLoading">
                     @(isLoading ? "Ingresando..." : "Ingresar")
                 </button>
             </EditForm>
@@ -94,7 +106,13 @@
 </div>
 
 @code {
+    // NAVI LOGIN HISTORY FIX:
+    // Cuando el usuario ya está autenticado, /login debe redirigir reemplazando el historial.
+    // Así el botón atrás del navegador no vuelve a mostrar el formulario de login.
     private const string StorageKey = "navi-auth-session";
+    private const string RememberEnabledKey = "navi-login-remember-enabled";
+    private const string RememberUserNameKey = "navi-login-remember-username";
+    private const string RememberPasswordKey = "navi-login-remember-password";
 
     private LoginFormModel loginModel = new();
     private bool isLoading;
@@ -112,7 +130,7 @@
 
         if (AuthSession.IsAuthenticated)
         {
-            Navigation.NavigateTo(NaviPermissionRouteService.GetStartRoute(AuthSession), forceLoad: true);
+            Navigation.NavigateTo(NaviPermissionRouteService.GetStartRoute(AuthSession), replace: true);
             return;
         }
 
@@ -129,9 +147,21 @@
                 if (user is not null && !string.IsNullOrWhiteSpace(user.UserName))
                 {
                     AuthSession.Login(user);
-                    Navigation.NavigateTo(NaviPermissionRouteService.GetStartRoute(AuthSession), forceLoad: true);
+                    Navigation.NavigateTo(NaviPermissionRouteService.GetStartRoute(AuthSession), replace: true);
                 }
             }
+
+            var rememberEnabled = await JS.InvokeAsync<string?>("localStorage.getItem", RememberEnabledKey);
+
+            if (string.Equals(rememberEnabled, "true", StringComparison.OrdinalIgnoreCase))
+            {
+                loginModel.RememberCredentials = true;
+                loginModel.UserName = await JS.InvokeAsync<string?>("localStorage.getItem", RememberUserNameKey);
+                loginModel.Password = await JS.InvokeAsync<string?>("localStorage.getItem", RememberPasswordKey);
+
+                StateHasChanged();
+            }
+
         }
         catch
         {
@@ -183,10 +213,24 @@
 
             AuthSession.Login(user);
 
+            if (loginModel.RememberCredentials)
+            {
+                await JS.InvokeVoidAsync("localStorage.setItem", RememberEnabledKey, "true");
+                await JS.InvokeVoidAsync("localStorage.setItem", RememberUserNameKey, loginModel.UserName?.Trim() ?? string.Empty);
+                await JS.InvokeVoidAsync("localStorage.setItem", RememberPasswordKey, loginModel.Password ?? string.Empty);
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("localStorage.removeItem", RememberEnabledKey);
+                await JS.InvokeVoidAsync("localStorage.removeItem", RememberUserNameKey);
+                await JS.InvokeVoidAsync("localStorage.removeItem", RememberPasswordKey);
+            }
+
+
             var json = JsonSerializer.Serialize(user);
             await JS.InvokeVoidAsync("localStorage.setItem", StorageKey, json);
 
-            Navigation.NavigateTo(NaviPermissionRouteService.GetStartRoute(AuthSession), forceLoad: true);
+            Navigation.NavigateTo(NaviPermissionRouteService.GetStartRoute(AuthSession), replace: true);
         }
         catch (Exception ex)
         {
@@ -207,6 +251,7 @@
     {
         public string? UserName { get; set; }
         public string? Password { get; set; }
+        public bool RememberCredentials { get; set; }
     }
 }
 
@@ -2115,4 +2160,1264 @@ html body .login-card {
 }
 
 /* NAVI FIX LOGIN HEADER DOWN FIGURES 20260705 END */
+
+/* NAVI PHASE 4.26 SPLIT LOGIN 20260707 START */
+
+html body .login-shell {
+    min-height: 100vh !important;
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: minmax(460px, .95fr) minmax(500px, 1.05fr) !important;
+    grid-template-rows: 1fr !important;
+    gap: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    color: #ffffff !important;
+    background:
+        radial-gradient(circle at 24% 24%, rgba(139, 0, 163, .42), transparent 30%),
+        radial-gradient(circle at 48% 78%, rgba(80, 0, 97, .46), transparent 34%),
+        linear-gradient(135deg, #050507 0%, #09050d 32%, #1a0021 64%, #69007d 100%) !important;
+}
+
+html body .login-shell::before {
+    content: "" !important;
+    position: absolute !important;
+    z-index: 2 !important;
+    inset: 0 0 0 50% !important;
+    background:
+        linear-gradient(180deg, #ffffff 0%, #f7f8fb 100%) !important;
+    border-left: 1px solid rgba(15, 23, 42, .08) !important;
+    box-shadow: -1.2rem 0 3rem rgba(0, 0, 0, .18) !important;
+    pointer-events: none !important;
+}
+
+html body .login-topbar,
+html body .login-topbar-balanced {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    align-self: start !important;
+    justify-self: start !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: clamp(2.2rem, 4vw, 4.4rem) clamp(2rem, 4vw, 4.6rem) !important;
+    transform: none !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+}
+
+html body .login-brand,
+html body .login-brand-balanced {
+    align-items: center !important;
+    gap: 1rem !important;
+}
+
+html body .login-brand-icon,
+html body .login-brand-icon-balanced {
+    width: 64px !important;
+    min-width: 64px !important;
+    height: 64px !important;
+    min-height: 64px !important;
+    border-radius: 1rem !important;
+    font-size: 1.35rem !important;
+    box-shadow:
+        0 1rem 2rem rgba(239, 35, 60, .32),
+        inset 0 1px 0 rgba(255, 255, 255, .32) !important;
+}
+
+html body .login-brand-copy h1,
+html body .login-brand-copy-balanced h1,
+html body .login-brand-copy h1 span,
+html body .login-brand-copy-balanced h1 span,
+html body .brand-navi,
+html body .brand-tools {
+    font-size: clamp(1.38rem, 1.45vw, 1.9rem) !important;
+    line-height: 1.02 !important;
+    letter-spacing: -.035em !important;
+}
+
+html body .login-brand-copy p,
+html body .login-brand-copy-balanced p {
+    margin-top: .36rem !important;
+    color: rgba(255, 255, 255, .78) !important;
+    font-size: clamp(.82rem, .82vw, 1rem) !important;
+    letter-spacing: .01em !important;
+}
+
+html body .login-main {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    z-index: 6 !important;
+    display: grid !important;
+    place-items: center !important;
+    padding: clamp(2rem, 5vw, 5rem) !important;
+    background: transparent !important;
+}
+
+html body .login-card {
+    width: min(560px, 100%) !important;
+    min-height: 480px !important;
+    display: grid !important;
+    align-content: center !important;
+    padding: clamp(2.25rem, 3.4vw, 3.4rem) !important;
+    border-radius: 1rem !important;
+    border: 1px solid #e4e7ec !important;
+    background: #ffffff !important;
+    color: #1d1026 !important;
+    box-shadow:
+        0 1.4rem 3.2rem rgba(15, 23, 42, .12),
+        0 .2rem .7rem rgba(15, 23, 42, .06) !important;
+    backdrop-filter: none !important;
+}
+
+html body .login-user-card-icon {
+    width: 88px !important;
+    height: 88px !important;
+    margin-bottom: 1.2rem !important;
+    border-radius: 1.1rem !important;
+}
+
+html body .login-user-head {
+    top: 21px !important;
+    width: 25px !important;
+    height: 25px !important;
+}
+
+html body .login-user-body {
+    bottom: 18px !important;
+    width: 48px !important;
+    height: 30px !important;
+}
+
+html body .login-card h2 {
+    color: #1d1026 !important;
+    font-size: clamp(1.9rem, 2.1vw, 2.35rem) !important;
+    line-height: 1 !important;
+    letter-spacing: -.04em !important;
+}
+
+html body .login-subtitle {
+    max-width: 360px !important;
+    margin: .7rem auto 1.8rem !important;
+    color: #667085 !important;
+    font-size: .98rem !important;
+    line-height: 1.35 !important;
+}
+
+html body .login-field {
+    margin-bottom: 1.15rem !important;
+}
+
+html body .login-field label {
+    color: #344054 !important;
+    font-size: .76rem !important;
+    margin-bottom: .46rem !important;
+}
+
+html body .login-input-wrap {
+    min-height: 54px !important;
+    border-radius: .72rem !important;
+    border-color: #d0d5dd !important;
+    padding: 0 .92rem !important;
+    gap: .7rem !important;
+}
+
+html body .login-input {
+    min-height: 52px !important;
+    font-size: .96rem !important;
+    font-weight: 750 !important;
+}
+
+html body .login-eye {
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+    border-radius: .58rem !important;
+    border: 1px solid rgba(123, 13, 142, .28) !important;
+    background: #fbf7fd !important;
+}
+
+html body .login-submit,
+html body .login-card button[type="submit"] {
+    min-height: 54px !important;
+    margin-top: .55rem !important;
+    border-radius: .72rem !important;
+    font-size: .98rem !important;
+    background:
+        linear-gradient(105deg, #050507 0%, #100014 62%, #710083 100%) !important;
+    box-shadow: 0 .9rem 1.6rem rgba(75, 0, 92, .22) !important;
+}
+
+html body .login-footer {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    align-self: end !important;
+    justify-self: start !important;
+    z-index: 6 !important;
+    padding: 0 clamp(2rem, 4vw, 4.6rem) clamp(2rem, 3.5vw, 3.6rem) !important;
+    text-align: left !important;
+    color: rgba(255, 255, 255, .78) !important;
+    font-size: .88rem !important;
+}
+
+html body .login-bg-letter {
+    z-index: 1 !important;
+    left: clamp(1.5rem, 6vw, 8rem) !important;
+    right: auto !important;
+    bottom: -10rem !important;
+    font-size: clamp(18rem, 31vw, 34rem) !important;
+    opacity: .22 !important;
+}
+
+html body .login-bg-lines {
+    z-index: 1 !important;
+    left: clamp(9rem, 24vw, 30rem) !important;
+    right: auto !important;
+    top: 28% !important;
+    width: 330px !important;
+    height: 390px !important;
+    opacity: .34 !important;
+}
+
+html body .login-bg-dots {
+    z-index: 1 !important;
+    left: clamp(2rem, 7vw, 8rem) !important;
+    right: auto !important;
+    top: 18% !important;
+    opacity: .34 !important;
+}
+
+@@media (max-width: 980px) {
+    html body .login-shell {
+        grid-template-columns: 1fr !important;
+        grid-template-rows: auto 1fr auto !important;
+        overflow-y: auto !important;
+    }
+
+    html body .login-shell::before {
+        display: none !important;
+    }
+
+    html body .login-topbar,
+    html body .login-topbar-balanced,
+    html body .login-main,
+    html body .login-footer {
+        grid-column: 1 !important;
+        grid-row: auto !important;
+    }
+
+    html body .login-topbar,
+    html body .login-topbar-balanced {
+        padding: 1.4rem 1.2rem .6rem !important;
+    }
+
+    html body .login-main {
+        padding: 1.2rem !important;
+    }
+
+    html body .login-card {
+        min-height: 0 !important;
+        padding: 1.75rem !important;
+    }
+
+    html body .login-footer {
+        padding: .8rem 1.2rem 1.2rem !important;
+        text-align: center !important;
+        justify-self: center !important;
+    }
+}
+
+/* NAVI PHASE 4.26 SPLIT LOGIN 20260707 END */
+
+/* NAVI PHASE 4.27 SPLIT LOGIN PROFESSIONAL 20260708 START */
+
+html body .login-shell {
+    min-height: 100vh !important;
+    width: 100% !important;
+    position: relative !important;
+    isolation: isolate !important;
+    display: grid !important;
+    grid-template-columns: minmax(520px, 50vw) minmax(520px, 1fr) !important;
+    grid-template-rows: 1fr !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    color: #ffffff !important;
+    background:
+        linear-gradient(116deg, rgba(111, 0, 133, .34) 0 28%, transparent 28% 100%),
+        linear-gradient(90deg, #050507 0 50%, #f7f8fb 50% 100%) !important;
+}
+
+html body .login-shell::before {
+    content: "" !important;
+    position: absolute !important;
+    z-index: 0 !important;
+    inset: 0 0 0 50% !important;
+    background: #f7f8fb !important;
+    border-left: 1px solid #e4e7ec !important;
+    box-shadow: -1.35rem 0 3.25rem rgba(15, 23, 42, .18) !important;
+    pointer-events: none !important;
+}
+
+html body .login-topbar,
+html body .login-topbar-balanced {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    align-self: start !important;
+    justify-self: stretch !important;
+    z-index: 5 !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 5rem 4.25rem 0 4.25rem !important;
+    transform: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+}
+
+html body .login-brand,
+html body .login-brand-balanced {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 82px minmax(0, 1fr) !important;
+    align-items: center !important;
+    justify-content: start !important;
+    gap: 1.15rem !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+html body .login-brand-icon,
+html body .login-brand-icon-balanced {
+    width: 82px !important;
+    min-width: 82px !important;
+    max-width: 82px !important;
+    height: 82px !important;
+    min-height: 82px !important;
+    max-height: 82px !important;
+    border-radius: .5rem !important;
+    background: linear-gradient(135deg, #ef233c 0%, #ff4d57 100%) !important;
+    color: #ffffff !important;
+    font-size: 1.75rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    letter-spacing: 0 !important;
+    box-shadow:
+        0 1rem 1.8rem rgba(239, 35, 60, .34),
+        inset 0 1px 0 rgba(255, 255, 255, .25) !important;
+}
+
+html body .login-brand-copy,
+html body .login-brand-copy-balanced {
+    display: grid !important;
+    justify-items: start !important;
+    align-content: center !important;
+    gap: .35rem !important;
+    min-width: 0 !important;
+}
+
+html body .login-brand-copy h1,
+html body .login-brand-copy-balanced h1 {
+    display: grid !important;
+    gap: .16rem !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: #ffffff !important;
+    font-size: 2.15rem !important;
+    font-weight: 950 !important;
+    line-height: 1.02 !important;
+    letter-spacing: 0 !important;
+    text-align: left !important;
+    white-space: normal !important;
+}
+
+html body .login-brand-copy h1 span,
+html body .login-brand-copy-balanced h1 span,
+html body .brand-navi,
+html body .brand-tools {
+    display: block !important;
+    color: #ffffff !important;
+    font-size: inherit !important;
+    font-weight: 950 !important;
+    line-height: 1.02 !important;
+    letter-spacing: 0 !important;
+    white-space: normal !important;
+}
+
+html body .login-brand-copy p,
+html body .login-brand-copy-balanced p {
+    margin: 0 !important;
+    color: rgba(255, 255, 255, .78) !important;
+    font-size: 1.06rem !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+    letter-spacing: 0 !important;
+    text-align: left !important;
+}
+
+html body .login-main {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    z-index: 5 !important;
+    min-height: 100vh !important;
+    display: grid !important;
+    place-items: center !important;
+    padding: 4.5rem 5rem !important;
+    background: transparent !important;
+}
+
+html body .login-card {
+    width: min(640px, 100%) !important;
+    max-width: 640px !important;
+    min-width: min(560px, 100%) !important;
+    min-height: 590px !important;
+    display: grid !important;
+    align-content: center !important;
+    padding: 4rem !important;
+    border-radius: .5rem !important;
+    border: 1px solid #d0d5dd !important;
+    background: #ffffff !important;
+    color: #1d1026 !important;
+    text-align: center !important;
+    box-shadow:
+        0 1.6rem 3.4rem rgba(15, 23, 42, .13),
+        0 .25rem .75rem rgba(15, 23, 42, .08) !important;
+    backdrop-filter: none !important;
+}
+
+html body .login-card form {
+    display: grid !important;
+    gap: 1.1rem !important;
+}
+
+html body .login-user-card-icon,
+html body .login-card-icon {
+    width: 96px !important;
+    height: 96px !important;
+    margin: 0 auto 1.45rem !important;
+    border-radius: .5rem !important;
+    background: #fbf7fd !important;
+    border: 1px solid rgba(123, 13, 142, .28) !important;
+    box-shadow: none !important;
+}
+
+html body .login-user-head {
+    top: 23px !important;
+    width: 29px !important;
+    height: 29px !important;
+}
+
+html body .login-user-body {
+    bottom: 19px !important;
+    width: 56px !important;
+    height: 35px !important;
+}
+
+html body .login-card h2 {
+    color: #1d1026 !important;
+    font-size: 2.35rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    letter-spacing: 0 !important;
+}
+
+html body .login-subtitle {
+    max-width: 430px !important;
+    margin: .82rem auto 2.15rem !important;
+    color: #667085 !important;
+    font-size: 1.08rem !important;
+    font-weight: 700 !important;
+    line-height: 1.42 !important;
+}
+
+html body .login-field {
+    margin: 0 !important;
+    text-align: left !important;
+}
+
+html body .login-field label {
+    margin: 0 0 .5rem 0 !important;
+    color: #344054 !important;
+    font-size: .82rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    letter-spacing: 0 !important;
+    text-transform: none !important;
+}
+
+html body .login-input-wrap {
+    width: 100% !important;
+    height: 62px !important;
+    min-height: 62px !important;
+    display: grid !important;
+    grid-template-columns: 42px minmax(0, 1fr) 44px !important;
+    align-items: center !important;
+    gap: .55rem !important;
+    padding: 0 .66rem !important;
+    border-radius: .5rem !important;
+    border: 1px solid #d0d5dd !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+}
+
+html body .login-input-wrap:focus-within {
+    border-color: #7b0d8e !important;
+    outline: 3px solid rgba(123, 13, 142, .12) !important;
+    box-shadow: none !important;
+}
+
+html body .login-input-icon {
+    width: 42px !important;
+    height: 100% !important;
+    color: #667085 !important;
+    font-size: 1.08rem !important;
+}
+
+html body .login-input-wrap .login-input,
+html body .login-input {
+    height: 58px !important;
+    min-height: 58px !important;
+    padding: 0 !important;
+    color: #111827 !important;
+    font-size: 1.02rem !important;
+    font-weight: 800 !important;
+    line-height: 1 !important;
+}
+
+html body .login-input-wrap .login-eye,
+html body button.login-eye {
+    width: 40px !important;
+    min-width: 40px !important;
+    max-width: 40px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+    border-radius: .5rem !important;
+    border: 1px solid rgba(123, 13, 142, .24) !important;
+    background: #fbf7fd !important;
+    color: #7b0d8e !important;
+    font-size: .9rem !important;
+}
+
+html body .login-card .login-submit,
+html body button.login-submit,
+html body .login-card button[type="submit"] {
+    width: 100% !important;
+    height: 62px !important;
+    min-height: 62px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: .25rem 0 0 0 !important;
+    padding: 0 1rem !important;
+    border-radius: .5rem !important;
+    border: 0 !important;
+    background: linear-gradient(105deg, #050507 0%, #17001d 60%, #7b0d8e 100%) !important;
+    color: #ffffff !important;
+    font-size: 1.02rem !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    box-shadow: 0 .9rem 1.5rem rgba(75, 0, 92, .24) !important;
+}
+
+html body .login-footer {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    align-self: end !important;
+    justify-self: start !important;
+    z-index: 5 !important;
+    padding: 0 4.25rem 3.6rem 4.25rem !important;
+    color: rgba(255, 255, 255, .76) !important;
+    font-size: .95rem !important;
+    font-weight: 750 !important;
+    line-height: 1.2 !important;
+    text-align: left !important;
+}
+
+html body .login-bg-letter {
+    grid-column: 1 !important;
+    z-index: 1 !important;
+    left: 2.4rem !important;
+    right: auto !important;
+    bottom: -8.2rem !important;
+    font-size: 32rem !important;
+    opacity: .22 !important;
+}
+
+html body .login-bg-lines {
+    z-index: 1 !important;
+    left: 35vw !important;
+    right: auto !important;
+    top: 18vh !important;
+    opacity: .42 !important;
+}
+
+html body .login-bg-dots {
+    z-index: 1 !important;
+    left: 4.25rem !important;
+    right: auto !important;
+    top: 25vh !important;
+    opacity: .30 !important;
+}
+
+@@media (max-width: 1120px) {
+    html body .login-shell {
+        grid-template-columns: 1fr !important;
+        grid-template-rows: auto 1fr auto !important;
+        overflow-y: auto !important;
+        background: linear-gradient(135deg, #050507 0%, #17001d 56%, #6f0085 100%) !important;
+    }
+
+    html body .login-shell::before {
+        display: none !important;
+    }
+
+    html body .login-topbar,
+    html body .login-topbar-balanced,
+    html body .login-main,
+    html body .login-footer {
+        grid-column: 1 !important;
+        grid-row: auto !important;
+    }
+
+    html body .login-topbar,
+    html body .login-topbar-balanced {
+        padding: 1.4rem 1.25rem .7rem !important;
+    }
+
+    html body .login-brand,
+    html body .login-brand-balanced {
+        grid-template-columns: 58px minmax(0, 1fr) !important;
+    }
+
+    html body .login-brand-icon,
+    html body .login-brand-icon-balanced {
+        width: 58px !important;
+        min-width: 58px !important;
+        max-width: 58px !important;
+        height: 58px !important;
+        min-height: 58px !important;
+        max-height: 58px !important;
+        font-size: 1.28rem !important;
+    }
+
+    html body .login-brand-copy h1,
+    html body .login-brand-copy-balanced h1 {
+        font-size: 1.45rem !important;
+    }
+
+    html body .login-brand-copy p,
+    html body .login-brand-copy-balanced p {
+        font-size: .88rem !important;
+    }
+
+    html body .login-main {
+        min-height: auto !important;
+        padding: 1.35rem !important;
+    }
+
+    html body .login-card {
+        width: min(560px, 100%) !important;
+        min-height: 0 !important;
+        padding: 2rem !important;
+    }
+
+    html body .login-footer {
+        padding: .6rem 1.25rem 1.2rem !important;
+        justify-self: center !important;
+        text-align: center !important;
+    }
+
+    html body .login-bg-letter,
+    html body .login-bg-lines,
+    html body .login-bg-dots {
+        display: none !important;
+    }
+}
+
+/* NAVI PHASE 4.27 SPLIT LOGIN PROFESSIONAL 20260708 END */
 </style>
+
+<style id="navi-admin-login-final-visual-fix">
+    /* ============================================================
+       NAVI ADMIN LOGIN - FIX FINAL
+       - Ícono de usuario organizado.
+       - Check recordar acceso profesional.
+       - Botón ingresar negro.
+       ============================================================ */
+
+    html body .login-card {
+        overflow: visible !important;
+    }
+
+    /* Oculta cualquier ícono viejo que haya quedado por estilos anteriores */
+    html body .login-card .login-card-icon,
+    html body .login-card .login-user-card-icon,
+    html body .login-card .login-card-user-icon {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        width: 0 !important;
+        height: 0 !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+    }
+
+    /* Ícono nuevo */
+    html body .login-shell .login-card .login-avatar-pro {
+        width: 82px !important;
+        height: 82px !important;
+
+        display: grid !important;
+        place-items: center !important;
+
+        position: relative !important;
+
+        margin: 0 auto .95rem auto !important;
+        padding: 0 !important;
+
+        border-radius: 1rem !important;
+        border: 1px solid rgba(135, 18, 159, .22) !important;
+
+        background:
+            linear-gradient(180deg, #fffaff 0%, #ffffff 100%) !important;
+
+        box-shadow:
+            0 .8rem 1.8rem rgba(64, 0, 82, .08),
+            inset 0 0 0 1px rgba(255,255,255,.78) !important;
+    }
+
+    html body .login-shell .login-card .login-avatar-pro::before,
+    html body .login-shell .login-card .login-avatar-pro::after {
+        content: none !important;
+        display: none !important;
+    }
+
+    html body .login-shell .login-card .login-avatar-pro-head {
+        position: absolute !important;
+
+        top: 16px !important;
+        left: 50% !important;
+
+        width: 22px !important;
+        height: 22px !important;
+
+        display: block !important;
+
+        border-radius: 999px !important;
+
+        background: #8500a3 !important;
+
+        transform: translateX(-50%) !important;
+
+        box-shadow: 0 .3rem .7rem rgba(133, 0, 163, .2) !important;
+    }
+
+    html body .login-shell .login-card .login-avatar-pro-body {
+        position: absolute !important;
+
+        left: 50% !important;
+        bottom: 18px !important;
+
+        width: 40px !important;
+        height: 22px !important;
+
+        display: block !important;
+
+        border-radius: 999px 999px .55rem .55rem !important;
+
+        background: #8500a3 !important;
+
+        transform: translateX(-50%) !important;
+
+        box-shadow: 0 .3rem .7rem rgba(133, 0, 163, .16) !important;
+    }
+
+    /* Oculta cualquier recordar viejo que haya quedado */
+    html body .login-card .login-remember-panel,
+    html body .login-card .login-remember-row {
+        display: none !important;
+    }
+
+    /* Recordar acceso nuevo */
+    html body .login-shell .login-card .login-remember-pro {
+        width: 100% !important;
+
+        display: grid !important;
+        grid-template-columns: 22px minmax(0, 1fr) !important;
+        align-items: center !important;
+        column-gap: .7rem !important;
+
+        margin: .72rem 0 .6rem 0 !important;
+        padding: .68rem .8rem !important;
+
+        border-radius: .82rem !important;
+        border: 1px solid #e0d7e7 !important;
+
+        background:
+            linear-gradient(180deg, #ffffff 0%, #fcf8ff 100%) !important;
+
+        box-shadow:
+            0 .55rem 1.2rem rgba(31, 41, 55, .045),
+            inset 0 0 0 1px rgba(255,255,255,.75) !important;
+
+        color: #111827 !important;
+
+        cursor: pointer !important;
+        user-select: none !important;
+    }
+
+    html body .login-shell .login-card .login-remember-pro:hover {
+        border-color: #c999d8 !important;
+        background:
+            linear-gradient(180deg, #ffffff 0%, #fbf4ff 100%) !important;
+    }
+
+    html body .login-shell .login-card .login-remember-pro-input {
+        position: absolute !important;
+
+        width: 1px !important;
+        height: 1px !important;
+
+        opacity: 0 !important;
+
+        pointer-events: none !important;
+    }
+
+    html body .login-shell .login-card .login-remember-pro-box {
+        width: 20px !important;
+        height: 20px !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+
+        position: relative !important;
+
+        border-radius: .42rem !important;
+        border: 1.5px solid #c5ccd8 !important;
+
+        background: #ffffff !important;
+
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.75) !important;
+
+        transition: all .16s ease !important;
+    }
+
+    html body .login-shell .login-card .login-remember-pro-input:checked + .login-remember-pro-box {
+        background: #111111 !important;
+        border-color: #111111 !important;
+        box-shadow: 0 .28rem .6rem rgba(0,0,0,.14) !important;
+    }
+
+    html body .login-shell .login-card .login-remember-pro-input:checked + .login-remember-pro-box::after {
+        content: "" !important;
+
+        position: absolute !important;
+
+        width: 5px !important;
+        height: 10px !important;
+
+        border: solid #ffffff !important;
+        border-width: 0 2px 2px 0 !important;
+
+        transform: rotate(45deg) translate(-1px, -1px) !important;
+    }
+
+    html body .login-shell .login-card .login-remember-pro-copy {
+        display: grid !important;
+        gap: .12rem !important;
+
+        min-width: 0 !important;
+
+        text-align: left !important;
+    }
+
+    html body .login-shell .login-card .login-remember-pro-copy strong {
+        color: #111827 !important;
+
+        font-size: .72rem !important;
+        line-height: 1.05 !important;
+        font-weight: 900 !important;
+
+        text-transform: none !important;
+        letter-spacing: 0 !important;
+    }
+
+    html body .login-shell .login-card .login-remember-pro-copy small {
+        color: #667085 !important;
+
+        font-size: .62rem !important;
+        line-height: 1.12 !important;
+        font-weight: 650 !important;
+
+        text-transform: none !important;
+        letter-spacing: 0 !important;
+    }
+
+    /* Botón Ingresar negro */
+    html body .login-shell .login-card .login-submit,
+    html body .login-shell .login-card button.login-submit,
+    html body .login-shell .login-card button[type="submit"].login-submit {
+        width: 100% !important;
+
+        height: 48px !important;
+        min-height: 48px !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+
+        margin: .68rem 0 0 0 !important;
+        padding: 0 1rem !important;
+
+        border-radius: .72rem !important;
+        border: 1px solid #000000 !important;
+
+        background: #000000 !important;
+        background-image: none !important;
+        color: #ffffff !important;
+
+        font-size: .92rem !important;
+        line-height: 1 !important;
+        font-weight: 950 !important;
+
+        text-align: center !important;
+
+        box-shadow: 0 .9rem 1.8rem rgba(0,0,0,.2) !important;
+
+        transform: none !important;
+        transition: all .16s ease !important;
+    }
+
+    html body .login-shell .login-card .login-submit:hover,
+    html body .login-shell .login-card button.login-submit:hover,
+    html body .login-shell .login-card button[type="submit"].login-submit:hover {
+        background: #111111 !important;
+        background-image: none !important;
+        border-color: #111111 !important;
+        color: #ffffff !important;
+
+        box-shadow: 0 1rem 2rem rgba(0,0,0,.24) !important;
+
+        transform: translateY(-1px) !important;
+    }
+
+    html body .login-shell .login-card .login-submit:disabled,
+    html body .login-shell .login-card button.login-submit:disabled {
+        opacity: .72 !important;
+        cursor: not-allowed !important;
+        transform: none !important;
+    }
+
+    html body .login-shell .login-card h2 {
+        margin-top: 0 !important;
+        margin-bottom: .24rem !important;
+    }
+
+    html body .login-shell .login-card .login-subtitle {
+        margin-bottom: .7rem !important;
+    }
+
+    @@media (max-width: 700px) {
+        html body .login-shell .login-card .login-avatar-pro {
+            width: 72px !important;
+            height: 72px !important;
+            margin-bottom: .78rem !important;
+        }
+
+        html body .login-shell .login-card .login-avatar-pro-head {
+            top: 14px !important;
+            width: 19px !important;
+            height: 19px !important;
+        }
+
+        html body .login-shell .login-card .login-avatar-pro-body {
+            bottom: 16px !important;
+            width: 35px !important;
+            height: 19px !important;
+        }
+
+        html body .login-shell .login-card .login-remember-pro {
+            padding: .62rem .72rem !important;
+            column-gap: .62rem !important;
+        }
+
+        html body .login-shell .login-card .login-submit,
+        html body .login-shell .login-card button.login-submit,
+        html body .login-shell .login-card button[type="submit"].login-submit {
+            height: 44px !important;
+            min-height: 44px !important;
+            font-size: .86rem !important;
+        }
+    }
+</style><!-- navi-admin-login-final-visual-fix -->
+
+<style id="navi-admin-login-subtitle-remember-final">
+    /* ============================================================
+       LOGIN ADMIN - SUBTÍTULO Y RECORDAR ACCESO FINAL
+       ============================================================ */
+
+    /* Alinear el texto debajo de Bienvenido con el ancho real del formulario */
+    html body .login-shell .login-card h2 {
+        width: 100% !important;
+        max-width: 420px !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        text-align: center !important;
+    }
+
+    html body .login-shell .login-card .login-subtitle {
+        width: 100% !important;
+        max-width: 420px !important;
+
+        display: block !important;
+
+        margin: .18rem auto .9rem auto !important;
+        padding: 0 !important;
+
+        color: #667085 !important;
+
+        text-align: center !important;
+        text-wrap: balance !important;
+
+        font-size: .76rem !important;
+        line-height: 1.18 !important;
+        font-weight: 780 !important;
+        letter-spacing: 0 !important;
+    }
+
+    html body .login-shell .login-card form,
+    html body .login-shell .login-card .edit-form {
+        width: 100% !important;
+        max-width: 420px !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+
+    /* Ocultar versiones anteriores del recordar acceso */
+    html body .login-shell .login-card .login-remember-panel,
+    html body .login-shell .login-card .login-remember-row,
+    html body .login-shell .login-card .login-remember-pro {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        width: 0 !important;
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+    }
+
+    /* Recordar acceso final */
+    html body .login-shell .login-card .login-remember-final {
+        width: 100% !important;
+
+        display: grid !important;
+        grid-template-columns: 22px minmax(0, 1fr) !important;
+        align-items: center !important;
+        column-gap: .68rem !important;
+
+        margin: .72rem 0 .62rem 0 !important;
+        padding: .66rem .78rem !important;
+
+        border-radius: .78rem !important;
+        border: 1px solid #dfe4ec !important;
+
+        background: #ffffff !important;
+
+        box-shadow:
+            0 .45rem .95rem rgba(15, 23, 42, .035),
+            inset 0 0 0 1px rgba(255,255,255,.8) !important;
+
+        cursor: pointer !important;
+        user-select: none !important;
+    }
+
+    html body .login-shell .login-card .login-remember-final:hover {
+        border-color: #c8d0dc !important;
+        background: #fbfcff !important;
+    }
+
+    /* Input real oculto */
+    html body .login-shell .login-card .login-remember-final-input {
+        position: absolute !important;
+        opacity: 0 !important;
+        width: 1px !important;
+        height: 1px !important;
+        pointer-events: none !important;
+    }
+
+    /* Caja visual del check */
+    html body .login-shell .login-card .login-remember-final-box {
+        width: 20px !important;
+        height: 20px !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+
+        position: relative !important;
+
+        border-radius: .38rem !important;
+        border: 1.5px solid #bfc7d4 !important;
+
+        background: #ffffff !important;
+
+        box-shadow:
+            inset 0 0 0 1px rgba(255,255,255,.9),
+            0 .18rem .36rem rgba(15,23,42,.06) !important;
+
+        transition: all .16s ease !important;
+    }
+
+    html body .login-shell .login-card .login-remember-final-input:checked + .login-remember-final-box {
+        background: #111111 !important;
+        border-color: #111111 !important;
+        box-shadow:
+            0 .28rem .62rem rgba(0,0,0,.16),
+            inset 0 0 0 1px rgba(255,255,255,.08) !important;
+    }
+
+    html body .login-shell .login-card .login-remember-final-input:checked + .login-remember-final-box::after {
+        content: "" !important;
+
+        position: absolute !important;
+
+        left: 6px !important;
+        top: 2px !important;
+
+        width: 5px !important;
+        height: 10px !important;
+
+        border: solid #ffffff !important;
+        border-width: 0 2px 2px 0 !important;
+
+        transform: rotate(45deg) !important;
+    }
+
+    html body .login-shell .login-card .login-remember-final-copy {
+        min-width: 0 !important;
+
+        display: grid !important;
+        gap: .14rem !important;
+
+        text-align: left !important;
+    }
+
+    html body .login-shell .login-card .login-remember-final-copy strong {
+        color: #111827 !important;
+
+        font-size: .72rem !important;
+        line-height: 1.05 !important;
+        font-weight: 900 !important;
+
+        text-transform: none !important;
+        letter-spacing: 0 !important;
+    }
+
+    html body .login-shell .login-card .login-remember-final-copy small {
+        color: #667085 !important;
+
+        font-size: .62rem !important;
+        line-height: 1.12 !important;
+        font-weight: 650 !important;
+
+        text-transform: none !important;
+        letter-spacing: 0 !important;
+    }
+
+    /* Botón Ingresar completamente negro */
+    html body .login-shell .login-card .login-submit,
+    html body .login-shell .login-card button.login-submit,
+    html body .login-shell .login-card button[type="submit"].login-submit {
+        width: 100% !important;
+
+        height: 48px !important;
+        min-height: 48px !important;
+
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+
+        margin: .66rem 0 0 0 !important;
+        padding: 0 1rem !important;
+
+        border-radius: .72rem !important;
+        border: 1px solid #000000 !important;
+
+        background: #000000 !important;
+        background-image: none !important;
+        color: #ffffff !important;
+
+        font-size: .92rem !important;
+        line-height: 1 !important;
+        font-weight: 950 !important;
+
+        text-align: center !important;
+
+        box-shadow: 0 .9rem 1.8rem rgba(0,0,0,.2) !important;
+
+        transform: none !important;
+        transition: all .16s ease !important;
+    }
+
+    html body .login-shell .login-card .login-submit:hover,
+    html body .login-shell .login-card button.login-submit:hover,
+    html body .login-shell .login-card button[type="submit"].login-submit:hover {
+        background: #111111 !important;
+        background-image: none !important;
+        border-color: #111111 !important;
+        color: #ffffff !important;
+
+        box-shadow: 0 1rem 2rem rgba(0,0,0,.24) !important;
+
+        transform: translateY(-1px) !important;
+    }
+
+    html body .login-shell .login-card .login-submit:disabled,
+    html body .login-shell .login-card button.login-submit:disabled {
+        opacity: .72 !important;
+        cursor: not-allowed !important;
+        transform: none !important;
+    }
+
+    @@media (max-width: 700px) {
+        html body .login-shell .login-card .login-subtitle {
+            max-width: 100% !important;
+            font-size: .72rem !important;
+        }
+
+        html body .login-shell .login-card .login-remember-final {
+            padding: .6rem .7rem !important;
+            column-gap: .62rem !important;
+        }
+
+        html body .login-shell .login-card .login-remember-final-copy strong {
+            font-size: .68rem !important;
+        }
+
+        html body .login-shell .login-card .login-remember-final-copy small {
+            font-size: .58rem !important;
+        }
+
+        html body .login-shell .login-card .login-submit,
+        html body .login-shell .login-card button.login-submit,
+        html body .login-shell .login-card button[type="submit"].login-submit {
+            height: 44px !important;
+            min-height: 44px !important;
+            font-size: .86rem !important;
+        }
+    }
+</style><!-- navi-admin-login-subtitle-remember-final -->

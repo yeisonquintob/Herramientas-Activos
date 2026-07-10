@@ -40,18 +40,15 @@
     }
     else if (life is not null)
     {
-        <header class="mlife-hero">
-            <div>
-                <span>HOJA DE VIDA AF</span>
-                <h1>@Show(life.EquipmentInformation.Name ?? life.Summary.Name)</h1>
-                <p>@Show(life.EquipmentInformation.InternalCode ?? life.Summary.InternalCode) · @StatusLabel(life.Summary.OperationalStatus)</p>
-            </div>
-
-            <div class="mlife-hero-actions">
-                <button type="button" @onclick="GoBack">Regresar</button>
-                <button type="button" @onclick="LoadAsync" disabled="@isLoading">Actualizar</button>
-            </div>
-        </header>
+        <NaviMobileAppBanner Class="navi-mobile-life-edit-app-banner navi-mobile-app-banner--detail"
+                             Pill="ACTIVOS FIJOS · HOJA DE VIDA"
+                             Title="@Show(life.EquipmentInformation.Name ?? life.Summary.Name)"
+                             Description="@($"{Show(life.EquipmentInformation.InternalCode ?? life.Summary.InternalCode)} · {StatusLabel(life.Summary.OperationalStatus)}")"
+                             HomeUrl="/"
+                             BackUrl="@GetNaviMobileBackUrl()"
+                             BackFallbackUrl="/all-tools"
+                             ShowHomeButton="true"
+                             ShowBackButton="true" />
 
         @if (!string.IsNullOrWhiteSpace(message))
         {
@@ -1431,7 +1428,47 @@
         Navigation.NavigateTo("/");
     }
 
-    private void GoLogin() => Navigation.NavigateTo("/login", forceLoad: true);
+
+    private string? NaviMobileReturnUrl => GetNaviMobileQueryValue("returnUrl");
+
+    private bool HasNaviMobileReturnUrl => !string.IsNullOrWhiteSpace(NaviMobileReturnUrl);
+
+    private string GetNaviMobileBackUrl()
+    {
+        return string.IsNullOrWhiteSpace(NaviMobileReturnUrl)
+            ? "/all-tools"
+            : NaviMobileReturnUrl!;
+    }
+
+    private string? GetNaviMobileQueryValue(string key)
+    {
+        var uri = new Uri(Navigation.Uri);
+        var query = uri.Query;
+
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return null;
+        }
+
+        foreach (var part in query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var pair = part.Split('=', 2, StringSplitOptions.None);
+            var name = Uri.UnescapeDataString(pair[0]);
+
+            if (!string.Equals(name, key, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            return pair.Length > 1
+                ? Uri.UnescapeDataString(pair[1])
+                : string.Empty;
+        }
+
+        return null;
+    }
+
+    private void GoLogin() => Navigation.NavigateTo("/login", replace: true);
 
     private static bool SameNormalized(string? left, string? right)
     {

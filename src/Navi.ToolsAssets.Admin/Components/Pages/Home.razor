@@ -73,16 +73,34 @@ else if (dashboard is not null)
         </section>
 
         <section class="navi-dashboard-filter-panel">
-            <label>
+            <label class="navi-dashboard-branch-filter">
                 <span>Sede</span>
-                <input value="@filterBranchCode"
-                       @oninput="OnFilterBranchChanged"
-                       placeholder="Todas / AGU / Medellín..." />
+
+                <input list="dashboardBranchOptions"
+                       @bind="filterBranchCode"
+                       @bind:event="oninput"
+                       placeholder="Todas / escribe o selecciona sede..." />
+
+                <datalist id="dashboardBranchOptions">
+                    @foreach (var branch in dashboardBranches)
+                    {
+                        @if (!string.IsNullOrWhiteSpace(branch.Code))
+                        {
+                            <option value="@branch.Code">@branch.Label</option>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(branch.Name) &&
+                             !string.Equals(branch.Name, branch.Code, StringComparison.OrdinalIgnoreCase))
+                        {
+                            <option value="@branch.Name">@branch.Label</option>
+                        }
+                    }
+                </datalist>
             </label>
 
             <label>
-                <span class="dash-hero-pill">DASHBOARD · CONTROL</span>
-                <select value="@filterOperationalStatus" @onchange="OnFilterStatusChanged">
+                <span>Estado</span>
+                <select @bind="filterOperationalStatus">
                     <option value="">Todos</option>
                     @foreach (var item in dashboardStatusFilters)
                     {
@@ -93,9 +111,9 @@ else if (dashboard is not null)
 
             <label>
                 <span>Buscar</span>
-                <input value="@filterText"
-                       @oninput="OnFilterTextChanged"
-                       placeholder="Código, nombre, serial, responsable..." />
+                <input @bind="filterText"
+                       @bind:event="oninput"
+                       placeholder="Código, serial, nombre, responsable..." />
             </label>
 
             <div>
@@ -104,119 +122,89 @@ else if (dashboard is not null)
             </div>
         </section>
 
-        <section class="dash-layout">
-            <section class="dash-main-left">
-                <div class="dash-overview-grid">
-                    <article class="dash-card dash-local">
-                        <h3>Local de herramientas</h3>
-
-                        <div class="dash-local-list">
-                            <div><span><i class="dash-local-symbol dash-local-symbol-total">🧰</i>Total herramientas</span><strong>@dashboard.Summary.TotalTools.ToString("N0")</strong></div>
-                            <div><span><i class="dash-local-symbol dash-local-symbol-ok">✓</i>Disponibles</span><strong>@dashboard.Summary.AvailableTools.ToString("N0")</strong></div>
-                            <div><span><i class="dash-local-symbol dash-local-symbol-assigned">↗</i>Asignadas</span><strong>@dashboard.Summary.AssignedTools.ToString("N0")</strong></div>
-                            <div><span><i class="dash-local-symbol dash-local-symbol-maintenance">⚙</i>En mantenimiento</span><strong>@dashboard.Summary.InMaintenanceTools.ToString("N0")</strong></div>
-                            <div><span><i class="dash-local-symbol dash-local-symbol-damaged">✕</i>Dañadas / no aptas</span><strong>@dashboard.Summary.DamagedTools.ToString("N0")</strong></div>
-                            <div><span><i class="dash-local-symbol dash-local-symbol-warning">!</i>Pendientes validación</span><strong>@dashboard.Summary.PendingValidationTools.ToString("N0")</strong></div>
-                            <div><span><i class="dash-local-symbol dash-local-symbol-danger">×</i>Desactivados / baja</span><strong>@dashboard.Summary.DisposedTools.ToString("N0")</strong></div>
-                        </div></article>
-
-                    <article class="dash-card dash-maintenance">
-                        <div class="dash-card-head">
-                            <h3>Mantenimientos realizados</h3>
-
-                            <div class="dash-tabs">
-                                <button type="button" class="@GetMaintenanceTabClass("month")" @onclick="@(() => SetMaintenanceTab("month"))">Por mes</button>
-                                <button type="button" class="@GetMaintenanceTabClass("day")" @onclick="@(() => SetMaintenanceTab("day"))">Por día</button>
-                            </div>
+        <section class="dash-executive-grid">
+            <section class="dash-executive-column dash-executive-column-primary">
+                <article class="dash-card dash-branch-triple-card">
+                    <div class="dash-section-head">
+                        <div>
+                            <h3>Herramientas por sede</h3>
+                            <p>Total, asignadas y disponibles por sede.</p>
                         </div>
 
-                        <div class="dash-maintenance-list">
-                            <div><span>@(maintenanceTab == "month" ? "Por mes" : "Por día")</span><strong>@GetSelectedMaintenanceValue()</strong></div>
-                            <div><span>En proceso</span><strong>@dashboard.Summary.InMaintenanceTools</strong></div>
-                            <div><span>Pendientes</span><strong>@dashboard.Summary.RequiresMaintenance</strong></div>
-                            <div><span>Otras</span><strong>@GetOtherStatusTools()</strong></div>
-                        </div>
+                        <span>Máx. @GetBranchChartMax()</span>
+                    </div>
 
-                        <div class="dash-maintenance-mini-bars dash-maintenance-summary-style" aria-label="Resumen visual de mantenimientos">
-                            @foreach (var bar in GetMaintenanceMiniChartItems())
+                    <div class="dash-branch-triple-chart">
+                        <div class="dash-axis">
+                            @foreach (var mark in GetBranchAxisLabels())
                             {
-                                var percent = GetMaintenancePercent(bar.Value);
+                                <span>@mark</span>
+                            }
+                        </div>
 
-                                <div class="@bar.CssClass">
-                                    <span>@bar.Label</span>
-                                    <strong>
-                                        <i style="@GetMaintenanceMiniBarStyle(bar.Value)"></i>
-                                    </strong>
-                                    <em>@percent.ToString("0.#")%</em>
+                        <div class="dash-branch-triple-bars">
+                            @foreach (var item in GetBranchChartItems())
+                            {
+                                var total = item.Branch.Total;
+                                var assigned = GetBranchAssigned(item.Branch);
+                                var available = GetBranchAvailable(item.Branch);
+
+                                <div class="dash-branch-triple-group" title="@($"{item.Branch.BranchCode} - {item.Branch.BranchName}")">
+                                    <div class="dash-branch-triple-barset">
+                                        <strong class="dash-triple-bar total" style="@GetBranchTripleBarStyle(total)" title="@($"Total: {total}")">
+                                            <em>@total</em>
+                                        </strong>
+
+                                        <strong class="dash-triple-bar assigned" style="@GetBranchTripleBarStyle(assigned)" title="@($"Asignadas: {assigned}")">
+                                            <em>@assigned</em>
+                                        </strong>
+
+                                        <strong class="dash-triple-bar available" style="@GetBranchTripleBarStyle(available)" title="@($"Disponibles: {available}")">
+                                            <em>@available</em>
+                                        </strong>
+                                    </div>
+
+                                    <span>@item.Branch.BranchCode</span>
+                                    <small>@ShortName(item.Branch.BranchName)</small>
                                 </div>
                             }
                         </div>
-                    </article>
+                    </div>
 
-                    <article class="dash-card dash-vs">
-                        <h3>Mantenimientos vs compras</h3>
+                    <div class="dash-triple-legend">
+                        <span><i class="total"></i>Total herramientas</span>
+                        <span><i class="assigned"></i>Asignadas</span>
+                        <span><i class="available"></i>Disponibles</span>
+                    </div>
+                </article>
 
-                        <div class="dash-vs-content">
-                            <div class="dash-donut md" style="@GetOperationsCostDonut()">
-                                <div>
-                                    <strong>@FormatDashboardMoneyCompact(GetOperationsCostTotal())</strong>
-                                    <span>Total</span>
-                                </div>
-                            </div>
-
-                            <div class="dash-legend compact dash-cost-legend">
-                                <div>
-                                    <i class="purple"></i>
-                                    <span>Mantenimientos</span>
-                                    <strong>@FormatDashboardMoney(operationCosts.MaintenanceCost)</strong>
-                                    <small>@GetOperationsCostTotalPercentLabel(operationCosts.MaintenanceCost)</small>
-                                </div>
-
-                                <div>
-                                    <i class="blue"></i>
-                                    <span>Compras</span>
-                                    <strong>@FormatDashboardMoney(operationCosts.PurchaseCost)</strong>
-                                    <small>@GetOperationsCostTotalPercentLabel(operationCosts.PurchaseCost)</small>
-                                </div>
-
-                                <div class="dash-total-row">
-                                    <i class="gray"></i>
-                                    <span>Total</span>
-                                    <strong>@FormatDashboardMoney(GetOperationsCostTotal())</strong>
-                                    <small>100%</small>
-                                </div>
-                            </div>
-                        </div>
-                    </article>
-                </div>
-
-                <article class="dash-card dash-table-card">
+                <article class="dash-card dash-table-card dash-branch-summary-card">
                     <div class="dash-section-head">
                         <div>
-                            <h3>Resumen por sede / responsable</h3>
-                            <p>Seguimiento de asignaciones, validaciones, pendientes, diferencias y avance.</p>
+                            <h3>Resumen por sede</h3>
+                            <p>Asignación, validación, pendientes, diferencias, mantenimiento y daños.</p>
                         </div>
 
                         <span>@dashboard.ToolsByBranch.Count sedes</span>
                     </div>
 
-                    <table class="dash-table">
+                    <table class="dash-table dash-branch-summary-table">
                         <thead>
                             <tr>
-                                <th>Usuario / Responsable</th>
-                                <th>Asignadas</th>
-                                <th>Validadas</th>
-                                <th>Pendientes</th>
-                                <th>Diferencias</th>
-                                <th>Mantenimiento</th>
-                                <th>Dañadas</th>
+                                <th>Sede</th>
+                                <th>Asig.</th>
+                                <th>Val.</th>
+                                <th>Pend.</th>
+                                <th>Dif.</th>
+                                <th>Mtto.</th>
+                                <th>Daños</th>
                                 <th>Baja</th>
-                                <th>Avance</th>
+                                <th>% Asig.</th>
                             </tr>
                         </thead>
 
                         <tbody>
-                            @foreach (var item in dashboard.ToolsByBranch.Take(7))
+                            @foreach (var item in dashboard.ToolsByBranch.Take(12))
                             {
                                 var assigned = GetBranchAssigned(item);
                                 var valid = GetBranchValidated(item);
@@ -225,14 +213,13 @@ else if (dashboard is not null)
                                 var maintenance = GetBranchMaintenance(item);
                                 var damaged = GetBranchDamaged(item);
                                 var disposed = GetBranchDisposed(item);
-                                var percent = GetBranchAdvance(item);
+                                var assignedPercent = GetBranchAssignedPercent(item);
 
                                 <tr>
                                     <td>
                                         <div class="dash-branch-name">
                                             <strong>@item.BranchName</strong>
                                             <span>@item.BranchCode</span>
-                                            <small>Responsable sede</small>
                                         </div>
                                     </td>
 
@@ -246,203 +233,190 @@ else if (dashboard is not null)
 
                                     <td>
                                         <div class="dash-progress">
-                                            <span style="@GetProgressStyle(percent)"></span>
+                                            <span style="@GetProgressStyle(assignedPercent)"></span>
                                         </div>
-                                        <small>@percent%</small>
+                                        <small>@assignedPercent%</small>
                                     </td>
                                 </tr>
                             }
                         </tbody>
                     </table>
+                </article>
+            </section>
 
-                    <div class="dash-pending-panel">
-                        <div>
-                            <h3>@GetPendingPanelTitle()</h3>
-                            <p>Herramientas o activos pendientes de validación por el participante.</p>
+            <section class="dash-executive-column">
+                <article class="dash-card dash-vs dash-dashboard-chart-card">
+                    <h3>Mantenimientos vs compras</h3>
+
+                    <div class="dash-dashboard-donut-row">
+                        <div class="dash-donut lg" style="@GetOperationsCostDonut()">
+                            <div>
+                                <strong>@FormatDashboardMoneyCompact(GetOperationsCostTotal())</strong>
+                                <span>Total</span>
+                            </div>
                         </div>
 
-                        <button type="button">Cerrar</button>
+                        <div class="dash-legend compact dash-cost-legend">
+                            <div>
+                                <i class="purple"></i>
+                                <span>Mantenimientos</span>
+                                <strong>@FormatDashboardMoney(operationCosts.MaintenanceCost)</strong>
+                                <small>@GetOperationsCostTotalPercentLabel(operationCosts.MaintenanceCost)</small>
+                            </div>
+
+                            <div>
+                                <i class="blue"></i>
+                                <span>Compras</span>
+                                <strong>@FormatDashboardMoney(operationCosts.PurchaseCost)</strong>
+                                <small>@GetOperationsCostTotalPercentLabel(operationCosts.PurchaseCost)</small>
+                            </div>
+
+                            <div class="dash-total-row">
+                                <i class="gray"></i>
+                                <span>Total</span>
+                                <strong>@FormatDashboardMoney(GetOperationsCostTotal())</strong>
+                                <small>100%</small>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="dash-card dash-donut-card dash-dashboard-chart-card">
+                    <h3>Herramientas por mes</h3>
+
+                    <div class="dash-dashboard-donut-row">
+                        <div class="dash-donut lg" style="@GetStatusDonut()">
+                            <div>
+                                <strong>@GetStatusDonutTotal().ToString("N0")</strong>
+                                <span>Total</span>
+                            </div>
+                        </div>
+
+                        <div class="dash-legend">
+                            <div><i class="purple"></i><span>Asignada</span><strong>@dashboard.Summary.AssignedTools</strong><small>@GetPercentLabel(dashboard.Summary.AssignedTools, GetStatusDonutTotal())</small></div>
+                            <div><i class="blue"></i><span>Disponible</span><strong>@dashboard.Summary.AvailableTools</strong><small>@GetPercentLabel(dashboard.Summary.AvailableTools, GetStatusDonutTotal())</small></div>
+                            <div><i class="orange"></i><span>Pendientes</span><strong>@dashboard.Summary.PendingValidationTools</strong><small>@GetPercentLabel(dashboard.Summary.PendingValidationTools, GetStatusDonutTotal())</small></div>
+                            <div><i class="red"></i><span>Técnico</span><strong>@dashboard.Summary.InMaintenanceTools</strong><small>@GetPercentLabel(dashboard.Summary.InMaintenanceTools, GetStatusDonutTotal())</small></div>
+                            <div><i class="gray"></i><span>Otras</span><strong>@GetOtherStatusTools()</strong><small>@GetPercentLabel(GetOtherStatusTools(), GetStatusDonutTotal())</small></div>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="dash-card dash-day dash-maintenance-day-card">
+                    <h3>Mantenimientos por día</h3>
+
+                    <div class="dash-day-metrics">
+                        <div><strong>@dashboard.MaintenanceSummary.Today</strong><span>Hoy</span></div>
+                        <div><strong>@dashboard.MaintenanceSummary.ThisMonth</strong><span>Mes</span></div>
+                        <div><strong>@dashboard.Summary.RequiresMaintenance</strong><span>Pendientes</span></div>
                     </div>
                 </article>
             </section>
 
-            <section class="dash-main-right">
-                <article class="dash-card dash-branch">
-                    <div class="dash-section-head">
-                        <div>
-                            <h3>Herramientas por sede</h3>
-                            <p>Distribución proporcional por sede.</p>
+            <section class="dash-executive-column">
+                <article class="dash-card dash-donut-card dash-dashboard-chart-card">
+                    <h3>Distribución de activos fijos</h3>
+
+                    <div class="dash-dashboard-donut-row">
+                        <div class="dash-donut lg" style="@GetToolsVsAssetsDonut()">
+                            <div>
+                                <strong>@GetToolsVsAssetsTotal().ToString("N0")</strong>
+                                <span>Total</span>
+                            </div>
                         </div>
 
-                        <span>Máx. @GetBranchChartMax()</span>
-                    </div>
-
-                    <div class="dash-branch-chart">
-                        <div class="dash-axis">
-                            @foreach (var mark in GetBranchAxisLabels())
-                            {
-                                <span>@mark</span>
-                            }
-                        </div>
-
-                        <div class="dash-branch-bars">
-                            @foreach (var item in GetBranchChartItems())
-                            {
-                                <div class="dash-branch-bar-item" title="@($"{item.Branch.BranchCode} - {item.Branch.BranchName}: {item.Branch.Total}")">
-                                    <strong style="@GetBranchBarStyle(item.Branch.Total, item.Index)">
-                                        <em>@item.Branch.Total</em>
-                                    </strong>
-<small>@ShortName(item.Branch.BranchName)</small>
-                                </div>
-                            }
+                        <div class="dash-legend">
+                            <div><i class="purple"></i><span>Herramientas</span><strong>@dashboard.Summary.ToolsOnly</strong><small>@GetPercentLabel(dashboard.Summary.ToolsOnly, GetToolsVsAssetsTotal())</small></div>
+                            <div><i class="blue"></i><span>Activos fijos</span><strong>@dashboard.Summary.FixedAssets</strong><small>@GetPercentLabel(dashboard.Summary.FixedAssets, GetToolsVsAssetsTotal())</small></div>
+                            <div><i class="orange"></i><span>Sin código Herramientas y AF</span><strong>@dashboard.Summary.ToolsWithoutFixedAssetCode</strong><small>@GetPercentLabel(dashboard.Summary.ToolsWithoutFixedAssetCode, GetToolsVsAssetsTotal())</small></div>
                         </div>
                     </div>
                 </article>
 
-                <div class="dash-chart-grid">
-                    <article class="dash-card dash-donut-card">
-                        <h3>Distribución de activos fijos</h3>
+                <article class="dash-card dash-donut-card dash-dashboard-chart-card">
+                    <h3>Hojas de vida</h3>
 
-                        <div class="dash-donut-row">
-                            <div class="dash-donut lg" style="@GetToolsVsAssetsDonut()">
-                                <div>
-                                    <strong>@GetToolsVsAssetsTotal().ToString("N0")</strong>
-                                    <span>Total</span>
-                                </div>
-                            </div>
-
-                            <div class="dash-legend">
-                                <div><i class="purple"></i><span>Herramientas</span><strong>@dashboard.Summary.ToolsOnly</strong><small>@GetPercentLabel(dashboard.Summary.ToolsOnly, GetToolsVsAssetsTotal())</small></div>
-                                <div><i class="blue"></i><span>Activos fijos</span><strong>@dashboard.Summary.FixedAssets</strong><small>@GetPercentLabel(dashboard.Summary.FixedAssets, GetToolsVsAssetsTotal())</small></div>
-                                <div><i class="orange"></i><span>Sin código Herramientas y AF</span><strong>@dashboard.Summary.ToolsWithoutFixedAssetCode</strong><small>@GetPercentLabel(dashboard.Summary.ToolsWithoutFixedAssetCode, GetToolsVsAssetsTotal())</small></div>
+                    <div class="dash-dashboard-donut-row">
+                        <div class="dash-donut lg" style="@GetLifeRecordDonut()">
+                            <div>
+                                <strong>@GetLifeRecordDonutTotal().ToString("N0")</strong>
+                                <span>Total</span>
                             </div>
                         </div>
-                    </article>
 
-                    <article class="dash-card dash-donut-card">
-                        <h3>Herramientas por mes</h3>
-
-                        <div class="dash-donut-row">
-                            <div class="dash-donut lg" style="@GetStatusDonut()">
-                                <div>
-                                    <strong>@GetStatusDonutTotal().ToString("N0")</strong>
-                                    <span>Total</span>
-                                </div>
-                            </div>
-
-                            <div class="dash-legend">
-                                <div><i class="purple"></i><span>Asignada</span><strong>@dashboard.Summary.AssignedTools</strong><small>@GetPercentLabel(dashboard.Summary.AssignedTools, GetStatusDonutTotal())</small></div>
-                                <div><i class="blue"></i><span>Disponible</span><strong>@dashboard.Summary.AvailableTools</strong><small>@GetPercentLabel(dashboard.Summary.AvailableTools, GetStatusDonutTotal())</small></div>
-                                <div><i class="orange"></i><span>Pendientes</span><strong>@dashboard.Summary.PendingValidationTools</strong><small>@GetPercentLabel(dashboard.Summary.PendingValidationTools, GetStatusDonutTotal())</small></div>
-                                <div><i class="red"></i><span>Técnico</span><strong>@dashboard.Summary.InMaintenanceTools</strong><small>@GetPercentLabel(dashboard.Summary.InMaintenanceTools, GetStatusDonutTotal())</small></div>
-                                <div><i class="gray"></i><span>Otras</span><strong>@GetOtherStatusTools()</strong><small>@GetPercentLabel(GetOtherStatusTools(), GetStatusDonutTotal())</small></div>
-                            </div>
+                        <div class="dash-legend">
+                            <div><i class="purple"></i><span>Con hoja</span><strong>@dashboard.Summary.WithLifeRecord</strong><small>@GetPercentLabel(dashboard.Summary.WithLifeRecord, GetLifeRecordDonutTotal())</small></div>
+                            <div><i class="blue"></i><span>Sin hoja</span><strong>@dashboard.Summary.WithoutLifeRecord</strong><small>@GetPercentLabel(dashboard.Summary.WithoutLifeRecord, GetLifeRecordDonutTotal())</small></div>
+                            <div><i class="orange"></i><span>Incompletos</span><strong>@dashboard.LifeRecordCoverage.MissingTechnicalData</strong><small>@GetPercentLabel(dashboard.LifeRecordCoverage.MissingTechnicalData, GetLifeRecordDonutTotal())</small></div>
+                            <div><i class="red"></i><span>Activos fijos</span><strong>@dashboard.Summary.FixedAssets</strong><small>@GetPercentLabel(dashboard.Summary.FixedAssets, GetLifeRecordDonutTotal())</small></div>
+                            <div><i class="gray"></i><span>Otras</span><strong>@GetOtherLifeRecords()</strong><small>@GetPercentLabel(GetOtherLifeRecords(), GetLifeRecordDonutTotal())</small></div>
                         </div>
-                    </article>
+                    </div>
+                </article>
 
-                    <article class="dash-card dash-donut-card">
-                        <h3>Hojas de vida</h3>
-
-                        <div class="dash-donut-row">
-                            <div class="dash-donut lg" style="@GetLifeRecordDonut()">
-                                <div>
-                                    <strong>@GetLifeRecordDonutTotal().ToString("N0")</strong>
-                                    <span>Total</span>
-                                </div>
-                            </div>
-
-                            <div class="dash-legend">
-                                <div><i class="purple"></i><span>Con hoja</span><strong>@dashboard.Summary.WithLifeRecord</strong><small>@GetPercentLabel(dashboard.Summary.WithLifeRecord, GetLifeRecordDonutTotal())</small></div>
-                                <div><i class="blue"></i><span>Sin hoja</span><strong>@dashboard.Summary.WithoutLifeRecord</strong><small>@GetPercentLabel(dashboard.Summary.WithoutLifeRecord, GetLifeRecordDonutTotal())</small></div>
-                                <div><i class="orange"></i><span>Incompletos</span><strong>@dashboard.LifeRecordCoverage.MissingTechnicalData</strong><small>@GetPercentLabel(dashboard.LifeRecordCoverage.MissingTechnicalData, GetLifeRecordDonutTotal())</small></div>
-                                <div><i class="red"></i><span>Activos fijos</span><strong>@dashboard.Summary.FixedAssets</strong><small>@GetPercentLabel(dashboard.Summary.FixedAssets, GetLifeRecordDonutTotal())</small></div>
-                                <div><i class="gray"></i><span>Otras</span><strong>@GetOtherLifeRecords()</strong><small>@GetPercentLabel(GetOtherLifeRecords(), GetLifeRecordDonutTotal())</small></div>
-                            </div>
-                        </div>
-                    </article>
-                </div>
-
-                <article class="dash-card dash-day">
-                    <h3>Mantenimientos por día</h3>
-
-                    <div class="dash-day-metrics">
-                        <div><strong>@dashboard.MaintenanceSummary.ThisMonth</strong><span>Por mes</span></div>
-                        <div><strong>@dashboard.MaintenanceSummary.Today</strong><span>Por día</span></div>
-                        <div><strong>@dashboard.Summary.RequiresMaintenance</strong><span>Pendientes</span></div>
+                <article class="dash-card dash-physical-card">
+                    <div>
+                        <h3>Toma física</h3>
+                        <p>@GetLatestPhysicalCountText()</p>
                     </div>
 
-                    <div class="dash-physical-row">
-                        <div>
-                            <h3>Toma física</h3>
-                            <p>Acciones rápidas para control y cierre.</p>
+                    @if (latestOpenPhysicalCount is not null)
+                    {
+                        <div class="dash-physical-current">
+                            <span>@Display(latestOpenPhysicalCount.StatusLabel)</span>
+                            <strong>@Display(latestOpenPhysicalCount.CountNumber)</strong>
+                            <small>@Display(latestOpenPhysicalCount.BranchCode) · @Display(latestOpenPhysicalCount.ResponsibleBy)</small>
                         </div>
+                    }
 
-                        <div class="dash-actions">
-                            <a href="/physical-counts">Volver</a>
-                            <a href="/physical-counts">Generar participantes</a>
-                            <a href="/physical-counts">Activar toma</a>
-                            <a href="/reconciliation">Cerrar toma</a>
-                        </div>
+                    <div class="dash-actions">
+                        <a href="@GetPhysicalCountsHref()">Ver tomas</a>
+                        <a href="@GetPhysicalParticipantsHref()">Participantes</a>
+                        <a href="@GetReconciliationHref()">Conciliación</a>
                     </div>
                 </article>
             </section>
         </section>
 
-        <section class="dash-card dash-history">
+        <section class="dash-card dash-process-summary-card">
             <div class="dash-section-head">
                 <div>
-                    <h3>Histórico de procesos</h3>
-                    <p>Últimos movimientos, desarrollos, validaciones y eventos registrados en NAVI.</p>
+                    <h3>Resumen de proceso</h3>
+                    <p>Actividad reciente del inventario según los filtros activos del dashboard.</p>
                 </div>
 
-                <span>@dashboard.RecentActivity.Count eventos</span>
+                <span>@GetProcessActivityCount() movimientos</span>
             </div>
 
-            @if (dashboard.RecentActivity.Any())
+            @if (GetProcessActivityCount() == 0)
             {
-                <div class="dash-history-list">
-                    @foreach (var item in dashboard.RecentActivity.OrderByDescending(x => x.RegisteredAt).Take(8))
-                    {
-                        <article>
-                            <div class="dash-history-icon">@GetActivityIcon(item.EventType)</div>
-                            <div>
-                                <strong>@item.Title</strong>
-                                <p>@Display(item.Description)</p>
-                                <small>@Display(item.ToolInternalCode) · @FormatDateTime(item.RegisteredAt) · @Display(item.User)</small>
-                            </div>
-                        </article>
-                    }
+                <div class="dash-process-empty">
+                    No hay movimientos recientes para los filtros activos.
                 </div>
             }
             else
             {
-                <div class="dash-history-list">
-                    <article>
-                        <div class="dash-history-icon">📊</div>
-                        <div>
-                            <strong>Dashboard ejecutivo actualizado</strong>
-                            <p>Se consolidaron indicadores, gráficos de porcentaje, barras por sede y resumen operativo.</p>
-                            <small>NAVI · Desarrollo visual</small>
-                        </div>
-                    </article>
+                <div class="dash-process-activity-list">
+                    @foreach (var activity in GetProcessActivityItems())
+                    {
+                        <article class="dash-process-activity-item">
+                            <div class="dash-process-activity-head">
+                                <div>
+                                    <span>@GetProcessActivityScope(activity)</span>
+                                    <strong>@Display(activity.Title)</strong>
+                                </div>
 
-                    <article>
-                        <div class="dash-history-icon">🧰</div>
-                        <div>
-                            <strong>Inventario y hoja de vida integrados</strong>
-                            <p>Se agrupan activos, responsables, disponibilidad, mantenimientos y trazabilidad.</p>
-                            <small>NAVI · Gestión de activos</small>
-                        </div>
-                    </article>
+                                <time>@FormatProcessDate(activity.RegisteredAt)</time>
+                            </div>
 
-                    <article>
-                        <div class="dash-history-icon">⚖️</div>
-                        <div>
-                            <strong>Conciliación y toma física</strong>
-                            <p>Se habilita seguimiento de pendientes, diferencias, validaciones y cierre de toma.</p>
-                            <small>NAVI · Control operativo</small>
-                        </div>
-                    </article>
+                            <p>@GetProcessActivitySentence(activity)</p>
+
+                            <div class="dash-process-activity-meta">
+                                <span>Usuario: @Display(activity.User)</span>
+                                <span>Activo: @Display(activity.ToolInternalCode)</span>
+                            </div>
+                        </article>
+                    }
                 </div>
             }
         </section>
@@ -4232,6 +4206,1816 @@ else if (dashboard is not null)
 
     /* NAVI DASHBOARD FINAL READABLE DISTRIBUTION END */
 
+    /* NAVI PHASE 4.25 DASHBOARD INDICATORS DISTRIBUTION 20260707 START */
+
+    html body .dash-board-v5 {
+        gap: .62rem !important;
+    }
+
+    html body .dash-board-v5 .dash-kpis {
+        grid-template-columns: repeat(6, minmax(138px, 1fr)) !important;
+        gap: .50rem !important;
+        margin: -.22rem 0 .10rem 0 !important;
+    }
+
+    html body .dash-board-v5 .dash-kpis > article {
+        position: relative !important;
+
+        height: 68px !important;
+        min-height: 68px !important;
+        max-height: 68px !important;
+
+        display: grid !important;
+        align-content: center !important;
+        gap: .10rem !important;
+
+        padding: .54rem .72rem .50rem .84rem !important;
+
+        border-radius: .62rem !important;
+        border-top-color: #dfe3e8 !important;
+        border-right-color: #dfe3e8 !important;
+        border-bottom-color: #dfe3e8 !important;
+
+        background: #ffffff !important;
+        box-shadow: 0 .08rem .24rem rgba(15, 23, 42, .045) !important;
+        overflow: hidden !important;
+    }
+
+    html body .dash-board-v5 .dash-kpis > article::after {
+        top: .46rem !important;
+        right: .56rem !important;
+        width: 18px !important;
+        height: 18px !important;
+        opacity: .72 !important;
+    }
+
+    html body .dash-board-v5 .dash-kpis > article span {
+        font-size: .58rem !important;
+        line-height: 1 !important;
+        letter-spacing: .035em !important;
+    }
+
+    html body .dash-board-v5 .dash-kpis > article strong {
+        margin-top: .02rem !important;
+        font-size: 1.12rem !important;
+        line-height: .98 !important;
+        letter-spacing: 0 !important;
+    }
+
+    html body .dash-board-v5 .dash-kpis > article small {
+        max-width: calc(100% - 22px) !important;
+        font-size: .58rem !important;
+        line-height: 1.05 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    html body .dash-board-v5 .navi-dashboard-filter-panel {
+        grid-template-columns: minmax(220px, .92fr) minmax(170px, .58fr) minmax(360px, 1.55fr) 168px !important;
+        gap: .46rem !important;
+        align-items: end !important;
+
+        margin: .10rem 0 .62rem 0 !important;
+        padding: .58rem .62rem !important;
+
+        border-radius: .72rem !important;
+        border-color: #dfe3e8 !important;
+        box-shadow: 0 .08rem .24rem rgba(15, 23, 42, .035) !important;
+    }
+
+    html body .dash-board-v5 .navi-dashboard-filter-panel label {
+        gap: .22rem !important;
+    }
+
+    html body .dash-board-v5 .navi-dashboard-filter-panel label > span {
+        color: #1d2939 !important;
+        font-size: .61rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+    }
+
+    html body .dash-board-v5 .navi-dashboard-filter-panel :where(input, select) {
+        min-height: 32px !important;
+        height: 32px !important;
+        border-radius: .48rem !important;
+        padding: .32rem .52rem !important;
+        font-size: .68rem !important;
+        font-weight: 800 !important;
+    }
+
+    html body .dash-board-v5 .navi-dashboard-filter-panel > div:last-child {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: .34rem !important;
+        width: 168px !important;
+    }
+
+    html body .dash-board-v5 .navi-dashboard-filter-panel button {
+        min-width: 0 !important;
+        min-height: 32px !important;
+        height: 32px !important;
+        padding: 0 .54rem !important;
+        border-radius: .48rem !important;
+        font-size: .64rem !important;
+        line-height: 1 !important;
+    }
+
+    html body .dash-board-v5 .dash-card {
+        border-radius: .72rem !important;
+        padding: .64rem .68rem !important;
+    }
+
+    html body .dash-board-v5 .dash-layout {
+        grid-template-columns: minmax(0, 1.02fr) minmax(0, .98fr) !important;
+        gap: .62rem !important;
+    }
+
+    html body .dash-board-v5 .dash-overview-grid {
+        grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr) minmax(0, 1fr) !important;
+        gap: .52rem !important;
+    }
+
+    html body .dash-board-v5 .dash-overview-grid > .dash-card,
+    html body .dash-board-v5 .dash-main-right > .dash-branch {
+        height: 250px !important;
+        min-height: 250px !important;
+        max-height: 250px !important;
+    }
+
+    html body .dash-board-v5 .dash-local .dash-local-list > div {
+        height: 25px !important;
+        min-height: 25px !important;
+        padding: .16rem .34rem !important;
+        border-radius: .38rem !important;
+        background: #f8fafc !important;
+        border: 1px solid #edf0f4 !important;
+    }
+
+    html body .dash-board-v5 .dash-local .dash-local-symbol {
+        width: 18px !important;
+        height: 18px !important;
+        min-width: 18px !important;
+
+        display: inline-grid !important;
+        place-items: center !important;
+
+        border-radius: 999px !important;
+        background: #ffffff !important;
+        border: 1px solid currentColor !important;
+
+        font-size: .60rem !important;
+        line-height: 1 !important;
+        font-style: normal !important;
+    }
+
+    html body .dash-board-v5 .dash-maintenance .dash-maintenance-list {
+        gap: .34rem !important;
+    }
+
+    html body .dash-board-v5 .dash-maintenance .dash-maintenance-list > div {
+        height: 31px !important;
+        min-height: 31px !important;
+        border-radius: .42rem !important;
+        background: #f8fafc !important;
+        border: 1px solid #edf0f4 !important;
+    }
+
+    html body .dash-board-v5 .dash-maintenance .dash-maintenance-summary-style {
+        min-height: 104px !important;
+        padding: .46rem .50rem !important;
+    }
+
+    html body .dash-board-v5 .dash-vs .dash-vs-content {
+        grid-template-columns: 118px minmax(0, 1fr) !important;
+        gap: .64rem !important;
+    }
+
+    html body .dash-board-v5 .dash-vs .dash-legend.compact.dash-cost-legend > div,
+    html body .dash-board-v5 .dash-main-right .dash-donut-card .dash-legend > div {
+        min-height: 24px !important;
+        padding: .08rem 0 !important;
+    }
+
+    html body .dash-board-v5 .dash-main-right > .dash-branch {
+        padding-bottom: .70rem !important;
+    }
+
+    html body .dash-board-v5 .dash-branch .dash-branch-chart {
+        height: 164px !important;
+        min-height: 164px !important;
+        margin-top: .30rem !important;
+    }
+
+    html body .dash-board-v5 .dash-branch .dash-axis,
+    html body .dash-board-v5 .dash-branch .dash-branch-bars {
+        height: 150px !important;
+        min-height: 150px !important;
+    }
+
+    html body .dash-board-v5 .dash-branch .dash-branch-bars {
+        grid-template-columns: repeat(auto-fit, minmax(44px, 1fr)) !important;
+        gap: .42rem !important;
+        padding: 1.02rem .42rem .42rem .42rem !important;
+    }
+
+    html body .dash-board-v5 .dash-branch .dash-branch-bars strong {
+        width: 24px !important;
+        min-width: 24px !important;
+        max-width: 24px !important;
+    }
+
+    html body .dash-board-v5 .dash-branch .dash-branch-bars small {
+        max-width: 68px !important;
+        font-size: .50rem !important;
+    }
+
+    html body .dash-board-v5 .dash-chart-grid {
+        gap: .62rem !important;
+    }
+
+    html body .dash-board-v5 .dash-main-right .dash-chart-grid > .dash-card:nth-child(1) {
+        min-height: 166px !important;
+    }
+
+    html body .dash-board-v5 .dash-main-right .dash-chart-grid > .dash-card:nth-child(2),
+    html body .dash-board-v5 .dash-main-right .dash-chart-grid > .dash-card:nth-child(3) {
+        min-height: 176px !important;
+    }
+
+    html body .dash-board-v5 .dash-main-right .dash-donut-card .dash-donut-row {
+        grid-template-columns: 108px minmax(0, 1fr) !important;
+        gap: .66rem !important;
+    }
+
+    html body .dash-board-v5 .dash-main-right .dash-chart-grid > .dash-card:nth-child(1) .dash-donut-row {
+        grid-template-columns: 124px minmax(0, 1fr) !important;
+        gap: .82rem !important;
+    }
+
+    html body .dash-board-v5 .dash-main-right .dash-donut-card .dash-legend > div {
+        grid-template-columns: 10px minmax(128px, 1fr) 34px 50px !important;
+        column-gap: .34rem !important;
+    }
+
+    html body .dash-board-v5 .dash-main-right .dash-chart-grid > .dash-card:nth-child(1) .dash-legend > div {
+        grid-template-columns: 10px minmax(180px, 1fr) 38px 54px !important;
+    }
+
+    html body .dash-board-v5 .dash-main-right .dash-donut-card .dash-legend i {
+        align-self: center !important;
+    }
+
+    html body .dash-board-v5 .dash-table-card {
+        min-height: 460px !important;
+    }
+
+    html body .dash-board-v5 .dash-table-card .dash-table th,
+    html body .dash-board-v5 .dash-table-card .dash-table td {
+        padding-top: .34rem !important;
+        padding-bottom: .34rem !important;
+    }
+
+    @@media (max-width: 1640px) {
+        html body .dash-board-v5 .dash-kpis {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        }
+
+        html body .dash-board-v5 .navi-dashboard-filter-panel {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        html body .dash-board-v5 .navi-dashboard-filter-panel > div:last-child {
+            width: 100% !important;
+        }
+    }
+
+    @@media (max-width: 1320px) {
+        html body .dash-board-v5 .dash-layout,
+        html body .dash-board-v5 .dash-overview-grid {
+            grid-template-columns: 1fr !important;
+        }
+
+        html body .dash-board-v5 .dash-overview-grid > .dash-card,
+        html body .dash-board-v5 .dash-main-right > .dash-branch {
+            height: auto !important;
+            max-height: none !important;
+            min-height: 0 !important;
+        }
+    }
+
+    @@media (max-width: 760px) {
+        html body .dash-board-v5 .dash-kpis,
+        html body .dash-board-v5 .navi-dashboard-filter-panel,
+        html body .dash-board-v5 .dash-chart-grid,
+        html body .dash-board-v5 .dash-main-right .dash-donut-card .dash-donut-row,
+        html body .dash-board-v5 .dash-main-right .dash-chart-grid > .dash-card:nth-child(1) .dash-donut-row {
+            grid-template-columns: 1fr !important;
+        }
+
+        html body .dash-board-v5 .dash-kpis > article {
+            height: auto !important;
+            max-height: none !important;
+        }
+    }
+
+    /* NAVI PHASE 4.25 DASHBOARD INDICATORS DISTRIBUTION 20260707 END */
+
+    /* NAVI PHASE 4.27 DASHBOARD EXECUTIVE BALANCE 20260708 START */
+
+    html body .dash-board-v5 {
+        gap: .78rem !important;
+        padding-bottom: 1rem !important;
+        --dash-border: #d9e0ea;
+        --dash-muted: #667085;
+        --dash-text: #111827;
+    }
+
+    html body .dash-board-v5 :where(h2, h3, p, span, strong, small, th, td, button, input, select) {
+        letter-spacing: 0 !important;
+    }
+
+    html body .dash-board-v5 .dash-kpis {
+        grid-template-columns: repeat(6, minmax(150px, 1fr)) !important;
+        gap: .62rem !important;
+        margin: 0 !important;
+    }
+
+    html body .dash-board-v5 .dash-kpis > article {
+        height: 78px !important;
+        min-height: 78px !important;
+        max-height: 78px !important;
+        align-content: center !important;
+        gap: .16rem !important;
+        padding: .72rem .9rem .68rem 1rem !important;
+        border-radius: .5rem !important;
+        border: 1px solid var(--dash-border) !important;
+        border-left-width: 5px !important;
+        background: #ffffff !important;
+        box-shadow: 0 .08rem .24rem rgba(15, 23, 42, .05) !important;
+    }
+
+    html body .dash-board-v5 .dash-kpis > article::after {
+        width: 16px !important;
+        height: 16px !important;
+        top: .72rem !important;
+        right: .72rem !important;
+        opacity: .55 !important;
+    }
+
+    html body .dash-board-v5 .dash-kpis > article span {
+        color: #475467 !important;
+        font-size: .62rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+        text-transform: uppercase !important;
+    }
+
+    html body .dash-board-v5 .dash-kpis > article strong {
+        color: var(--dash-text) !important;
+        font-size: 1.42rem !important;
+        line-height: 1 !important;
+    }
+
+    html body .dash-board-v5 .dash-kpis > article small {
+        max-width: calc(100% - 24px) !important;
+        color: var(--dash-muted) !important;
+        font-size: .64rem !important;
+        line-height: 1.1 !important;
+    }
+
+    html body .dash-board-v5 .navi-dashboard-filter-panel {
+        grid-template-columns: minmax(240px, .95fr) minmax(180px, .55fr) minmax(420px, 1.65fr) 184px !important;
+        gap: .58rem !important;
+        align-items: end !important;
+        margin: 0 !important;
+        padding: .72rem !important;
+        border: 1px solid var(--dash-border) !important;
+        border-radius: .5rem !important;
+        background: #ffffff !important;
+        box-shadow: 0 .08rem .24rem rgba(15, 23, 42, .04) !important;
+    }
+
+    html body .dash-board-v5 .navi-dashboard-filter-panel :where(input, select) {
+        height: 38px !important;
+        min-height: 38px !important;
+        border-radius: .5rem !important;
+        font-size: .76rem !important;
+    }
+
+    html body .dash-board-v5 .navi-dashboard-filter-panel > div:last-child {
+        width: 184px !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    html body .dash-board-v5 .navi-dashboard-filter-panel button {
+        height: 38px !important;
+        min-height: 38px !important;
+        border-radius: .5rem !important;
+        font-size: .70rem !important;
+    }
+
+    html body .dash-board-v5 .dash-layout {
+        grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr) !important;
+        gap: .78rem !important;
+        align-items: start !important;
+    }
+
+    html body .dash-board-v5 .dash-main-left,
+    html body .dash-board-v5 .dash-main-right {
+        display: grid !important;
+        gap: .78rem !important;
+        align-content: start !important;
+    }
+
+    html body .dash-board-v5 .dash-card {
+        border-radius: .5rem !important;
+        border-color: var(--dash-border) !important;
+        padding: .82rem .9rem !important;
+        box-shadow: 0 .08rem .24rem rgba(15, 23, 42, .045) !important;
+    }
+
+    html body .dash-board-v5 .dash-card h3 {
+        color: var(--dash-text) !important;
+        font-size: .86rem !important;
+        line-height: 1.05 !important;
+    }
+
+    html body .dash-board-v5 .dash-card p {
+        color: var(--dash-muted) !important;
+        font-size: .66rem !important;
+    }
+
+    html body .dash-board-v5 .dash-overview-grid {
+        grid-template-columns: minmax(0, .98fr) minmax(0, .96fr) minmax(0, 1.06fr) !important;
+        gap: .78rem !important;
+    }
+
+    html body .dash-board-v5 .dash-overview-grid > .dash-card {
+        height: 284px !important;
+        min-height: 284px !important;
+        max-height: 284px !important;
+        overflow: hidden !important;
+    }
+
+    html body .dash-board-v5 .dash-local .dash-local-list {
+        gap: .38rem !important;
+    }
+
+    html body .dash-board-v5 .dash-local .dash-local-list > div,
+    html body .dash-board-v5 .dash-maintenance .dash-maintenance-list > div {
+        height: 31px !important;
+        min-height: 31px !important;
+        border-radius: .5rem !important;
+        background: #f8fafc !important;
+        border: 1px solid #edf0f4 !important;
+    }
+
+    html body .dash-board-v5 .dash-local .dash-local-list span,
+    html body .dash-board-v5 .dash-maintenance .dash-maintenance-list span {
+        font-size: .62rem !important;
+    }
+
+    html body .dash-board-v5 .dash-local .dash-local-list strong,
+    html body .dash-board-v5 .dash-maintenance .dash-maintenance-list strong {
+        font-size: .72rem !important;
+        min-width: 34px !important;
+        text-align: right !important;
+    }
+
+    html body .dash-board-v5 .dash-vs .dash-vs-content {
+        grid-template-columns: 136px minmax(0, 1fr) !important;
+        gap: .9rem !important;
+        min-height: 204px !important;
+    }
+
+    html body .dash-board-v5 .dash-donut.md {
+        width: 126px !important;
+        height: 126px !important;
+    }
+
+    html body .dash-board-v5 .dash-donut.lg {
+        width: 146px !important;
+        height: 146px !important;
+    }
+
+    html body .dash-board-v5 .dash-donut::after {
+        inset: 32px !important;
+    }
+
+    html body .dash-board-v5 .dash-donut.md::after {
+        inset: 30px !important;
+    }
+
+    html body .dash-board-v5 .dash-donut > div {
+        position: relative !important;
+        z-index: 2 !important;
+        width: 58% !important;
+        height: 58% !important;
+        display: grid !important;
+        align-content: center !important;
+        justify-items: center !important;
+        text-align: center !important;
+    }
+
+    html body .dash-board-v5 .dash-donut strong {
+        display: block !important;
+        width: 100% !important;
+        text-align: center !important;
+        color: var(--dash-text) !important;
+        font-size: 1.28rem !important;
+        line-height: 1 !important;
+    }
+
+    html body .dash-board-v5 .dash-donut span {
+        display: block !important;
+        width: 100% !important;
+        text-align: center !important;
+        color: var(--dash-muted) !important;
+        font-size: .58rem !important;
+        line-height: 1.05 !important;
+    }
+
+    html body .dash-board-v5 .dash-main-right > .dash-branch {
+        height: 330px !important;
+        min-height: 330px !important;
+        max-height: 330px !important;
+        padding-bottom: .9rem !important;
+    }
+
+    html body .dash-board-v5 .dash-branch .dash-branch-chart {
+        grid-template-columns: 34px minmax(0, 1fr) !important;
+        gap: .48rem !important;
+        height: 248px !important;
+        min-height: 248px !important;
+        margin-top: .5rem !important;
+        overflow: visible !important;
+    }
+
+    html body .dash-board-v5 .dash-branch .dash-axis {
+        height: 218px !important;
+        min-height: 218px !important;
+        padding: .55rem 0 1.65rem 0 !important;
+        color: #475467 !important;
+        font-size: .62rem !important;
+        font-weight: 900 !important;
+    }
+
+    html body .dash-board-v5 .dash-branch .dash-branch-bars {
+        height: 218px !important;
+        min-height: 218px !important;
+        display: grid !important;
+        grid-template-columns: repeat(8, minmax(48px, 1fr)) !important;
+        align-items: end !important;
+        justify-items: center !important;
+        gap: .6rem !important;
+        padding: 1.9rem .55rem 1.55rem .55rem !important;
+        border-left: 1px solid #d0d5dd !important;
+        border-bottom: 1px solid #d0d5dd !important;
+        border-radius: .5rem !important;
+        background:
+            repeating-linear-gradient(to top, transparent 0, transparent 42px, rgba(102, 112, 133, .10) 43px) !important;
+        overflow: visible !important;
+    }
+
+    html body .dash-board-v5 .dash-branch .dash-branch-bar-item {
+        width: 100% !important;
+        height: 100% !important;
+        display: grid !important;
+        grid-template-rows: minmax(0, 1fr) auto !important;
+        align-items: end !important;
+        justify-items: center !important;
+        text-align: center !important;
+        overflow: visible !important;
+    }
+
+    html body .dash-board-v5 .dash-branch .dash-branch-bars strong {
+        width: 34px !important;
+        min-width: 34px !important;
+        max-width: 34px !important;
+        justify-self: center !important;
+        border-radius: .5rem .5rem 0 0 !important;
+        min-height: 10px !important;
+        overflow: visible !important;
+    }
+
+    html body .dash-board-v5 .dash-branch .dash-branch-bars strong em {
+        top: -1.65rem !important;
+        left: 50% !important;
+        min-width: 34px !important;
+        height: 22px !important;
+        display: grid !important;
+        place-items: center !important;
+        padding: 0 .34rem !important;
+        color: var(--dash-text) !important;
+        background: #ffffff !important;
+        border: 1px solid #d0d5dd !important;
+        border-radius: 999px !important;
+        font-size: .64rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+        box-shadow: 0 .12rem .32rem rgba(15, 23, 42, .08) !important;
+    }
+
+    html body .dash-board-v5 .dash-branch .dash-branch-bars small {
+        width: 100% !important;
+        max-width: 92px !important;
+        margin-top: .5rem !important;
+        color: #344054 !important;
+        font-size: .60rem !important;
+        font-weight: 850 !important;
+        line-height: 1.05 !important;
+        text-align: center !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    html body .dash-board-v5 .dash-chart-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: .78rem !important;
+    }
+
+    html body .dash-board-v5 .dash-main-right .dash-chart-grid > .dash-card:nth-child(1) {
+        grid-column: 1 / -1 !important;
+        min-height: 242px !important;
+    }
+
+    html body .dash-board-v5 .dash-main-right .dash-chart-grid > .dash-card:nth-child(2),
+    html body .dash-board-v5 .dash-main-right .dash-chart-grid > .dash-card:nth-child(3) {
+        min-height: 236px !important;
+    }
+
+    html body .dash-board-v5 .dash-main-right .dash-donut-card .dash-donut-row {
+        grid-template-columns: 162px minmax(0, 1fr) !important;
+        align-items: center !important;
+        gap: 1rem !important;
+    }
+
+    html body .dash-board-v5 .dash-main-right .dash-chart-grid > .dash-card:nth-child(1) .dash-donut-row {
+        grid-template-columns: 176px minmax(0, 1fr) !important;
+    }
+
+    html body .dash-board-v5 .dash-legend {
+        gap: .36rem !important;
+        min-width: 0 !important;
+    }
+
+    html body .dash-board-v5 .dash-legend > div,
+    html body .dash-board-v5 .dash-vs .dash-legend.compact.dash-cost-legend > div,
+    html body .dash-board-v5 .dash-main-right .dash-donut-card .dash-legend > div {
+        min-height: 30px !important;
+        display: grid !important;
+        grid-template-columns: 10px minmax(132px, 1fr) minmax(44px, max-content) minmax(48px, max-content) !important;
+        column-gap: .44rem !important;
+        align-items: center !important;
+        padding: .12rem 0 !important;
+    }
+
+    html body .dash-board-v5 .dash-main-right .dash-chart-grid > .dash-card:nth-child(1) .dash-legend > div {
+        grid-template-columns: 10px minmax(210px, 1fr) minmax(48px, max-content) minmax(54px, max-content) !important;
+    }
+
+    html body .dash-board-v5 .dash-legend i {
+        width: 10px !important;
+        height: 10px !important;
+        align-self: center !important;
+        justify-self: center !important;
+    }
+
+    html body .dash-board-v5 .dash-legend span {
+        color: #344054 !important;
+        font-size: .66rem !important;
+        font-weight: 850 !important;
+        min-width: 0 !important;
+    }
+
+    html body .dash-board-v5 .dash-legend strong {
+        color: var(--dash-text) !important;
+        font-size: .68rem !important;
+        font-weight: 950 !important;
+        text-align: right !important;
+        white-space: nowrap !important;
+    }
+
+    html body .dash-board-v5 .dash-legend small {
+        color: var(--dash-muted) !important;
+        font-size: .62rem !important;
+        font-weight: 850 !important;
+        text-align: right !important;
+        white-space: nowrap !important;
+    }
+
+    html body .dash-board-v5 .dash-table-card {
+        min-height: 520px !important;
+        overflow: hidden !important;
+    }
+
+    html body .dash-board-v5 .dash-table {
+        table-layout: fixed !important;
+        font-size: .68rem !important;
+    }
+
+    html body .dash-board-v5 .dash-table th,
+    html body .dash-board-v5 .dash-table td {
+        padding: .42rem .36rem !important;
+        text-align: center !important;
+        vertical-align: middle !important;
+    }
+
+    html body .dash-board-v5 .dash-table th:first-child,
+    html body .dash-board-v5 .dash-table td:first-child {
+        text-align: left !important;
+        width: 29% !important;
+    }
+
+    html body .dash-board-v5 .dash-progress {
+        width: 88px !important;
+        min-width: 88px !important;
+        margin: 0 auto .12rem auto !important;
+    }
+
+    html body .dash-board-v5 .dash-table td small {
+        display: block !important;
+        text-align: center !important;
+    }
+
+    @@media (max-width: 1700px) {
+        html body .dash-board-v5 .dash-layout {
+            grid-template-columns: 1fr !important;
+        }
+
+        html body .dash-board-v5 .dash-main-right > .dash-branch,
+        html body .dash-board-v5 .dash-overview-grid > .dash-card {
+            height: auto !important;
+            max-height: none !important;
+        }
+
+        html body .dash-board-v5 .dash-main-right .dash-chart-grid > .dash-card:nth-child(2),
+        html body .dash-board-v5 .dash-main-right .dash-chart-grid > .dash-card:nth-child(3) {
+            min-height: 220px !important;
+        }
+    }
+
+    @@media (max-width: 1280px) {
+        html body .dash-board-v5 .dash-kpis {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        }
+
+        html body .dash-board-v5 .navi-dashboard-filter-panel,
+        html body .dash-board-v5 .dash-overview-grid,
+        html body .dash-board-v5 .dash-chart-grid {
+            grid-template-columns: 1fr !important;
+        }
+
+        html body .dash-board-v5 .navi-dashboard-filter-panel > div:last-child {
+            width: 100% !important;
+        }
+
+        html body .dash-board-v5 .dash-main-right .dash-chart-grid > .dash-card:nth-child(1) {
+            grid-column: auto !important;
+        }
+
+        html body .dash-board-v5 .dash-main-right .dash-donut-card .dash-donut-row,
+        html body .dash-board-v5 .dash-main-right .dash-chart-grid > .dash-card:nth-child(1) .dash-donut-row {
+            grid-template-columns: 170px minmax(0, 1fr) !important;
+        }
+    }
+
+    @@media (max-width: 760px) {
+        html body .dash-board-v5 .dash-kpis,
+        html body .dash-board-v5 .dash-main-right .dash-donut-card .dash-donut-row,
+        html body .dash-board-v5 .dash-main-right .dash-chart-grid > .dash-card:nth-child(1) .dash-donut-row {
+            grid-template-columns: 1fr !important;
+        }
+
+        html body .dash-board-v5 .dash-kpis > article {
+            height: auto !important;
+            min-height: 72px !important;
+            max-height: none !important;
+        }
+
+        html body .dash-board-v5 .dash-donut {
+            justify-self: center !important;
+        }
+
+        html body .dash-board-v5 .dash-branch .dash-branch-bars {
+            grid-template-columns: repeat(4, minmax(48px, 1fr)) !important;
+            height: auto !important;
+            min-height: 260px !important;
+            align-items: end !important;
+        }
+    }
+
+    /* NAVI PHASE 4.27 DASHBOARD EXECUTIVE BALANCE 20260708 END */
+
+    /* NAVI PHASE 4.28 DASHBOARD 40 30 30 STRUCTURE 20260708 START */
+
+    html body .dash-board-v5 .dash-executive-grid {
+        display: grid !important;
+        grid-template-columns: minmax(0, 40fr) minmax(0, 30fr) minmax(0, 30fr) !important;
+        gap: .78rem !important;
+        align-items: stretch !important;
+        margin-top: 0 !important;
+    }
+
+    html body .dash-board-v5 .dash-executive-column {
+        min-width: 0 !important;
+        display: grid !important;
+        grid-template-rows: minmax(218px, 1fr) minmax(218px, 1fr) minmax(154px, .66fr) !important;
+        gap: .78rem !important;
+        align-items: stretch !important;
+    }
+
+    html body .dash-board-v5 .dash-executive-column-primary .dash-branch-triple-card {
+        grid-row: 1 / span 2 !important;
+    }
+
+    html body .dash-board-v5 .dash-executive-column-primary .dash-branch-summary-card {
+        grid-row: 3 !important;
+    }
+
+    html body .dash-board-v5 .dash-executive-grid .dash-card {
+        min-width: 0 !important;
+        height: 100% !important;
+        min-height: 0 !important;
+        border-radius: .5rem !important;
+        overflow: hidden !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-triple-card,
+    html body .dash-board-v5 .dash-branch-summary-card,
+    html body .dash-board-v5 .dash-dashboard-chart-card,
+    html body .dash-board-v5 .dash-maintenance-day-card,
+    html body .dash-board-v5 .dash-physical-card {
+        display: grid !important;
+        align-content: stretch !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-triple-card {
+        grid-template-rows: auto minmax(0, 1fr) auto !important;
+        gap: .58rem !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-triple-chart {
+        min-height: 0 !important;
+        display: grid !important;
+        grid-template-columns: 34px minmax(0, 1fr) !important;
+        gap: .52rem !important;
+        align-items: stretch !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-triple-chart .dash-axis {
+        height: auto !important;
+        min-height: 0 !important;
+        padding: 1.7rem 0 2.25rem 0 !important;
+        color: #475467 !important;
+        font-size: .62rem !important;
+        font-weight: 900 !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-triple-bars {
+        min-width: 0 !important;
+        min-height: 0 !important;
+        display: grid !important;
+        grid-template-columns: repeat(8, minmax(44px, 1fr)) !important;
+        gap: .42rem !important;
+        align-items: stretch !important;
+        padding: 1.85rem .58rem .72rem .58rem !important;
+        border-left: 1px solid #d0d5dd !important;
+        border-bottom: 1px solid #d0d5dd !important;
+        border-radius: .5rem !important;
+        background:
+            repeating-linear-gradient(to top, transparent 0, transparent 42px, rgba(102, 112, 133, .10) 43px) !important;
+        overflow: visible !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-triple-group {
+        min-width: 0 !important;
+        height: 100% !important;
+        display: grid !important;
+        grid-template-rows: minmax(0, 1fr) auto auto !important;
+        gap: .16rem !important;
+        align-items: end !important;
+        justify-items: center !important;
+        overflow: visible !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-triple-barset {
+        width: 100% !important;
+        height: 100% !important;
+        min-height: 0 !important;
+        display: grid !important;
+        grid-template-columns: repeat(3, minmax(8px, 1fr)) !important;
+        gap: .16rem !important;
+        align-items: end !important;
+        justify-items: center !important;
+        overflow: visible !important;
+    }
+
+    html body .dash-board-v5 .dash-triple-bar {
+        position: relative !important;
+        width: 100% !important;
+        max-width: 18px !important;
+        min-height: 8px !important;
+        align-self: end !important;
+        border-radius: .38rem .38rem 0 0 !important;
+        box-shadow: 0 -.18rem .46rem rgba(15, 23, 42, .10) !important;
+    }
+
+    html body .dash-board-v5 .dash-triple-bar.total {
+        background: #7b0d8e !important;
+    }
+
+    html body .dash-board-v5 .dash-triple-bar.assigned {
+        background: #2186d9 !important;
+    }
+
+    html body .dash-board-v5 .dash-triple-bar.available {
+        background: #16a34a !important;
+    }
+
+    html body .dash-board-v5 .dash-triple-bar em {
+        position: absolute !important;
+        left: 50% !important;
+        top: -1.42rem !important;
+        min-width: 24px !important;
+        height: 18px !important;
+        display: grid !important;
+        place-items: center !important;
+        transform: translateX(-50%) !important;
+        border: 1px solid #d0d5dd !important;
+        border-radius: 999px !important;
+        background: #ffffff !important;
+        color: #111827 !important;
+        font-size: .56rem !important;
+        font-style: normal !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+        box-shadow: 0 .10rem .28rem rgba(15, 23, 42, .08) !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-triple-group > span {
+        width: 100% !important;
+        color: #111827 !important;
+        font-size: .58rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+        text-align: center !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-triple-group > small {
+        width: 100% !important;
+        color: #667085 !important;
+        font-size: .52rem !important;
+        font-weight: 800 !important;
+        line-height: 1 !important;
+        text-align: center !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    html body .dash-board-v5 .dash-triple-legend {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: .46rem .72rem !important;
+        align-items: center !important;
+        justify-content: center !important;
+        min-height: 22px !important;
+        padding-top: .12rem !important;
+    }
+
+    html body .dash-board-v5 .dash-triple-legend span {
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: .28rem !important;
+        color: #475467 !important;
+        font-size: .62rem !important;
+        font-weight: 850 !important;
+        line-height: 1 !important;
+        white-space: nowrap !important;
+    }
+
+    html body .dash-board-v5 .dash-triple-legend i {
+        width: 10px !important;
+        height: 10px !important;
+        border-radius: 999px !important;
+        display: inline-block !important;
+    }
+
+    html body .dash-board-v5 .dash-triple-legend i.total {
+        background: #7b0d8e !important;
+    }
+
+    html body .dash-board-v5 .dash-triple-legend i.assigned {
+        background: #2186d9 !important;
+    }
+
+    html body .dash-board-v5 .dash-triple-legend i.available {
+        background: #16a34a !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-summary-card {
+        grid-template-rows: auto minmax(0, 1fr) !important;
+        gap: .46rem !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-summary-card .dash-section-head {
+        margin-bottom: 0 !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-summary-table {
+        table-layout: fixed !important;
+        width: 100% !important;
+        font-size: .62rem !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-summary-table th,
+    html body .dash-board-v5 .dash-branch-summary-table td {
+        padding: .34rem .22rem !important;
+        text-align: center !important;
+        vertical-align: middle !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-summary-table th:first-child,
+    html body .dash-board-v5 .dash-branch-summary-table td:first-child {
+        width: 24% !important;
+        text-align: left !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-summary-table th:last-child,
+    html body .dash-board-v5 .dash-branch-summary-table td:last-child {
+        width: 16% !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-summary-table .dash-progress {
+        width: min(100%, 76px) !important;
+        min-width: 58px !important;
+        height: 8px !important;
+        margin: 0 auto .1rem auto !important;
+    }
+
+    html body .dash-board-v5 .dash-dashboard-chart-card {
+        grid-template-rows: auto minmax(0, 1fr) !important;
+        gap: .48rem !important;
+    }
+
+    html body .dash-board-v5 .dash-dashboard-donut-row {
+        min-height: 0 !important;
+        display: grid !important;
+        grid-template-columns: 132px minmax(0, 1fr) !important;
+        gap: .74rem !important;
+        align-items: center !important;
+    }
+
+    html body .dash-board-v5 .dash-dashboard-donut-row .dash-donut.lg {
+        width: 124px !important;
+        height: 124px !important;
+        justify-self: center !important;
+    }
+
+    html body .dash-board-v5 .dash-dashboard-donut-row .dash-donut::after {
+        inset: 28px !important;
+    }
+
+    html body .dash-board-v5 .dash-dashboard-donut-row .dash-donut strong {
+        font-size: 1.06rem !important;
+    }
+
+    html body .dash-board-v5 .dash-dashboard-donut-row .dash-donut span {
+        font-size: .52rem !important;
+    }
+
+    html body .dash-board-v5 .dash-dashboard-donut-row .dash-legend {
+        gap: .25rem !important;
+    }
+
+    html body .dash-board-v5 .dash-dashboard-donut-row .dash-legend > div {
+        min-height: 24px !important;
+        grid-template-columns: 10px minmax(96px, 1fr) minmax(34px, max-content) minmax(40px, max-content) !important;
+        column-gap: .34rem !important;
+        padding: .06rem 0 !important;
+    }
+
+    html body .dash-board-v5 .dash-dashboard-donut-row .dash-legend span {
+        font-size: .60rem !important;
+    }
+
+    html body .dash-board-v5 .dash-dashboard-donut-row .dash-legend strong,
+    html body .dash-board-v5 .dash-dashboard-donut-row .dash-legend small {
+        font-size: .58rem !important;
+    }
+
+    html body .dash-board-v5 .dash-maintenance-day-card,
+    html body .dash-board-v5 .dash-physical-card {
+        grid-template-rows: auto minmax(0, 1fr) !important;
+        gap: .55rem !important;
+    }
+
+    html body .dash-board-v5 .dash-maintenance-day-card .dash-day-metrics {
+        height: 100% !important;
+        display: grid !important;
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: .48rem !important;
+        align-items: stretch !important;
+    }
+
+    html body .dash-board-v5 .dash-maintenance-day-card .dash-day-metrics > div {
+        min-height: 72px !important;
+        display: grid !important;
+        place-items: center !important;
+        border-radius: .5rem !important;
+        border: 1px solid #edf0f4 !important;
+        background: #f8fafc !important;
+        text-align: center !important;
+    }
+
+    html body .dash-board-v5 .dash-maintenance-day-card .dash-day-metrics strong {
+        color: #111827 !important;
+        font-size: 1.35rem !important;
+        line-height: 1 !important;
+    }
+
+    html body .dash-board-v5 .dash-maintenance-day-card .dash-day-metrics span {
+        color: #667085 !important;
+        font-size: .62rem !important;
+        font-weight: 850 !important;
+        line-height: 1 !important;
+    }
+
+    html body .dash-board-v5 .dash-physical-card {
+        align-content: space-between !important;
+    }
+
+    html body .dash-board-v5 .dash-physical-card p {
+        margin: .18rem 0 0 !important;
+        max-width: 32rem !important;
+    }
+
+    html body .dash-board-v5 .dash-physical-card .dash-actions {
+        display: grid !important;
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: .48rem !important;
+        align-self: end !important;
+    }
+
+    html body .dash-board-v5 .dash-physical-card .dash-actions a {
+        min-height: 40px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        border-radius: .5rem !important;
+        border: 1px solid #d0d5dd !important;
+        color: #344054 !important;
+        background: #ffffff !important;
+        font-size: .66rem !important;
+        font-weight: 900 !important;
+        text-align: center !important;
+        text-decoration: none !important;
+    }
+
+    @@media (max-width: 1580px) {
+        html body .dash-board-v5 .dash-executive-grid {
+            grid-template-columns: 1fr !important;
+        }
+
+        html body .dash-board-v5 .dash-executive-column,
+        html body .dash-board-v5 .dash-executive-column-primary {
+            grid-template-rows: none !important;
+        }
+
+        html body .dash-board-v5 .dash-executive-column-primary .dash-branch-triple-card,
+        html body .dash-board-v5 .dash-executive-column-primary .dash-branch-summary-card {
+            grid-row: auto !important;
+        }
+
+        html body .dash-board-v5 .dash-executive-grid .dash-card {
+            height: auto !important;
+            min-height: 180px !important;
+        }
+
+        html body .dash-board-v5 .dash-branch-triple-card {
+            min-height: 520px !important;
+        }
+    }
+
+    @@media (max-width: 760px) {
+        html body .dash-board-v5 .dash-branch-triple-bars {
+            grid-template-columns: repeat(2, minmax(90px, 1fr)) !important;
+            row-gap: 1.2rem !important;
+            min-height: 520px !important;
+        }
+
+        html body .dash-board-v5 .dash-dashboard-donut-row,
+        html body .dash-board-v5 .dash-maintenance-day-card .dash-day-metrics,
+        html body .dash-board-v5 .dash-physical-card .dash-actions {
+            grid-template-columns: 1fr !important;
+        }
+
+        html body .dash-board-v5 .dash-branch-summary-card {
+            overflow-x: auto !important;
+        }
+
+        html body .dash-board-v5 .dash-branch-summary-table {
+            min-width: 760px !important;
+        }
+    }
+
+    /* NAVI PHASE 4.28 DASHBOARD 40 30 30 STRUCTURE 20260708 END */
+
+    /* NAVI PHASE 4.29 DASHBOARD COMPACT PROCESS SUMMARY 20260708 START */
+
+    html body .dash-board-v5 .dash-executive-grid {
+        gap: .62rem !important;
+    }
+
+    html body .dash-board-v5 .dash-executive-column {
+        grid-template-rows: minmax(190px, .92fr) minmax(190px, .92fr) minmax(128px, .52fr) !important;
+        gap: .62rem !important;
+    }
+
+    html body .dash-board-v5 .dash-executive-grid .dash-card {
+        padding: .66rem .72rem !important;
+    }
+
+    html body .dash-board-v5 .dash-card h3 {
+        font-size: .78rem !important;
+    }
+
+    html body .dash-board-v5 .dash-card p {
+        font-size: .58rem !important;
+        line-height: 1.15 !important;
+    }
+
+    html body .dash-board-v5 .dash-section-head {
+        gap: .46rem !important;
+    }
+
+    html body .dash-board-v5 .dash-section-head > span {
+        min-height: 24px !important;
+        padding: 0 .5rem !important;
+        font-size: .56rem !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-triple-card {
+        gap: .42rem !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-triple-chart .dash-axis {
+        padding: 1.42rem 0 2rem 0 !important;
+        font-size: .56rem !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-triple-bars {
+        gap: .34rem !important;
+        padding: 1.55rem .48rem .58rem .48rem !important;
+    }
+
+    html body .dash-board-v5 .dash-triple-bar {
+        max-width: 15px !important;
+    }
+
+    html body .dash-board-v5 .dash-triple-bar em {
+        top: -1.25rem !important;
+        min-width: 22px !important;
+        height: 16px !important;
+        font-size: .50rem !important;
+    }
+
+    html body .dash-board-v5 .dash-triple-legend {
+        min-height: 18px !important;
+        gap: .34rem .55rem !important;
+        padding-top: 0 !important;
+    }
+
+    html body .dash-board-v5 .dash-triple-legend span {
+        font-size: .56rem !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-summary-card {
+        gap: .28rem !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-summary-table {
+        table-layout: fixed !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        font-size: .54rem !important;
+        line-height: 1 !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-summary-table th,
+    html body .dash-board-v5 .dash-branch-summary-table td {
+        padding: .22rem .10rem !important;
+        line-height: 1 !important;
+        white-space: nowrap !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-summary-table th:first-child,
+    html body .dash-board-v5 .dash-branch-summary-table td:first-child {
+        width: 22% !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-summary-table th:nth-child(2),
+    html body .dash-board-v5 .dash-branch-summary-table th:nth-child(3),
+    html body .dash-board-v5 .dash-branch-summary-table th:nth-child(4),
+    html body .dash-board-v5 .dash-branch-summary-table th:nth-child(5),
+    html body .dash-board-v5 .dash-branch-summary-table th:nth-child(6),
+    html body .dash-board-v5 .dash-branch-summary-table th:nth-child(7),
+    html body .dash-board-v5 .dash-branch-summary-table th:nth-child(8),
+    html body .dash-board-v5 .dash-branch-summary-table td:nth-child(2),
+    html body .dash-board-v5 .dash-branch-summary-table td:nth-child(3),
+    html body .dash-board-v5 .dash-branch-summary-table td:nth-child(4),
+    html body .dash-board-v5 .dash-branch-summary-table td:nth-child(5),
+    html body .dash-board-v5 .dash-branch-summary-table td:nth-child(6),
+    html body .dash-board-v5 .dash-branch-summary-table td:nth-child(7),
+    html body .dash-board-v5 .dash-branch-summary-table td:nth-child(8) {
+        width: 7.2% !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-summary-table th:last-child,
+    html body .dash-board-v5 .dash-branch-summary-table td:last-child {
+        width: 18% !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-summary-table .dash-branch-name strong {
+        font-size: .56rem !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-summary-table .dash-branch-name span {
+        font-size: .48rem !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-summary-table :where(.dash-pending, .dash-difference, .dash-maintenance-pill, .dash-damaged-pill, .dash-disposed-pill) {
+        min-width: 22px !important;
+        padding: .06rem .12rem !important;
+        font-size: .50rem !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-summary-table .dash-progress {
+        width: 58px !important;
+        min-width: 58px !important;
+        height: 7px !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-summary-table td small {
+        font-size: .48rem !important;
+    }
+
+    html body .dash-board-v5 .dash-dashboard-chart-card {
+        gap: .34rem !important;
+    }
+
+    html body .dash-board-v5 .dash-dashboard-donut-row {
+        grid-template-columns: 112px minmax(0, 1fr) !important;
+        gap: .58rem !important;
+    }
+
+    html body .dash-board-v5 .dash-dashboard-donut-row .dash-donut.lg {
+        width: 108px !important;
+        height: 108px !important;
+    }
+
+    html body .dash-board-v5 .dash-dashboard-donut-row .dash-donut::after {
+        inset: 25px !important;
+    }
+
+    html body .dash-board-v5 .dash-dashboard-donut-row .dash-donut strong {
+        font-size: .98rem !important;
+    }
+
+    html body .dash-board-v5 .dash-dashboard-donut-row .dash-legend {
+        gap: .18rem !important;
+    }
+
+    html body .dash-board-v5 .dash-dashboard-donut-row .dash-legend > div {
+        min-height: 21px !important;
+        grid-template-columns: 9px minmax(86px, 1fr) minmax(30px, max-content) minmax(36px, max-content) !important;
+        column-gap: .28rem !important;
+    }
+
+    html body .dash-board-v5 .dash-dashboard-donut-row .dash-legend span,
+    html body .dash-board-v5 .dash-dashboard-donut-row .dash-legend strong,
+    html body .dash-board-v5 .dash-dashboard-donut-row .dash-legend small {
+        font-size: .54rem !important;
+    }
+
+    html body .dash-board-v5 .dash-maintenance-day-card .dash-day-metrics {
+        gap: .34rem !important;
+    }
+
+    html body .dash-board-v5 .dash-maintenance-day-card .dash-day-metrics > div {
+        min-height: 58px !important;
+    }
+
+    html body .dash-board-v5 .dash-maintenance-day-card .dash-day-metrics strong {
+        font-size: 1.12rem !important;
+    }
+
+    html body .dash-board-v5 .dash-physical-card .dash-actions a {
+        min-height: 34px !important;
+        font-size: .58rem !important;
+    }
+
+    html body .dash-board-v5 .dash-process-summary-card {
+        display: grid !important;
+        gap: .62rem !important;
+        padding: .72rem .82rem !important;
+        border-radius: .5rem !important;
+        border-color: #d9e0ea !important;
+    }
+
+    html body .dash-board-v5 .dash-process-summary-grid {
+        display: grid !important;
+        grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+        gap: .54rem !important;
+    }
+
+    html body .dash-board-v5 .dash-process-summary-grid article {
+        min-width: 0 !important;
+        min-height: 70px !important;
+        display: grid !important;
+        align-content: center !important;
+        gap: .16rem !important;
+        padding: .58rem .64rem !important;
+        border: 1px solid #edf0f4 !important;
+        border-radius: .5rem !important;
+        background: #f8fafc !important;
+    }
+
+    html body .dash-board-v5 .dash-process-summary-grid span {
+        color: #475467 !important;
+        font-size: .58rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+        text-transform: uppercase !important;
+    }
+
+    html body .dash-board-v5 .dash-process-summary-grid strong {
+        color: #111827 !important;
+        font-size: 1.08rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+    }
+
+    html body .dash-board-v5 .dash-process-summary-grid small {
+        color: #667085 !important;
+        font-size: .56rem !important;
+        font-weight: 800 !important;
+        line-height: 1.1 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    @@media (max-width: 1280px) {
+        html body .dash-board-v5 .dash-process-summary-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        }
+    }
+
+    @@media (max-width: 760px) {
+        html body .dash-board-v5 .dash-process-summary-grid {
+            grid-template-columns: 1fr !important;
+        }
+    }
+
+    /* NAVI PHASE 4.29 DASHBOARD COMPACT PROCESS SUMMARY 20260708 END */
+
+    /* NAVI PHASE 4.30 DASHBOARD FILTERED PROCESS AND PHYSICAL LINKS 20260708 START */
+
+    html body .dash-board-v5 .dash-executive-column-primary {
+        grid-template-rows: minmax(156px, .52fr) minmax(356px, 1.48fr) !important;
+    }
+
+    html body .dash-board-v5 .dash-executive-column-primary .dash-branch-triple-card,
+    html body .dash-board-v5 .dash-executive-column-primary .dash-branch-summary-card {
+        grid-row: auto !important;
+    }
+
+    html body .dash-board-v5 .dash-executive-column-primary .dash-branch-triple-card {
+        gap: .28rem !important;
+    }
+
+    html body .dash-board-v5 .dash-executive-column-primary .dash-branch-triple-card .dash-section-head {
+        margin-bottom: 0 !important;
+    }
+
+    html body .dash-board-v5 .dash-executive-column-primary .dash-branch-triple-card .dash-section-head p {
+        font-size: .54rem !important;
+    }
+
+    html body .dash-board-v5 .dash-executive-column-primary .dash-branch-triple-chart {
+        grid-template-columns: 28px minmax(0, 1fr) !important;
+        gap: .36rem !important;
+    }
+
+    html body .dash-board-v5 .dash-executive-column-primary .dash-branch-triple-chart .dash-axis {
+        padding: 1.12rem 0 1.55rem 0 !important;
+        font-size: .50rem !important;
+    }
+
+    html body .dash-board-v5 .dash-executive-column-primary .dash-branch-triple-bars {
+        padding: 1.18rem .42rem .44rem .42rem !important;
+        gap: .28rem !important;
+        background:
+            repeating-linear-gradient(to top, transparent 0, transparent 32px, rgba(102, 112, 133, .10) 33px) !important;
+    }
+
+    html body .dash-board-v5 .dash-executive-column-primary .dash-triple-bar {
+        max-width: 13px !important;
+    }
+
+    html body .dash-board-v5 .dash-executive-column-primary .dash-triple-bar em {
+        top: -1rem !important;
+        height: 14px !important;
+        min-width: 20px !important;
+        font-size: .46rem !important;
+    }
+
+    html body .dash-board-v5 .dash-executive-column-primary .dash-triple-legend {
+        min-height: 15px !important;
+        gap: .24rem .46rem !important;
+    }
+
+    html body .dash-board-v5 .dash-executive-column-primary .dash-triple-legend span {
+        font-size: .50rem !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-summary-card {
+        overflow: hidden !important;
+    }
+
+    html body .dash-board-v5 .dash-branch-summary-card tbody tr {
+        height: 27px !important;
+    }
+
+    html body .dash-board-v5 .dash-physical-card {
+        grid-template-rows: auto minmax(0, 1fr) auto !important;
+        gap: .42rem !important;
+    }
+
+    html body .dash-board-v5 .dash-physical-current {
+        display: grid !important;
+        gap: .12rem !important;
+        align-content: center !important;
+        min-height: 54px !important;
+        padding: .46rem .52rem !important;
+        border: 1px solid #edf0f4 !important;
+        border-radius: .5rem !important;
+        background: #f8fafc !important;
+    }
+
+    html body .dash-board-v5 .dash-physical-current span {
+        width: fit-content !important;
+        padding: .08rem .36rem !important;
+        border-radius: 999px !important;
+        background: #edf7ff !important;
+        color: #175cd3 !important;
+        font-size: .50rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+        text-transform: uppercase !important;
+    }
+
+    html body .dash-board-v5 .dash-physical-current strong {
+        color: #101828 !important;
+        font-size: .76rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+    }
+
+    html body .dash-board-v5 .dash-physical-current small {
+        color: #667085 !important;
+        font-size: .54rem !important;
+        font-weight: 800 !important;
+        line-height: 1.1 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    html body .dash-board-v5 .dash-process-activity-list {
+        display: grid !important;
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: .54rem !important;
+    }
+
+    html body .dash-board-v5 .dash-process-activity-item {
+        min-width: 0 !important;
+        min-height: 112px !important;
+        display: grid !important;
+        grid-template-rows: auto minmax(0, 1fr) auto !important;
+        gap: .34rem !important;
+        padding: .62rem .68rem !important;
+        border: 1px solid #edf0f4 !important;
+        border-radius: .5rem !important;
+        background: #f8fafc !important;
+    }
+
+    html body .dash-board-v5 .dash-process-activity-head {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        gap: .48rem !important;
+        align-items: start !important;
+    }
+
+    html body .dash-board-v5 .dash-process-activity-head span {
+        display: block !important;
+        color: #7b0d8e !important;
+        font-size: .52rem !important;
+        font-weight: 950 !important;
+        line-height: 1 !important;
+        text-transform: uppercase !important;
+    }
+
+    html body .dash-board-v5 .dash-process-activity-head strong {
+        display: block !important;
+        margin-top: .16rem !important;
+        color: #101828 !important;
+        font-size: .68rem !important;
+        font-weight: 950 !important;
+        line-height: 1.08 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    html body .dash-board-v5 .dash-process-activity-head time {
+        color: #667085 !important;
+        font-size: .54rem !important;
+        font-weight: 850 !important;
+        line-height: 1 !important;
+        white-space: nowrap !important;
+    }
+
+    html body .dash-board-v5 .dash-process-activity-item p {
+        margin: 0 !important;
+        color: #344054 !important;
+        font-size: .60rem !important;
+        font-weight: 760 !important;
+        line-height: 1.22 !important;
+        display: -webkit-box !important;
+        -webkit-line-clamp: 2 !important;
+        -webkit-box-orient: vertical !important;
+        overflow: hidden !important;
+    }
+
+    html body .dash-board-v5 .dash-process-activity-meta {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: .24rem .42rem !important;
+        color: #475467 !important;
+        font-size: .54rem !important;
+        font-weight: 850 !important;
+        line-height: 1 !important;
+    }
+
+    html body .dash-board-v5 .dash-process-empty {
+        min-height: 86px !important;
+        display: grid !important;
+        place-items: center !important;
+        border: 1px dashed #d0d5dd !important;
+        border-radius: .5rem !important;
+        color: #667085 !important;
+        background: #f8fafc !important;
+        font-size: .64rem !important;
+        font-weight: 850 !important;
+    }
+
+    @@media (max-width: 1580px) {
+        html body .dash-board-v5 .dash-executive-column-primary {
+            grid-template-rows: none !important;
+        }
+    }
+
+    @@media (max-width: 1280px) {
+        html body .dash-board-v5 .dash-process-activity-list {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+    }
+
+    @@media (max-width: 760px) {
+        html body .dash-board-v5 .dash-process-activity-list {
+            grid-template-columns: 1fr !important;
+        }
+    }
+
+    /* NAVI PHASE 4.30 DASHBOARD FILTERED PROCESS AND PHYSICAL LINKS 20260708 END */
+
+    /* NAVI ADMIN DASHBOARD FILTERS REAL 20260709 START */
+
+    html body .dash-board-v5 .navi-dashboard-filter-panel {
+        grid-template-columns: 1.15fr .9fr 1.35fr auto !important;
+        align-items: end !important;
+    }
+
+    html body .dash-board-v5 .navi-dashboard-branch-filter {
+        position: relative !important;
+    }
+
+    html body .dash-board-v5 .navi-dashboard-filter-panel input[list] {
+        padding-right: 2rem !important;
+    }
+
+    html body .dash-board-v5 .navi-dashboard-filter-panel input[list]::-webkit-calendar-picker-indicator {
+        opacity: 1 !important;
+        cursor: pointer !important;
+    }
+
+    html body .dash-board-v5 .navi-dashboard-filter-panel input,
+    html body .dash-board-v5 .navi-dashboard-filter-panel select,
+    html body .dash-board-v5 .navi-dashboard-filter-panel button {
+        pointer-events: auto !important;
+        position: relative !important;
+        z-index: 3 !important;
+    }
+
+    @@media (max-width: 1100px) {
+        html body .dash-board-v5 .navi-dashboard-filter-panel {
+            grid-template-columns: 1fr 1fr !important;
+        }
+
+        html body .dash-board-v5 .navi-dashboard-filter-panel > div {
+            grid-column: 1 / -1 !important;
+            justify-content: flex-end !important;
+        }
+    }
+
+    @@media (max-width: 720px) {
+        html body .dash-board-v5 .navi-dashboard-filter-panel {
+            grid-template-columns: 1fr !important;
+        }
+
+        html body .dash-board-v5 .navi-dashboard-filter-panel > div {
+            justify-content: stretch !important;
+        }
+
+        html body .dash-board-v5 .navi-dashboard-filter-panel > div button {
+            width: 100% !important;
+        }
+    }
+
+    /* NAVI ADMIN DASHBOARD FILTERS REAL 20260709 END */
+
+    /* NAVI ADMIN DASHBOARD FILTERS REAL COMPILE FIX 20260709 START */
+
+    html body .dash-board-v5 .navi-dashboard-filter-panel {
+        grid-template-columns: 1.15fr .9fr 1.35fr auto !important;
+        align-items: end !important;
+    }
+
+    html body .dash-board-v5 .navi-dashboard-branch-filter {
+        position: relative !important;
+    }
+
+    html body .dash-board-v5 .navi-dashboard-filter-panel input[list] {
+        padding-right: 2rem !important;
+    }
+
+    html body .dash-board-v5 .navi-dashboard-filter-panel input[list]::-webkit-calendar-picker-indicator {
+        opacity: 1 !important;
+        cursor: pointer !important;
+    }
+
+    html body .dash-board-v5 .navi-dashboard-filter-panel input,
+    html body .dash-board-v5 .navi-dashboard-filter-panel select,
+    html body .dash-board-v5 .navi-dashboard-filter-panel button {
+        pointer-events: auto !important;
+        position: relative !important;
+        z-index: 3 !important;
+    }
+
+    @@media (max-width: 1100px) {
+        html body .dash-board-v5 .navi-dashboard-filter-panel {
+            grid-template-columns: 1fr 1fr !important;
+        }
+
+        html body .dash-board-v5 .navi-dashboard-filter-panel > div {
+            grid-column: 1 / -1 !important;
+            justify-content: flex-end !important;
+        }
+    }
+
+    @@media (max-width: 720px) {
+        html body .dash-board-v5 .navi-dashboard-filter-panel {
+            grid-template-columns: 1fr !important;
+        }
+
+        html body .dash-board-v5 .navi-dashboard-filter-panel > div {
+            justify-content: stretch !important;
+        }
+
+        html body .dash-board-v5 .navi-dashboard-filter-panel > div button {
+            width: 100% !important;
+        }
+    }
+
+    /* NAVI ADMIN DASHBOARD FILTERS REAL COMPILE FIX 20260709 END */
 </style>
 
 @code {
@@ -4239,10 +6023,13 @@ else if (dashboard is not null)
     private string? errorMessage;
     private ExecutiveDashboard? dashboard;
     private DashboardOperationCosts operationCosts = new();
+    private PhysicalCountListItem? latestOpenPhysicalCount;
     private string maintenanceTab = "month";
     private string? filterBranchCode;
     private string? filterOperationalStatus;
     private string? filterText;
+    private List<DashboardToolFilterItem> dashboardTools = new();
+    private List<DashboardBranchFilterOption> dashboardBranches = new();
 
     private readonly (string Value, string Text)[] dashboardStatusFilters =
     {
@@ -4271,8 +6058,16 @@ else if (dashboard is not null)
 
             var client = HttpClientFactory.CreateClient("NaviApi");
 
-            dashboard = await client.GetFromJsonAsync<ExecutiveDashboard>(BuildDashboardEndpoint());
+            dashboard = await client.GetFromJsonAsync<ExecutiveDashboard>("api/dashboard/executive") ?? new ExecutiveDashboard
+            {
+                GeneratedAt = DateTime.Now
+            };
+
+            await LoadDashboardFilterDataAsync(client);
+            ApplyLocalDashboardFilters();
+
             operationCosts = await LoadDashboardOperationCostsAsync(client);
+            latestOpenPhysicalCount = await LoadLatestOpenPhysicalCountAsync(client);
         }
         catch (Exception ex)
         {
@@ -4288,241 +6083,23 @@ else if (dashboard is not null)
 
 
     // NAVI DASHBOARD WEB FILTERS START
-    private void OnFilterBranchChanged(ChangeEventArgs args)
+    private Task ApplyDashboardFiltersAsync()
     {
-        filterBranchCode = args.Value?.ToString();
+        ApplyLocalDashboardFilters();
+        StateHasChanged();
+        return Task.CompletedTask;
     }
 
-    private void OnFilterStatusChanged(ChangeEventArgs args)
-    {
-        filterOperationalStatus = args.Value?.ToString();
-    }
-
-    private void OnFilterTextChanged(ChangeEventArgs args)
-    {
-        filterText = args.Value?.ToString();
-    }
-
-    private async Task ApplyDashboardFiltersAsync()
-    {
-        await LoadDashboardAsync();
-    }
-
-    private async Task ClearDashboardFiltersAsync()
+    private Task ClearDashboardFiltersAsync()
     {
         filterBranchCode = null;
         filterOperationalStatus = null;
         filterText = null;
 
-        await LoadDashboardAsync();
-    }
+        ApplyLocalDashboardFilters();
+        StateHasChanged();
 
-    private async Task<DashboardOperationCosts> LoadDashboardOperationCostsAsync(HttpClient client)
-    {
-        var result = new DashboardOperationCosts();
-
-        try
-        {
-            result.PurchaseCost = await LoadDashboardCostTotalAsync(client, "api/purchase-requests");
-            result.MaintenanceCost = await LoadDashboardCostTotalAsync(client, "api/maintenance-requests");
-        }
-        catch
-        {
-            // Los costos son apoyo visual del dashboard. No deben romper la pantalla.
-        }
-
-        return result;
-    }
-
-    private static async Task<decimal> LoadDashboardCostTotalAsync(HttpClient client, string endpoint)
-    {
-        try
-        {
-            using var response = await client.GetAsync(endpoint);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                return 0;
-            }
-
-            await using var stream = await response.Content.ReadAsStreamAsync();
-            using var document = await JsonDocument.ParseAsync(stream);
-
-            if (document.RootElement.ValueKind != JsonValueKind.Array)
-            {
-                return 0;
-            }
-
-            decimal total = 0;
-
-            foreach (var item in document.RootElement.EnumerateArray())
-            {
-                var status = GetDashboardJsonString(item, "Status", "status", "State", "state", "StatusText", "statusText");
-                var costText = GetDashboardJsonString(
-                    item,
-                    "EstimatedCostText",
-                    "estimatedCostText",
-                    "Cost",
-                    "cost",
-                    "Total",
-                    "total",
-                    "TotalBeforeTax",
-                    "totalBeforeTax",
-                    "PriceBeforeVat",
-                    "priceBeforeVat");
-
-                var cost = ParseDashboardMoney(costText);
-
-                if (cost > 0 && IsDashboardPositiveCostStatus(status))
-                {
-                    total += cost;
-                }
-            }
-
-            return total;
-        }
-        catch
-        {
-            return 0;
-        }
-    }
-
-    private static string? GetDashboardJsonString(JsonElement element, params string[] names)
-    {
-        if (element.ValueKind != JsonValueKind.Object)
-        {
-            return null;
-        }
-
-        foreach (var name in names)
-        {
-            if (!element.TryGetProperty(name, out var property))
-            {
-                continue;
-            }
-
-            if (property.ValueKind == JsonValueKind.String)
-            {
-                return property.GetString();
-            }
-
-            if (property.ValueKind == JsonValueKind.Number)
-            {
-                return property.ToString();
-            }
-        }
-
-        return null;
-    }
-
-    private static bool IsDashboardPositiveCostStatus(string? status)
-    {
-        var value = NormalizeDashboardStatus(status);
-
-        return value is "Approved"
-            or "Scheduled"
-            or "InExecution"
-            or "Executed"
-            or "Completed"
-            or "Closed"
-            or "Generated"
-            or "SentToDynamics";
-    }
-
-    private static string NormalizeDashboardStatus(string? status)
-    {
-        if (string.IsNullOrWhiteSpace(status))
-        {
-            return string.Empty;
-        }
-
-        return status.Trim() switch
-        {
-            "Aprobado" => "Approved",
-            "Aprobada" => "Approved",
-            "Programado" => "Scheduled",
-            "Programada" => "Scheduled",
-            "En ejecución" => "InExecution",
-            "Ejecutado" => "Executed",
-            "Ejecutada" => "Executed",
-            "Completado" => "Completed",
-            "Completada" => "Completed",
-            "Cerrado" => "Closed",
-            "Cerrada" => "Closed",
-            "Generado" => "Generated",
-            "Generada" => "Generated",
-            "Enviado a Dynamics" => "SentToDynamics",
-            _ => status.Trim()
-        };
-    }
-
-    private static decimal ParseDashboardMoney(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return 0;
-        }
-
-        var cleaned = Regex.Replace(value, @"[^0-9,\.\-]", string.Empty);
-
-        if (string.IsNullOrWhiteSpace(cleaned))
-        {
-            return 0;
-        }
-
-        var comma = cleaned.LastIndexOf(',');
-        var dot = cleaned.LastIndexOf('.');
-
-        if (comma >= 0 && dot >= 0)
-        {
-            cleaned = comma > dot
-                ? cleaned.Replace(".", string.Empty).Replace(",", ".")
-                : cleaned.Replace(",", string.Empty);
-        }
-        else if (dot >= 0)
-        {
-            var decimals = cleaned.Length - dot - 1;
-
-            if (decimals == 3)
-            {
-                cleaned = cleaned.Replace(".", string.Empty);
-            }
-        }
-        else if (comma >= 0)
-        {
-            var decimals = cleaned.Length - comma - 1;
-
-            cleaned = decimals == 3
-                ? cleaned.Replace(",", string.Empty)
-                : cleaned.Replace(",", ".");
-        }
-
-        return decimal.TryParse(cleaned, NumberStyles.Number, CultureInfo.InvariantCulture, out var result)
-            ? result
-            : 0;
-    }
-
-    private string BuildDashboardEndpoint()
-    {
-        var query = new List<string>();
-
-        AddDashboardQuery(query, "branchCode", filterBranchCode);
-        AddDashboardQuery(query, "operationalStatus", filterOperationalStatus);
-        AddDashboardQuery(query, "q", filterText);
-
-        return query.Count == 0
-            ? "api/dashboard/executive"
-            : $"api/dashboard/executive?{string.Join("&", query)}";
-    }
-
-    private static void AddDashboardQuery(List<string> query, string key, string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return;
-        }
-
-        query.Add($"{Uri.EscapeDataString(key)}={Uri.EscapeDataString(value.Trim())}");
+        return Task.CompletedTask;
     }
     // NAVI DASHBOARD WEB FILTERS END
 
@@ -4738,6 +6315,21 @@ else if (dashboard is not null)
         return Math.Max(0, item.Assigned + item.Loaned);
     }
 
+    private int GetBranchAvailable(BranchItem item)
+    {
+        return Math.Max(0, item.Available);
+    }
+
+    private int GetBranchAssignedPercent(BranchItem item)
+    {
+        if (item.Total <= 0)
+        {
+            return 0;
+        }
+
+        return Math.Min(100, Math.Max(0, (int)Math.Round((decimal)GetBranchAssigned(item) / item.Total * 100)));
+    }
+
     private int GetBranchPending(BranchItem item)
     {
         return Math.Max(0, item.PendingValidation);
@@ -4859,6 +6451,13 @@ else if (dashboard is not null)
         var color = colors[index % colors.Length];
 
         return $"height:{percent}%; background:{color};";
+    }
+
+    private string GetBranchTripleBarStyle(int value)
+    {
+        var percent = GetPercent(value, GetBranchChartMax());
+
+        return $"height:{percent}%;";
     }
 
     private static int GetPercent(int value, int max)
@@ -5106,9 +6705,116 @@ else if (dashboard is not null)
         return string.IsNullOrWhiteSpace(value) ? "—" : value;
     }
 
+    private static string NormalizeDashboardTextValue(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? string.Empty
+            : value.Trim().ToLowerInvariant();
+    }
+
     private static string FormatDateTime(DateTime value)
     {
         return value.ToString("dd/MM/yyyy HH:mm");
+    }
+
+    private static string FormatProcessDate(DateTime value)
+    {
+        if (value == default)
+        {
+            return "Sin fecha";
+        }
+
+        var local = value.Kind == DateTimeKind.Utc ? value.ToLocalTime() : value;
+
+        return local.Date == DateTime.Now.Date
+            ? $"Hoy {local:HH:mm}"
+            : local.ToString("dd/MM/yyyy HH:mm");
+    }
+
+    private IReadOnlyList<RecentActivityItem> GetProcessActivityItems()
+    {
+        if (dashboard is null)
+        {
+            return Array.Empty<RecentActivityItem>();
+        }
+
+        return dashboard.RecentActivity
+            .OrderByDescending(x => x.RegisteredAt)
+            .Take(6)
+            .ToList();
+    }
+
+    private int GetProcessActivityCount()
+    {
+        return dashboard?.RecentActivity.Count ?? 0;
+    }
+
+    private static string GetProcessActivityScope(RecentActivityItem activity)
+    {
+        if (!string.IsNullOrWhiteSpace(activity.ToolInternalCode))
+        {
+            return $"Activo {activity.ToolInternalCode}";
+        }
+
+        return string.IsNullOrWhiteSpace(activity.EventType)
+            ? "Proceso"
+            : activity.EventType;
+    }
+
+    private static string GetProcessActivitySentence(RecentActivityItem activity)
+    {
+        var registeredAt = activity.RegisteredAt.Kind == DateTimeKind.Utc
+            ? activity.RegisteredAt.ToLocalTime()
+            : activity.RegisteredAt;
+
+        var when = registeredAt.Date == DateTime.Now.Date
+            ? "Hoy"
+            : $"El {registeredAt:dd/MM/yyyy}";
+
+        var action = string.IsNullOrWhiteSpace(activity.Title)
+            ? "un movimiento operativo"
+            : activity.Title.Trim().TrimEnd('.');
+
+        var target = string.IsNullOrWhiteSpace(activity.ToolInternalCode)
+            ? "en el proceso"
+            : $"en el activo {activity.ToolInternalCode}";
+
+        var detail = string.IsNullOrWhiteSpace(activity.Description)
+            ? "Sin observacion adicional registrada."
+            : activity.Description.Trim();
+
+        return $"{when} se registro {action} {target}. {detail}";
+    }
+
+    private string GetLatestPhysicalCountText()
+    {
+        if (latestOpenPhysicalCount is null)
+        {
+            return "No hay toma abierta detectada. Revisa campañas registradas o conciliación general.";
+        }
+
+        return $"Última toma abierta: {Display(latestOpenPhysicalCount.CountNumber)} · {Display(latestOpenPhysicalCount.BranchCode)}.";
+    }
+
+    private string GetPhysicalCountsHref()
+    {
+        return latestOpenPhysicalCount is null
+            ? "/physical-counts"
+            : $"/physical-counts/{latestOpenPhysicalCount.Id}";
+    }
+
+    private string GetPhysicalParticipantsHref()
+    {
+        return latestOpenPhysicalCount is null
+            ? "/physical-counts"
+            : $"/physical-counts/{latestOpenPhysicalCount.Id}#participants";
+    }
+
+    private string GetReconciliationHref()
+    {
+        return latestOpenPhysicalCount is null
+            ? "/reconciliation"
+            : $"/reconciliation?physicalCountId={latestOpenPhysicalCount.Id}";
     }
 
     private static string GetActivityIcon(string? eventType)
@@ -5156,10 +6862,697 @@ else if (dashboard is not null)
 
     private sealed record BranchChartItem(BranchItem Branch, int Index);
 
+    // NAVI DASHBOARD WEB LOCAL FILTER ENGINE START
+    private async Task LoadDashboardFilterDataAsync(HttpClient client)
+    {
+        try
+        {
+            dashboardTools = await client.GetFromJsonAsync<List<DashboardToolFilterItem>>("api/tools") ?? new();
+        }
+        catch
+        {
+            dashboardTools = new();
+        }
+
+        try
+        {
+            dashboardBranches = await client.GetFromJsonAsync<List<DashboardBranchFilterOption>>("api/settings/branches") ?? new();
+        }
+        catch
+        {
+            dashboardBranches = new();
+        }
+
+        var branchOptionsFromTools = dashboardTools
+            .Where(x => !string.IsNullOrWhiteSpace(x.BranchCode) || !string.IsNullOrWhiteSpace(x.BranchName))
+            .Select(x => new DashboardBranchFilterOption
+            {
+                Code = x.BranchCode,
+                Name = x.BranchName
+            });
+
+        dashboardBranches = dashboardBranches
+            .Concat(branchOptionsFromTools)
+            .Where(x => !string.IsNullOrWhiteSpace(x.Code) || !string.IsNullOrWhiteSpace(x.Name))
+            .GroupBy(x => $"{NormalizeDashboardWebFilterText(x.Code)}|{NormalizeDashboardWebFilterText(x.Name)}")
+            .Select(x => x.First())
+            .OrderBy(x => x.Code)
+            .ThenBy(x => x.Name)
+            .ToList();
+    }
+
+    private void ApplyLocalDashboardFilters()
+    {
+        if (dashboard is null || dashboardTools.Count == 0)
+        {
+            return;
+        }
+
+        var filtered = DashboardFilteredTools.ToList();
+
+        dashboard.Summary = BuildDashboardSummary(filtered);
+        dashboard.ToolsByStatus = BuildDashboardStatusItems(filtered);
+        dashboard.ToolsByBranch = BuildDashboardBranchItems(filtered);
+        dashboard.GeneratedAt = DateTime.Now;
+    }
+
+    private IEnumerable<DashboardToolFilterItem> DashboardFilteredTools =>
+        dashboardTools
+            .Where(MatchesDashboardToolFilters)
+            .OrderBy(x => x.BranchCode)
+            .ThenBy(x => x.InternalCode)
+            .ThenBy(x => x.SerialNumber);
+
+    private bool MatchesDashboardToolFilters(DashboardToolFilterItem tool)
+    {
+        if (!string.IsNullOrWhiteSpace(filterBranchCode))
+        {
+            var branch = filterBranchCode;
+
+            if (!ContainsDashboardWebFilterText(tool.BranchCode, branch) &&
+                !ContainsDashboardWebFilterText(tool.BranchName, branch))
+            {
+                return false;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(filterOperationalStatus))
+        {
+            if (!SameDashboardWebFilterText(tool.OperationalStatus, filterOperationalStatus) &&
+                !SameDashboardWebFilterText(GetDashboardWebStatusLabel(tool.OperationalStatus), filterOperationalStatus))
+            {
+                return false;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(filterText))
+        {
+            var text = filterText;
+
+            if (!ContainsDashboardWebFilterText(tool.InternalCode, text) &&
+                !ContainsDashboardWebFilterText(tool.Name, text) &&
+                !ContainsDashboardWebFilterText(tool.SerialNumber, text) &&
+                !ContainsDashboardWebFilterText(tool.FixedAssetCode, text) &&
+                !ContainsDashboardWebFilterText(tool.FenixCode, text) &&
+                !ContainsDashboardWebFilterText(tool.BranchCode, text) &&
+                !ContainsDashboardWebFilterText(tool.BranchName, text) &&
+                !ContainsDashboardWebFilterText(tool.LocationName, text) &&
+                !ContainsDashboardWebFilterText(tool.ResponsiblePersonName, text) &&
+                !ContainsDashboardWebFilterText(tool.PhysicalStatus, text) &&
+                !ContainsDashboardWebFilterText(tool.OperationalStatus, text) &&
+                !ContainsDashboardWebFilterText(GetDashboardWebStatusLabel(tool.OperationalStatus), text))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private DashboardSummary BuildDashboardSummary(List<DashboardToolFilterItem> source)
+    {
+        return new DashboardSummary
+        {
+            TotalTools = source.Count,
+            AvailableTools = CountDashboardWebStatus(source, "Available"),
+            PendingValidationTools = CountDashboardWebStatus(source, "PendingValidation"),
+            AssignedTools = CountDashboardWebStatus(source, "Assigned"),
+            LoanedTools = CountDashboardWebStatus(source, "Loaned"),
+            InMaintenanceTools = CountDashboardWebStatus(source, "InMaintenance"),
+            DamagedTools = CountDashboardWebStatus(source, "Damaged"),
+            NotLocatedTools = CountDashboardWebStatus(source, "NotLocated"),
+            DisposedTools = CountDashboardWebStatus(source, "Disposed"),
+
+            FixedAssets = source.Count(x => !string.IsNullOrWhiteSpace(x.FixedAssetCode)),
+            ToolsWithoutFixedAssetCode = source.Count(x => string.IsNullOrWhiteSpace(x.FixedAssetCode)),
+            ToolsOnly = source.Count(x => string.IsNullOrWhiteSpace(x.FixedAssetCode)),
+            NonToolAssets = 0,
+            SpecializedTools = source.Count(x => x.IsSpecialized),
+            RequiresMaintenance = source.Count(x => x.RequiresMaintenance),
+
+            ActiveResponsibles = source
+                .Select(x => x.ResponsiblePersonId?.ToString() ?? NormalizeDashboardWebFilterText(x.ResponsiblePersonName))
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count(),
+
+            InactiveResponsibles = 0,
+
+            ActiveBranches = source
+                .Select(x => NormalizeDashboardWebFilterText(x.BranchCode ?? x.BranchName))
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count(),
+
+            InactiveBranches = 0,
+
+            WithLifeRecord = source.Count(HasDashboardWebLifeRecord),
+            WithoutLifeRecord = source.Count(x => !HasDashboardWebLifeRecord(x))
+        };
+    }
+
+    private List<StatusItem> BuildDashboardStatusItems(List<DashboardToolFilterItem> source)
+    {
+        return source
+            .GroupBy(x => string.IsNullOrWhiteSpace(x.OperationalStatus) ? "Sin estado" : x.OperationalStatus)
+            .Select(x => new StatusItem
+            {
+                Status = x.Key,
+                Count = x.Count()
+            })
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Status)
+            .ToList();
+    }
+
+    private List<BranchItem> BuildDashboardBranchItems(List<DashboardToolFilterItem> source)
+    {
+        return source
+            .GroupBy(x => new
+            {
+                Code = string.IsNullOrWhiteSpace(x.BranchCode) ? "-" : x.BranchCode!,
+                Name = string.IsNullOrWhiteSpace(x.BranchName)
+                    ? (string.IsNullOrWhiteSpace(x.BranchCode) ? "-" : x.BranchCode!)
+                    : x.BranchName!
+            })
+            .Select(x => new BranchItem
+            {
+                BranchCode = x.Key.Code,
+                BranchName = x.Key.Name,
+                Total = x.Count(),
+                Available = CountDashboardWebStatus(x, "Available"),
+                Assigned = CountDashboardWebStatus(x, "Assigned"),
+                Loaned = CountDashboardWebStatus(x, "Loaned"),
+                PendingValidation = CountDashboardWebStatus(x, "PendingValidation"),
+                InMaintenance = CountDashboardWebStatus(x, "InMaintenance"),
+                Damaged = CountDashboardWebStatus(x, "Damaged"),
+                NotLocated = CountDashboardWebStatus(x, "NotLocated"),
+                Disposed = CountDashboardWebStatus(x, "Disposed")
+            })
+            .OrderByDescending(x => x.Total)
+            .ThenBy(x => x.BranchCode)
+            .ToList();
+    }
+
+    private static int CountDashboardWebStatus(IEnumerable<DashboardToolFilterItem> source, string status)
+    {
+        return source.Count(x => SameDashboardWebFilterText(x.OperationalStatus, status));
+    }
+
+    private static bool HasDashboardWebLifeRecord(DashboardToolFilterItem item)
+    {
+        return item.HasLifeRecord == true ||
+               item.LifeRecordId.HasValue ||
+               !string.IsNullOrWhiteSpace(item.LifeRecordCode);
+    }
+
+    private static bool ContainsDashboardWebFilterText(string? value, string? expected)
+    {
+        var source = NormalizeDashboardWebFilterText(value);
+        var filter = NormalizeDashboardWebFilterText(expected);
+
+        return !string.IsNullOrWhiteSpace(source) &&
+               !string.IsNullOrWhiteSpace(filter) &&
+               source.Contains(filter, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool SameDashboardWebFilterText(string? left, string? right)
+    {
+        var a = NormalizeDashboardWebFilterText(left);
+        var b = NormalizeDashboardWebFilterText(right);
+
+        return !string.IsNullOrWhiteSpace(a) &&
+               !string.IsNullOrWhiteSpace(b) &&
+               string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeDashboardWebFilterText(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? string.Empty
+            : value.Trim();
+    }
+
+    private static string GetDashboardWebStatusLabel(string? status)
+    {
+        return status switch
+        {
+            "Available" => "Disponible",
+            "Assigned" => "Asignada",
+            "Loaned" => "Prestada",
+            "InMaintenance" => "En mantenimiento",
+            "Damaged" => "Dañada",
+            "NotSuitable" => "No apta",
+            "PendingValidation" => "Pendiente validación",
+            "NotLocated" => "No localizada",
+            "Disposed" => "Baja",
+            _ => string.IsNullOrWhiteSpace(status) ? "-" : status
+        };
+    }
+    // NAVI DASHBOARD WEB LOCAL FILTER ENGINE END
+    private async Task<DashboardOperationCosts> LoadDashboardOperationCostsAsync(HttpClient client)
+    {
+        var result = new DashboardOperationCosts();
+
+        try
+        {
+            result.PurchaseCost = await LoadNaviDashboardCostTotalAsync(client, "api/purchase-requests");
+            result.MaintenanceCost = await LoadNaviDashboardCostTotalAsync(client, "api/maintenance-requests");
+        }
+        catch
+        {
+            // Los costos son apoyo visual del dashboard. No deben romper la pantalla.
+        }
+
+        return result;
+    }
+
+
+    // NAVI ADMIN DASHBOARD COSTS RESTORE START
+    private async Task<decimal> LoadNaviDashboardCostTotalAsync(HttpClient client, string endpoint)
+    {
+        try
+        {
+            using var response = await client.GetAsync(endpoint);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return 0;
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync();
+            using var document = await JsonDocument.ParseAsync(stream);
+
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                return 0;
+            }
+
+            decimal total = 0;
+
+            foreach (var item in document.RootElement.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                if (!MatchesNaviDashboardCostFilters(item))
+                {
+                    continue;
+                }
+
+                var status = GetNaviDashboardJsonString(
+                    item,
+                    "Status",
+                    "status",
+                    "State",
+                    "state",
+                    "StatusLabel",
+                    "statusLabel",
+                    "StatusText",
+                    "statusText",
+                    "RequestStatus",
+                    "requestStatus");
+
+                if (!IsNaviDashboardPositiveCostStatus(status))
+                {
+                    continue;
+                }
+
+                var costText = GetNaviDashboardJsonString(
+                    item,
+                    "EstimatedCostText",
+                    "estimatedCostText",
+                    "EstimatedCost",
+                    "estimatedCost",
+                    "Cost",
+                    "cost",
+                    "Total",
+                    "total",
+                    "TotalCost",
+                    "totalCost",
+                    "TotalBeforeTax",
+                    "totalBeforeTax",
+                    "PriceBeforeVat",
+                    "priceBeforeVat",
+                    "Amount",
+                    "amount",
+                    "Value",
+                    "value");
+
+                var cost = ParseNaviDashboardMoney(costText);
+
+                if (cost > 0)
+                {
+                    total += cost;
+                }
+            }
+
+            return total;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    private bool MatchesNaviDashboardCostFilters(JsonElement item)
+    {
+        if (!string.IsNullOrWhiteSpace(filterBranchCode))
+        {
+            var branch = NormalizeNaviDashboardCostText(filterBranchCode);
+
+            if (!NaviDashboardJsonContainsAny(
+                item,
+                branch,
+                "BranchCode",
+                "branchCode",
+                "BranchName",
+                "branchName",
+                "Sede",
+                "sede",
+                "ToolBranchCode",
+                "toolBranchCode",
+                "ToolBranchName",
+                "toolBranchName"))
+            {
+                return false;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(filterOperationalStatus))
+        {
+            var status = NormalizeNaviDashboardCostText(filterOperationalStatus);
+
+            if (!NaviDashboardJsonContainsAny(
+                item,
+                status,
+                "Status",
+                "status",
+                "State",
+                "state",
+                "StatusLabel",
+                "statusLabel",
+                "StatusText",
+                "statusText",
+                "RequestStatus",
+                "requestStatus"))
+            {
+                return false;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(filterText))
+        {
+            var text = NormalizeNaviDashboardCostText(filterText);
+
+            if (!NaviDashboardJsonContainsAny(
+                item,
+                text,
+                "RequestNumber",
+                "requestNumber",
+                "MaintenanceNumber",
+                "maintenanceNumber",
+                "PurchaseNumber",
+                "purchaseNumber",
+                "ToolInternalCode",
+                "toolInternalCode",
+                "InternalCode",
+                "internalCode",
+                "ToolName",
+                "toolName",
+                "Name",
+                "name",
+                "ItemCode",
+                "itemCode",
+                "ItemName",
+                "itemName",
+                "ItemDescription",
+                "itemDescription",
+                "RequestedByUserName",
+                "requestedByUserName",
+                "RequestedByResponsiblePersonName",
+                "requestedByResponsiblePersonName",
+                "ResponsiblePersonName",
+                "responsiblePersonName",
+                "PreparedBy",
+                "preparedBy",
+                "BranchCode",
+                "branchCode",
+                "BranchName",
+                "branchName",
+                "Status",
+                "status",
+                "StatusLabel",
+                "statusLabel",
+                "Provider",
+                "provider",
+                "Supplier",
+                "supplier",
+                "Technician",
+                "technician",
+                "Description",
+                "description"))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool NaviDashboardJsonContainsAny(JsonElement item, string search, params string[] names)
+    {
+        if (string.IsNullOrWhiteSpace(search))
+        {
+            return true;
+        }
+
+        foreach (var name in names)
+        {
+            var value = GetNaviDashboardJsonString(item, name);
+
+            if (NormalizeNaviDashboardCostText(value).Contains(search, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string? GetNaviDashboardJsonString(JsonElement item, params string[] names)
+    {
+        if (item.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        foreach (var name in names)
+        {
+            if (!item.TryGetProperty(name, out var value))
+            {
+                continue;
+            }
+
+            if (value.ValueKind == JsonValueKind.String)
+            {
+                return value.GetString();
+            }
+
+            if (value.ValueKind == JsonValueKind.Number)
+            {
+                if (value.TryGetDecimal(out var decimalValue))
+                {
+                    return decimalValue.ToString(CultureInfo.InvariantCulture);
+                }
+
+                if (value.TryGetInt64(out var integerValue))
+                {
+                    return integerValue.ToString(CultureInfo.InvariantCulture);
+                }
+            }
+
+            if (value.ValueKind == JsonValueKind.True)
+            {
+                return "true";
+            }
+
+            if (value.ValueKind == JsonValueKind.False)
+            {
+                return "false";
+            }
+        }
+
+        return null;
+    }
+
+    private static decimal ParseNaviDashboardMoney(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return 0;
+        }
+
+        var clean = value
+            .Replace("COP", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("$", "", StringComparison.OrdinalIgnoreCase)
+            .Replace(" ", "", StringComparison.OrdinalIgnoreCase)
+            .Trim();
+
+        if (string.IsNullOrWhiteSpace(clean))
+        {
+            return 0;
+        }
+
+        var cultures = new[]
+        {
+            new CultureInfo("es-CO"),
+            CultureInfo.InvariantCulture,
+            CultureInfo.CurrentCulture
+        };
+
+        foreach (var culture in cultures)
+        {
+            if (decimal.TryParse(clean, NumberStyles.Any, culture, out var parsed))
+            {
+                return parsed;
+            }
+        }
+
+        clean = clean.Replace(".", "").Replace(",", ".");
+
+        return decimal.TryParse(clean, NumberStyles.Any, CultureInfo.InvariantCulture, out var fallback)
+            ? fallback
+            : 0;
+    }
+
+    private static bool IsNaviDashboardPositiveCostStatus(string? status)
+    {
+        var value = NormalizeNaviDashboardCostText(status);
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return true;
+        }
+
+        var blocked = new[]
+        {
+            "rechaz",
+            "cancel",
+            "anulad",
+            "elimin",
+            "void",
+            "reject",
+            "denied",
+            "baja"
+        };
+
+        return !blocked.Any(value.Contains);
+    }
+
+    private static string NormalizeNaviDashboardCostText(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? string.Empty
+            : value.Trim().ToLowerInvariant();
+    }
+    // NAVI ADMIN DASHBOARD COSTS RESTORE END
+    private async Task<PhysicalCountListItem?> LoadLatestOpenPhysicalCountAsync(HttpClient client)
+    {
+        try
+        {
+            using var response = await client.GetAsync("api/physical-counts");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            var items = await response.Content.ReadFromJsonAsync<List<PhysicalCountListItem>>() ?? new();
+
+            return items
+                .Where(x =>
+                    ContainsNaviPhysicalStatus(x.StatusLabel, "abierta") ||
+                    ContainsNaviPhysicalStatus(x.StatusLabel, "open") ||
+                    ContainsNaviPhysicalStatus(x.StatusLabel, "proceso") ||
+                    ContainsNaviPhysicalStatus(x.StatusLabel, "active") ||
+                    ContainsNaviPhysicalStatus(x.StatusLabel, "pendiente"))
+                .OrderByDescending(x => x.CreatedAt)
+                .FirstOrDefault();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static bool ContainsNaviPhysicalStatus(string? value, string expected)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+               value.Contains(expected, StringComparison.OrdinalIgnoreCase);
+    }
+
+
     private sealed class DashboardOperationCosts
     {
         public decimal PurchaseCost { get; set; }
         public decimal MaintenanceCost { get; set; }
+    }
+
+    private sealed class PhysicalCountListItem
+    {
+        public Guid Id { get; set; }
+        public string? CountNumber { get; set; }
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string? Status { get; set; }
+        public string? StatusLabel { get; set; }
+        public DateTime? StartedAt { get; set; }
+        public DateTime? FinishedAt { get; set; }
+        public string? ResponsibleBy { get; set; }
+        public DateTime? CreatedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
+    }
+
+    private sealed class DashboardToolFilterItem
+    {
+        public Guid Id { get; set; }
+        public string InternalCode { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string? Brand { get; set; }
+        public string? Model { get; set; }
+        public string? SerialNumber { get; set; }
+        public string? FixedAssetCode { get; set; }
+        public string? FenixCode { get; set; }
+        public bool IsSpecialized { get; set; }
+        public bool RequiresMaintenance { get; set; }
+        public string OperationalStatus { get; set; } = string.Empty;
+        public string? PhysicalStatus { get; set; }
+        public string? CustodyStatus { get; set; }
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string? LocationName { get; set; }
+        public Guid? ResponsiblePersonId { get; set; }
+        public string? ResponsiblePersonName { get; set; }
+        public bool? HasLifeRecord { get; set; }
+        public Guid? LifeRecordId { get; set; }
+        public string? LifeRecordCode { get; set; }
+    }
+
+    private sealed class DashboardBranchFilterOption
+    {
+        public string? Code { get; set; }
+        public string? Name { get; set; }
+
+        public string Label =>
+            string.IsNullOrWhiteSpace(Code)
+                ? (string.IsNullOrWhiteSpace(Name) ? "-" : Name!)
+                : string.IsNullOrWhiteSpace(Name)
+                    ? Code!
+                    : $"{Code} - {Name}";
     }
 
     private sealed class ExecutiveDashboard

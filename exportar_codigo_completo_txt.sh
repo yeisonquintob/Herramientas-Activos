@@ -1,226 +1,203 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/zsh
 
-PROJECT_ROOT="/Users/luu/Desktop/Proyecto_Navi/Projects/Herramientas-Activos"
+set -e
+
+ROOT_DIR="$(pwd)"
+EXPORT_DIR="$ROOT_DIR/export_codigo"
 STAMP="$(date +%Y%m%d_%H%M%S)"
-OUT_DIR="$PROJECT_ROOT/export_codigo"
-OUT_FILE="$OUT_DIR/PROYECTO_CODIGO_COMPLETO_$STAMP.txt"
+OUT_FILE="$EXPORT_DIR/PROYECTO_CODIGO_COMPLETO_${STAMP}.txt"
 
-cd "$PROJECT_ROOT"
-mkdir -p "$OUT_DIR"
+mkdir -p "$EXPORT_DIR"
 
 echo "============================================================"
-echo "Exportando código completo del proyecto NAVI"
-echo "Salida: $OUT_FILE"
+echo "EXPORTANDO CÓDIGO COMPLETO DEL PROYECTO NAVI"
 echo "============================================================"
-
-cat > "$OUT_FILE" <<HEADER
-################################################################################
-PROYECTO: NAVI Herramientas & Activos / Fenix365
-FECHA EXPORTACIÓN: $(date)
-RUTA PROYECTO: $PROJECT_ROOT
-ARCHIVO GENERADO: $OUT_FILE
-################################################################################
-
-IMPORTANTE:
-- Se excluyen carpetas pesadas o generadas: bin, obj, .git, node_modules, backups, export_codigo, etc.
-- Se excluyen binarios: .bak, .zip, .png, .jpg, .pdf, .dll, .exe, etc.
-- Se enmascaran posibles secretos: passwords, tokens, keys, secrets y connection strings.
-
-################################################################################
-ESTRUCTURA DEL PROYECTO
-################################################################################
-
-HEADER
-
-find . \
-  -path "./.git" -prune -o \
-  -path "./bin" -prune -o \
-  -path "./obj" -prune -o \
-  -path "./.vs" -prune -o \
-  -path "./.idea" -prune -o \
-  -path "./node_modules" -prune -o \
-  -path "./export_codigo" -prune -o \
-  -path "./backups" -prune -o \
-  -path "./backups_*" -prune -o \
-  -path "./backups_patch_*" -prune -o \
-  -path "./backups_fix_*" -prune -o \
-  -path "./backups_vistas_*" -prune -o \
-  -path "./backups_flujo_*" -prune -o \
-  -path "./backups_estado_*" -prune -o \
-  -path "./backups_ajustes_*" -prune -o \
-  -path "./TestResults" -prune -o \
-  -path "./coverage" -prune -o \
-  -path "./publish" -prune -o \
-  -type f \
-  ! -name "*.bak" \
-  ! -name "*.zip" \
-  ! -name "*.7z" \
-  ! -name "*.rar" \
-  ! -name "*.tar" \
-  ! -name "*.gz" \
-  ! -name "*.png" \
-  ! -name "*.jpg" \
-  ! -name "*.jpeg" \
-  ! -name "*.gif" \
-  ! -name "*.webp" \
-  ! -name "*.ico" \
-  ! -name "*.pdf" \
-  ! -name "*.docx" \
-  ! -name "*.xlsx" \
-  ! -name "*.pptx" \
-  ! -name "*.dll" \
-  ! -name "*.exe" \
-  ! -name "*.pdb" \
-  ! -name "*.cache" \
-  ! -name "*.db" \
-  ! -name "*.sqlite" \
-  ! -name "*.mdf" \
-  ! -name "*.ldf" \
-  -print | sort >> "$OUT_FILE"
-
-cat >> "$OUT_FILE" <<'SECTION'
-
-################################################################################
-INFORMACIÓN GIT
-################################################################################
-
-SECTION
+echo "Ruta proyecto: $ROOT_DIR"
+echo "Carpeta salida: $EXPORT_DIR"
+echo "Archivo salida: $OUT_FILE"
+echo ""
 
 {
-  echo "Branch actual:"
-  git branch --show-current 2>/dev/null || true
+  echo "################################################################################"
+  echo "PROYECTO NAVI HERRAMIENTAS Y ACTIVOS"
+  echo "EXPORTADO: $(date)"
+  echo "RUTA: $ROOT_DIR"
+  echo "CARPETA EXPORT: $EXPORT_DIR"
+  echo "################################################################################"
   echo ""
-  echo "Estado:"
-  git status --short 2>/dev/null || true
+
+  echo "================================================================================"
+  echo "1. PROYECTOS INCLUIDOS"
+  echo "================================================================================"
   echo ""
-  echo "Últimos commits:"
-  git log --oneline -10 2>/dev/null || true
-} >> "$OUT_FILE"
+  echo "- API: src/Navi.ToolsAssets.Api"
+  echo "- Admin Web: src/Navi.ToolsAssets.Admin"
+  echo "- Mobile PWA: src/Navi.ToolsAssets.MobilePwa"
+  echo "- Application: src/Navi.ToolsAssets.Application"
+  echo "- Domain: src/Navi.ToolsAssets.Domain"
+  echo "- Infrastructure: src/Navi.ToolsAssets.Infrastructure"
+  echo "- Shared: src/Navi.ToolsAssets.Shared"
+  echo "- Worker: src/Navi.ToolsAssets.Worker"
+  echo "- Scripts, configuración, documentación y SQL del proyecto"
+  echo ""
 
-cat >> "$OUT_FILE" <<'SECTION'
+  echo "================================================================================"
+  echo "2. ESTRUCTURA DEL PROYECTO"
+  echo "================================================================================"
+  echo ""
 
-################################################################################
-CONTENIDO DE ARCHIVOS
-################################################################################
-
-SECTION
-
-should_include_file() {
-  local file="$1"
-
-  case "$file" in
-    *.cs|*.razor|*.cshtml|*.csproj|*.sln|*.json|*.xml|*.config|*.props|*.targets|*.yml|*.yaml|*.sql|*.md|*.txt|*.html|*.css|*.js|*.ts|*.ps1|*.sh|*.env|Dockerfile|dockerfile|*.dockerfile)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
-mask_secrets() {
-  python3 - "$1" <<'PY'
-import re
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-
-try:
-    text = path.read_text(encoding="utf-8", errors="replace")
-except Exception as exc:
-    print(f"[NO SE PUDO LEER: {exc}]")
-    sys.exit(0)
-
-patterns = [
-    r'(?i)(password\s*[:=]\s*)(".*?"|\'.*?\'|[^,\s]+)',
-    r'(?i)(pwd\s*[:=]\s*)(".*?"|\'.*?\'|[^,\s]+)',
-    r'(?i)(secret\s*[:=]\s*)(".*?"|\'.*?\'|[^,\s]+)',
-    r'(?i)(token\s*[:=]\s*)(".*?"|\'.*?\'|[^,\s]+)',
-    r'(?i)(apikey\s*[:=]\s*)(".*?"|\'.*?\'|[^,\s]+)',
-    r'(?i)(api_key\s*[:=]\s*)(".*?"|\'.*?\'|[^,\s]+)',
-    r'(?i)(accesskey\s*[:=]\s*)(".*?"|\'.*?\'|[^,\s]+)',
-    r'(?i)(access_key\s*[:=]\s*)(".*?"|\'.*?\'|[^,\s]+)',
-    r'(?i)(secretkey\s*[:=]\s*)(".*?"|\'.*?\'|[^,\s]+)',
-    r'(?i)(secret_key\s*[:=]\s*)(".*?"|\'.*?\'|[^,\s]+)',
-    r'(?i)(connectionstrings?\s*[:=]\s*)(".*?"|\'.*?\'|.+)',
-    r'(?i)(connectionstring\s*[:=]\s*)(".*?"|\'.*?\'|.+)',
-    r'(?i)(Server=.*?;.*?Password=)(.*?)(;)',
-    r'(?i)(User Id=.*?;.*?Password=)(.*?)(;)',
-]
-
-for pattern in patterns:
-    text = re.sub(pattern, lambda m: m.group(1) + "***OCULTO***" + (m.group(3) if len(m.groups()) >= 3 else ""), text)
-
-print(text)
-PY
-}
-
-while IFS= read -r file; do
-  clean_file="${file#./}"
-
-  if should_include_file "$clean_file"; then
-    {
-      echo ""
-      echo ""
-      echo "################################################################################"
-      echo "ARCHIVO: $clean_file"
-      echo "TAMAÑO: $(wc -c < "$file" | tr -d ' ') bytes"
-      echo "################################################################################"
-      echo ""
-    } >> "$OUT_FILE"
-
-    mask_secrets "$file" >> "$OUT_FILE"
-  fi
-done < <(
   find . \
-    -path "./.git" -prune -o \
-    -path "./bin" -prune -o \
-    -path "./obj" -prune -o \
-    -path "./.vs" -prune -o \
-    -path "./.idea" -prune -o \
-    -path "./node_modules" -prune -o \
-    -path "./export_codigo" -prune -o \
-    -path "./backups" -prune -o \
-    -path "./backups_*" -prune -o \
-    -path "./TestResults" -prune -o \
-    -path "./coverage" -prune -o \
-    -path "./publish" -prune -o \
-    -type f \
-    ! -name "*.bak" \
-    ! -name "*.zip" \
-    ! -name "*.7z" \
-    ! -name "*.rar" \
-    ! -name "*.tar" \
-    ! -name "*.gz" \
-    ! -name "*.png" \
-    ! -name "*.jpg" \
-    ! -name "*.jpeg" \
-    ! -name "*.gif" \
-    ! -name "*.webp" \
-    ! -name "*.ico" \
-    ! -name "*.pdf" \
-    ! -name "*.docx" \
-    ! -name "*.xlsx" \
-    ! -name "*.pptx" \
-    ! -name "*.dll" \
-    ! -name "*.exe" \
-    ! -name "*.pdb" \
-    ! -name "*.cache" \
-    ! -name "*.db" \
-    ! -name "*.sqlite" \
-    ! -name "*.mdf" \
-    ! -name "*.ldf" \
-    -print | sort
-)
+    \( \
+      -path "./.git" -o \
+      -path "./.git/*" -o \
+      -path "*/bin" -o \
+      -path "*/bin/*" -o \
+      -path "*/obj" -o \
+      -path "*/obj/*" -o \
+      -path "./backups" -o \
+      -path "./backups/*" -o \
+      -path "./backup" -o \
+      -path "./backup/*" -o \
+      -path "./local-backups" -o \
+      -path "./local-backups/*" -o \
+      -path "./tmp" -o \
+      -path "./tmp/*" -o \
+      -path "./temp" -o \
+      -path "./temp/*" -o \
+      -path "./export_codigo" -o \
+      -path "./export_codigo/*" \
+    \) -prune -o \
+    -print \
+    | sort \
+    | sed 's#^\./##' \
+    | while IFS= read -r ITEM; do
+        if [ -n "$ITEM" ]; then
+          echo "$ITEM"
+        fi
+      done
+
+  echo ""
+  echo "================================================================================"
+  echo "3. ARCHIVOS DE CÓDIGO Y CONFIGURACIÓN"
+  echo "================================================================================"
+  echo ""
+
+  find . \
+    \( \
+      -path "./.git" -o \
+      -path "./.git/*" -o \
+      -path "*/bin" -o \
+      -path "*/bin/*" -o \
+      -path "*/obj" -o \
+      -path "*/obj/*" -o \
+      -path "./backups" -o \
+      -path "./backups/*" -o \
+      -path "./backup" -o \
+      -path "./backup/*" -o \
+      -path "./local-backups" -o \
+      -path "./local-backups/*" -o \
+      -path "./tmp" -o \
+      -path "./tmp/*" -o \
+      -path "./temp" -o \
+      -path "./temp/*" -o \
+      -path "./export_codigo" -o \
+      -path "./export_codigo/*" \
+    \) -prune -o \
+    \( \
+      -type f \
+      \( \
+        -name "*.sln" -o \
+        -name "*.csproj" -o \
+        -name "*.props" -o \
+        -name "*.targets" -o \
+        -name "*.cs" -o \
+        -name "*.razor" -o \
+        -name "*.cshtml" -o \
+        -name "*.css" -o \
+        -name "*.scss" -o \
+        -name "*.html" -o \
+        -name "*.js" -o \
+        -name "*.ts" -o \
+        -name "*.json" -o \
+        -name "*.xml" -o \
+        -name "*.config" -o \
+        -name "*.md" -o \
+        -name "*.txt" -o \
+        -name "*.sql" -o \
+        -name "*.sh" -o \
+        -name "Dockerfile" -o \
+        -name "docker-compose.yml" -o \
+        -name "docker-compose.yaml" \
+      \) \
+      ! -name "*.bak" \
+      ! -name "*.bak_*" \
+      ! -name "*.before_*" \
+      ! -name "*.old" \
+      ! -name "*.tmp" \
+      ! -name "*.temp" \
+      ! -name "*.log" \
+      ! -name ".DS_Store" \
+      ! -name "PROYECTO_CODIGO_COMPLETO_*.txt" \
+    \) -print \
+    | sort \
+    | while IFS= read -r FILE; do
+        if [ -f "$FILE" ]; then
+          echo ""
+          echo "################################################################################"
+          echo "ARCHIVO: ${FILE#./}"
+          echo "TAMAÑO: $(wc -c < "$FILE" | tr -d ' ') bytes"
+          echo "################################################################################"
+          echo ""
+          cat "$FILE"
+          echo ""
+        fi
+      done
+
+  echo ""
+  echo "################################################################################"
+  echo "FIN DEL EXPORT COMPLETO"
+  echo "################################################################################"
+
+} > "$OUT_FILE"
 
 echo ""
-echo "============================================================"
-echo "EXPORTACIÓN COMPLETADA"
-echo "Archivo generado:"
+echo "Exportación finalizada correctamente:"
 echo "$OUT_FILE"
-echo "============================================================"
+
 echo ""
-echo "Tamaño:"
+echo "Tamaño del archivo:"
 ls -lh "$OUT_FILE"
+
+echo ""
+echo "Total de líneas:"
+wc -l "$OUT_FILE"
+
+echo ""
+echo "Validación rápida de contenido:"
+echo "API:"
+grep -c "ARCHIVO: src/Navi.ToolsAssets.Api" "$OUT_FILE" || true
+
+echo "Admin Web:"
+grep -c "ARCHIVO: src/Navi.ToolsAssets.Admin" "$OUT_FILE" || true
+
+echo "Mobile PWA:"
+grep -c "ARCHIVO: src/Navi.ToolsAssets.MobilePwa" "$OUT_FILE" || true
+
+echo "Application:"
+grep -c "ARCHIVO: src/Navi.ToolsAssets.Application" "$OUT_FILE" || true
+
+echo "Domain:"
+grep -c "ARCHIVO: src/Navi.ToolsAssets.Domain" "$OUT_FILE" || true
+
+echo "Infrastructure:"
+grep -c "ARCHIVO: src/Navi.ToolsAssets.Infrastructure" "$OUT_FILE" || true
+
+echo "Shared:"
+grep -c "ARCHIVO: src/Navi.ToolsAssets.Shared" "$OUT_FILE" || true
+
+echo "Worker:"
+grep -c "ARCHIVO: src/Navi.ToolsAssets.Worker" "$OUT_FILE" || true
+
+echo ""
+echo "Carpeta donde quedó guardado:"
+echo "$EXPORT_DIR"

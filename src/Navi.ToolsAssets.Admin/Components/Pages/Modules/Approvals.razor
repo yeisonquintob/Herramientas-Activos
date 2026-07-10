@@ -9,23 +9,19 @@
 
 <PermissionGuard Permission="Purchases.Approve" ModuleName="Aprobaciones">
 
-<section class="approvals-hero">
-    <div>
-        <span class="approvals-pill">FLUJO DE TRABAJO</span>
-        <h2>Aprobaciones de compra Herramientas y AF</h2>
-        <p>Solicitudes enviadas a revisión para aprobar, rechazar o preparar envío a Dynamics 365.</p>
-    </div>
+<NaviPageHero
+    Pill="FLUJO DE TRABAJO"
+    Title="Aprobaciones de compra Herramientas y AF"
+    Description="Solicitudes enviadas a revisión para aprobar, rechazar o preparar envío a Dynamics 365.">
+    <NaviActionButton OnClick="LoadAsync" Disabled="@isLoading">Actualizar</NaviActionButton>
+</NaviPageHero>
 
-    <div class="approvals-side">
-        <div class="approvals-status">
-            <span>Pendientes</span>
-            <strong>@($"{PendingRequests.Count()} visibles")</strong>
-        </div>
-
-        <button class="approvals-outline-btn" @onclick="LoadAsync">
-            Actualizar
-        </button>
-    </div>
+<section class="navi-kpi-grid approvals-summary-kpis">
+    <NaviKpiCard
+        Title="Pendientes visibles"
+        Value="@PendingRequests.Count().ToString()"
+        Description="Solicitudes filtradas para aprobación"
+        Tone="warning" />
 </section>
 
 @if (!string.IsNullOrWhiteSpace(successMessage))
@@ -111,78 +107,6 @@
 </PermissionGuard>
 
 <style>
-    .approvals-hero {
-        margin-bottom: .9rem;
-        padding: 1.05rem 1.15rem;
-        border-radius: 1rem;
-        background: radial-gradient(circle at top right, rgba(255,255,255,.16), transparent 34%),
-            linear-gradient(135deg, #100015 0%, #4b005c 58%, #7b0d8e 100%);
-        color: white;
-        display: flex;
-        justify-content: space-between;
-        gap: 1rem;
-        box-shadow: 0 .65rem 1.5rem rgba(75,0,92,.22);
-    }
-
-    .approvals-pill {
-        display: inline-flex;
-        padding: .18rem .6rem;
-        border-radius: 999px;
-        border: 1px solid rgba(255,255,255,.35);
-        background: rgba(255,255,255,.10);
-        font-size: .68rem;
-        font-weight: 950;
-    }
-
-    .approvals-hero h2 {
-        margin: .45rem 0 .2rem;
-        font-size: 1.55rem;
-        font-weight: 950;
-    }
-
-    .approvals-hero p {
-        margin: 0;
-        color: rgba(255,255,255,.88);
-    }
-
-    .approvals-side {
-        display: flex;
-        flex-direction: column;
-        gap: .5rem;
-        min-width: 190px;
-        align-items: flex-end;
-    }
-
-    .approvals-status {
-        width: 190px;
-        padding: .65rem .85rem;
-        border-radius: .85rem;
-        background: rgba(255,255,255,.12);
-        text-align: right;
-    }
-
-    .approvals-status span {
-        display: block;
-        color: #ffdd57;
-        font-size: .72rem;
-        font-weight: 950;
-    }
-
-    .approvals-status strong {
-        display: block;
-        font-weight: 950;
-    }
-
-    .approvals-outline-btn {
-        width: 190px;
-        min-height: 34px;
-        border-radius: .55rem;
-        border: 1px solid rgba(255,255,255,.7);
-        background: rgba(255,255,255,.06);
-        color: white;
-        font-weight: 950;
-    }
-
     .approvals-card {
         background: white;
         border: 1px solid #dfe3e8;

@@ -47,31 +47,31 @@ else if (tool is not null)
         <section class="tool-detail-kpis navi-final-kpi-row tool-detail-summary-kpis">
         <article>
             <span>Código interno</span>
-            <strong>@ShowValue(tool.InternalCode)</strong>
+            <strong>@ShowValue(tool!.InternalCode)</strong>
             <small>Activo fijo</small>
         </article>
 
         <article>
             <span>Estado operativo</span>
-            <strong>@GetStatusLabel(tool?.OperationalStatus)</strong>
+            <strong>@GetStatusLabel(tool!.OperationalStatus)</strong>
             <small>Control actual</small>
         </article>
 
         <article>
             <span>Clasificación</span>
-            <strong>@(tool.IsSpecialized ? "Especializada" : "No especializada")</strong>
+            <strong>@(tool!.IsSpecialized ? "Especializada" : "No especializada")</strong>
             <small>Tipo de activo</small>
         </article>
 
         <article>
             <span>Responsable</span>
-            <strong>@ShowValue(tool.ResponsiblePersonName)</strong>
+            <strong>@ShowValue(tool!.ResponsiblePersonName)</strong>
             <small>Custodia actual</small>
         </article>
     </section>
 
         <aside class="tool-detail-summary-actions">
-            <button class="btn-detail-back" type="button" @onclick="GoBack">
+            <button type="button" @onclick="GoBack" class="btn-detail-back">
                 Volver al inventario
             </button>
 
@@ -96,7 +96,7 @@ else if (tool is not null)
             <div class="admin-control-actions">
                 @if (!isEditingMasterData)
                 {
-                    <button class="detail-action detail-action-primary" type="button" @onclick="StartMasterDataEdit">
+                    <button type="button" @onclick="StartMasterDataEdit" class="detail-action detail-action-primary">
                         Editar
                     </button>
 
@@ -104,11 +104,11 @@ else if (tool is not null)
                 }
                 else
                 {
-                    <button class="detail-action detail-action-success" type="button" @onclick="SaveMasterDataAsync">
+                    <button type="button" @onclick="SaveMasterDataAsync" class="detail-action detail-action-success">
                         Guardar
                     </button>
 
-                    <button class="detail-action detail-action-neutral" type="button" @onclick="CancelMasterDataEdit">
+                    <button type="button" @onclick="CancelMasterDataEdit" class="detail-action detail-action-neutral">
                         Cancelar
                     </button>
 
@@ -291,27 +291,27 @@ else if (tool is not null)
 
                 <div>
                     <span>Serial</span>
-                    <strong>@ShowValue(tool.SerialNumber)</strong>
+                    <strong>@ShowValue(tool!.SerialNumber)</strong>
                 </div>
 
                 <div>
                     <span>Activo fijo</span>
-                    <strong>@ShowValue(tool.FixedAssetCode)</strong>
+                    <strong>@ShowValue(tool!.FixedAssetCode)</strong>
                 </div>
 
                 <div>
                     <span>Código Fenix365</span>
-                    <strong>@ShowValue(tool.FenixCode)</strong>
+                    <strong>@ShowValue(tool!.FenixCode)</strong>
                 </div>
 
                 <div>
                     <span>Marca</span>
-                    <strong>@ShowValue(tool.Brand)</strong>
+                    <strong>@ShowValue(tool!.Brand)</strong>
                 </div>
 
                 <div>
                     <span>Modelo</span>
-                    <strong>@ShowValue(tool.Model)</strong>
+                    <strong>@ShowValue(tool!.Model)</strong>
                 </div>
             </div>
         </section>
@@ -322,32 +322,32 @@ else if (tool is not null)
             <div class="detail-list">
                 <div>
                     <span>Sede</span>
-                    <strong>@ShowValue(tool.BranchCode) - @ShowValue(tool.BranchName)</strong>
+                    <strong>@ShowValue(tool!.BranchCode) - @ShowValue(tool!.BranchName)</strong>
                 </div>
 
                 <div>
                     <span>Ubicación</span>
-                    <strong>@ShowValue(tool.LocationCode) - @ShowValue(tool.LocationName)</strong>
+                    <strong>@ShowValue(tool!.LocationCode) - @ShowValue(tool!.LocationName)</strong>
                 </div>
 
                 <div>
                     <span>Responsable</span>
-                    <strong>@ShowValue(tool.ResponsiblePersonName)</strong>
+                    <strong>@ShowValue(tool!.ResponsiblePersonName)</strong>
                 </div>
 
                 <div>
                     <span>Tipo</span>
-                    <strong>@ShowValue(tool.ToolTypeName)</strong>
+                    <strong>@ShowValue(tool!.ToolTypeName)</strong>
                 </div>
 
                 <div>
                     <span>Categoría</span>
-                    <strong>@ShowValue(tool.ToolCategoryName)</strong>
+                    <strong>@ShowValue(tool!.ToolCategoryName)</strong>
                 </div>
 
                 <div>
                     <span>Unidad / Cantidad</span>
-                    <strong>@ShowValue(tool.UnitOfMeasure) / @tool!.Quantity</strong>
+                    <strong>@ShowValue(tool!.UnitOfMeasure) / @tool!.Quantity</strong>
                 </div>
             </div>
         </section>
@@ -441,15 +441,15 @@ else if (tool is not null)
                 <div class="detail-actions-group">
                     @if (CanChangeOperationalStatus)
                     {
-                        <button class="btn btn-primary btn-sm" @onclick="ChangeOperationalStatusAsync" disabled="@isSaving">
+                        <button @onclick="ChangeOperationalStatusAsync" disabled="@isSaving" class="btn btn-primary btn-sm navi-admin-quick-save-status-green-v5">
                             @(isSaving ? "Guardando..." : "Guardar estado")
                         </button>
                     }
 
                     @if (CanMarkSpecialized)
                     {
-                        <button class="btn btn-outline-primary btn-sm" @onclick="ToggleSpecializedAsync" disabled="@isSaving">
-                            @(tool?.IsSpecialized == true ? "Marcar no especializada" : "Marcar especializada")
+                        <button @onclick="ToggleSpecializedAsync" disabled="@isSaving" class="btn btn-outline-primary btn-sm">
+                            @(tool!.IsSpecialized == true ? "Marcar no especializada" : "Marcar especializada")
                         </button>
                     }
                 </div>
@@ -472,27 +472,27 @@ else if (tool is not null)
             <div class="status-chip-grid">
                 <div>
                     <span>Operativo</span>
-                    <strong>@GetStatusLabel(tool?.OperationalStatus)</strong>
+                    <strong>@GetStatusLabel(tool!.OperationalStatus)</strong>
                 </div>
 
                 <div>
                     <span>Físico</span>
-                    <strong>@ShowValue(tool?.PhysicalStatus)</strong>
+                    <strong>@ShowValue(tool!.PhysicalStatus)</strong>
                 </div>
 
                 <div>
                     <span>Custodia</span>
-                    <strong>@ShowValue(tool?.CustodyStatus)</strong>
+                    <strong>@ShowValue(tool!.CustodyStatus)</strong>
                 </div>
 
                 <div>
                     <span>Conciliación</span>
-                    <strong>@ShowValue(tool?.ReconciliationStatus)</strong>
+                    <strong>@ShowValue(tool!.ReconciliationStatus)</strong>
                 </div>
 
                 <div>
                     <span>Sincronización</span>
-                    <strong>@ShowValue(tool?.SyncStatus)</strong>
+                    <strong>@ShowValue(tool!.SyncStatus)</strong>
                 </div>
             </div>
         </section>
@@ -503,22 +503,22 @@ else if (tool is not null)
             <div class="status-chip-grid">
                 <div>
                     <span>Mantenimiento</span>
-                    <strong>@BoolLabel(tool?.RequiresMaintenance == true)</strong>
+                    <strong>@BoolLabel(tool!.RequiresMaintenance == true)</strong>
                 </div>
 
                 <div>
                     <span>Preoperacional</span>
-                    <strong>@BoolLabel(tool?.RequiresPreOperationalCheck == true)</strong>
+                    <strong>@BoolLabel(tool!.RequiresPreOperationalCheck == true)</strong>
                 </div>
 
                 <div>
                     <span>Certificación</span>
-                    <strong>@BoolLabel(tool?.RequiresCertification == true)</strong>
+                    <strong>@BoolLabel(tool!.RequiresCertification == true)</strong>
                 </div>
 
                 <div>
                     <span>Vence certificación</span>
-                    <strong>@FormatDate(tool?.CertificationExpirationDate)</strong>
+                    <strong>@FormatDate(tool!.CertificationExpirationDate)</strong>
                 </div>
             </div>
         </section>
