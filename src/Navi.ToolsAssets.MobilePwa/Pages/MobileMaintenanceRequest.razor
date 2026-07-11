@@ -23,7 +23,7 @@
         <div class="mobile-empty">
             <strong>Sesión requerida</strong>
             <span>Debes iniciar sesión para continuar.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="secondary" >Ir al login</button>
         </div>
     }
     else if (!CanAccessModule)
@@ -31,7 +31,7 @@
         <div class="mobile-empty">
             <strong>Sin permiso</strong>
             <span>No tienes permisos para visualizar solicitud de mantenimiento.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoHome">Volver al inicio</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoHome" data-ntx-tone="secondary" >Volver al inicio</button>
         </div>
     }
     else
@@ -110,7 +110,7 @@
             }
 
             <div class="mmnt-filter-actions">
-                <button type="button" @onclick="ClearTopFilters">Limpiar búsqueda</button>
+                <button type="button" @onclick="ClearTopFilters" data-ntx-tone="secondary" >Limpiar búsqueda</button>
             </div>
         </section>
 
@@ -132,7 +132,7 @@
                     </select>
                 </label>
 
-                <button type="button" @onclick="ClearBottomStatus">
+                <button type="button" @onclick="ClearBottomStatus" data-ntx-tone="secondary" >
                     Limpiar estado
                 </button>
             </section>
@@ -158,19 +158,19 @@
                             <div class="mmnt-row-actions">
                                 @if (item.Status == LocalStatusDraft && CanCreateOrConfirmRequest)
                                 {
-                                    <button type="button" @onclick="() => LoadDraftForEdit(item.Id)">Editar</button>
-                                    <button type="button" class="primary" @onclick="() => ConfirmStoredRequestAsync(item.Id)">Confirmar</button>
+                                    <button type="button" @onclick="() => LoadDraftForEdit(item.Id)" data-ntx-tone="primary" >Editar</button>
+                                    <button type="button" class="primary" @onclick="() => ConfirmStoredRequestAsync(item.Id)" data-ntx-tone="primary" >Confirmar</button>
                                 }
                                 else if (item.Status == LocalStatusConfirmed && CanRegisterQuotation)
                                 {
-                                    <button type="button" class="warning" @onclick="() => StartQuotationAsync(item.Id)">Realizar cotización</button>
+                                    <button type="button" class="warning" @onclick="() => StartQuotationAsync(item.Id)" data-ntx-tone="primary" >Realizar cotización</button>
                                 }
                                 else if (item.Status == LocalStatusQuoting && CanRegisterQuotation)
                                 {
-                                    <button type="button" class="warning" @onclick="() => ContinueQuotation(item.Id)">Continuar cotización</button>
+                                    <button type="button" class="warning" @onclick="() => ContinueQuotation(item.Id)" data-ntx-tone="danger" >Continuar cotización</button>
                                 }
 
-                                <button type="button" class="danger" @onclick="() => DeleteLocalRequestAsync(item.Id)">Eliminar</button>
+                                <button type="button" class="danger" @onclick="() => DeleteLocalRequestAsync(item.Id)" data-ntx-tone="danger" >Eliminar</button>
                             </div>
                         </article>
                     }
@@ -190,27 +190,27 @@
                                 <div class="mmnt-row-actions">
                                     @if (CanApproveRequest && item.Status == "InReview")
                                     {
-                                        <button type="button" class="approve" @onclick="() => ApproveAsync(item)">Aprobar</button>
+                                        <button type="button" class="approve" @onclick="() => ApproveAsync(item)" data-ntx-tone="danger" >Aprobar</button>
                                     }
 
                                     @if (CanRejectRequest && item.Status == "InReview")
                                     {
-                                        <button type="button" class="danger" @onclick="() => RejectAsync(item)">Rechazar</button>
+                                        <button type="button" class="danger" @onclick="() => RejectAsync(item)" data-ntx-tone="danger" >Rechazar</button>
                                     }
 
                                     @if (CanApproveRequest && item.Status == "Approved")
                                     {
-                                        <button type="button" class="warning" @onclick="() => ScheduleAsync(item)">Programar</button>
+                                        <button type="button" class="warning" @onclick="() => ScheduleAsync(item)" data-ntx-tone="positive" >Programar</button>
                                     }
 
                                     @if (CanExecuteMaintenance && (item.Status == "Approved" || item.Status == "Scheduled"))
                                     {
-                                        <button type="button" class="primary" @onclick="() => StartExecutionAsync(item)">Iniciar</button>
+                                        <button type="button" class="primary" @onclick="() => StartExecutionAsync(item)" data-ntx-tone="positive" >Iniciar</button>
                                     }
 
                                     @if ((CanApproveRequest || CanExecuteMaintenance) && (item.Status == "Approved" || item.Status == "Scheduled" || item.Status == "InExecution"))
                                     {
-                                        <button type="button" class="approve" @onclick="() => CloseAsync(item)">Cerrar</button>
+                                        <button type="button" class="approve" @onclick="() => CloseAsync(item)" data-ntx-tone="primary" >Cerrar</button>
                                     }
                                 </div>
                             </article>
@@ -350,11 +350,11 @@
                 </label>
 
                 <div class="mmnt-action-row">
-                    <button type="button" class="primary" @onclick="AddLine" disabled="@(!CanEditRequest)">
+                    <button type="button" class="primary" @onclick="AddLine" disabled="@(!CanEditRequest)" data-ntx-tone="secondary" >
                         @(editingLineId.HasValue ? "Actualizar" : "Agregar")
                     </button>
 
-                    <button type="button" @onclick="ClearLine">
+                    <button type="button" @onclick="ClearLine" data-ntx-tone="secondary" >
                         Limpiar línea
                     </button>
                 </div>
@@ -388,8 +388,8 @@
                                         Usar
                                     </label>
 
-                                    <button type="button" @onclick="() => EditLine(item.Id)" disabled="@(!CanEditRequest)">Editar</button>
-                                    <button type="button" class="danger" @onclick="() => RemoveLine(item.Id)" disabled="@(!CanEditRequest)">Quitar</button>
+                                    <button type="button" @onclick="() => EditLine(item.Id)" disabled="@(!CanEditRequest)" data-ntx-tone="danger" >Editar</button>
+                                    <button type="button" class="danger" @onclick="() => RemoveLine(item.Id)" disabled="@(!CanEditRequest)" data-ntx-tone="danger" >Quitar</button>
                                 </div>
                             </article>
                         }
@@ -412,15 +412,15 @@
                 </div>
 
                 <div class="mmnt-action-row">
-                    <button type="button" @onclick="SaveDraftAsync" disabled="@(!CanSaveAsDraft)">
+                    <button type="button" @onclick="SaveDraftAsync" disabled="@(!CanSaveAsDraft)" data-ntx-tone="primary" >
                         Guardar borrador
                     </button>
 
-                    <button type="button" class="primary" @onclick="ConfirmRequestAsync" disabled="@(!CanConfirmRequest)">
+                    <button type="button" class="primary" @onclick="ConfirmRequestAsync" disabled="@(!CanConfirmRequest)" data-ntx-tone="primary" >
                         Confirmar solicitud
                     </button>
 
-                    <button type="button" class="danger" @onclick="NewRequest">
+                    <button type="button" class="danger" @onclick="NewRequest" data-ntx-tone="ghost" >
                         Nueva
                     </button>
                 </div>
@@ -498,11 +498,11 @@
                 </label>
 
                 <div class="mmnt-action-row">
-                    <button type="button" class="primary" @onclick="AddQuotationAsync" disabled="@(!CanQuote)">
+                    <button type="button" class="primary" @onclick="AddQuotationAsync" disabled="@(!CanQuote)" data-ntx-tone="secondary" >
                         @(editingQuoteId.HasValue ? "Actualizar cotización" : "Agregar cotización")
                     </button>
 
-                    <button type="button" @onclick="ClearQuotation">
+                    <button type="button" @onclick="ClearQuotation" data-ntx-tone="secondary" >
                         Limpiar cotización
                     </button>
                 </div>
@@ -531,8 +531,8 @@
                                         Usar
                                     </label>
 
-                                    <button type="button" @onclick="() => EditQuotation(quote.Id)" disabled="@(!CanQuote)">Editar</button>
-                                    <button type="button" class="danger" @onclick="() => RemoveQuotationAsync(quote.Id)" disabled="@(!CanQuote)">Quitar</button>
+                                    <button type="button" @onclick="() => EditQuotation(quote.Id)" disabled="@(!CanQuote)" data-ntx-tone="danger" >Editar</button>
+                                    <button type="button" class="danger" @onclick="() => RemoveQuotationAsync(quote.Id)" disabled="@(!CanQuote)" data-ntx-tone="danger" >Quitar</button>
                                 </div>
                             </article>
                         }
@@ -573,7 +573,7 @@
                     </div>
                 }
 
-                <button type="button" class="mmnt-generate" @onclick="GenerateAsync" disabled="@(!CanGenerateRequest || isSaving)">
+                <button type="button" class="mmnt-generate" @onclick="GenerateAsync" disabled="@(!CanGenerateRequest || isSaving)" data-ntx-tone="primary" >
                     @(isSaving ? "Generando..." : "Generar solicitud de mantenimiento")
                 </button>
             </details>

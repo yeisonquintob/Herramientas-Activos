@@ -19,7 +19,7 @@
         <div class="mobile-empty">
             <strong>Sesión requerida</strong>
             <span>Debes iniciar sesión para usar asignaciones móviles.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="primary" >Ir al login</button>
         </div>
     }
     else if (!CanUseAssignmentModule)
@@ -27,7 +27,7 @@
         <div class="mobile-empty">
             <strong>Sin permiso</strong>
             <span>Tu usuario no tiene permisos de asignación, devolución, aprobación ni historial.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoHome">Volver</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoHome" data-ntx-tone="primary" >Volver</button>
         </div>
     }
     else
@@ -72,7 +72,7 @@
                         <span>Solo visible para roles con permiso de aprobar o denegar</span>
                     </div>
 
-                    <button type="button" class="mass-refresh-button-v4" @onclick="ReloadAsync">Actualizar</button>
+                    <button type="button" class="mass-refresh-button-v4" @onclick="ReloadAsync" data-ntx-tone="secondary" >Actualizar</button>
                 </div>
 
                 @if (!PendingRequests.Any())
@@ -96,14 +96,14 @@
                                 <div class="mobile-approval-actions mobile-approval-actions-top">
                                     @if (CanApproveAssignmentRequest)
                                     {
-                                        <button class="approve mass-approve-button-v4" type="button" disabled="@isSaving" @onclick="() => ApproveAsync(request)">
+                                        <button class="approve mass-approve-button-v4" type="button" disabled="@isSaving" @onclick="() => ApproveAsync(request)" data-ntx-tone="danger" >
                                             Aprobar
                                         </button>
                                     }
 
                                     @if (CanDenyAssignmentRequest)
                                     {
-                                        <button class="deny mass-deny-button-v4" type="button" disabled="@isSaving" @onclick="() => DenyAsync(request)">
+                                        <button class="deny mass-deny-button-v4" type="button" disabled="@isSaving" @onclick="() => DenyAsync(request)" data-ntx-tone="danger" >
                                             Denegar
                                         </button>
                                     }
@@ -124,7 +124,7 @@
                         <span>Solo roles con permiso de asignar o devolver</span>
                     </div>
 
-                    <button type="button" class="mass-toggle-button-v4 mass-toggle-new-assignment-v4" @onclick="ToggleNewAssignment">
+                    <button type="button" class="mass-toggle-button-v4 mass-toggle-new-assignment-v4" @onclick="ToggleNewAssignment" data-ntx-tone="primary" >
                         @(showNewAssignment ? "Ocultar" : "Expandir")
                     </button>
                 </div>
@@ -153,7 +153,7 @@
 
                                     <button type="button"
                                             class="mobile-request-result @(selected ? "selected" : "")"
-                                            @onclick="() => SelectAssignmentTool(tool)">
+                                            @onclick="() => SelectAssignmentTool(tool)" data-ntx-tone="primary" >
                                         <span>
                                             <strong>@tool.InternalCode</strong>
                                             <small>@tool.Name</small>
@@ -247,7 +247,7 @@
                                   placeholder="Observación del movimiento..."></textarea>
                     </label>
 
-                    <button class="mobile-assignment-main-button" type="button" disabled="@isSaving" @onclick="SaveDirectAssignmentAsync">
+                    <button class="mobile-assignment-main-button" type="button" disabled="@isSaving" @onclick="SaveDirectAssignmentAsync" data-ntx-tone="primary" >
                         @(isSaving ? "Guardando..." : assignmentForm.AssignmentType == "Warehouse" ? "Confirmar regreso" : "Confirmar asignación")
                     </button>
                 }
@@ -263,7 +263,7 @@
                         <span>Movimientos visibles según sede y permisos</span>
                     </div>
 
-                    <button type="button" class="mass-toggle-button-v4 mass-toggle-history-v4" @onclick="ToggleHistory">
+                    <button type="button" class="mass-toggle-button-v4 mass-toggle-history-v4" @onclick="ToggleHistory" data-ntx-tone="secondary" >
                         @(showHistory ? "Ocultar" : "Expandir")
                     </button>
                 </div>
@@ -325,7 +325,7 @@
 
                         <button type="button"
                                 disabled="@(selectedToolStatuses.Count == 0)"
-                                @onclick="ClearToolStatuses">
+                                @onclick="ClearToolStatuses" data-ntx-tone="primary" >
                             Limpiar
                         </button>
                     </div>
@@ -333,7 +333,7 @@
                     <div class="mobile-assignment-status-chip-grid-v2">
                         <button type="button"
                                 class="mobile-assignment-status-chip-v2 all @(selectedToolStatuses.Count == 0 ? "active" : "")"
-                                @onclick="ClearToolStatuses">
+                                @onclick="ClearToolStatuses" data-ntx-tone="secondary" >
                             Todos
                             <span>@ToolsBaseFiltered.Count()</span>
                         </button>
@@ -345,7 +345,7 @@
 
                             <button type="button"
                                     class="@GetToolStatusFilterChipClass(status.Value, selected)"
-                                    @onclick="() => ToggleToolStatus(status.Value)">
+                                    @onclick="() => ToggleToolStatus(status.Value)" data-ntx-tone="secondary" >
                                 @status.Text
                                 <span>@count</span>
                             </button>
@@ -398,11 +398,11 @@
                             </div>
 
                             <div class="mobile-assignment-tool-actions mobile-assignment-tool-actions-v4">
-                                <button class="mass-tool-assign-button-v4" type="button" @onclick="() => SelectAssignmentTool(tool)">
+                                <button class="mass-tool-assign-button-v4" type="button" @onclick="() => SelectAssignmentTool(tool)" data-ntx-tone="primary" >
                                     Asignar
                                 </button>
 
-                                <a class="danger mass-tool-damage-button-v4" href="@GetDamageUrl(tool.Id)">
+                                <a class="danger mass-tool-damage-button-v4" href="@GetDamageUrl(tool.Id)" data-ntx-tone="ghost" >
                                     Dañado
                                 </a>
                             </div>

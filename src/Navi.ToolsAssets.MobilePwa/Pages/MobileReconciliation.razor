@@ -19,7 +19,7 @@
         <div class="mobile-empty">
             <strong>Sesión requerida</strong>
             <span>Debes iniciar sesión para consultar conciliación.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="secondary" >Ir al login</button>
         </div>
     }
     else if (!CanAccessReconciliation)
@@ -27,7 +27,7 @@
         <div class="mobile-empty">
             <strong>Sin permiso</strong>
             <span>No tienes permisos para consultar conciliación.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoHome">Volver al inicio</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoHome" data-ntx-tone="secondary" >Volver al inicio</button>
         </div>
     }
     else
@@ -60,7 +60,7 @@
                 <small>Aprobar o crear</small>
             </div>
 
-            <div class="navi-mobile-reconciliation-kpi-tile-v2 purple">
+            <div class="navi-mobile-reconciliation-kpi-tile-v2 primary">
                 <span>Aclaración</span>
                 <strong>@FilteredItems.Count(x => x.RequiresUserClarification || Same(x.ReconciliationStatus, "RequiresUserClarification"))</strong>
                 <small>Contactar usuario</small>
@@ -181,7 +181,7 @@
             </label>
 
             <div class="mrec-filter-actions">
-                <button type="button" @onclick="ClearFilters">Limpiar filtros</button>
+                <button type="button" @onclick="ClearFilters" data-ntx-tone="secondary" >Limpiar filtros</button>
             </div>
         </section>
 
@@ -309,42 +309,42 @@
                             <div class="mrec-actions">
                                 @if (CanRequestClarification(item))
                                 {
-                                    <button type="button" class="warn" @onclick="() => RequestClarificationAsync(item.Id)">
+                                    <button type="button" class="warn" @onclick="() => RequestClarificationAsync(item.Id)" data-ntx-tone="warning" >
                                         Aclarar
                                     </button>
                                 }
 
                                 @if (CanResolveClarification(item))
                                 {
-                                    <button type="button" class="neutral" @onclick="() => ResolveClarificationAsync(item.Id)">
+                                    <button type="button" class="neutral" @onclick="() => ResolveClarificationAsync(item.Id)" data-ntx-tone="positive" >
                                         Aclarado
                                     </button>
                                 }
 
                                 @if (CanApproveCreation(item))
                                 {
-                                    <button type="button" class="ok" @onclick="() => ApproveCreationAsync(item.Id)">
+                                    <button type="button" class="ok" @onclick="() => ApproveCreationAsync(item.Id)" data-ntx-tone="positive" >
                                         Aprobar creación
                                     </button>
                                 }
 
                                 @if (CanCreateInventoryAsset(item))
                                 {
-                                    <button type="button" class="ok-fill" @onclick="() => CreateInventoryAssetAsync(item.Id)">
+                                    <button type="button" class="ok-fill" @onclick="() => CreateInventoryAssetAsync(item.Id)" data-ntx-tone="primary" >
                                         Crear activo
                                     </button>
                                 }
 
                                 @if (CanReconcile(item))
                                 {
-                                    <button type="button" class="neutral" @onclick="() => ReconcileAsync(item.Id)">
+                                    <button type="button" class="neutral" @onclick="() => ReconcileAsync(item.Id)" data-ntx-tone="danger" >
                                         Conciliar
                                     </button>
                                 }
 
                                 @if (CanReject(item))
                                 {
-                                    <button type="button" class="danger" @onclick="() => RejectAsync(item.Id)">
+                                    <button type="button" class="danger" @onclick="() => RejectAsync(item.Id)" data-ntx-tone="danger" >
                                         Rechazar
                                     </button>
                                 }
@@ -956,7 +956,7 @@
         {
             "Found" => "mrec-chip ok",
             "NotFound" => "mrec-chip danger",
-            "ExtraNotListed" => "mrec-chip purple",
+            "ExtraNotListed" => "mrec-chip primary",
             "Damaged" => "mrec-chip danger",
             "ReturnedOrDelivered" => "mrec-chip info",
             _ => "mrec-chip"
@@ -1039,7 +1039,7 @@
 
         if (Same(item.ReportType, "ExtraNotListed"))
         {
-            return "mrec-item-card purple";
+            return "mrec-item-card primary";
         }
 
         return "mrec-item-card";

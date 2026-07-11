@@ -22,7 +22,7 @@
         <div class="mobile-empty">
             <strong>Sesión requerida</strong>
             <span>Debes iniciar sesión para consultar el detalle.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="secondary" >Ir al login</button>
         </div>
     }
     else if (!CanAccessPhysicalCounts)
@@ -30,7 +30,7 @@
         <div class="mobile-empty">
             <strong>Sin permiso</strong>
             <span>No tienes permisos para consultar esta toma física.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoBack">Volver</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoBack" data-ntx-tone="primary" >Volver</button>
         </div>
     }
     else if (board is null)
@@ -38,7 +38,7 @@
         <div class="mobile-empty">
             <strong>Sin información</strong>
             <span>No se pudo cargar la toma física solicitada.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoBack">Volver</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoBack" data-ntx-tone="primary" >Volver</button>
         </div>
     }
     else
@@ -79,7 +79,7 @@
                 <small>Conciliación</small>
             </div>
 
-            <div class="navi-mobile-physical-kpi-tile-v2 purple progress">
+            <div class="navi-mobile-physical-kpi-tile-v2 primary progress">
                 <span>Avance persona</span>
                 <strong>@CurrentProgressText</strong>
                 <small>@CurrentCountedItems de @CurrentExpectedItems</small>
@@ -223,11 +223,11 @@
                     </label>
 
                     <div class="mph-action-row">
-                        <button type="button" class="success mph-save-extra-tool" @onclick="SaveExtraToolAsync" disabled="@(!CanSaveExtraTool || isSaving)">
+                        <button type="button" class="success mph-save-extra-tool" @onclick="SaveExtraToolAsync" disabled="@(!CanSaveExtraTool || isSaving)" data-ntx-tone="primary" >
                             @(isSaving ? "Guardando..." : "Guardar")
                         </button>
 
-                        <button type="button" @onclick="ResetExtraForm">Limpiar</button>
+                        <button type="button" @onclick="ResetExtraForm" data-ntx-tone="danger" >Limpiar</button>
                     </div>
                 }
             </details>
@@ -274,7 +274,7 @@
                             </section>
 
                             <div class="mph-actions one">
-                                <button type="button" class="view" @onclick="() => OpenToolDetailAsync(tool)">
+                                <button type="button" class="view" @onclick="() => OpenToolDetailAsync(tool)" data-ntx-tone="positive" >
                                     Detalle
                                 </button>
                             </div>
@@ -347,7 +347,7 @@
                     <section class="mph-validation-left">
                         <article class="mph-validation-panel editable">
                             <div class="zone-title">
-                                <span class="zone-badge green">MODIFICABLE</span>
+                                <span class="zone-badge tone-positive">MODIFICABLE</span>
                                 <div>
                                     <h3>Validación permitida</h3>
                                     <p>Solo estos campos pueden cambiar durante la toma física.</p>
@@ -404,7 +404,7 @@
                         {
                             <article class="mph-validation-panel evidence">
                                 <div class="zone-title">
-                                    <span class="zone-badge blue">EVIDENCIA</span>
+                                    <span class="zone-badge neutral">EVIDENCIA</span>
                                     <div>
                                         <h3>Evidencia de toma física</h3>
                                         <p>Agrega archivos nuevos. Los existentes solo se consultan o descargan.</p>
@@ -429,7 +429,7 @@
                                             <div>
                                                 <strong>@file.Name</strong>
                                                 <span>@FormatFileSize(file.Size)</span>
-                                                <button type="button" @onclick="() => RemoveSelectedEvidence(index)">Quitar</button>
+                                                <button type="button" @onclick="() => RemoveSelectedEvidence(index)" data-ntx-tone="danger" >Quitar</button>
                                             </div>
                                         }
                                     </div>
@@ -463,7 +463,7 @@
 
                         <article class="mph-validation-panel accessories">
                             <div class="zone-title">
-                                <span class="zone-badge blue">ACCESORIOS</span>
+                                <span class="zone-badge neutral">ACCESORIOS</span>
                                 <div>
                                     <h3>Accesorios encontrados</h3>
                                     <p>Se agregan como parte de la observación de validación.</p>
@@ -498,7 +498,7 @@
                             </label>
 
                             <div class="mph-action-row">
-                                <button type="button" class="primary" @onclick="AddAccessoryFromValidation" disabled="@(!CanReportPhysicalCounts)">
+                                <button type="button" class="primary" @onclick="AddAccessoryFromValidation" disabled="@(!CanReportPhysicalCounts)" data-ntx-tone="primary" >
                                     Crear accesorio
                                 </button>
                             </div>
@@ -543,7 +543,7 @@
                             <div class="mph-action-row final">
                                 @if (isRejectMode)
                                 {
-                                    <button type="button" class="danger" @onclick="RejectToolAsync" disabled="@(!CanSaveValidation)">
+                                    <button type="button" class="danger" @onclick="RejectToolAsync" disabled="@(!CanSaveValidation)" data-ntx-tone="danger" >
                                         @if (isSaving)
                                         {
                                             <span>Guardando...</span>
@@ -555,14 +555,14 @@
                                         }
                                     </button>
 
-                                    <button type="button" @onclick="() => SetRejectMode(false)">
+                                    <button type="button" @onclick="() => SetRejectMode(false)" data-ntx-tone="danger" >
                                         <span>Cambiar</span>
                                         <small>a confirmar</small>
                                     </button>
                                 }
                                 else
                                 {
-                                    <button type="button" class="success" @onclick="ConfirmToolAsync" disabled="@(!CanSaveValidation)">
+                                    <button type="button" class="success" @onclick="ConfirmToolAsync" disabled="@(!CanSaveValidation)" data-ntx-tone="primary" >
                                         @if (isSaving)
                                         {
                                             <span>Guardando...</span>
@@ -574,13 +574,13 @@
                                         }
                                     </button>
 
-                                    <button type="button" class="danger outline" @onclick="() => SetRejectMode(true)">
+                                    <button type="button" class="danger outline" @onclick="() => SetRejectMode(true)" data-ntx-tone="danger" >
                                         <span>Cambiar</span>
                                         <small>a rechazar</small>
                                     </button>
                                 }
 
-                                <button type="button" @onclick="CloseToolDetail">
+                                <button type="button" @onclick="CloseToolDetail" data-ntx-tone="secondary" >
                                     Cancelar
                                 </button>
                             </div>
@@ -590,7 +590,7 @@
                     <section class="mph-validation-right">
                         <article class="mph-validation-panel info">
                             <div class="zone-title">
-                                <span class="zone-badge red">INFORMATIVO</span>
+                                <span class="zone-badge tone-danger">INFORMATIVO</span>
                                 <div>
                                     <h3>Información base del activo</h3>
                                     <p>Solo lectura para el usuario.</p>
@@ -615,7 +615,7 @@
 
                         <article class="mph-validation-panel info">
                             <div class="zone-title">
-                                <span class="zone-badge red">INFORMATIVO</span>
+                                <span class="zone-badge tone-danger">INFORMATIVO</span>
                                 <div>
                                     <h3>Datos técnicos y reglas</h3>
                                     <p>Información de hoja de vida técnica.</p>
@@ -636,7 +636,7 @@
 
                         <article class="mph-validation-panel info">
                             <div class="zone-title">
-                                <span class="zone-badge red">INFORMATIVO</span>
+                                <span class="zone-badge tone-danger">INFORMATIVO</span>
                                 <div>
                                     <h3>Vida útil y mantenimiento</h3>
                                     <p>Información de planeación.</p>
@@ -657,7 +657,7 @@
 
                         <article class="mph-validation-panel info">
                             <div class="zone-title">
-                                <span class="zone-badge red">INFORMATIVO</span>
+                                <span class="zone-badge tone-danger">INFORMATIVO</span>
                                 <div>
                                     <h3>Eventos de hoja de vida</h3>
                                     <p>Trazabilidad reciente.</p>

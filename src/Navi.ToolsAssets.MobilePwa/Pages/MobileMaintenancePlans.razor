@@ -18,7 +18,7 @@
         <div class="mobile-empty">
             <strong>Sesión requerida</strong>
             <span>Debes iniciar sesión para consultar planes de mantenimiento.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="secondary" >Ir al login</button>
         </div>
     }
     else if (!CanAccessModule)
@@ -26,7 +26,7 @@
         <div class="mobile-empty">
             <strong>Sin permiso</strong>
             <span>No tienes permisos para visualizar planes de mantenimiento.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoHome">Volver al inicio</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoHome" data-ntx-tone="secondary" >Volver al inicio</button>
         </div>
     }
     else
@@ -74,7 +74,7 @@
                 <small>Atención</small>
             </article>
 
-            <article class="purple">
+            <article class="primary">
                 <span>Solicitudes</span>
                 <strong>@FilteredPlans.Sum(x => x.PendingRequests)</strong>
                 <small>Pend.</small>
@@ -117,7 +117,7 @@
             </label>
 
             <div class="mplan-filter-actions">
-                <button type="button" @onclick="ClearFilters">Limpiar</button>
+                <button type="button" @onclick="ClearFilters" data-ntx-tone="secondary" >Limpiar</button>
             </div>
         </section>
 
@@ -194,20 +194,20 @@
                             </section>
 
                             <div class="mplan-actions">
-                                <button type="button" class="view" @onclick="() => OpenDetails(item)">
+                                <button type="button" class="view" @onclick="() => OpenDetails(item)" data-ntx-tone="secondary" >
                                     Ver
                                 </button>
 
                                 @if (CanOpenMaintenanceSchedule)
                                 {
-                                    <button type="button" class="primary" @onclick="() => GoToSchedule(item.ToolAssetId)">
+                                    <button type="button" class="primary" @onclick="() => GoToSchedule(item.ToolAssetId)" data-ntx-tone="ghost" >
                                         Cronograma
                                     </button>
                                 }
 
                                 @if (CanRequestMaintenance)
                                 {
-                                    <button type="button" class="success" @onclick="GoToMaintenanceRequest">
+                                    <button type="button" class="success" @onclick="GoToMaintenanceRequest" data-ntx-tone="primary" >
                                         Solicitar
                                     </button>
                                 }
@@ -229,7 +229,7 @@
                             <p>@Display(selectedPlan.Name)</p>
                         </div>
 
-                        <button type="button" @onclick="CloseDetails">Cerrar</button>
+                        <button type="button" @onclick="CloseDetails" data-ntx-tone="secondary" >Cerrar</button>
                     </header>
 
                     <section class="mplan-modal-grid">
@@ -251,35 +251,35 @@
 
                         @if (CanOpenMaintenanceSchedule)
                         {
-                            <button type="button" class="primary" @onclick="() => GoToSchedule(selectedPlan.ToolAssetId)">
+                            <button type="button" class="primary" @onclick="() => GoToSchedule(selectedPlan.ToolAssetId)" data-ntx-tone="primary" >
                                 Cronograma
                             </button>
                         }
 
                         @if (CanRequestMaintenance)
                         {
-                            <button type="button" class="success" @onclick="GoToMaintenanceRequest">
+                            <button type="button" class="success" @onclick="GoToMaintenanceRequest" data-ntx-tone="primary" >
                                 Solicitar mtto.
                             </button>
                         }
 
                         @if (CanCreatePlan)
                         {
-                            <button type="button" class="primary" @onclick="() => GoToSchedule(selectedPlan.ToolAssetId)">
+                            <button type="button" class="primary" @onclick="() => GoToSchedule(selectedPlan.ToolAssetId)" data-ntx-tone="primary" >
                                 Crear plan
                             </button>
                         }
 
                         @if (CanEditPlan)
                         {
-                            <button type="button" class="warning" @onclick="() => GoToSchedule(selectedPlan.ToolAssetId)">
+                            <button type="button" class="warning" @onclick="() => GoToSchedule(selectedPlan.ToolAssetId)" data-ntx-tone="danger" >
                                 Editar plan
                             </button>
                         }
 
                         @if (CanDeletePlan)
                         {
-                            <button type="button" class="danger" @onclick="() => GoToSchedule(selectedPlan.ToolAssetId)">
+                            <button type="button" class="danger" @onclick="() => GoToSchedule(selectedPlan.ToolAssetId)" data-ntx-tone="secondary" >
                                 Gestionar baja
                             </button>
                         }
@@ -556,7 +556,7 @@
 
         if (total <= 0)
         {
-            return "background: conic-gradient(#eadff0 0 100%);";
+            return "background: #FFFFFF;";
         }
 
         var onTime = visible.Count(x => IsStatus(x, "OnTime"));
@@ -565,7 +565,7 @@
         var onTimeEnd = PercentEnd(onTime, total, 0);
         var dueSoonEnd = PercentEnd(dueSoon, total, onTimeEnd);
 
-        return $"background: conic-gradient(#198754 0% {onTimeEnd}%, #ffc107 {onTimeEnd}% {dueSoonEnd}%, #dc3545 {dueSoonEnd}% 100%);";
+        return "background: #FFFFFF;";
     }
 
     private static decimal PercentEnd(int value, int total, decimal start)

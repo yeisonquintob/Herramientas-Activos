@@ -1,0 +1,571 @@
+.detail-hero-banner {
+
+        padding: 1.25rem 1.4rem;
+        margin-bottom: 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: stretch;
+        gap: 1rem;
+
+    }
+
+    .detail-hero-main {
+        min-width: 0;
+    }
+
+    .detail-hero-actions {
+        margin-bottom: 0.6rem;
+    }
+
+    .btn-detail-back {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 30px;
+
+        padding: 0 0.75rem;
+
+    }
+
+    .detail-hero-pill {
+        display: inline-flex;
+
+        padding: 0.22rem 0.65rem;
+
+        margin-bottom: 0.6rem;
+    }
+
+    .detail-hero-banner h2 {
+        margin: 0;
+
+    }
+
+    .detail-hero-code {
+        display: inline-flex;
+        margin-top: 0.45rem;
+
+        padding: 0.22rem 0.7rem;
+
+    }
+
+    .detail-hero-banner p {
+        margin: 0.55rem 0 0 0;
+
+    }
+
+    .detail-hero-side {
+        min-width: 215px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: stretch;
+        gap: 0.65rem;
+    }
+
+    .detail-hero-status-card {
+        display: grid;
+        gap: 0.15rem;
+
+        padding: 0.6rem 0.75rem;
+        text-align: right;
+    }
+
+    .detail-hero-badges {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 0.35rem;
+    }
+
+    .detail-hero-refresh {
+        height: 32px;
+
+    }
+
+    @@media (max-width: 992px) {
+        .detail-hero-banner {
+            flex-direction: column;
+        }
+
+        .detail-hero-side {
+            min-width: 0;
+        }
+
+        .detail-hero-status-card {
+            text-align: left;
+        }
+
+        .detail-hero-badges {
+            justify-content: flex-start;
+        }
+
+    private bool isEditingMasterData;
+    private ToolMasterEditModel editModel = new();
+
+    private void StartMasterDataEdit()
+    {
+        if (tool is null)
+        {
+            return;
+        }
+
+        errorMessage = null;
+        successMessage = null;
+
+        editModel = new ToolMasterEditModel
+        {
+            InternalCode = tool.InternalCode,
+            Name = tool.Name,
+            Description = tool.Description,
+            SerialNumber = tool.SerialNumber,
+            FixedAssetCode = tool.FixedAssetCode,
+            FenixCode = tool.FenixCode,
+            Brand = tool.Brand,
+            Model = tool.Model,
+            OperationalStatus = tool.OperationalStatus,
+            PhysicalStatus = tool.PhysicalStatus,
+            IsSpecialized = tool.IsSpecialized,
+            RequiresMaintenance = tool.RequiresMaintenance,
+            RequiresPreOperationalCheck = tool.RequiresPreOperationalCheck,
+            RequiresCertification = tool.RequiresCertification,
+            CertificationExpirationDate = tool.CertificationExpirationDate,
+            MaintenancePeriodMonths = null
+        };
+
+        isEditingMasterData = true;
+    }
+
+    private void CancelMasterDataEdit()
+    {
+        isEditingMasterData = false;
+        editModel = new ToolMasterEditModel();
+        errorMessage = null;
+        successMessage = null;
+    }
+
+    private async Task SaveMasterDataAsync()
+    {
+        if (tool is null)
+        {
+            return;
+        }
+
+        try
+        {
+            errorMessage = null;
+            successMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var response = await client.PatchAsJsonAsync($"api/tools/{ToolId}/master-data", new
+            {
+                editModel.InternalCode,
+                editModel.Name,
+                editModel.Description,
+                editModel.SerialNumber,
+                editModel.FixedAssetCode,
+                editModel.FenixCode,
+                editModel.Brand,
+                editModel.Model,
+                editModel.OperationalStatus,
+                editModel.PhysicalStatus,
+                editModel.IsSpecialized,
+                editModel.RequiresMaintenance,
+                editModel.RequiresPreOperationalCheck,
+                editModel.RequiresCertification,
+                editModel.CertificationExpirationDate,
+                ClearCertificationExpirationDate = !editModel.CertificationExpirationDate.HasValue,
+                editModel.MaintenancePeriodMonths,
+                ValidateAndAssignReporter = true,
+                UpdatedBy = "admin"
+            });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo guardar el activo. {detail}";
+                return;
+            }
+
+            successMessage = "Activo actualizado correctamente.";
+            isEditingMasterData = false;
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error guardando activo: {ex.Message}";
+        }
+    }
+    private async Task MarkAsNotSuitableAsync()
+    {
+        if (tool is null)
+        {
+            return;
+        }
+
+        try
+        {
+            isSaving = true;
+            errorMessage = null;
+            successMessage = null;
+            actionMessage = null;
+
+            var client = HttpClientFactory.CreateClient("NaviApi");
+
+            var payload = new
+            {
+                operationalStatus = "NotSuitable",
+                changedBy = AuthSession.AuditUser,
+                updatedBy = AuthSession.AuditUser,
+                reason = string.IsNullOrWhiteSpace(actionObservation)
+                    ? "Activo marcado como no apto desde pantalla de detalle de Inventario de Herramientas y AF."
+                    : actionObservation,
+                observation = string.IsNullOrWhiteSpace(actionObservation)
+                    ? "Activo marcado como no apto desde pantalla de detalle de Inventario de Herramientas y AF."
+                    : actionObservation
+            };
+
+            var response = await client.PatchAsJsonAsync($"api/tools/{tool.Id}/operational-status", payload);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync();
+                errorMessage = $"No se pudo marcar el activo como no apto. Código: {(int)response.StatusCode}. Detalle: {detail}";
+                return;
+            }
+
+            selectedOperationalStatus = "NotSuitable";
+            actionObservation = string.Empty;
+            actionMessage = "Activo marcado como no apto correctamente.";
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudo marcar el activo como no apto. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+private sealed class ToolMasterEditModel
+    {
+        public string? InternalCode { get; set; }
+        public string? Name { get; set; }
+        public string? Description { get; set; }
+        public string? SerialNumber { get; set; }
+        public string? FixedAssetCode { get; set; }
+        public string? FenixCode { get; set; }
+        public string? Brand { get; set; }
+        public string? Model { get; set; }
+        public string? OperationalStatus { get; set; }
+        public string? PhysicalStatus { get; set; }
+        public bool IsSpecialized { get; set; }
+    }
+
+    }
+
+    .detail-actions-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem;
+        align-items: center;
+        margin-top: .45rem;
+    }
+
+    .detail-actions-group.compact {
+        gap: .35rem;
+    }
+
+    .detail-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 32px;
+
+        padding: .38rem .68rem;
+
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .detail-action:hover {
+        transform: translateY(-1px);
+
+    }
+
+    .detail-action:disabled,
+    .detail-action[disabled] {
+        cursor: not-allowed;
+        transform: none;
+
+    }
+
+    .detail-action + .detail-action {
+        margin-left: 0;
+    }
+
+    .tool-admin-card .detail-action,
+    .quick-actions-card .detail-action,
+    .asset-actions-card .detail-action {
+        min-width: 110px;
+    }
+
+    @@media (max-width: 1300px) {
+        .detail-action {
+            min-height: 29px;
+            padding: .32rem .48rem;
+            white-space: normal;
+        }
+
+        .detail-actions-group {
+            gap: .35rem;
+        }
+    }
+
+    .detail-hero-main {
+        flex: 1 1 auto;
+    }
+
+    .detail-hero-side {
+        min-width: 240px;
+        align-items: stretch;
+    }
+
+    .detail-hero-right-actions {
+        display: grid;
+        gap: .45rem;
+    }
+
+    .detail-hero-side .btn-detail-back,
+    .detail-hero-side .detail-hero-refresh {
+        width: 100%;
+        min-height: 34px;
+    }
+
+    .admin-control-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .admin-control-header > div:first-child {
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    .admin-control-actions {
+        margin-left: auto;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: .45rem;
+        flex-wrap: wrap;
+        min-width: 230px;
+    }
+
+    .admin-control-actions .detail-action,
+    .admin-control-actions .btn {
+        min-width: 92px;
+        justify-content: center;
+    }
+
+    @@media (max-width: 992px) {
+        .admin-control-header {
+            flex-direction: column;
+        }
+
+        .admin-control-actions {
+            width: 100%;
+            min-width: 0;
+            justify-content: flex-end;
+        }
+    }
+
+    .tool-source-panel {
+        margin-bottom: .75rem;
+
+    }
+
+    .source-header {
+        display: flex;
+        justify-content: space-between;
+        gap: .75rem;
+    }
+
+    .source-pill {
+        display: inline-flex;
+        padding: .18rem .55rem;
+
+    }
+
+    .source-header h2 {
+        margin: .35rem 0 .15rem;
+
+    }
+
+    .source-header p {
+        margin: 0;
+
+    }
+
+    .source-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(180px, 1fr));
+        gap: .65rem;
+        margin-top: .8rem;
+    }
+
+    .source-grid div {
+        padding: .55rem .65rem;
+
+    }
+
+    .source-grid span {
+        display: block;
+
+    }
+
+    .source-grid strong {
+        display: block;
+
+        margin-top: .15rem;
+    }
+
+    .source-grid small {
+        display: block;
+
+    }
+
+    .source-full {
+        grid-column: 1 / -1;
+    }
+
+    @@media (max-width: 1000px) {
+        .source-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .detail-actions-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem;
+        align-items: center;
+        margin-top: .45rem;
+    }
+
+    .detail-actions-group.compact {
+        gap: .35rem;
+    }
+
+    .detail-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 32px;
+
+        padding: .38rem .68rem;
+
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .detail-action:hover {
+        transform: translateY(-1px);
+
+    }
+
+    .detail-action:disabled,
+    .detail-action[disabled] {
+        cursor: not-allowed;
+        transform: none;
+
+    }
+
+    .detail-action + .detail-action {
+        margin-left: 0;
+    }
+
+    .tool-admin-card .detail-action,
+    .quick-actions-card .detail-action,
+    .asset-actions-card .detail-action {
+        min-width: 110px;
+    }
+
+    @@media (max-width: 1300px) {
+        .detail-action {
+            min-height: 29px;
+            padding: .32rem .48rem;
+            white-space: normal;
+        }
+
+        .detail-actions-group {
+            gap: .35rem;
+        }
+    }
+
+    .detail-hero-main {
+        flex: 1 1 auto;
+    }
+
+    .detail-hero-side {
+        min-width: 240px;
+        align-items: stretch;
+    }
+
+    .detail-hero-right-actions {
+        display: grid;
+        gap: .45rem;
+    }
+
+    .detail-hero-side .btn-detail-back,
+    .detail-hero-side .detail-hero-refresh {
+        width: 100%;
+        min-height: 34px;
+    }
+
+    .admin-control-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .admin-control-header > div:first-child {
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    .admin-control-actions {
+        margin-left: auto;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: .45rem;
+        flex-wrap: wrap;
+        min-width: 230px;
+    }
+
+    .admin-control-actions .detail-action,
+    .admin-control-actions .btn {
+        min-width: 92px;
+        justify-content: center;
+    }
+
+    @@media (max-width: 992px) {
+        .admin-control-header {
+            flex-direction: column;
+        }
+
+        .admin-control-actions {
+            width: 100%;
+            min-width: 0;
+            justify-content: flex-end;
+        }
+    }

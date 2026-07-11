@@ -18,7 +18,7 @@
         <div class="mobile-empty">
             <strong>Sesión requerida</strong>
             <span>Debes iniciar sesión para consultar el dashboard.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoLogin">Ir al login</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="secondary" >Ir al login</button>
         </div>
     }
     else if (!CanViewDashboard)
@@ -26,14 +26,14 @@
         <div class="mobile-empty">
             <strong>Sin permiso</strong>
             <span>Tu usuario no tiene permiso para visualizar el dashboard móvil.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoHome">Volver al inicio</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoHome" data-ntx-tone="warning" >Volver al inicio</button>
         </div>
     }
     else if (!string.IsNullOrWhiteSpace(errorMessage))
     {
         <div class="mobile-alert error">@errorMessage</div>
 
-        <button class="mdash-refresh-full" type="button" @onclick="LoadDashboardAsync">
+        <button class="mdash-refresh-full" type="button" @onclick="LoadDashboardAsync" data-ntx-tone="warning" >
             Reintentar
         </button>
     }
@@ -78,43 +78,43 @@
                 </label>
 
                 <div>
-                    <button type="button" @onclick="ApplyDashboardFiltersAsync" disabled="@isRefreshing">Filtrar</button>
-                    <button type="button" class="secondary" @onclick="ClearDashboardFiltersAsync" disabled="@isRefreshing">Limpiar</button>
+                    <button type="button" @onclick="ApplyDashboardFiltersAsync" disabled="@isRefreshing" data-ntx-tone="secondary" >Filtrar</button>
+                    <button type="button" class="secondary" @onclick="ClearDashboardFiltersAsync" disabled="@isRefreshing" data-ntx-tone="secondary" >Limpiar</button>
                 </div>
             </section>
 
             <section class="mdash-kpis">
-                <article class="purple">
+                <article class="primary">
                     <span>Total activos</span>
                     <strong>@DashboardTotalTools</strong>
                     <small>@ScopeLabel</small>
                 </article>
 
-                <article class="green">
+                <article class="tone-positive">
                     <span>Disponibles</span>
                     <strong>@DashboardAvailableTools</strong>
                     <small>Operación</small>
                 </article>
 
-                <article class="yellow">
+                <article class="tone-warning">
                     <span>Asignados</span>
                     <strong>@DashboardAssignedTools</strong>
                     <small>Custodia</small>
                 </article>
 
-                <article class="cyan">
+                <article class="tone-secondary">
                     <span>Responsables</span>
                     <strong>@DashboardActiveResponsibles</strong>
                     <small>Activos</small>
                 </article>
 
-                <article class="red">
+                <article class="tone-danger">
                     <span>Dañadas</span>
                     <strong>@DashboardDamagedTools</strong>
                     <small>Novedades</small>
                 </article>
 
-                <article class="purple">
+                <article class="primary">
                     <span>Avance</span>
                     <strong>@GetAdvancePercent()%</strong>
                     <small>Hoja de vida</small>
@@ -170,9 +170,9 @@
                         </div>
                         <h3>Herramientas vs AF</h3>
                         <div class="mdash-legend compact">
-                            <div><i class="purple"></i><span>Herramientas</span><strong>@DashboardToolsOnly</strong></div>
-                            <div><i class="blue"></i><span>Activos fijos</span><strong>@DashboardFixedAssets</strong></div>
-                            <div><i class="orange"></i><span>Sin código</span><strong>@DashboardToolsWithoutFixedAssetCode</strong></div>
+                            <div><i class="primary"></i><span>Herramientas</span><strong>@DashboardToolsOnly</strong></div>
+                            <div><i class="neutral"></i><span>Activos fijos</span><strong>@DashboardFixedAssets</strong></div>
+                            <div><i class="tone-warning"></i><span>Sin código</span><strong>@DashboardToolsWithoutFixedAssetCode</strong></div>
                         </div>
                     </div>
 
@@ -185,9 +185,9 @@
                         </div>
                         <h3>Estados</h3>
                         <div class="mdash-legend compact">
-                            <div><i class="purple"></i><span>Asignadas</span><strong>@DashboardAssignedTools</strong></div>
-                            <div><i class="blue"></i><span>Disponibles</span><strong>@DashboardAvailableTools</strong></div>
-                            <div><i class="red"></i><span>Mtto.</span><strong>@DashboardInMaintenanceTools</strong></div>
+                            <div><i class="primary"></i><span>Asignadas</span><strong>@DashboardAssignedTools</strong></div>
+                            <div><i class="neutral"></i><span>Disponibles</span><strong>@DashboardAvailableTools</strong></div>
+                            <div><i class="tone-danger"></i><span>Mtto.</span><strong>@DashboardInMaintenanceTools</strong></div>
                         </div>
                     </div>
 
@@ -200,9 +200,9 @@
                         </div>
                         <h3>Hoja de vida</h3>
                         <div class="mdash-legend compact">
-                            <div><i class="purple"></i><span>Con hoja</span><strong>@dashboard.Summary.WithLifeRecord</strong></div>
-                            <div><i class="blue"></i><span>Sin hoja</span><strong>@dashboard.Summary.WithoutLifeRecord</strong></div>
-                            <div><i class="orange"></i><span>Incompletas</span><strong>@dashboard.LifeRecordCoverage.MissingTechnicalData</strong></div>
+                            <div><i class="primary"></i><span>Con hoja</span><strong>@dashboard.Summary.WithLifeRecord</strong></div>
+                            <div><i class="neutral"></i><span>Sin hoja</span><strong>@dashboard.Summary.WithoutLifeRecord</strong></div>
+                            <div><i class="tone-warning"></i><span>Incompletas</span><strong>@dashboard.LifeRecordCoverage.MissingTechnicalData</strong></div>
                         </div>
                     </div>
 
@@ -215,9 +215,9 @@
                         </div>
                         <h3>Mantenimientos</h3>
                         <div class="mdash-legend compact">
-                            <div><i class="purple"></i><span>Este mes</span><strong>@dashboard.MaintenanceSummary.ThisMonth</strong></div>
-                            <div><i class="blue"></i><span>Hoy</span><strong>@dashboard.MaintenanceSummary.Today</strong></div>
-                            <div><i class="orange"></i><span>Pendientes</span><strong>@DashboardRequiresMaintenance</strong></div>
+                            <div><i class="primary"></i><span>Este mes</span><strong>@dashboard.MaintenanceSummary.ThisMonth</strong></div>
+                            <div><i class="neutral"></i><span>Hoy</span><strong>@dashboard.MaintenanceSummary.Today</strong></div>
+                            <div><i class="tone-warning"></i><span>Pendientes</span><strong>@DashboardRequiresMaintenance</strong></div>
                         </div>
                     </div>
                 </div>
@@ -730,56 +730,56 @@
     {
         if (dashboard is null)
         {
-            return "background: conic-gradient(#eadff0 0 100%);";
+            return "background: #FFFFFF;";
         }
 
         return BuildDonut(
-            new DashboardSegment(DashboardToolsOnly, "#7b0d8e"),
-            new DashboardSegment(DashboardFixedAssets, "#2186d9"),
-            new DashboardSegment(DashboardToolsWithoutFixedAssetCode, "#f0a224"));
+            new DashboardSegment(DashboardToolsOnly, "#354550"),
+            new DashboardSegment(DashboardFixedAssets, "#C3CAC8"),
+            new DashboardSegment(DashboardToolsWithoutFixedAssetCode, "#FFB301"));
     }
 
     private string GetStatusDonut()
     {
         if (dashboard is null)
         {
-            return "background: conic-gradient(#eadff0 0 100%);";
+            return "background: #FFFFFF;";
         }
 
         return BuildDonut(
-            new DashboardSegment(DashboardAssignedTools, "#7b0d8e"),
-            new DashboardSegment(DashboardAvailableTools, "#2186d9"),
-            new DashboardSegment(DashboardPendingValidationTools, "#f0a224"),
-            new DashboardSegment(DashboardInMaintenanceTools, "#b4232e"),
-            new DashboardSegment(GetOtherStatusTools(), "#64748b"));
+            new DashboardSegment(DashboardAssignedTools, "#354550"),
+            new DashboardSegment(DashboardAvailableTools, "#C3CAC8"),
+            new DashboardSegment(DashboardPendingValidationTools, "#FFB301"),
+            new DashboardSegment(DashboardInMaintenanceTools, "#EE2E2F"),
+            new DashboardSegment(GetOtherStatusTools(), "#354550"));
     }
 
     private string GetLifeRecordDonut()
     {
         if (dashboard is null)
         {
-            return "background: conic-gradient(#eadff0 0 100%);";
+            return "background: #FFFFFF;";
         }
 
         return BuildDonut(
-            new DashboardSegment(dashboard.Summary.WithLifeRecord, "#7b0d8e"),
-            new DashboardSegment(dashboard.Summary.WithoutLifeRecord, "#2186d9"),
-            new DashboardSegment(dashboard.LifeRecordCoverage.MissingTechnicalData, "#f0a224"),
-            new DashboardSegment(DashboardFixedAssets, "#b4232e"),
-            new DashboardSegment(GetOtherLifeRecords(), "#64748b"));
+            new DashboardSegment(dashboard.Summary.WithLifeRecord, "#354550"),
+            new DashboardSegment(dashboard.Summary.WithoutLifeRecord, "#C3CAC8"),
+            new DashboardSegment(dashboard.LifeRecordCoverage.MissingTechnicalData, "#FFB301"),
+            new DashboardSegment(DashboardFixedAssets, "#EE2E2F"),
+            new DashboardSegment(GetOtherLifeRecords(), "#354550"));
     }
 
     private string GetMaintenanceDonut()
     {
         if (dashboard is null)
         {
-            return "background: conic-gradient(#eadff0 0 100%);";
+            return "background: #FFFFFF;";
         }
 
         return BuildDonut(
-            new DashboardSegment(dashboard.MaintenanceSummary.ThisMonth, "#7b0d8e"),
-            new DashboardSegment(dashboard.MaintenanceSummary.Today, "#2186d9"),
-            new DashboardSegment(DashboardRequiresMaintenance, "#f0a224"));
+            new DashboardSegment(dashboard.MaintenanceSummary.ThisMonth, "#354550"),
+            new DashboardSegment(dashboard.MaintenanceSummary.Today, "#C3CAC8"),
+            new DashboardSegment(DashboardRequiresMaintenance, "#FFB301"));
     }
 
     private static string BuildDonut(params DashboardSegment[] segments)
@@ -788,7 +788,7 @@
 
         if (total <= 0)
         {
-            return "background: conic-gradient(#eadff0 0 100%);";
+            return "background: #FFFFFF;";
         }
 
         var parts = new List<string>();
@@ -801,7 +801,7 @@
             current = next;
         }
 
-        return $"background: conic-gradient({string.Join(", ", parts)});";
+        return "background: #FFFFFF;";
     }
 
     private string GetBranchLinearBarStyle(int value)
