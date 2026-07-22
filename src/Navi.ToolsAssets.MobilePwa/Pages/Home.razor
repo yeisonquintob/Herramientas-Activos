@@ -11,8 +11,8 @@
 
 @if (isInitializing)
 {
-    <section class="mobile-page mobile-page-compact">
-        <div class="mobile-loading">Cargando aplicación móvil...</div>
+    <section class="mobile-page mobile-page-compact navi-mobile-home-form-fix-v10">
+        <div class="mobile-loading" role="status" aria-busy="true">Cargando aplicación móvil...</div>
     </section>
 }
 else if (!Auth.IsAuthenticated)
@@ -27,20 +27,13 @@ else if (!Auth.IsAuthenticated)
 }
 else
 {
-    <section class="mobile-page mobile-page-compact">
+    <section class="mobile-page mobile-page-compact navi-mobile-home-page-v8">
         <NaviMobileAppBanner Class="navi-mobile-home-principal-banner"
                              Pill="PRINCIPAL · APP MÓVIL"
                              Title="@($"Hola, {Display(Auth.CurrentUser?.DisplayName)}")"
                              Description="@Display(Auth.CurrentUser?.BranchName)"
                              ShowHomeButton="false"
                              ShowBackButton="false">
-            <Actions>
-                <button class="navi-mobile-app-banner__button navi-mobile-app-banner__button-logout"
-                        type="button"
-                        @onclick="LogoutAsync" data-ntx-tone="secondary" >
-                    Cerrar sesión
-                </button>
-            </Actions>
         </NaviMobileAppBanner>
 
         @if (!string.IsNullOrWhiteSpace(message))
@@ -48,96 +41,270 @@ else
             <div class="@messageClass">@message</div>
         }
 
-        <section class="mobile-kpi-grid mobile-kpi-grid-compact mobile-kpi-grid-ultra">
-            <div class="mobile-kpi-card mobile-kpi-compact mobile-kpi-ultra">
+        <NaviMobileKpiGrid Dividers="true" Columns="3"  Class="mobile-kpi-grid mobile-kpi-grid-compact mobile-kpi-grid-ultra navi-mobile-home-kpis-one-line">
+            <NaviMobileKpiCard Class="mobile-kpi-card mobile-kpi-compact mobile-kpi-ultra" IconKey="inventory">
                 <span>Mis activos</span>
                 <strong>@assignedTools.Count</strong>
                 <small>Asignados</small>
-            </div>
+            </NaviMobileKpiCard>
 
-            <div class="mobile-kpi-card mobile-kpi-compact mobile-kpi-ultra warning">
+            <NaviMobileKpiCard Class="mobile-kpi-card mobile-kpi-compact mobile-kpi-ultra warning" IconKey="bell">
                 <span>Novedad</span>
                 <strong>@damageReportedCount</strong>
                 <small>Reportados</small>
-            </div>
+            </NaviMobileKpiCard>
 
-            <div class="mobile-kpi-card mobile-kpi-compact mobile-kpi-ultra ok">
+            <NaviMobileKpiCard Class="mobile-kpi-card mobile-kpi-compact mobile-kpi-ultra ok" IconKey="check">
                 <span>Disponibles</span>
                 <strong>@availableCount</strong>
                 <small>Operación</small>
-            </div>
-        </section>
+            </NaviMobileKpiCard>
+        </NaviMobileKpiGrid>
 
-        <section class="mobile-quick-actions navi-quick-actions-v4 navi-quick-actions-compact navi-home-quick-actions-soft-v6 navi-home-quick-actions-soft-v7">
-            <button type="button" class="loan navi-home-quick-action-card-v6 navi-home-quick-action-loan-v6 navi-home-quick-action-card-v7 navi-home-quick-action-loan-v7" @onclick="ToggleLoanRequest" data-ntx-tone="primary" >
-                <strong>Solicitar asignación</strong>
-                <span>Buscar herramienta y enviar solicitud</span>
+        <section class="mobile-quick-actions navi-mobile-home-actions-v8"
+                 aria-label="Acciones principales">
+
+            <button type="button"
+                    class="navi-mobile-home-action-v8 navi-mobile-home-action-request-v8"
+                    aria-label="Solicitar asignación de una herramienta"
+                    aria-expanded="@showLoanWindow"
+                    @onclick="ToggleLoanRequest" data-ntx-tone="operation">
+
+                <span class="navi-mobile-home-action-icon-v8"
+                      aria-hidden="true">
+
+                    <svg viewBox="0 0 24 24"
+                         focusable="false">
+                        <path d="M4 8h16v11H4z"></path>
+                        <path d="M8 8V5h8v3"></path>
+                        <path d="M12 11v5"></path>
+                        <path d="M9.5 13.5h5"></path>
+                    </svg>
+                </span>
+
+                <span class="navi-mobile-home-action-copy-v8">
+                    <strong>Solicitar asignación</strong>
+                    <small>
+                        Buscar herramienta y enviar solicitud
+                    </small>
+                </span>
+
+                <span class="navi-mobile-home-action-arrow-v8"
+                      aria-hidden="true">
+
+                    <svg viewBox="0 0 24 24"
+                         focusable="false">
+                        <path d="m9 6 6 6-6 6"></path>
+                    </svg>
+                </span>
             </button>
 
-            <button type="button" class="damage navi-home-quick-action-card-v6 navi-home-quick-action-damage-v6 navi-home-quick-action-card-v7 navi-home-quick-action-damage-v7" @onclick="ToggleDamageReport" data-ntx-tone="primary" >
-                <strong>Reportar daño</strong>
-                <span>Registrar falla o novedad</span>
+            <button type="button"
+                    class="navi-mobile-home-action-v8 navi-mobile-home-action-report-v8"
+                    aria-label="Reportar daño o novedad"
+                    aria-expanded="@showDamageWindow"
+                    @onclick="ToggleDamageReport" data-ntx-tone="operation">
+
+                <span class="navi-mobile-home-action-icon-v8"
+                      aria-hidden="true">
+
+                    <svg viewBox="0 0 24 24"
+                         focusable="false">
+                        <path d="M10.3 4.3 2.8 17.2A2 2 0 0 0 4.5 20h15a2 2 0 0 0 1.7-2.8L13.7 4.3a2 2 0 0 0-3.4 0Z"></path>
+                        <path d="M12 9v4"></path>
+                        <path d="M12 17h.01"></path>
+                    </svg>
+                </span>
+
+                <span class="navi-mobile-home-action-copy-v8">
+                    <strong>Reportar daño</strong>
+                    <small>
+                        Registrar falla o novedad
+                    </small>
+                </span>
+
+                <span class="navi-mobile-home-action-arrow-v8"
+                      aria-hidden="true">
+
+                    <svg viewBox="0 0 24 24"
+                         focusable="false">
+                        <path d="m9 6 6 6-6 6"></path>
+                    </svg>
+                </span>
             </button>
         </section>
 
         @if (showLoanWindow)
         {
-            <section class="mobile-loan-window navi-action-window">
-                <div class="mobile-loan-head">
+            <section class="mobile-loan-window navi-action-window navi-mobile-home-form-v10 is-loan navi-mobile-request-form-v11">
+                <div class="mobile-loan-head navi-mobile-home-form-head-v10 navi-mobile-form-header-v11">
                     <div>
                         <strong>Solicitud de asignación</strong>
                         <span>La solicitud queda pendiente de aprobación.</span>
                     </div>
 
-                    <button type="button" @onclick="CloseLoanRequest" data-ntx-tone="secondary" >Cerrar</button>
+                    <button type="button"
+                            class="navi-mobile-purple-close-v11"
+                            title="Cerrar solicitud"
+                            aria-label="Cerrar solicitud de asignación"
+                            @onclick="CloseLoanRequest" data-ntx-tone="operation">
+
+                        <span class="navi-mobile-purple-close-v11__icon"
+                              aria-hidden="true">
+                            ×
+                        </span>
+
+                        <span>Cerrar</span>
+                    </button>
                 </div>
 
-                <div class="mobile-loan-user">
+                <div class="mobile-loan-user navi-mobile-home-form-user-v10">
                     <span>Solicitante</span>
                     <strong>@CurrentResponsibleLabel</strong>
                 </div>
 
-                <label class="mobile-field">
-                    <span>Buscar herramienta</span>
-                    <input value="@loanSearch"
-                           @oninput="OnLoanSearchChanged"
-                           placeholder="Código, nombre, serial o sede..." />
+                <label class="mobile-field
+                              navi-mobile-tool-search-v11">
+
+                    <span class="navi-mobile-tool-search-v11__label">
+                        Buscar herramienta
+                    </span>
+
+                    <div class="navi-mobile-tool-search-v11__control">
+                        <span class="navi-mobile-tool-search-v11__icon"
+                              aria-hidden="true">
+                        </span>
+
+                        <input value="@loanSearch"
+                               @oninput="OnLoanSearchChanged"
+                               autocomplete="off"
+                               aria-label="Buscar herramienta para solicitar"
+                               placeholder="Código, nombre, serial, sede o responsable..." name="navi-home-field-001" />
+                    </div>
+
+                    <small class="navi-mobile-tool-search-v11__help">
+                        Escribe para consultar las herramientas
+                        disponibles dentro de tu alcance.
+                    </small>
                 </label>
 
                 @if (ShowLoanSearchResults)
                 {
-                    <div class="mobile-loan-results">
+                    <section class="navi-mobile-tool-results-v11"
+                             aria-label="Resultados de búsqueda">
+
+                        <header class="navi-mobile-tool-results-v11__header">
+                            <div>
+                                <strong>Disponibles para solicitar</strong>
+                                <small>
+                                    Solo aparecen herramientas disponibles y sin responsable.
+                                </small>
+                            </div>
+
+                            <span title="Cantidad de resultados">
+                                @LoanRequestTools.Count()
+                            </span>
+                        </header>
+
                         @if (!LoanRequestTools.Any())
                         {
-                            <div class="mobile-loan-empty">No se encontraron herramientas.</div>
+                            <div class="navi-mobile-tool-results-v11__empty">
+                                <strong>Sin coincidencias</strong>
+                                <small>
+                                    Prueba con otro código, nombre,
+                                    serial, sede o responsable.
+                                </small>
+                            </div>
                         }
                         else
                         {
-                            @foreach (var tool in LoanRequestTools.Take(8))
+                            @foreach (var tool in LoanRequestTools)
                             {
-                                var selected = loanForm.ToolId == tool.Id;
+                                var selected =
+                                    loanForm.ToolId == tool.Id;
 
                                 <button type="button"
-                                        class="mobile-loan-result @(selected ? "selected" : "")"
-                                        @onclick="() => SelectLoanTool(tool)" data-ntx-tone="ghost" >
-                                    <span>
-                                        <strong>@tool.InternalCode</strong>
-                                        <small>@tool.Name</small>
-                                        <small>@Display(tool.BranchCode) · @Display(tool.LocationName)</small>
+                                        class="navi-mobile-tool-option-v11 @GetToolStateClass(tool) @(selected ? "selected" : string.Empty)"
+                                        aria-pressed="@(selected ? "true" : "false")"
+                                        @onclick="() => SelectLoanTool(tool)" data-ntx-tone="ghost">
+
+                                    <span class="navi-mobile-tool-option-v11__marker"
+                                          aria-hidden="true">
                                     </span>
 
-                                    <em class="@GetToolStateClass(tool)">
-                                        @GetStatusLabel(tool.OperationalStatus)
-                                    </em>
+                                    <span class="navi-mobile-tool-option-v11__body">
+                                        <span class="navi-mobile-tool-option-v11__top">
+                                            <strong>
+                                                @tool.InternalCode
+                                            </strong>
+
+                                            <em>
+                                                @GetStatusLabel(
+                                                    tool.OperationalStatus)
+                                            </em>
+                                        </span>
+
+                                        <span class="navi-mobile-tool-option-v11__name">
+                                            @tool.Name
+                                        </span>
+
+                                        <span class="navi-mobile-tool-option-v11__data">
+                                            <span>
+                                                <small>Sede</small>
+                                                <strong>
+                                                    @Display(tool.BranchCode)
+                                                </strong>
+                                            </span>
+
+                                            <span>
+                                                <small>Ubicación</small>
+                                                <strong>
+                                                    @Display(tool.LocationName)
+                                                </strong>
+                                            </span>
+                                        </span>
+
+                                        @if (
+                                            !string.IsNullOrWhiteSpace(
+                                                tool.SerialNumber) ||
+                                            !string.IsNullOrWhiteSpace(
+                                                tool.ResponsiblePersonName)
+                                        )
+                                        {
+                                            <span class="navi-mobile-tool-option-v11__extra">
+                                                @if (
+                                                    !string.IsNullOrWhiteSpace(
+                                                        tool.SerialNumber)
+                                                )
+                                                {
+                                                    <span>
+                                                        Serial:
+                                                        @tool.SerialNumber
+                                                    </span>
+                                                }
+
+                                                @if (
+                                                    !string.IsNullOrWhiteSpace(
+                                                        tool.ResponsiblePersonName)
+                                                )
+                                                {
+                                                    <span>
+                                                        Responsable:
+                                                        @tool.ResponsiblePersonName
+                                                    </span>
+                                                }
+                                            </span>
+                                        }
+                                    </span>
                                 </button>
                             }
                         }
-                    </div>
+                    </section>
                 }
 
                 @if (selectedLoanTool is not null)
                 {
-                    <div class="mobile-loan-selected">
+                    <div class="mobile-loan-selected navi-mobile-selected-tool-v10">
                         <span>@selectedLoanTool.InternalCode</span>
                         <strong>@selectedLoanTool.Name</strong>
                         <small>@Display(selectedLoanTool.BranchCode) · @Display(selectedLoanTool.LocationName)</small>
@@ -148,21 +315,21 @@ else
                     <span>Fecha estimada devolución</span>
                     <input type="date"
                            value="@FormatDateInput(loanForm.ExpectedReturnAt)"
-                           @onchange="OnLoanExpectedReturnChanged" />
+                           @onchange="OnLoanExpectedReturnChanged" name="navi-home-field-002" />
                 </label>
 
                 <label class="mobile-field">
                     <span>Observación</span>
-                    <textarea rows="2"
+                    <textarea class="navi-mobile-compact-textarea-v10 navi-mobile-observation-v11"
                               value="@loanForm.Notes"
                               @oninput="OnLoanNotesChanged"
-                              placeholder="Indique para qué requiere la herramienta..."></textarea>
+                              placeholder="Indique para qué requiere la herramienta..." name="navi-home-field-003"></textarea>
                 </label>
 
-                <button class="mobile-loan-submit"
+                <button class="mobile-loan-submit navi-mobile-positive-submit-v10 navi-mobile-positive-submit-v11"
                         type="button"
                         disabled="@isSaving"
-                        @onclick="SubmitLoanRequestAsync" data-ntx-tone="primary" >
+                        @onclick="SubmitLoanRequestAsync" data-ntx-tone="affirmative">
                     @(isSaving ? "Enviando..." : "Enviar solicitud")
                 </button>
             </section>
@@ -170,62 +337,175 @@ else
 
         @if (showDamageWindow)
         {
-            <section class="mobile-loan-window navi-action-window">
-                <div class="mobile-loan-head">
+            <section class="mobile-loan-window navi-action-window navi-mobile-home-form-v10 is-damage navi-mobile-report-form-v11">
+                <div class="mobile-loan-head navi-mobile-home-form-head-v10 navi-mobile-form-header-v11">
                     <div>
                         <strong>Reporte de daño</strong>
                         <span>Registra una falla, daño o novedad del activo.</span>
                     </div>
 
-                    <button type="button" @onclick="CloseDamageReport" data-ntx-tone="secondary" >Cerrar</button>
+                    <button type="button"
+                            class="navi-mobile-purple-close-v11"
+                            title="Cerrar reporte"
+                            aria-label="Cerrar reporte de daño"
+                            @onclick="CloseDamageReport" data-ntx-tone="ghost">
+
+                        <span class="navi-mobile-purple-close-v11__icon"
+                              aria-hidden="true">
+                            ×
+                        </span>
+
+                        <span>Cerrar</span>
+                    </button>
                 </div>
 
-                <div class="mobile-loan-user">
+                <div class="mobile-loan-user navi-mobile-home-form-user-v10">
                     <span>Reportado por</span>
                     <strong>@Display(Auth.CurrentUser?.DisplayName)</strong>
                 </div>
 
-                <label class="mobile-field">
-                    <span>Buscar herramienta</span>
-                    <input value="@damageSearch"
-                           @oninput="OnDamageSearchChanged"
-                           placeholder="Código, nombre, serial o sede..." />
+                <label class="mobile-field
+                              navi-mobile-tool-search-v11">
+
+                    <span class="navi-mobile-tool-search-v11__label">
+                        Buscar herramienta
+                    </span>
+
+                    <div class="navi-mobile-tool-search-v11__control">
+                        <span class="navi-mobile-tool-search-v11__icon"
+                              aria-hidden="true">
+                        </span>
+
+                        <input value="@damageSearch"
+                               @oninput="OnDamageSearchChanged"
+                               autocomplete="off"
+                               aria-label="Buscar herramienta para reportar"
+                               placeholder="Código, nombre, serial, sede o responsable..." name="navi-home-field-004" />
+                    </div>
+
+                    <small class="navi-mobile-tool-search-v11__help">
+                        Selecciona el activo sobre el cual
+                        registrarás la novedad.
+                    </small>
                 </label>
 
                 @if (ShowDamageSearchResults)
                 {
-                    <div class="mobile-loan-results">
+                    <section class="navi-mobile-tool-results-v11"
+                             aria-label="Resultados de búsqueda">
+
+                        <header class="navi-mobile-tool-results-v11__header">
+                            <div>
+                                <strong>Activos bajo tu responsabilidad</strong>
+                                <small>
+                                    Selecciona uno de tus activos asignados.
+                                </small>
+                            </div>
+
+                            <span title="Cantidad de resultados">
+                                @DamageTools.Count()
+                            </span>
+                        </header>
+
                         @if (!DamageTools.Any())
                         {
-                            <div class="mobile-loan-empty">No se encontraron herramientas.</div>
+                            <div class="navi-mobile-tool-results-v11__empty">
+                                <strong>Sin coincidencias</strong>
+                                <small>
+                                    Prueba con otro código, nombre,
+                                    serial, sede o responsable.
+                                </small>
+                            </div>
                         }
                         else
                         {
-                            @foreach (var tool in DamageTools.Take(8))
+                            @foreach (var tool in DamageTools)
                             {
-                                var selected = damageForm.ToolAssetId == tool.Id;
+                                var selected =
+                                    damageForm.ToolAssetId == tool.Id;
 
                                 <button type="button"
-                                        class="mobile-loan-result @(selected ? "selected" : "")"
-                                        @onclick="() => SelectDamageTool(tool)" data-ntx-tone="ghost" >
-                                    <span>
-                                        <strong>@tool.InternalCode</strong>
-                                        <small>@tool.Name</small>
-                                        <small>@Display(tool.BranchCode) · @Display(tool.LocationName)</small>
+                                        class="navi-mobile-tool-option-v11 @GetToolStateClass(tool) @(selected ? "selected" : string.Empty)"
+                                        aria-pressed="@(selected ? "true" : "false")"
+                                        @onclick="() => SelectDamageTool(tool)" data-ntx-tone="ghost">
+
+                                    <span class="navi-mobile-tool-option-v11__marker"
+                                          aria-hidden="true">
                                     </span>
 
-                                    <em class="@GetToolStateClass(tool)">
-                                        @GetStatusLabel(tool.OperationalStatus)
-                                    </em>
+                                    <span class="navi-mobile-tool-option-v11__body">
+                                        <span class="navi-mobile-tool-option-v11__top">
+                                            <strong>
+                                                @tool.InternalCode
+                                            </strong>
+
+                                            <em>
+                                                @GetStatusLabel(
+                                                    tool.OperationalStatus)
+                                            </em>
+                                        </span>
+
+                                        <span class="navi-mobile-tool-option-v11__name">
+                                            @tool.Name
+                                        </span>
+
+                                        <span class="navi-mobile-tool-option-v11__data">
+                                            <span>
+                                                <small>Sede</small>
+                                                <strong>
+                                                    @Display(tool.BranchCode)
+                                                </strong>
+                                            </span>
+
+                                            <span>
+                                                <small>Ubicación</small>
+                                                <strong>
+                                                    @Display(tool.LocationName)
+                                                </strong>
+                                            </span>
+                                        </span>
+
+                                        @if (
+                                            !string.IsNullOrWhiteSpace(
+                                                tool.SerialNumber) ||
+                                            !string.IsNullOrWhiteSpace(
+                                                tool.ResponsiblePersonName)
+                                        )
+                                        {
+                                            <span class="navi-mobile-tool-option-v11__extra">
+                                                @if (
+                                                    !string.IsNullOrWhiteSpace(
+                                                        tool.SerialNumber)
+                                                )
+                                                {
+                                                    <span>
+                                                        Serial:
+                                                        @tool.SerialNumber
+                                                    </span>
+                                                }
+
+                                                @if (
+                                                    !string.IsNullOrWhiteSpace(
+                                                        tool.ResponsiblePersonName)
+                                                )
+                                                {
+                                                    <span>
+                                                        Responsable:
+                                                        @tool.ResponsiblePersonName
+                                                    </span>
+                                                }
+                                            </span>
+                                        }
+                                    </span>
                                 </button>
                             }
                         }
-                    </div>
+                    </section>
                 }
 
                 @if (selectedDamageTool is not null)
                 {
-                    <div class="mobile-loan-selected">
+                    <div class="mobile-loan-selected navi-mobile-selected-tool-v10">
                         <span>@selectedDamageTool.InternalCode</span>
                         <strong>@selectedDamageTool.Name</strong>
                         <small>@Display(selectedDamageTool.BranchCode) · @Display(selectedDamageTool.LocationName)</small>
@@ -234,7 +514,7 @@ else
 
                 <label class="mobile-field">
                     <span>Severidad</span>
-                    <select value="@damageForm.Severity" @onchange="OnDamageSeverityChanged">
+                    <select value="@damageForm.Severity" @onchange="OnDamageSeverityChanged" name="navi-home-field-005">
                         <option value="Low">Baja</option>
                         <option value="Medium">Media</option>
                         <option value="High">Alta</option>
@@ -245,22 +525,22 @@ else
                 <label class="mobile-check-field">
                     <input type="checkbox"
                            checked="@damageForm.BlocksLoan"
-                           @onchange="OnDamageBlocksLoanChanged" />
+                           @onchange="OnDamageBlocksLoanChanged" name="navi-home-field-006" />
                     <span>Bloquea préstamo o asignación hasta revisión</span>
                 </label>
 
                 <label class="mobile-field">
                     <span>Descripción del daño o novedad</span>
-                    <textarea rows="3"
+                    <textarea class="navi-mobile-compact-textarea-v10 navi-mobile-observation-v11"
                               value="@damageForm.Description"
                               @oninput="OnDamageDescriptionChanged"
-                              placeholder="Describe claramente la falla, daño o novedad..."></textarea>
+                              placeholder="Describe claramente la falla, daño o novedad..." name="navi-home-field-007"></textarea>
                 </label>
 
-                <button class="mobile-loan-submit"
+                <button class="mobile-loan-submit navi-mobile-positive-submit-v10 navi-mobile-positive-submit-v11"
                         type="button"
                         disabled="@isSaving"
-                        @onclick="SubmitDamageReportAsync" data-ntx-tone="primary" >
+                        @onclick="SubmitDamageReportAsync" data-ntx-tone="affirmative">
                     @(isSaving ? "Enviando..." : "Enviar reporte")
                 </button>
             </section>
@@ -274,14 +554,16 @@ else
 
                     <button class="navi-operational-menu-toggle navi-operational-menu-toggle-primary-v7"
                             type="button"
-                            @onclick="ToggleOperationalMenu" data-ntx-tone="ghost" >
+                            aria-expanded="@showOperationalMenu"
+                            aria-controls="navi-operational-menu-content"
+                            @onclick="ToggleOperationalMenu" data-ntx-tone="expand" >
                         @(showOperationalMenu ? "Ocultar" : "Mostrar")
                     </button>
                 </div>
 
                 @if (showOperationalMenu)
                 {
-                    <div class="mobile-menu-grid mobile-menu-grid-compact mobile-menu-grid-full navi-operational-menu-grid">
+                    <div id="navi-operational-menu-content" class="mobile-menu-grid mobile-menu-grid-compact mobile-menu-grid-full navi-operational-menu-grid">
                         @foreach (var item in MenuItems)
                         {
                             <a class="mobile-menu-card mobile-menu-card-compact mobile-menu-card-full mobile-menu-card-white" href="@item.Url">
@@ -295,15 +577,52 @@ else
             </section>
         }
 
-        <section class="mobile-panel mobile-panel-compact mobile-last-assets-panel">
-            <div class="mobile-panel-head mobile-panel-head-compact mobile-assigned-head-no-link">
-                <h2>Herramientas asignadas a mi nombre</h2>
+        <section class="mobile-panel mobile-panel-compact mobile-last-assets-panel navi-mobile-home-assets-panel-v8">
+            <div class="mobile-panel-head
+                    mobile-panel-head-compact
+                    mobile-assigned-head-no-link
+                    navi-mobile-home-assets-head-v8">
+
+                <div class="navi-mobile-home-assets-title-v8">
+                    <span class="navi-mobile-home-assets-eyebrow-v8">
+                        INVENTARIO PERSONAL
+                    </span>
+
+                    <h2>Herramientas asignadas a mi nombre</h2>
+
+                    <p>
+                        Activos que se encuentran actualmente
+                        bajo tu responsabilidad.
+                    </p>
+                </div>
+
+                <span class="navi-mobile-home-assets-count-v8"
+                      title="Cantidad de herramientas asignadas">
+                    @assignedTools.Count
+                </span>
             </div>
 
             @if (!assignedTools.Any())
             {
-                <div class="mobile-empty compact">
-                    No se encontraron activos asignados a tu usuario.
+                <div class="mobile-empty compact
+                            navi-mobile-home-assets-empty-v8">
+
+                    <span aria-hidden="true">
+                        <svg viewBox="0 0 24 24"
+                             focusable="false">
+                            <path d="M4 8h16v11H4z"></path>
+                            <path d="M8 8V5h8v3"></path>
+                            <path d="M9 13h6"></path>
+                        </svg>
+                    </span>
+
+                    <div>
+                        <strong>Sin herramientas asignadas</strong>
+                        <small>
+                            No se encontraron activos asociados
+                            a tu usuario.
+                        </small>
+                    </div>
                 </div>
             }
             else
@@ -311,8 +630,8 @@ else
                 <div class="mobile-assigned-assets-list">
                     @foreach (var tool in assignedTools)
                     {
-                        <article class="mobile-assigned-card">
-                            <div class="mobile-assigned-card-head">
+                        <article class="mobile-assigned-card navi-mobile-home-asset-card-v8">
+                            <div class="mobile-assigned-card-head navi-mobile-home-asset-head-v8">
                                 <div>
                                     <span>@tool.InternalCode</span>
                                     <strong>@tool.Name</strong>
@@ -323,7 +642,7 @@ else
                                 </em>
                             </div>
 
-                            <div class="mobile-assigned-grid">
+                            <div class="mobile-assigned-grid navi-mobile-home-asset-info-v8">
                                 <div>
                                     <span>Sede</span>
                                     <strong>@Display(tool.BranchCode)</strong>
@@ -345,9 +664,78 @@ else
                                 </div>
                             </div>
 
-                            <div class="mobile-assigned-actions">
-                                <a href="@GetDetailUrl(tool.Id)">Detalle</a>
-                                <a class="danger" href="@GetDamageUrl(tool.Id)">Reportar</a>
+                            <div class="mobile-assigned-actions
+                                        navi-mobile-home-asset-actions-v8">
+
+                                <a class="navi-mobile-home-asset-action-v8
+                                          navi-mobile-home-asset-detail-v8"
+                                   href="@GetDetailUrl(tool.Id)"
+                                   aria-label="@($"Ver detalle de {tool.Name}")">
+
+                                    <svg viewBox="0 0 24 24"
+                                         aria-hidden="true"
+                                         focusable="false">
+                                        <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path>
+                                        <circle cx="12" cy="12" r="2.5"></circle>
+                                    </svg>
+
+                                    <span>Ver detalle</span>
+                                </a>
+
+@* NAVI MOBILE HOME IMAGE ACTION V80 START *@
+
+                                <button
+                                    type="button"
+                                    class="navi-mobile-home-asset-action-v8 navi-mobile-home-asset-view-v80"
+                                    title="Visualizar imagen"
+                                    aria-label="@($"Visualizar imagen de {tool.Name}")"
+                                    data-ntx-tone="consult"
+                                    @onclick="() => OpenHomeImagePreviewV80(tool)">
+
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        aria-hidden="true"
+                                        focusable="false">
+
+                                        <rect
+                                            x="3"
+                                            y="5"
+                                            width="18"
+                                            height="14"
+                                            rx="2">
+                                        </rect>
+
+                                        <circle
+                                            cx="9"
+                                            cy="10"
+                                            r="2">
+                                        </circle>
+
+                                        <path d="M4 17L9 13L13 16L16 13L20 17"></path>
+
+                                    </svg>
+
+                                    <span>Ver</span>
+
+                                </button>
+
+@* NAVI MOBILE HOME IMAGE ACTION V80 END *@
+
+                                <a class="navi-mobile-home-asset-action-v8
+                                          navi-mobile-home-asset-report-v8"
+                                   href="@GetDamageUrl(tool.Id)"
+                                   aria-label="@($"Reportar novedad de {tool.Name}")">
+
+                                    <svg viewBox="0 0 24 24"
+                                         aria-hidden="true"
+                                         focusable="false">
+                                        <path d="M10.3 4.3 2.8 17.2A2 2 0 0 0 4.5 20h15a2 2 0 0 0 1.7-2.8L13.7 4.3a2 2 0 0 0-3.4 0Z"></path>
+                                        <path d="M12 9v4"></path>
+                                        <path d="M12 17h.01"></path>
+                                    </svg>
+
+                                    <span>Reportar novedad</span>
+                                </a>
                             </div>
                         </article>
                     }
@@ -356,6 +744,228 @@ else
         </section>
     </section>
 }
+
+@* NAVI MOBILE HOME IMAGE MODAL V80 START *@
+
+@if (
+    isHomeImagePreviewOpenV80
+    &&
+    homeImagePreviewToolV80 is not null)
+{
+    <div
+        class="navi-mobile-home-image-preview-v80"
+        role="presentation"
+        @onclick="CloseHomeImagePreviewV80">
+
+        <section
+            class="navi-mobile-home-image-preview-v80__dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="navi-mobile-home-image-title-v80"
+            @onclick:stopPropagation="true">
+
+            <header
+                class="navi-mobile-home-image-preview-v80__header">
+
+                <div
+                    class="navi-mobile-home-image-preview-v80__title">
+
+                    <span>
+                        @Display(
+                            homeImagePreviewToolV80.InternalCode)
+                    </span>
+
+                    <strong
+                        id="navi-mobile-home-image-title-v80">
+
+                        @Display(
+                            homeImagePreviewToolV80.Name)
+
+                    </strong>
+
+                </div>
+
+                <div
+                    class="navi-mobile-home-image-preview-v80__header-actions">
+
+                    <div
+                        class="navi-mobile-home-image-preview-v80__zoom"
+                        aria-label="Controles de zoom">
+
+                        <button
+                            type="button"
+                            class="navi-mobile-home-image-preview-v80__zoom-out"
+                            title="Alejar imagen"
+                            aria-label="Alejar imagen"
+                            data-navi-home-image-action="zoom-out">
+
+                            <span aria-hidden="true">−</span>
+
+                        </button>
+
+                        <button
+                            type="button"
+                            class="navi-mobile-home-image-preview-v80__zoom-value"
+                            title="Restablecer imagen"
+                            aria-label="Restablecer zoom al 100 por ciento"
+                            data-navi-home-image-action="reset">
+
+                            100%
+
+                        </button>
+
+                        <button
+                            type="button"
+                            class="navi-mobile-home-image-preview-v80__zoom-in"
+                            title="Aumentar imagen"
+                            aria-label="Aumentar imagen"
+                            data-navi-home-image-action="zoom-in">
+
+                            <span aria-hidden="true">+</span>
+
+                        </button>
+
+                    </div>
+
+                    <button
+                        type="button"
+                        class="navi-mobile-home-image-preview-v80__close"
+                        title="Cerrar"
+                        aria-label="Cerrar vista de imagen"
+                        data-ntx-tone="danger"
+                        @onclick="CloseHomeImagePreviewV80">
+
+                        <svg
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
+                            focusable="false">
+
+                            <path d="M6 6L18 18"></path>
+                            <path d="M18 6L6 18"></path>
+
+                        </svg>
+
+                    </button>
+
+                </div>
+
+            </header>
+
+            <div
+                class="navi-mobile-home-image-preview-v80__viewport"
+                data-navi-home-image-viewport
+                tabindex="0"
+                aria-label="Imagen ampliable y desplazable">
+
+                @if (isHomeImageLoadingV80)
+                {
+                    <div
+                        class="navi-mobile-home-image-preview-v80__message"
+                        role="status"
+                        aria-live="polite">
+
+                        <span
+                            class="navi-mobile-home-image-preview-v80__spinner"
+                            aria-hidden="true">
+                        </span>
+
+                        <strong>Cargando imagen...</strong>
+
+                    </div>
+                }
+                else if (
+                    !string.IsNullOrWhiteSpace(
+                        homeImageErrorV80))
+                {
+                    <div
+                        class="navi-mobile-home-image-preview-v80__message"
+                        role="status">
+
+                        <svg
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
+                            focusable="false">
+
+                            <rect
+                                x="3"
+                                y="5"
+                                width="18"
+                                height="14"
+                                rx="2">
+                            </rect>
+
+                            <circle
+                                cx="9"
+                                cy="10"
+                                r="2">
+                            </circle>
+
+                            <path d="M4 17L9 13L13 16L16 13L20 17"></path>
+
+                        </svg>
+
+                        <strong>@homeImageErrorV80</strong>
+
+                    </div>
+                }
+                else if (
+                    !string.IsNullOrWhiteSpace(
+                        homeImageUrlV80))
+                {
+                    <img
+                        class="navi-mobile-home-image-preview-v80__image"
+                        src="@homeImageUrlV80"
+                        alt="@($"Imagen de {homeImagePreviewToolV80.Name}")"
+                        draggable="false"
+                        data-navi-home-image />
+                }
+                else
+                {
+                    <div
+                        class="navi-mobile-home-image-preview-v80__message">
+
+                        <strong>Sin imagen registrada</strong>
+
+                    </div>
+                }
+
+            </div>
+
+            <footer
+                class="navi-mobile-home-image-preview-v80__footer">
+
+                <em
+                    class="@GetToolStateClass(
+                        homeImagePreviewToolV80)">
+
+                    @GetStatusLabel(
+                        homeImagePreviewToolV80.OperationalStatus)
+
+                </em>
+
+                <small>
+                    Usa + o − para ampliar. Arrastra la imagen
+                    con el dedo cuando esté ampliada.
+                </small>
+
+                <button
+                    type="button"
+                    class="navi-mobile-home-image-preview-v80__close-secondary"
+                    data-ntx-tone="secondary"
+                    @onclick="CloseHomeImagePreviewV80">
+
+                    Cerrar
+
+                </button>
+
+            </footer>
+
+        </section>
+
+    </div>
+}
+
+@* NAVI MOBILE HOME IMAGE MODAL V80 END *@
 
 @code {
     private bool isInitializing = true;
@@ -395,7 +1005,8 @@ else
             ContainsStatus(x.PhysicalStatus, "Dañ"));
 
     private int availableCount =>
-        visibleTools.Count(x => ContainsStatus(x.OperationalStatus, "Available"));
+        visibleTools.Count(
+            IsAvailableForLoanRequest);
 
     private MobileToolDto? selectedLoanTool =>
         loanForm.ToolId.HasValue
@@ -415,28 +1026,69 @@ else
         !string.IsNullOrWhiteSpace(damageSearch) &&
         selectedDamageTool is null;
 
+    private static bool IsAvailableForLoanRequest(
+        MobileToolDto tool)
+    {
+        return string.Equals(
+                   tool.OperationalStatus?.Trim(),
+                   "Available",
+                   StringComparison.OrdinalIgnoreCase)
+               && tool.ResponsiblePersonId is null
+               && string.IsNullOrWhiteSpace(
+                   tool.ResponsiblePersonName);
+    }
+
     private IEnumerable<MobileToolDto> LoanRequestTools =>
         visibleTools
-            .Where(x => string.IsNullOrWhiteSpace(loanSearch) ||
-                        ContainsText(x.InternalCode, loanSearch) ||
-                        ContainsText(x.Name, loanSearch) ||
-                        ContainsText(x.SerialNumber, loanSearch) ||
-                        ContainsText(x.BranchCode, loanSearch) ||
-                        ContainsText(x.LocationName, loanSearch) ||
-                        ContainsText(x.ResponsiblePersonName, loanSearch))
-            .OrderByDescending(x => ContainsStatus(x.OperationalStatus, "Available"))
-            .ThenBy(x => x.InternalCode);
+            .Where(IsAvailableForLoanRequest)
+            .Where(x =>
+                string.IsNullOrWhiteSpace(loanSearch) ||
+                ContainsText(
+                    x.InternalCode,
+                    loanSearch) ||
+                ContainsText(
+                    x.Name,
+                    loanSearch) ||
+                ContainsText(
+                    x.SerialNumber,
+                    loanSearch) ||
+                ContainsText(
+                    x.BranchCode,
+                    loanSearch) ||
+                ContainsText(
+                    x.BranchName,
+                    loanSearch) ||
+                ContainsText(
+                    x.LocationName,
+                    loanSearch))
+            .OrderBy(x => x.BranchCode)
+            .ThenBy(x => x.InternalCode)
+            .ThenBy(x => x.Name);
 
     private IEnumerable<MobileToolDto> DamageTools =>
-        visibleTools
-            .Where(x => string.IsNullOrWhiteSpace(damageSearch) ||
-                        ContainsText(x.InternalCode, damageSearch) ||
-                        ContainsText(x.Name, damageSearch) ||
-                        ContainsText(x.SerialNumber, damageSearch) ||
-                        ContainsText(x.BranchCode, damageSearch) ||
-                        ContainsText(x.LocationName, damageSearch) ||
-                        ContainsText(x.ResponsiblePersonName, damageSearch))
-            .OrderBy(x => x.InternalCode);
+        assignedTools
+            .Where(x =>
+                string.IsNullOrWhiteSpace(damageSearch) ||
+                ContainsText(
+                    x.InternalCode,
+                    damageSearch) ||
+                ContainsText(
+                    x.Name,
+                    damageSearch) ||
+                ContainsText(
+                    x.SerialNumber,
+                    damageSearch) ||
+                ContainsText(
+                    x.BranchCode,
+                    damageSearch) ||
+                ContainsText(
+                    x.BranchName,
+                    damageSearch) ||
+                ContainsText(
+                    x.LocationName,
+                    damageSearch))
+            .OrderBy(x => x.InternalCode)
+            .ThenBy(x => x.Name);
 
     private string CurrentResponsibleLabel =>
         !string.IsNullOrWhiteSpace(Auth.CurrentUser?.ResponsiblePersonName)
@@ -629,10 +1281,31 @@ else
         }
     }
 
-    private void SelectLoanTool(MobileToolDto tool)
+    private void SelectLoanTool(
+        MobileToolDto tool)
     {
+        if (!visibleTools.Any(x => x.Id == tool.Id))
+        {
+            ShowError(
+                "La herramienta no está dentro de tu sede "
+                + "o alcance autorizado.");
+
+            return;
+        }
+
+        if (!IsAvailableForLoanRequest(tool))
+        {
+            ShowError(
+                "Solo puedes solicitar herramientas "
+                + "disponibles y sin responsable asignado.");
+
+            return;
+        }
+
         loanForm.ToolId = tool.Id;
-        loanSearch = $"{tool.InternalCode} - {tool.Name}";
+
+        loanSearch =
+            $"{tool.InternalCode} - {tool.Name}";
     }
 
     private void OnLoanExpectedReturnChanged(ChangeEventArgs args)
@@ -661,6 +1334,17 @@ else
         if (tool is null)
         {
             ShowError("No se encontró la herramienta seleccionada.");
+            return;
+        }
+
+        if (!IsAvailableForLoanRequest(tool))
+        {
+            loanForm.ToolId = null;
+
+            ShowError(
+                "Solo puedes solicitar herramientas disponibles "
+                + "y sin responsable asignado.");
+
             return;
         }
 
@@ -820,11 +1504,14 @@ else
             return false;
         }
 
-        return SameNormalized(user.BranchCode, "TODAS") ||
+        return Auth.IsAdmin() ||
+               SameNormalized(user.BranchCode, "TODAS") ||
                SameNormalized(user.BranchCode, "ALL") ||
                SameNormalized(user.BranchName, "TODAS") ||
                SameNormalized(user.BranchName, "ALL") ||
-               SameNormalized(user.BranchName, "Todas las sedes");
+               SameNormalized(
+                   user.BranchName,
+                   "Todas las sedes");
     }
 
     private bool IsAssignedToCurrentUser(MobileToolDto tool)

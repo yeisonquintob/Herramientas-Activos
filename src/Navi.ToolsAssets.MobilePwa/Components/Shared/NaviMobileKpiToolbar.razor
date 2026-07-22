@@ -1,0 +1,86 @@
+@using System.Collections.Generic
+@using Microsoft.AspNetCore.Components
+
+<section @attributes="AdditionalAttributes"
+         class="@CssClass"
+         data-ntx-component="mobile-kpi-toolbar">
+
+    <div class="navi-mobile-kpi-toolbar__content">
+        @ChildContent
+    </div>
+
+    @if (ShowRefresh)
+    {
+        <div class="navi-mobile-kpi-toolbar__action">
+            <button type="button"
+                    class="@RefreshButtonCssClass"
+                    title="@RefreshTitle"
+                    aria-label="@RefreshAriaLabel"
+                    aria-busy="@AriaBusy"
+                    disabled="@(IsRefreshing || !Refresh.HasDelegate)"
+                    @onclick="InvokeRefreshAsync" data-ntx-tone="refresh">
+
+                <svg viewBox="0 0 24 24"
+                     focusable="false"
+                     aria-hidden="true">
+
+                    <path class="navi-mobile-refresh-button__orbit"
+                          d="M20 12a8 8 0 1 1-2.34-5.66" />
+
+                    <path class="navi-mobile-refresh-button__arrow"
+                          d="M20 4v6h-6" />
+                </svg>
+            </button>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public EventCallback Refresh { get; set; }
+
+    [Parameter]
+    public bool IsRefreshing { get; set; }
+
+    [Parameter]
+    public bool ShowRefresh { get; set; } = true;
+
+    [Parameter]
+    public string RefreshTitle { get; set; } = "Actualizar";
+
+    [Parameter]
+    public string RefreshAriaLabel { get; set; } =
+        "Actualizar información";
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>?
+        AdditionalAttributes { get; set; }
+
+    private string AriaBusy =>
+        IsRefreshing
+            ? "true"
+            : "false";
+
+    private string RefreshButtonCssClass =>
+        IsRefreshing
+            ? "navi-mobile-refresh-button is-loading"
+            : "navi-mobile-refresh-button";
+
+    private string CssClass =>
+        string.IsNullOrWhiteSpace(Class)
+            ? "navi-mobile-kpi-toolbar"
+            : $"navi-mobile-kpi-toolbar {Class.Trim()}";
+
+    private Task InvokeRefreshAsync()
+    {
+        return Refresh.HasDelegate
+            ? Refresh.InvokeAsync()
+            : Task.CompletedTask;
+    }
+}

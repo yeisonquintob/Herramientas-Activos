@@ -245,6 +245,93 @@ public class LoansController : ControllerBase
             });
         }
 
+        // NAVI UNIQUE ASSIGNMENT REQUEST API V53 START
+
+        await using var uniqueRequestTransaction =
+            await _context.Database
+                .BeginTransactionAsync(
+                    System.Data.IsolationLevel.Serializable);
+
+        var requestedToolIds =
+            tools
+                .Select(tool => tool.Id)
+                .ToList();
+
+        var activeRequestStatuses =
+            new[]
+            {
+                ToolLoanStatus.Draft,
+                ToolLoanStatus.Requested,
+                ToolLoanStatus.Approved
+            };
+
+        var existingActiveRequests =
+            await _context.ToolLoans
+                .AsNoTracking()
+                .Where(loan =>
+                    activeRequestStatuses.Contains(
+                        loan.Status))
+                .Where(loan =>
+                    loan.Items.Any(item =>
+                        requestedToolIds.Contains(
+                            item.ToolAssetId)
+                        &&
+                        !item.Returned))
+                .SelectMany(loan =>
+                    loan.Items
+                        .Where(item =>
+                            requestedToolIds.Contains(
+                                item.ToolAssetId)
+                            &&
+                            !item.Returned)
+                        .Select(item => new
+                        {
+                            loan.LoanNumber,
+                            item.ToolAssetId
+                        }))
+                .ToListAsync();
+
+        if (existingActiveRequests.Count > 0)
+        {
+            var duplicatedToolIds =
+                existingActiveRequests
+                    .Select(item =>
+                        item.ToolAssetId)
+                    .ToHashSet();
+
+            var duplicatedTools =
+                tools
+                    .Where(tool =>
+                        duplicatedToolIds.Contains(
+                            tool.Id))
+                    .Select(tool => new
+                    {
+                        tool.Id,
+                        tool.InternalCode,
+                        tool.Name,
+                        ActiveRequest =
+                            existingActiveRequests
+                                .First(item =>
+                                    item.ToolAssetId
+                                    == tool.Id)
+                                .LoanNumber
+                    })
+                    .ToList();
+
+            return Conflict(new
+            {
+                Message =
+                    "Una o más herramientas ya tienen "
+                    + "una solicitud activa. Debe "
+                    + "aprobarse, denegarse o cancelarse "
+                    + "antes de crear otra solicitud.",
+                Tools = duplicatedTools
+            });
+        }
+
+        // NAVI UNIQUE ASSIGNMENT REQUEST API V53 END
+
+
         Guid? requestedByPersonId = request.RequestedByPersonId;
 
         if (!requestedByPersonId.HasValue && !string.IsNullOrWhiteSpace(request.RequestedBy))
@@ -321,7 +408,14 @@ public class LoansController : ControllerBase
 
         _context.ToolLoans.Add(loan);
 
+        // NAVI UNIQUE ASSIGNMENT REQUEST COMMIT V53 START
+
         await _context.SaveChangesAsync();
+
+        await uniqueRequestTransaction
+            .CommitAsync();
+
+        // NAVI UNIQUE ASSIGNMENT REQUEST COMMIT V53 END
 
         return CreatedAtAction(nameof(GetLoanById), new { id = loan.Id }, new
         {

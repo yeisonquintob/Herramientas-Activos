@@ -19,13 +19,13 @@
         </a>
     </NaviPageHero>
 
-    <section class="navi-kpi-grid sync-export-kpis">
+    <NaviKpiGrid Class="navi-kpi-grid sync-export-kpis">
         <NaviKpiCard
             Title="Backups cargados"
             Value="@backups.Count.ToString()"
             Description="Archivos recibidos por configuración"
             Tone="neutral" />
-    </section>
+    </NaviKpiGrid>
 
     <section class="sync-export-layout">
         <article class="sync-export-card upload">
@@ -44,7 +44,7 @@
 
             <label class="sync-export-file-box">
                 <span>Archivo backup</span>
-                <InputFile OnChange="OnBackupSelected" accept=".bak,.bacpac,.zip,.7z" />
+                <InputFile OnChange="OnBackupSelected" accept=".bak,.bacpac,.zip,.7z" name="navi-settingssyncexport-field-001" />
                 <small>Formatos permitidos: .bak, .bacpac, .zip, .7z. Tamaño máximo: 5 GB.</small>
             </label>
 
@@ -62,7 +62,7 @@
             }
 
             <div class="sync-export-actions">
-                <button class="btn btn-primary" type="button" @onclick="UploadBackupAsync" disabled="@(selectedBackup is null || isUploading)" data-ntx-tone="primary" >
+                <button class="btn ntx-btn--operation" type="button" @onclick="UploadBackupAsync" disabled="@(selectedBackup is null || isUploading)" data-ntx-tone="ghost" >
                     @(isUploading ? "Cargando..." : "Cargar backup")
                 </button>
 
@@ -79,14 +79,14 @@
                     <p>Histórico local de archivos recibidos por el módulo.</p>
                 </div>
 
-                <button class="btn btn-sm btn-outline-primary" type="button" @onclick="LoadAsync" disabled="@isLoading" data-ntx-tone="secondary" >
+                <button class="btn btn-sm ntx-btn--operation" type="button" @onclick="LoadAsync" disabled="@isLoading" data-ntx-tone="refresh" >
                     Actualizar
                 </button>
             </div>
 
             @if (isLoading)
             {
-                <div class="alert alert-info">Cargando backups...</div>
+                <div class="alert alert-info" role="status" aria-busy="true">Cargando backups...</div>
             }
             else if (backups.Count == 0)
             {
@@ -95,7 +95,8 @@
             else
             {
                 <div class="sync-export-table-wrapper">
-                    <table class="table table-hover align-middle">
+                    <div class="ntx-table-scroll">
+                        <table class="table table-hover align-middle">
                         <thead>
                             <tr>
                                 <th>Archivo</th>
@@ -117,11 +118,12 @@
                                     <td>@item.Extension</td>
                                     <td>@FormatBytes(item.SizeBytes)</td>
                                     <td>@item.UploadedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
-                                    <td><span class="badge bg-success">Cargado</span></td>
+                                    <td><span class="badge navi-bg-affirmative">Cargado</span></td>
                                 </tr>
                             }
                         </tbody>
                     </table>
+                    </div>
                 </div>
             }
         </article>
@@ -140,7 +142,7 @@
                 <strong>Exportación de base de datos</strong>
                 <p>Queda visible para mantener el flujo funcional, pero todavía no ejecuta generación ni descarga del backup.</p>
 
-                <button class="btn btn-outline-secondary" type="button" disabled data-ntx-tone="secondary" >
+                <button class="btn btn-outline-secondary" type="button" disabled data-ntx-tone="consult" >
                     Exportar backup próximamente
                 </button>
             </div>

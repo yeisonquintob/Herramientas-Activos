@@ -11,20 +11,90 @@
 
 <PermissionGuard Permission="MaintenancePlans.View" ModuleName="Cronograma de mantenimiento">
 
+<div class="navi-life-record-subpage navi-life-record-subpage--maintenance">
+
+
+
+@* NAVI LIFE RECORD SUBPAGE STANDARD V76 MAINTENANCE START *@
+
 <NaviPageHero
     Pill="ACTIVOS FIJOS"
     Title="Cronograma de mantenimiento"
-    Description="Registra, actualiza o desactiva mantenimientos preventivos, correctivos y de calibración.">
+    Description="Registra, actualiza o desactiva mantenimientos preventivos, correctivos y de calibración." />
 
-    <a href="@($"/tools/{ToolId}/technical-life-record")">
-        ← Volver a hoja de vida
-    </a>
+<NaviKpiToolbar
+    Class="navi-life-record-subpage-toolbar
+           navi-life-record-subpage-toolbar--maintenance"
+    Refresh="LoadAsync"
+    IsRefreshing="isLoading"
+    RefreshTitle="Actualizar cronograma de mantenimiento"
+    RefreshAriaLabel="Actualizar cronograma de mantenimiento">
 
-    <button type="button" @onclick="LoadAsync" disabled="@isLoading" data-ntx-tone="primary" >
-        @(isLoading ? "Cargando..." : "Recargar")
-    </button>
+    <div class="navi-life-record-subpage-toolbar__body">
 
-</NaviPageHero>
+        <NaviKpiGrid
+            Columns="3"
+            Compact="true"
+            Dividers="true"
+            Class="navi-life-record-subpage-kpis">
+
+            <NaviKpiCard
+                Title="Código interno"
+                Description="Identificación del activo"
+                Value="@internalCode"
+                Tone="neutral"
+                Compact="true">
+
+                <IconContent>
+                    <NaviKpiIcon Name="inventory" />
+                </IconContent>
+
+            </NaviKpiCard>
+
+            <NaviKpiCard
+                Title="Activo"
+                Description="Hoja de vida técnica"
+                Value="@toolName"
+                Tone="soft"
+                Compact="true"
+                     Class="navi-life-record-kpi-asset">
+
+                <IconContent>
+                    <NaviKpiIcon Name="document" />
+                </IconContent>
+
+            </NaviKpiCard>
+
+            <NaviKpiCard
+                Title="Mantenimientos"
+                Description="Cronograma y evidencias"
+                Value="@maintenanceRecords.Count.ToString()"
+                Tone="warning"
+                Compact="true">
+
+                <IconContent>
+                    <NaviKpiIcon Name="wrench" />
+                </IconContent>
+
+            </NaviKpiCard>
+
+        </NaviKpiGrid>
+
+        <a class="navi-life-record-subpage-back"
+           href="@($"/tools/{ToolId}/technical-life-record")"
+           aria-label="Volver a hoja de vida"
+           data-ntx-tone="secondary">
+
+            <span aria-hidden="true">←</span>
+            <span>Volver a hoja de vida</span>
+
+        </a>
+
+    </div>
+
+</NaviKpiToolbar>
+
+@* NAVI LIFE RECORD SUBPAGE STANDARD V76 MAINTENANCE END *@
 
 @if (!string.IsNullOrWhiteSpace(errorMessage))
 {
@@ -58,18 +128,18 @@
             <fieldset class="schedule-permission-fieldset" disabled="@(!CanUseMaintenanceForm)">
             <div class="edit-form-grid">
                 <div>
-                    <label>Número mantenimiento</label>
-                    <InputText class="form-control" @bind-Value="formModel.MaintenanceNumber" placeholder="Ej: MTTO-AGU-001" />
+                    <label for="navi-toolmaintenanceschedulemanage-control-001">Número mantenimiento</label>
+                    <InputText class="form-control" @bind-Value="formModel.MaintenanceNumber" placeholder="Ej: MTTO-AGU-001" id="navi-toolmaintenanceschedulemanage-control-001" />
                 </div>
 
                 <div>
-                    <label>Fecha programada</label>
-                    <InputDate class="form-control" @bind-Value="formModel.ScheduledAt" />
+                    <label for="navi-toolmaintenanceschedulemanage-control-002">Fecha programada</label>
+                    <InputDate class="form-control" @bind-Value="formModel.ScheduledAt" id="navi-toolmaintenanceschedulemanage-control-002" />
                 </div>
 
                 <div>
-                    <label>Tipo</label>
-                    <InputSelect class="form-select" @bind-Value="formModel.Type">
+                    <label for="navi-toolmaintenanceschedulemanage-control-003">Tipo</label>
+                    <InputSelect class="form-select" @bind-Value="formModel.Type" id="navi-toolmaintenanceschedulemanage-control-003">
                         <option value="Preventive">Preventivo</option>
                         <option value="Corrective">Correctivo</option>
                         <option value="Calibration">Calibración</option>
@@ -78,8 +148,8 @@
                 </div>
 
                 <div>
-                    <label>Estado</label>
-                    <InputSelect class="form-select" @bind-Value="formModel.Status">
+                    <label for="navi-toolmaintenanceschedulemanage-control-004">Estado</label>
+                    <InputSelect class="form-select" @bind-Value="formModel.Status" id="navi-toolmaintenanceschedulemanage-control-004">
                         <option value="Scheduled">Programado</option>
                         <option value="InProgress">En proceso</option>
                         <option value="Completed">Completado</option>
@@ -88,38 +158,38 @@
                 </div>
 
                 <div>
-                    <label>Proveedor</label>
-                    <InputText class="form-control" @bind-Value="formModel.Provider" />
+                    <label for="navi-toolmaintenanceschedulemanage-control-005">Proveedor</label>
+                    <InputText class="form-control" @bind-Value="formModel.Provider" id="navi-toolmaintenanceschedulemanage-control-005" />
                 </div>
 
                 <div>
-                    <label>Técnico</label>
-                    <InputText class="form-control" @bind-Value="formModel.Technician" />
+                    <label for="navi-toolmaintenanceschedulemanage-control-006">Técnico</label>
+                    <InputText class="form-control" @bind-Value="formModel.Technician" id="navi-toolmaintenanceschedulemanage-control-006" />
                 </div>
 
                 <div>
-                    <label>Responsable</label>
-                    <InputText class="form-control" @bind-Value="formModel.ResponsibleName" />
+                    <label for="navi-toolmaintenanceschedulemanage-control-007">Responsable</label>
+                    <InputText class="form-control" @bind-Value="formModel.ResponsibleName" id="navi-toolmaintenanceschedulemanage-control-007" />
                 </div>
 
                 <div>
-                    <label>Cargo responsable</label>
-                    <InputText class="form-control" @bind-Value="formModel.ResponsiblePosition" />
+                    <label for="navi-toolmaintenanceschedulemanage-control-008">Cargo responsable</label>
+                    <InputText class="form-control" @bind-Value="formModel.ResponsiblePosition" id="navi-toolmaintenanceschedulemanage-control-008" />
                 </div>
 
                 <div>
-                    <label>Factura</label>
-                    <InputText class="form-control" @bind-Value="formModel.InvoiceNumber" />
+                    <label for="navi-toolmaintenanceschedulemanage-control-009">Factura</label>
+                    <InputText class="form-control" @bind-Value="formModel.InvoiceNumber" id="navi-toolmaintenanceschedulemanage-control-009" />
                 </div>
 
                 <div>
-                    <label>Costo</label>
-                    <InputNumber class="form-control" @bind-Value="formModel.Cost" />
+                    <label for="navi-toolmaintenanceschedulemanage-control-010">Costo</label>
+                    <InputNumber class="form-control" @bind-Value="formModel.Cost" id="navi-toolmaintenanceschedulemanage-control-010" />
                 </div>
 
                 <div>
-                    <label>Documento evidencia</label>
-                    <InputSelect class="form-select" @bind-Value="formModel.EvidenceDocumentIdText">
+                    <label for="navi-toolmaintenanceschedulemanage-control-011">Documento evidencia</label>
+                    <InputSelect class="form-select" @bind-Value="formModel.EvidenceDocumentIdText" id="navi-toolmaintenanceschedulemanage-control-011">
                         <option value="">Sin evidencia</option>
                         @foreach (var doc in documents)
                         {
@@ -128,61 +198,61 @@
                     </InputSelect>
 
                     <div class="maintenance-evidence-actions">
-                        <a class="btn btn-sm btn-outline-primary"
-                           href="@($"/tools/{ToolId}/documents")" data-ntx-tone="primary" >
+                        <a class="btn btn-sm ntx-btn--operation"
+                           href="@($"/tools/{ToolId}/documents")" data-ntx-tone="operation" >
                             Cargar evidencia / documentos
                         </a>
 
                         <button type="button"
                                 class="btn btn-sm btn-outline-secondary"
-                                @onclick="LoadAsync" data-ntx-tone="primary" >
+                                @onclick="LoadAsync" data-ntx-tone="refresh" >
                             Recargar documentos
                         </button>
                     </div>
                 </div>
 
                 <div>
-                    <label>Fecha inicio</label>
-                    <InputDate class="form-control" @bind-Value="formModel.StartedAt" />
+                    <label for="navi-toolmaintenanceschedulemanage-control-012">Fecha inicio</label>
+                    <InputDate class="form-control" @bind-Value="formModel.StartedAt" id="navi-toolmaintenanceschedulemanage-control-012" />
                 </div>
 
                 <div>
-                    <label>Fecha finalización</label>
-                    <InputDate class="form-control" @bind-Value="formModel.FinishedAt" />
+                    <label for="navi-toolmaintenanceschedulemanage-control-013">Fecha finalización</label>
+                    <InputDate class="form-control" @bind-Value="formModel.FinishedAt" id="navi-toolmaintenanceschedulemanage-control-013" />
                 </div>
 
                 <div class="form-check-row">
-                    <InputCheckbox class="form-check-input" @bind-Value="formModel.IsToolOperational" />
-                    <label>Herramienta operativa</label>
+                    <InputCheckbox class="form-check-input" @bind-Value="formModel.IsToolOperational" name="navi-toolmaintenanceschedulemanage-field-001" id="navi-toolmaintenanceschedulemanage-control-014" />
+                    <label for="navi-toolmaintenanceschedulemanage-control-014">Herramienta operativa</label>
                 </div>
             </div>
 
             <div class="mt-3">
-                <label>Descripción</label>
+                <label for="navi-toolmaintenanceschedulemanage-control-015">Descripción</label>
                 <InputTextArea class="form-control technical-observation"
                                @bind-Value="formModel.Description"
-                               placeholder="Descripción general del mantenimiento..." />
+                               placeholder="Descripción general del mantenimiento..." id="navi-toolmaintenanceschedulemanage-control-015" />
             </div>
 
             <div class="mt-3">
-                <label>Actividades realizadas / programadas</label>
+                <label for="navi-toolmaintenanceschedulemanage-control-016">Actividades realizadas / programadas</label>
                 <InputTextArea class="form-control technical-observation"
                                @bind-Value="formModel.MaintenanceActivities"
-                               placeholder="Ej: Limpieza | Inspección | Verificación funcional" />
+                               placeholder="Ej: Limpieza | Inspección | Verificación funcional" id="navi-toolmaintenanceschedulemanage-control-016" />
             </div>
 
             <div class="mt-3">
-                <label>Notas de ejecución</label>
+                <label for="navi-toolmaintenanceschedulemanage-control-017">Notas de ejecución</label>
                 <InputTextArea class="form-control technical-observation"
                                @bind-Value="formModel.ExecutionNotes"
-                               placeholder="Notas o hallazgos del mantenimiento..." />
+                               placeholder="Notas o hallazgos del mantenimiento..." id="navi-toolmaintenanceschedulemanage-control-017" />
             </div>
 
             <div class="mt-3">
-                <label>Resultado</label>
+                <label for="navi-toolmaintenanceschedulemanage-control-018">Resultado</label>
                 <InputTextArea class="form-control technical-observation"
                                @bind-Value="formModel.Result"
-                               placeholder="Resultado final o pendiente..." />
+                               placeholder="Resultado final o pendiente..." id="navi-toolmaintenanceschedulemanage-control-018" />
             </div>
 
             </fieldset>
@@ -190,12 +260,12 @@
             <div class="technical-edit-actions static-actions mt-3">
                 @if (editingMaintenanceId.HasValue)
                 {
-                    <button type="button" class="btn btn-outline-secondary" @onclick="CancelEdit" data-ntx-tone="primary" >
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CancelEdit" data-ntx-tone="secondary" >
                         Cancelar edición
                     </button>
                 }
 
-                <button type="submit" class="btn btn-primary" disabled="@(!CanUseMaintenanceForm || isSaving)" data-ntx-tone="primary" >
+                <button type="submit" class="btn ntx-btn--operation" disabled="@(!CanUseMaintenanceForm || isSaving)" data-ntx-tone="affirmative" >
                     @GetSaveButtonText()
                 </button>
             </div>
@@ -210,7 +280,7 @@
 
         @if (isLoading)
         {
-            <div class="alert alert-info mb-0">Cargando cronograma...</div>
+            <div class="alert alert-info mb-0" role="status" aria-busy="true">Cargando cronograma...</div>
         }
         else if (maintenanceRecords.Count == 0)
         {
@@ -243,9 +313,9 @@
 
                                 @if (HasEvidence(item.EvidenceDocumentId))
                                 {
-                                    <a class="btn btn-sm btn-outline-success maintenance-evidence-download"
+                                    <a class="btn btn-sm ntx-btn--affirmative maintenance-evidence-download"
                                        href="@BuildEvidenceDownloadUrl(item.EvidenceDocumentId)"
-                                       target="_blank" data-ntx-tone="primary" >
+                                       target="_blank" data-ntx-tone="operation" >
                                         Descargar evidencia
                                     </a>
                                 }
@@ -254,20 +324,24 @@
 
                         <p class="maintenance-description">@Show(item.Description)</p>
 
-                        <div class="d-flex gap-1 flex-wrap mt-2">
-                            <button class="btn btn-sm btn-outline-primary" disabled="@(!CanEditSchedule)" @onclick="() => StartEdit(item)" data-ntx-tone="danger" >
+                        <div class="d-flex gap-1 flex-wrap mt-2 navi-life-record-paired-actions">
+<button class="btn btn-sm ntx-btn--operation" disabled="@(!CanEditSchedule)" @onclick="() => StartEdit(item)" data-ntx-tone="operation" >
                                 Editar
                             </button>
 
-                            <button class="btn btn-sm btn-outline-danger" disabled="@(!CanDeleteSchedule)" @onclick="() => DeleteAsync(item)" data-ntx-tone="danger" >
+                            <button class="btn btn-sm ntx-btn--danger" disabled="@(!CanDeleteSchedule)" @onclick="() => DeleteAsync(item)" data-ntx-tone="danger" >
                                 Desactivar
                             </button>
-                        </div>
+</div>
                     </div>
                 }
             </div>
         }
     </section>
+</div>
+
+
+
 </div>
 
 </PermissionGuard>

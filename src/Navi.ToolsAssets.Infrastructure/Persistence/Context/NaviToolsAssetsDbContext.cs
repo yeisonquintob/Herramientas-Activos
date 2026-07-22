@@ -50,9 +50,13 @@ public class NaviToolsAssetsDbContext : DbContext
     public DbSet<PhysicalCount> PhysicalCounts => Set<PhysicalCount>();
     public DbSet<PhysicalCountItem> PhysicalCountItems => Set<PhysicalCountItem>();
     public DbSet<PhysicalCountReportedItem> PhysicalCountReportedItems => Set<PhysicalCountReportedItem>();
+    public DbSet<PhysicalCountReportedItemEvidence> PhysicalCountReportedItemEvidences => Set<PhysicalCountReportedItemEvidence>();
     public DbSet<PhysicalCountExtraItem> PhysicalCountExtraItems => Set<PhysicalCountExtraItem>();
     public DbSet<PhysicalCountParticipant> PhysicalCountParticipants => Set<PhysicalCountParticipant>();
     public DbSet<PurchaseRequest> PurchaseRequests => Set<PurchaseRequest>();
+
+    public DbSet<PurchaseRequestEvidence> PurchaseRequestEvidences =>
+        Set<PurchaseRequestEvidence>();
     public DbSet<ToolMaintenanceRequest> MaintenanceRequests => Set<ToolMaintenanceRequest>();
     public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
 
@@ -680,6 +684,58 @@ public class NaviToolsAssetsDbContext : DbContext
             entity.HasOne(x => x.Branch)
                 .WithMany()
                 .HasForeignKey(x => x.BranchId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasQueryFilter(x => !x.IsDeleted);
+        });
+
+        modelBuilder.Entity<PurchaseRequestEvidence>(entity =>
+        {
+            entity.ToTable("PurchaseRequestEvidences", "Purchases");
+
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.EvidenceType)
+                .HasMaxLength(40)
+                .IsRequired();
+
+            entity.Property(x => x.ReferenceName)
+                .HasMaxLength(300);
+
+            entity.Property(x => x.FileName)
+                .HasMaxLength(260)
+                .IsRequired();
+
+            entity.Property(x => x.ContentType)
+                .HasMaxLength(100)
+                .IsRequired();
+
+            entity.Property(x => x.ObjectKey)
+                .HasMaxLength(700)
+                .IsRequired();
+
+            entity.Property(x => x.UploadedBy)
+                .HasMaxLength(150)
+                .IsRequired();
+
+            entity.Property(x => x.CreatedBy)
+                .HasMaxLength(150);
+
+            entity.Property(x => x.UpdatedBy)
+                .HasMaxLength(150);
+
+            entity.HasIndex(x => x.WorkspaceId);
+            entity.HasIndex(x => x.PurchaseRequestId);
+            entity.HasIndex(x => new
+            {
+                x.WorkspaceId,
+                x.EvidenceType,
+                x.ReferenceId
+            });
+
+            entity.HasOne(x => x.PurchaseRequest)
+                .WithMany(x => x.Evidences)
+                .HasForeignKey(x => x.PurchaseRequestId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasQueryFilter(x => !x.IsDeleted);

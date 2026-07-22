@@ -16,6 +16,8 @@ builder.Services.AddScoped(_ => new HttpClient
 });
 
 builder.Services.AddScoped<MobileAuthSessionService>();
+builder.Services.AddScoped<NaviMobilePageHeaderState>();
+builder.Services.AddScoped<NaviMobileNotificationState>();
 builder.Services.AddScoped<NaviMobileApiClient>();
 
 await builder.Build().RunAsync();

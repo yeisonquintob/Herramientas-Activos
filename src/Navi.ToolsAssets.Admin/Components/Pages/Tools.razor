@@ -1,241 +1,1269 @@
 @page "/tools"
 @rendermode InteractiveServer
+
+@using System.Net.Http.Json
 @using Navi.ToolsAssets.Admin.Services.Auth
 @using Navi.ToolsAssets.Admin.Components.Shared
+
 @inject IHttpClientFactory HttpClientFactory
 @inject NaviAccessScopeService AccessScope
 @inject WebAuthSessionService AuthSession
 
-<PageTitle>Inventario maestro - NAVI Herramientas</PageTitle>
+<PageTitle>Inventario de Herramientas y AF - NAVI</PageTitle>
 
-<PermissionGuard Permission="Tools.View" ModuleName="Inventario de Herramientas y AF">
+<PermissionGuard Permission="Tools.View"
+                 ModuleName="Inventario de Herramientas y AF">
 
-<NaviPageHero
-    Pill="ACTIVOS FIJOS"
-    Title="Inventario de Herramientas y AF"
-    Description="Consulta general de herramientas y activos fijos registrados en NAVI.">
+    <section class="navi-inventory-web-v23">
 
-    <button type="button" @onclick="LoadToolsAsync" disabled="@isLoading" data-ntx-tone="secondary" >
-        @(isLoading ? "Actualizando..." : "Actualizar")
-    </button>
+        <NaviPageHero
+            Pill="ACTIVOS FIJOS"
+            Title="Inventario de Herramientas y AF"
+            Description="Consulta el maestro operativo de herramientas y activos fijos, con identificación, sede, ubicación, responsable y estado actual." />
 
-</NaviPageHero>
-@if (!string.IsNullOrWhiteSpace(errorMessage))
-{
-    <div class="alert alert-danger">
-        <strong>Error:</strong> @errorMessage
-    </div>
-}
-else if (isLoading && tools.Count == 0)
-{
-    <div class="alert alert-info">
-        Cargando inventario desde la API...
-    </div>
-}
-else
-{
-    <section class="inventory-kpi-grid">
-        <article class="inventory-kpi-card total">
-            <span>Total Herramientas y AF</span>
-            <strong>@ScopedTools.Count()</strong>
-            <small>Inventario activo</small>
-        </article>
-
-        <article class="inventory-kpi-card success">
-            <span>Disponibles</span>
-            <strong>@ScopedTools.Count(x => x.OperationalStatus == "Available")</strong>
-            <small>Para asignar</small>
-        </article>
-
-        <article class="inventory-kpi-card warning">
-            <span>Pendientes validación</span>
-            <strong>@ScopedTools.Count(x => x.OperationalStatus == "PendingValidation")</strong>
-            <small>Por validar</small>
-        </article>
-
-        <article class="inventory-kpi-card danger">
-            <span>Bloqueadas</span>
-            <strong>@ScopedTools.Count(IsBlocked)</strong>
-            <small>Requieren atención</small>
-        </article>
-    </section>
-
-    <section class="inventory-status-filters inventory-status-filters-modern">
-        <button type="button"
-                class="@GetStatusFilterChipClass(string.Empty)"
-                @onclick="@(() => SelectStatus(string.Empty))" data-ntx-tone="secondary" >
-            Todos
-            <span>@ScopedTools.Count()</span>
-        </button>
-
-        @foreach (var option in StatusFilterOptions)
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
         {
-            <button type="button"
-                    class="@GetStatusFilterChipClass(option.Value)"
-                    @onclick="@(() => SelectStatus(option.Value))" data-ntx-tone="secondary" >
-                @option.Label
-                <span>@option.Count</span>
-            </button>
+            <section class="navi-inventory-v23-message is-error"
+                     role="alert">
+
+                <span aria-hidden="true">
+                    <svg viewBox="0 0 24 24"
+                         focusable="false">
+                        <path d="M12 4L21 19H3Z"></path>
+                        <path d="M12 9V14"></path>
+                        <path d="M12 17H12.01"></path>
+                    </svg>
+                </span>
+
+                <div>
+                    <strong>No fue posible cargar el inventario</strong>
+                    <p>@errorMessage</p>
+                </div>
+            </section>
+        }
+        else if (isLoading && tools.Count == 0)
+        {
+            <section class="navi-inventory-v23-message is-loading"
+                     aria-live="polite">
+
+                <span aria-hidden="true">
+                    <svg viewBox="0 0 24 24"
+                         focusable="false">
+                        <path d="M20 12a8 8 0 1 1-2.35-5.65"></path>
+                        <path d="M20 4v6h-6"></path>
+                    </svg>
+                </span>
+
+                <div>
+                    <strong>Cargando inventario</strong>
+                    <p>Consultando las herramientas y activos visibles para tu usuario.</p>
+                </div>
+            </section>
+        }
+        else
+        {
+            @* NAVI INVENTORY CANONICAL KPI STANDARD V74 START *@
+
+<NaviKpiToolbar
+    Class="navi-inventory-v23-kpi-row
+           navi-inventory-standard-toolbar-v74"
+    Refresh="LoadToolsAsync"
+    IsRefreshing="isLoading"
+    RefreshTitle="Actualizar inventario"
+    RefreshAriaLabel="Actualizar inventario">
+
+    <NaviKpiGrid
+        Columns="6"
+        Compact="true"
+        Dividers="true"
+        Class="navi-inventory-v23-kpis
+               navi-inventory-standard-grid-v74">
+
+        <NaviKpiCard
+            Title="Inventario"
+            Value="@FormatNumber(InventorySummaryTools.Count())"
+            Description="Herramientas y activos visibles"
+            Tone="neutral"
+            Compact="true"
+            Class="metric-total">
+
+            <IconContent>
+                <NaviKpiIcon Name="inventory" />
+            </IconContent>
+
+        </NaviKpiCard>
+
+        <NaviKpiCard
+            Title="Disponibles"
+            Value="@FormatNumber(InventorySummaryTools.Count(x => StatusIs(x, "Available")))"
+            Description="Listas para asignación"
+            Tone="positive"
+            Compact="true"
+            Class="metric-available">
+
+            <IconContent>
+                <NaviKpiIcon Name="check" />
+            </IconContent>
+
+        </NaviKpiCard>
+
+        <NaviKpiCard
+            Title="En uso"
+            Value="@FormatNumber(GetInUseCount())"
+            Description="Asignadas o prestadas"
+            Tone="soft"
+            Compact="true"
+            Class="metric-in-use">
+
+            <IconContent>
+                <NaviKpiIcon Name="transfer" />
+            </IconContent>
+
+        </NaviKpiCard>
+
+        <NaviKpiCard
+            Title="Mantenimiento"
+            Value="@FormatNumber(InventorySummaryTools.Count(x => StatusIs(x, "InMaintenance")))"
+            Description="En proceso técnico"
+            Tone="warning"
+            Compact="true"
+            Class="metric-maintenance">
+
+            <IconContent>
+                <NaviKpiIcon Name="wrench" />
+            </IconContent>
+
+        </NaviKpiCard>
+
+        <NaviKpiCard
+            Title="Por validar"
+            Value="@FormatNumber(InventorySummaryTools.Count(x => StatusIs(x, "PendingValidation")))"
+            Description="Pendientes de revisión"
+            Tone="warning"
+            Compact="true"
+            Class="metric-validation">
+
+            <IconContent>
+                <NaviKpiIcon Name="clock" />
+            </IconContent>
+
+        </NaviKpiCard>
+
+        <NaviKpiCard
+            Title="Alertas"
+            Value="@FormatNumber(InventorySummaryTools.Count(IsBlocked))"
+            Description="Requieren atención"
+            Tone="danger"
+            Compact="true"
+            Class="metric-alert">
+
+            <IconContent>
+                <NaviKpiIcon Name="alert" />
+            </IconContent>
+
+        </NaviKpiCard>
+
+    </NaviKpiGrid>
+
+</NaviKpiToolbar>
+
+@* NAVI INVENTORY CANONICAL KPI STANDARD V74 END *@
+
+<section class="navi-inventory-v23-filter-card"
+                     aria-label="Filtros del inventario">
+
+                <label class="navi-inventory-v23-field
+                              navi-inventory-v23-search-field">
+
+                    <span>Buscar activo</span>
+
+                    <div>
+                        <svg viewBox="0 0 24 24"
+                             aria-hidden="true"
+                             focusable="false">
+
+                            <circle cx="10.5"
+                                    cy="10.5"
+                                    r="6.5">
+                            </circle>
+
+                            <path d="M15.5 15.5L21 21"></path>
+                        </svg>
+
+                        <input type="search"
+                               @bind="searchText"
+                               @bind:event="oninput"
+                               placeholder="Código, activo, serial, AF, Fénix, sede, ubicación o responsable..." />
+                    </div>
+                </label>
+
+                <label class="navi-inventory-v23-field">
+                    <span>Sede</span>
+
+                    <select @bind="selectedBranch">
+                        <option value="">Todas las sedes visibles</option>
+
+                        @foreach (var branch in BranchFilterOptions)
+                        {
+                            <option value="@branch.Code">
+                                @branch.Label
+                            </option>
+                        }
+                    </select>
+                </label>
+
+                <label class="navi-inventory-v23-field">
+                    <span>Tipo de activo</span>
+
+                    <select @bind="selectedType">
+                        <option value="">Todos los tipos</option>
+
+                        @foreach (var type in TypeFilterOptions)
+                        {
+                            <option value="@type">
+                                @type
+                            </option>
+                        }
+                    </select>
+                </label>
+
+                <button type="button"
+                        class="navi-inventory-v23-clear"
+                        disabled="@(!HasActiveFilters)"
+                        @onclick="ClearFilters" data-ntx-tone="secondary">
+
+                    <svg viewBox="0 0 24 24"
+                         aria-hidden="true"
+                         focusable="false">
+
+                        <path d="M5 5L19 19"></path>
+                        <path d="M19 5L5 19"></path>
+                    </svg>
+
+                    <span>Limpiar</span>
+                </button>
+            </section>
+
+            <section class="navi-inventory-v23-status-section"
+                     aria-label="Filtro rápido por estado">
+
+                <header>
+                    <div>
+                        <strong>Estado operativo</strong>
+                        <small>Selecciona un estado para limitar el listado.</small>
+                    </div>
+
+                    <span>
+                        @FilteredTools.Count() resultados
+                    </span>
+                </header>
+
+                <div class="navi-inventory-v23-status-list">
+                    <button type="button"
+                            class="@GetStatusFilterChipClass(string.Empty)"
+                            @onclick="@(() => SelectStatus(string.Empty))" data-ntx-tone="ghost">
+
+                        <span>Todos</span>
+                        <strong>@InventorySummaryTools.Count()</strong>
+                    </button>
+
+                    @foreach (var option in StatusFilterOptions)
+                    {
+                        <button type="button"
+                                class="@GetStatusFilterChipClass(option.Value)"
+                                @onclick="@(() => SelectStatus(option.Value))" data-ntx-tone="ghost">
+
+                            <span>@option.Label</span>
+                            <strong>@option.Count</strong>
+                        </button>
+                    }
+                </div>
+            </section>
+
+            <section class="navi-inventory-v23-table-card">
+
+                <header class="navi-inventory-v23-table-header">
+                    <div>
+                        <span>MAESTRO DE ACTIVOS FIJOS</span>
+                        <h2>Herramientas y activos registrados</h2>
+
+                        <p>
+                            Mostrando
+                            <strong>@FilteredTools.Count()</strong>
+                            de
+                            <strong>@InventorySummaryTools.Count()</strong>
+                            registros para los filtros actuales.
+                        </p>
+                    </div>
+
+                    <div class="navi-inventory-v23-table-header-summary">
+                        <strong>@FilteredTools.Count()</strong>
+                        <small>resultados</small>
+                    </div>
+                </header>
+
+                @if (!FilteredTools.Any())
+                {
+                    <section class="navi-inventory-v23-empty">
+                        <svg viewBox="0 0 24 24"
+                             aria-hidden="true"
+                             focusable="false">
+
+                            <path d="M4 7H20V20H4Z"></path>
+                            <path d="M8 7V4H16V7"></path>
+                            <path d="M8 12H16"></path>
+                        </svg>
+
+                        <div>
+                            <strong>No hay registros para mostrar</strong>
+
+                            <p>
+                                Ajusta la búsqueda, sede, tipo o estado
+                                seleccionado.
+                            </p>
+                        </div>
+                    </section>
+                }
+                else
+                {
+                    <div class="navi-inventory-v23-table-scroll">
+                        <table class="navi-inventory-v23-table">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Herramienta / activo</th>
+                                    <th>Identificación</th>
+                                    <th>Sede y ubicación</th>
+                                    <th>Tipo y categoría</th>
+                                    <th>Responsable</th>
+                                    <th>Estado</th>
+                                    <th>Clase</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                @foreach (var tool in FilteredTools)
+                                {
+                                    <tr>
+                                        <td class="navi-inventory-v23-code-cell">
+                                            <strong>
+                                                @ShowValue(tool.InternalCode)
+                                            </strong>
+
+                                            @if (!string.IsNullOrWhiteSpace(
+                                                     tool.FenixCode))
+                                            {
+                                                <small>
+                                                    Fénix:
+                                                    @tool.FenixCode
+                                                </small>
+                                            }
+                                        </td>
+
+                                        <td class="navi-inventory-v23-asset-cell">
+                                            <strong>
+                                                @ShowValue(tool.Name)
+                                            </strong>
+
+                                            @if (!string.IsNullOrWhiteSpace(
+                                                     tool.Description))
+                                            {
+                                                <small>
+                                                    @tool.Description
+                                                </small>
+                                            }
+
+                                            @if (!string.IsNullOrWhiteSpace(
+                                                     GetBrandModel(tool)))
+                                            {
+                                                <span>
+                                                    @GetBrandModel(tool)
+                                                </span>
+                                            }
+                                        </td>
+
+                                        <td class="navi-inventory-v23-identity-cell">
+                                            <div>
+                                                <span>Serial</span>
+                                                <strong>
+                                                    @ShowValue(tool.SerialNumber)
+                                                </strong>
+                                            </div>
+
+                                            <div>
+                                                <span>Código AF</span>
+                                                <strong>
+                                                    @ShowValue(tool.FixedAssetCode)
+                                                </strong>
+                                            </div>
+                                        </td>
+
+                                        <td class="navi-inventory-v23-location-cell">
+                                            <strong>
+                                                @GetBranchLabel(tool)
+                                            </strong>
+
+                                            <span>
+                                                @ShowValue(tool.LocationName)
+                                            </span>
+
+                                            @if (!string.IsNullOrWhiteSpace(
+                                                     tool.ShelfLocation))
+                                            {
+                                                <small>
+                                                    Estantería:
+                                                    @tool.ShelfLocation
+                                                </small>
+                                            }
+                                        </td>
+
+                                        <td class="navi-inventory-v23-type-cell">
+                                            <strong>
+                                                @ShowValue(tool.ToolTypeName)
+                                            </strong>
+
+                                            <span>
+                                                @ShowValue(tool.ToolCategoryName)
+                                            </span>
+                                        </td>
+
+                                        <td class="navi-inventory-v23-responsible-cell">
+                                            <strong>
+                                                @ShowValue(
+                                                    tool.ResponsiblePersonName)
+                                            </strong>
+
+                                            <small>
+                                                @GetCustodyLabel(tool)
+                                            </small>
+                                        </td>
+
+                                        <td>
+                                            <span class="@GetInventoryStatusClass(tool.OperationalStatus)">
+                                                <i aria-hidden="true"></i>
+
+                                                @GetStatusLabel(
+                                                    tool.OperationalStatus)
+                                            </span>
+                                        </td>
+
+                                        <td>
+                                            @if (tool.IsSpecialized)
+                                            {
+                                                <span class="navi-inventory-v23-class-badge is-specialized">
+                                                    Especializada
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="navi-inventory-v23-class-badge">
+                                                    Estándar
+                                                </span>
+                                            }
+                                        </td>
+
+                                        <td>
+                                            <div class="navi-inventory-v23-actions">
+                                                @if (CanViewToolDetail)
+                                                {
+                                                    <a href="@($"/tools/{tool.Id}")"
+                                                       class="navi-inventory-v23-action navi-inventory-v23-detail-primary">
+
+                                                        <svg viewBox="0 0 24 24"
+                                                             aria-hidden="true"
+                                                             focusable="false">
+
+                                                            <path d="M3 12S6.5 6.5 12 6.5S21 12 21 12S17.5 17.5 12 17.5S3 12 3 12Z"></path>
+
+                                                            <circle cx="12"
+                                                                    cy="12"
+                                                                    r="2.5">
+                                                            </circle>
+                                                        </svg>
+
+                                                        <span>Detalle</span>
+                                                    </a>
+
+@* NAVI ADMIN INVENTORY IMAGE ACTION V58 START *@
+
+                                                    <button
+                                                        type="button"
+                                                        class="navi-inventory-v23-image-preview"
+                                                        title="Visualizar imagen"
+                                                        aria-label="@($"Visualizar imagen de {tool.Name}")"
+                                                        data-ntx-tone="consult"
+                                                        @onclick="() => OpenInventoryImagePreviewAsync(tool)">
+
+                                                        <svg
+                                                            viewBox="0 0 24 24"
+                                                            aria-hidden="true"
+                                                            focusable="false">
+
+                                                            <circle
+                                                                cx="10.5"
+                                                                cy="10.5"
+                                                                r="6.5">
+                                                            </circle>
+
+                                                            <path d="M15.5 15.5L21 21"></path>
+
+                                                        </svg>
+
+                                                    </button>
+
+@* NAVI ADMIN INVENTORY IMAGE ACTION V58 END *@
+                                                }
+                                                else
+                                                {
+                                                    <span class="navi-inventory-v23-action-muted">
+                                                        Sin permiso
+                                                    </span>
+                                                }
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
         }
     </section>
+</PermissionGuard>
 
-    <section class="inventory-page-filters" aria-label="Filtros del inventario">
-        <input class="form-control form-control-sm"
-               placeholder="Buscar por código, nombre, serial, referencia, sede, ubicación o categoría..."
-               @bind="searchText"
-               @bind:event="oninput" />
 
-        <select class="form-select form-select-sm inventory-type-filter" @bind="selectedType">
-            <option value="">Todos los tipos</option>
-            @foreach (var type in ScopedTools
-                .Select(x => x.ToolTypeName)
-                .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Distinct()
-                .OrderBy(x => x))
-            {
-                <option value="@type">@type</option>
-            }
-        </select>
-    </section>
+@* NAVI ADMIN INVENTORY IMAGE MODAL V58 START *@
 
-<section class="inventory-panel">
-<div class="inventory-count">
-            Mostrando <strong>@FilteredTools.Count()</strong> de <strong>@ScopedTools.Count()</strong> herramientas y activos fijos.
-        </div>
+@if (
+    isInventoryImagePreviewOpen
+    &&
+    inventoryImagePreviewTool is not null)
+{
+    <div
+        class="navi-inventory-v58-preview-backdrop"
+        role="presentation"
+        @onclick="CloseInventoryImagePreview">
 
-        <div class="table-responsive">
-            <table class="table table-hover align-middle inventory-table">
-                <thead>
-                    <tr>
-                        <th>Código</th>
-                        <th>HERRAMIENTA / ACTIVO</th>
-                        <th>Sede</th>
-                        <th>Ubicación</th>
-                        <th>Estantería</th>
-                        <th>Tipo</th>
-                        <th>Categoría</th>
-                        <th>Serial</th>
-                        <th>Estado</th>
-                        <th>Clase</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var tool in FilteredTools)
-                    {
-                        <tr>
-                            <td>
-                                <strong>@tool.InternalCode</strong>
-                            </td>
-                            <td>
-                                <strong>@tool.Name</strong>
-                                @if (!string.IsNullOrWhiteSpace(tool.Description))
-                                {
-                                    <br />
-                                    <small class="text-muted">@tool.Description</small>
-                                }
-                            </td>
-                            <td>
-                                <span>@tool.BranchCode</span>
-                                @if (!string.IsNullOrWhiteSpace(tool.BranchName))
-                                {
-                                    <br />
-                                    <small class="text-muted">@tool.BranchName</small>
-                                }
-                            </td>
-                            <td>@ShowValue(tool.LocationName)</td>
-                            <td><span class="shelf-location-pill">@ShowValue(tool.ShelfLocation)</span></td>
-                            <td>@ShowValue(tool.ToolTypeName)</td>
-                            <td>@ShowValue(tool.ToolCategoryName)</td>
-                            <td>@ShowValue(tool.SerialNumber)</td>
-                            <td>
-                                <span class="@GetInventoryStatusClass(tool.OperationalStatus)">
-                                    <span class="inventory-status-dot"></span>
-                                    @GetStatusLabel(tool.OperationalStatus)
-                                </span>
-                            </td>
-                            <td>
-                                @if (tool.IsSpecialized)
-                                {
-                                    <span class="inventory-class-badge specialized">Especializada</span>
-                                }
-                                else
-                                {
-                                    <span class="inventory-class-badge normal">No especializada</span>
-                                }
-                            </td>
-                            <td>
-                                @if (CanViewToolDetail)
-                                {
-                                    <a class="btn-inventory-detail navi-table-action-button" href="@($"/tools/{tool.Id}")" data-ntx-tone="ghost" >Detalle</a>
-                                }
-                                else
-                                {
-                                    <span class="inventory-action-muted">Sin permiso</span>
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </section>
+        <section
+            class="navi-inventory-v58-preview-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Vista de imagen del activo"
+            @onclick:stopPropagation="true">
+
+            <header class="navi-inventory-v58-preview-header">
+
+                <div>
+                    <span>
+                        @ShowValue(
+                            inventoryImagePreviewTool.InternalCode)
+                    </span>
+
+                    <strong>
+                        @ShowValue(
+                            inventoryImagePreviewTool.Name)
+                    </strong>
+                </div>
+
+                @* NAVI ADMIN INVENTORY IMAGE ZOOM SLIDER V64 START *@
+
+                <div class="navi-inventory-v64-zoom-slider"
+                     role="group"
+                     aria-label="Control de zoom de la imagen">
+
+                    <input
+                        type="range"
+                        min="50"
+                        max="300"
+                        step="5"
+                        value="@GetInventoryImageZoomPercentage()"
+                        title="@($"Zoom: {FormatInventoryImageZoom()}")"
+                        aria-label="Ajustar porcentaje de zoom"
+                        aria-valuemin="50"
+                        aria-valuemax="300"
+                        aria-valuenow="@GetInventoryImageZoomPercentage()"
+                        aria-valuetext="@FormatInventoryImageZoom()"
+                        @oninput="HandleInventoryImageZoomSlider" />
+
+                    <output
+                        for="inventory-image-zoom-slider"
+                        aria-live="polite">
+                        @FormatInventoryImageZoom()
+                    </output>
+
+                </div>
+
+                @* NAVI ADMIN INVENTORY IMAGE ZOOM SLIDER V64 END *@
+
+                <button
+                    type="button"
+                    class="navi-inventory-v58-preview-close"
+                    title="Cerrar"
+                    aria-label="Cerrar vista de imagen"
+                    data-ntx-tone="secondary"
+                    @onclick="CloseInventoryImagePreview">
+
+                    <svg
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                        focusable="false">
+
+                        <path d="M6 6L18 18"></path>
+                        <path d="M18 6L6 18"></path>
+
+                    </svg>
+
+                </button>
+
+            </header>
+
+            <div class="navi-inventory-v58-preview-content">
+
+                @if (isInventoryImagePreviewLoading)
+                {
+                    <div class="navi-inventory-v58-preview-message">
+
+                        <span
+                            class="navi-inventory-v58-preview-spinner"
+                            aria-hidden="true">
+                        </span>
+
+                        <strong>
+                            Cargando imagen...
+                        </strong>
+
+                    </div>
+                }
+                else if (
+                    !string.IsNullOrWhiteSpace(
+                        inventoryImagePreviewError))
+                {
+                    <div class="navi-inventory-v58-preview-message">
+
+                        <svg
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
+                            focusable="false">
+
+                            <rect
+                                x="3"
+                                y="5"
+                                width="18"
+                                height="14"
+                                rx="2">
+                            </rect>
+
+                            <circle
+                                cx="9"
+                                cy="10"
+                                r="2">
+                            </circle>
+
+                            <path d="M4 17L9 13L13 16L16 13L20 17"></path>
+
+                        </svg>
+
+                        <strong>
+                            @inventoryImagePreviewError
+                        </strong>
+
+                    </div>
+                }
+                else if (
+                    !string.IsNullOrWhiteSpace(
+                        inventoryImagePreviewUrl))
+                {
+                    <img
+                        class="navi-inventory-v60-preview-image"
+                        src="@inventoryImagePreviewUrl"
+                        alt="@($"Imagen de {inventoryImagePreviewTool.Name}")"
+                        style="@GetInventoryImageZoomStyle()"
+                        @onwheel="HandleInventoryImageWheel"
+                        @onwheel:preventDefault="true" />
+                }
+                else
+                {
+                    <div class="navi-inventory-v58-preview-message">
+
+                        <strong>
+                            Sin imagen registrada
+                        </strong>
+
+                    </div>
+                }
+
+            </div>
+
+            <footer class="navi-inventory-v58-preview-footer">
+
+                <span class="@GetInventoryStatusClass(
+                    inventoryImagePreviewTool.OperationalStatus)">
+
+                    <i aria-hidden="true"></i>
+
+                    @GetStatusLabel(
+                        inventoryImagePreviewTool.OperationalStatus)
+
+                </span>
+
+                <button
+                    type="button"
+                    class="navi-inventory-v58-preview-close-secondary"
+                    @onclick="CloseInventoryImagePreview"
+                    data-ntx-tone="secondary">
+
+                    Cerrar
+
+                </button>
+
+            </footer>
+
+        </section>
+
+    </div>
 }
 
+@* NAVI ADMIN INVENTORY IMAGE MODAL V58 END *@
 @code {
+    private bool CanViewToolDetail =>
+        AuthSession.HasPermission(
+            "ToolDetail.View");
 
-    private bool CanViewToolDetail => AuthSession.HasPermission("ToolDetail.View");
+    private bool CanViewLifeRecord =>
+        AuthSession.HasPermission(
+            "TechnicalLifeRecord.View")
+        ||
+        AuthSession.HasPermission(
+            "ToolDetail.LifeRecord.Open");
 
-    private bool CanCreateTool => AuthSession.HasPermission("Tools.Create");
+    private bool CanCreateTool =>
+        AuthSession.HasPermission(
+            "Tools.Create");
 
-    private bool CanEditTool => AuthSession.HasPermission("Tools.Edit");
+    private bool CanEditTool =>
+        AuthSession.HasPermission(
+            "Tools.Edit");
 
-    private bool CanChangeToolStatus => AuthSession.HasPermission("Tools.Status.Change");
+    private bool CanChangeToolStatus =>
+        AuthSession.HasPermission(
+            "Tools.Status.Change");
 
-    private bool CanMarkToolSpecialized => AuthSession.HasPermission("Tools.Specialized.Mark");
+    private bool CanMarkToolSpecialized =>
+        AuthSession.HasPermission(
+            "Tools.Specialized.Mark");
 
-    private bool CanDeactivateTool => AuthSession.HasPermission("Tools.Delete");
-
+    private bool CanDeactivateTool =>
+        AuthSession.HasPermission(
+            "Tools.Delete");
 
     private bool isLoading;
+
     private string? errorMessage;
-    private string searchText = string.Empty;
-    private string selectedStatus = string.Empty;
-    private string selectedBranch = string.Empty;
-    private string selectedType = string.Empty;
 
-    private List<ToolListItem> tools = new();
+    private string searchText =
+        string.Empty;
 
-    private IEnumerable<StatusFilterOption> StatusFilterOptions =>
-        ScopedTools
-            .Where(x => !string.IsNullOrWhiteSpace(x.OperationalStatus))
-            .GroupBy(x => x.OperationalStatus)
-            .Select(x => new StatusFilterOption
+    private string selectedStatus =
+        string.Empty;
+
+    private string selectedBranch =
+        string.Empty;
+
+    private string selectedType =
+        string.Empty;
+
+    private DateTime? lastUpdatedAt;
+
+    private List<ToolListItem> tools =
+        new();
+
+    private IEnumerable<ToolListItem>
+        ScopedTools =>
+            AccessScope.FilterTools(
+                tools,
+                item => item.BranchCode,
+                item => item.ResponsiblePersonName);
+
+    /*
+     * Base visual de los indicadores y conteos por estado.
+     * Mantiene búsqueda, sede y tipo, pero no aplica el chip
+     * de estado para que los conteos no desaparezcan.
+     */
+    private IEnumerable<ToolListItem>
+        InventorySummaryTools =>
+            ScopedTools
+                .Where(MatchesSearch)
+                .Where(MatchesBranch)
+                .Where(MatchesType);
+
+    private IEnumerable<ToolListItem>
+        FilteredTools =>
+            InventorySummaryTools
+                .Where(MatchesStatus)
+                .OrderBy(item => item.BranchCode)
+                .ThenBy(item => item.InternalCode);
+
+    private IEnumerable<StatusFilterOption>
+        StatusFilterOptions =>
+            InventorySummaryTools
+                .Where(item =>
+                    !string.IsNullOrWhiteSpace(
+                        item.OperationalStatus))
+                .GroupBy(
+                    item => item.OperationalStatus,
+                    StringComparer.OrdinalIgnoreCase)
+                .Select(group =>
+                    new StatusFilterOption
+                    {
+                        Value = group.Key,
+                        Label = GetStatusLabel(group.Key),
+                        Count = group.Count()
+                    })
+                .OrderBy(option => option.Label);
+
+    private IEnumerable<BranchFilterOption>
+        BranchFilterOptions =>
+            ScopedTools
+                .Where(item =>
+                    !string.IsNullOrWhiteSpace(
+                        item.BranchCode))
+                .GroupBy(
+                    item => item.BranchCode!.Trim(),
+                    StringComparer.OrdinalIgnoreCase)
+                .Select(group =>
+                {
+                    var item = group.First();
+
+                    return new BranchFilterOption
+                    {
+                        Code = item.BranchCode!.Trim(),
+                        Name = item.BranchName?.Trim()
+                    };
+                })
+                .OrderBy(option => option.Code);
+
+    private IEnumerable<string>
+        TypeFilterOptions =>
+            ScopedTools
+                .Select(item =>
+                    item.ToolTypeName)
+                .Where(value =>
+                    !string.IsNullOrWhiteSpace(value))
+                .Select(value =>
+                    value!.Trim())
+                .Distinct(
+                    StringComparer.OrdinalIgnoreCase)
+                .OrderBy(value => value);
+
+    private int VisibleBranchCount =>
+        InventorySummaryTools
+            .Select(item =>
+                item.BranchCode?.Trim())
+            .Where(value =>
+                !string.IsNullOrWhiteSpace(value))
+            .Distinct(
+                StringComparer.OrdinalIgnoreCase)
+            .Count();
+
+    private bool HasActiveFilters =>
+        !string.IsNullOrWhiteSpace(
+            searchText)
+        ||
+        !string.IsNullOrWhiteSpace(
+            selectedStatus)
+        ||
+        !string.IsNullOrWhiteSpace(
+            selectedBranch)
+        ||
+        !string.IsNullOrWhiteSpace(
+            selectedType);
+
+    // NAVI ADMIN INVENTORY IMAGE PREVIEW V58 START
+
+    private bool isInventoryImagePreviewOpen;
+
+    private bool isInventoryImagePreviewLoading;
+
+    private ToolListItem? inventoryImagePreviewTool;
+
+    private string? inventoryImagePreviewUrl;
+
+    private string? inventoryImagePreviewError;
+
+    // NAVI ADMIN INVENTORY IMAGE ZOOM STATE V60 START
+
+    private double inventoryImagePreviewZoom =
+        1.0;
+
+    // NAVI ADMIN INVENTORY IMAGE ZOOM STATE V60 END
+
+
+
+    private async Task OpenInventoryImagePreviewAsync(
+        ToolListItem tool)
+    {
+        inventoryImagePreviewTool =
+            tool;
+
+        isInventoryImagePreviewOpen =
+            true;
+
+        isInventoryImagePreviewLoading =
+            true;
+
+        inventoryImagePreviewUrl =
+            null;
+
+        inventoryImagePreviewError =
+            null;
+
+        ResetInventoryImageZoom();
+
+        try
+        {
+            var client =
+                HttpClientFactory.CreateClient(
+                    "NaviApi");
+
+            var documents =
+                await client.GetFromJsonAsync<
+                    List<ToolImageDocumentItem>>(
+                    $"api/tools/{tool.Id}/documents")
+                ??
+                new();
+
+            var latestImage =
+                documents
+                    .Where(
+                        IsInventoryPreviewImage)
+                    .OrderByDescending(
+                        document =>
+                            document.UploadedAt
+                            ??
+                            DateTime.MinValue)
+                    .FirstOrDefault();
+
+            if (
+                latestImage is null
+                ||
+                string.IsNullOrWhiteSpace(
+                    latestImage.DownloadUrl))
             {
-                Value = x.Key,
-                Label = GetStatusLabel(x.Key),
-                Count = x.Count()
-            })
-            .OrderBy(x => x.Label);
+                inventoryImagePreviewError =
+                    "Sin imagen registrada";
 
-    private IEnumerable<ToolListItem> ScopedTools =>
-        AccessScope.FilterTools(
-            tools,
-            x => x.BranchCode,
-            x => x.ResponsiblePersonName);
+                return;
+            }
 
-    private IEnumerable<ToolListItem> FilteredTools =>
-        ScopedTools
-            .Where(MatchesSearch)
-            .Where(x => string.IsNullOrWhiteSpace(selectedStatus) || x.OperationalStatus == selectedStatus)
-            .Where(x => string.IsNullOrWhiteSpace(selectedBranch) || x.BranchCode == selectedBranch)
-            .Where(x => string.IsNullOrWhiteSpace(selectedType) ||
-                        string.Equals(x.ToolTypeName, selectedType, StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(x.ToolTypeCode, selectedType, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(x => x.BranchCode)
-            .ThenBy(x => x.InternalCode);
+            inventoryImagePreviewUrl =
+                BuildInventoryImageUrl(
+                    client,
+                    latestImage.DownloadUrl);
 
-    protected override async Task OnInitializedAsync()
+            if (
+                string.IsNullOrWhiteSpace(
+                    inventoryImagePreviewUrl))
+            {
+                inventoryImagePreviewError =
+                    "Sin imagen registrada";
+            }
+        }
+        catch (Exception ex)
+        {
+            inventoryImagePreviewError =
+                "No fue posible cargar la imagen.";
+
+            System.Diagnostics.Debug.WriteLine(
+                ex);
+        }
+        finally
+        {
+            isInventoryImagePreviewLoading =
+                false;
+        }
+    }
+
+
+    private void CloseInventoryImagePreview()
+    {
+        isInventoryImagePreviewOpen =
+            false;
+
+        isInventoryImagePreviewLoading =
+            false;
+
+        inventoryImagePreviewTool =
+            null;
+
+        inventoryImagePreviewUrl =
+            null;
+
+        inventoryImagePreviewError =
+            null;
+        ResetInventoryImageZoom();
+    }
+
+
+    private static bool IsInventoryPreviewImage(
+        ToolImageDocumentItem document)
+    {
+        if (
+            document.ContentType?.StartsWith(
+                "image/",
+                StringComparison.OrdinalIgnoreCase)
+            == true)
+        {
+            return true;
+        }
+
+        var extension =
+            System.IO.Path.GetExtension(
+                document.FileName
+                ??
+                string.Empty);
+
+        return extension.Equals(
+                   ".jpg",
+                   StringComparison.OrdinalIgnoreCase)
+               ||
+               extension.Equals(
+                   ".jpeg",
+                   StringComparison.OrdinalIgnoreCase)
+               ||
+               extension.Equals(
+                   ".png",
+                   StringComparison.OrdinalIgnoreCase)
+               ||
+               extension.Equals(
+                   ".webp",
+                   StringComparison.OrdinalIgnoreCase)
+               ||
+               extension.Equals(
+                   ".gif",
+                   StringComparison.OrdinalIgnoreCase)
+               ||
+               extension.Equals(
+                   ".bmp",
+                   StringComparison.OrdinalIgnoreCase)
+               ||
+               extension.Equals(
+                   ".avif",
+                   StringComparison.OrdinalIgnoreCase);
+    }
+
+
+    private static string BuildInventoryImageUrl(
+        System.Net.Http.HttpClient client,
+        string? downloadUrl)
+    {
+        if (string.IsNullOrWhiteSpace(downloadUrl))
+        {
+            return string.Empty;
+        }
+
+        var value =
+            downloadUrl.Trim();
+
+        if (
+            Uri.TryCreate(
+                value,
+                UriKind.Absolute,
+                out var absoluteUri))
+        {
+            if (
+                absoluteUri.Scheme.Equals(
+                    Uri.UriSchemeHttp,
+                    StringComparison.OrdinalIgnoreCase)
+                ||
+                absoluteUri.Scheme.Equals(
+                    Uri.UriSchemeHttps,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return absoluteUri.ToString();
+            }
+
+            if (
+                absoluteUri.Scheme.Equals(
+                    Uri.UriSchemeFile,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                value =
+                    absoluteUri.AbsolutePath;
+            }
+        }
+
+        if (client.BaseAddress is null)
+        {
+            return value;
+        }
+
+        return new Uri(
+                client.BaseAddress,
+                value.TrimStart('/'))
+            .ToString();
+    }
+
+
+    // NAVI ADMIN INVENTORY IMAGE ZOOM METHODS V60 START
+
+    private void IncreaseInventoryImageZoom()
+    {
+        SetInventoryImageZoom(
+            inventoryImagePreviewZoom
+            +
+            0.25);
+    }
+
+
+    private void DecreaseInventoryImageZoom()
+    {
+        SetInventoryImageZoom(
+            inventoryImagePreviewZoom
+            -
+            0.25);
+    }
+
+
+    private void ResetInventoryImageZoom()
+    {
+        inventoryImagePreviewZoom =
+            1.0;
+    }
+
+
+    // NAVI ADMIN INVENTORY IMAGE ZOOM SLIDER METHODS V64 START
+
+    private int GetInventoryImageZoomPercentage()
+    {
+        return Convert.ToInt32(
+            Math.Round(
+                inventoryImagePreviewZoom
+                *
+                100,
+                MidpointRounding.AwayFromZero));
+    }
+
+
+    private void HandleInventoryImageZoomSlider(
+        Microsoft.AspNetCore.Components.ChangeEventArgs args)
+    {
+        var rawValue =
+            Convert.ToString(
+                args.Value,
+                System.Globalization.CultureInfo
+                    .InvariantCulture);
+
+        if (
+            !double.TryParse(
+                rawValue,
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var percentage)
+        )
+        {
+            return;
+        }
+
+        SetInventoryImageZoom(
+            percentage
+            /
+            100.0);
+    }
+
+    // NAVI ADMIN INVENTORY IMAGE ZOOM SLIDER METHODS V64 END
+
+    private void HandleInventoryImageWheel(
+        Microsoft.AspNetCore.Components.Web
+            .WheelEventArgs args)
+    {
+        if (args.DeltaY < 0)
+        {
+            IncreaseInventoryImageZoom();
+            return;
+        }
+
+        if (args.DeltaY > 0)
+        {
+            DecreaseInventoryImageZoom();
+        }
+    }
+
+
+    private void SetInventoryImageZoom(
+        double value)
+    {
+        inventoryImagePreviewZoom =
+            Math.Clamp(
+                value,
+                0.5,
+                3.0);
+    }
+
+
+    private string FormatInventoryImageZoom()
+    {
+        return
+            Math.Round(
+                inventoryImagePreviewZoom
+                *
+                100)
+            .ToString(
+                "0",
+                System.Globalization
+                    .CultureInfo
+                    .InvariantCulture)
+            +
+            "%";
+    }
+
+
+    private string GetInventoryImageZoomStyle()
+    {
+        var percentage =
+            Math.Round(
+                inventoryImagePreviewZoom
+                *
+                100)
+            .ToString(
+                "0",
+                System.Globalization
+                    .CultureInfo
+                    .InvariantCulture);
+
+        return
+            $"--navi-inventory-image-width: "
+            +
+            $"{percentage}%;";
+    }
+
+    // NAVI ADMIN INVENTORY IMAGE ZOOM METHODS V60 END
+
+
+    private sealed class ToolImageDocumentItem
+    {
+        public Guid Id { get; set; }
+
+        public Guid ToolAssetId { get; set; }
+
+        public string? DocumentType { get; set; }
+
+        public string? FileName { get; set; }
+
+        public string? ContentType { get; set; }
+
+        public DateTime? UploadedAt { get; set; }
+
+        public string? DownloadUrl { get; set; }
+    }
+
+    // NAVI ADMIN INVENTORY IMAGE PREVIEW V58 END
+
+
+
+    protected override async Task
+        OnInitializedAsync()
     {
         await LoadToolsAsync();
     }
@@ -247,13 +1275,26 @@ else
             isLoading = true;
             errorMessage = null;
 
-            var client = HttpClientFactory.CreateClient("NaviApi");
+            var client =
+                HttpClientFactory.CreateClient(
+                    "NaviApi");
 
-            tools = await client.GetFromJsonAsync<List<ToolListItem>>("api/tools") ?? new();
+            tools =
+                await client.GetFromJsonAsync<
+                    List<ToolListItem>>(
+                    "api/tools")
+                ??
+                new();
+
+            lastUpdatedAt =
+                DateTime.Now;
         }
         catch (Exception ex)
         {
-            errorMessage = $"No se pudo cargar el inventario. Valida que la API esté activa en http://localhost:5218. Detalle: {ex.Message}";
+            errorMessage =
+                "Valida que la API esté activa en "
+                + "http://localhost:5218. Detalle: "
+                + ex.Message;
         }
         finally
         {
@@ -261,72 +1302,210 @@ else
         }
     }
 
-    private void SelectStatus(string status)
+    private void SelectStatus(
+        string status)
     {
-        selectedStatus = status;
+        selectedStatus =
+            status;
     }
 
-    private static string GetInventoryStatusClass(string? status)
+    private void ClearFilters()
     {
-        return $"{NaviStatusLabels.BadgeClass(status)} inventory-status-pill";
+        searchText =
+            string.Empty;
+
+        selectedStatus =
+            string.Empty;
+
+        selectedBranch =
+            string.Empty;
+
+        selectedType =
+            string.Empty;
     }
 
-    private string GetStatusFilterChipClass(string? status)
+    private bool MatchesSearch(
+        ToolListItem tool)
     {
-        var normalizedStatus = status ?? string.Empty;
-
-        var isActive = string.Equals(
-            selectedStatus ?? string.Empty,
-            normalizedStatus,
-            StringComparison.OrdinalIgnoreCase);
-
-        var baseClass = string.IsNullOrWhiteSpace(normalizedStatus)
-            ? "inventory-status-filter-chip inventory-status-all"
-            : $"{NaviStatusLabels.BadgeClass(normalizedStatus)} inventory-status-filter-chip";
-
-        return isActive
-            ? $"{baseClass} active"
-            : baseClass;
-    }
-
-    private static string GetStatusBadgeClass(string? status)
-    {
-        return NaviStatusLabels.BadgeClass(status);
-    }
-
-    private bool MatchesSearch(ToolListItem tool)
-    {
-        if (string.IsNullOrWhiteSpace(searchText))
+        if (string.IsNullOrWhiteSpace(
+                searchText))
         {
             return true;
         }
 
-        var value = searchText.Trim();
+        var value =
+            searchText.Trim();
 
-        return Contains(tool.InternalCode, value)
-            || Contains(tool.Name, value)
-            || Contains(tool.Description, value)
-            || Contains(tool.SerialNumber, value)
-            || Contains(tool.FixedAssetCode, value)
-            || Contains(tool.FenixCode, value)
-            || Contains(tool.BranchCode, value)
-            || Contains(tool.BranchName, value)
-            || Contains(tool.LocationName, value)
-            || Contains(tool.ShelfLocation, value)
-            || Contains(tool.ToolTypeName, value)
-            || Contains(tool.ToolCategoryName, value)
-            || Contains(tool.OperationalStatus, value);
+        return
+            Contains(
+                tool.InternalCode,
+                value)
+            ||
+            Contains(
+                tool.Name,
+                value)
+            ||
+            Contains(
+                tool.Description,
+                value)
+            ||
+            Contains(
+                tool.Brand,
+                value)
+            ||
+            Contains(
+                tool.Model,
+                value)
+            ||
+            Contains(
+                tool.SerialNumber,
+                value)
+            ||
+            Contains(
+                tool.FixedAssetCode,
+                value)
+            ||
+            Contains(
+                tool.FenixCode,
+                value)
+            ||
+            Contains(
+                tool.BranchCode,
+                value)
+            ||
+            Contains(
+                tool.BranchName,
+                value)
+            ||
+            Contains(
+                tool.LocationCode,
+                value)
+            ||
+            Contains(
+                tool.LocationName,
+                value)
+            ||
+            Contains(
+                tool.ShelfLocation,
+                value)
+            ||
+            Contains(
+                tool.ResponsiblePersonName,
+                value)
+            ||
+            Contains(
+                tool.ToolTypeCode,
+                value)
+            ||
+            Contains(
+                tool.ToolTypeName,
+                value)
+            ||
+            Contains(
+                tool.ToolCategoryCode,
+                value)
+            ||
+            Contains(
+                tool.ToolCategoryName,
+                value)
+            ||
+            Contains(
+                tool.OperationalStatus,
+                value)
+            ||
+            Contains(
+                tool.PhysicalStatus,
+                value)
+            ||
+            Contains(
+                tool.CustodyStatus,
+                value);
     }
 
-    private static bool Contains(string? source, string value)
+    private bool MatchesBranch(
+        ToolListItem tool)
     {
-        return !string.IsNullOrWhiteSpace(source)
-            && source.Contains(value, StringComparison.OrdinalIgnoreCase);
+        return
+            string.IsNullOrWhiteSpace(
+                selectedBranch)
+            ||
+            string.Equals(
+                tool.BranchCode,
+                selectedBranch,
+                StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool IsBlocked(ToolListItem tool)
+    private bool MatchesType(
+        ToolListItem tool)
     {
-        return tool.OperationalStatus is "Damaged"
+        return
+            string.IsNullOrWhiteSpace(
+                selectedType)
+            ||
+            string.Equals(
+                tool.ToolTypeName,
+                selectedType,
+                StringComparison.OrdinalIgnoreCase)
+            ||
+            string.Equals(
+                tool.ToolTypeCode,
+                selectedType,
+                StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool MatchesStatus(
+        ToolListItem tool)
+    {
+        return
+            string.IsNullOrWhiteSpace(
+                selectedStatus)
+            ||
+            string.Equals(
+                tool.OperationalStatus,
+                selectedStatus,
+                StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool Contains(
+        string? source,
+        string value)
+    {
+        return
+            !string.IsNullOrWhiteSpace(source)
+            &&
+            source.Contains(
+                value,
+                StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool StatusIs(
+        ToolListItem tool,
+        string status)
+    {
+        return string.Equals(
+            tool.OperationalStatus,
+            status,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private int GetInUseCount()
+    {
+        return InventorySummaryTools.Count(
+            item =>
+                StatusIs(
+                    item,
+                    "Assigned")
+                ||
+                StatusIs(
+                    item,
+                    "Loaned"));
+    }
+
+    private static bool IsBlocked(
+        ToolListItem tool)
+    {
+        return tool.OperationalStatus is
+            "Damaged"
             or "NotSuitable"
             or "InMaintenance"
             or "PendingDisposal"
@@ -335,70 +1514,303 @@ else
             or "Inconsistent";
     }
 
-    private static string ShowValue(string? value)
+    private static string
+        GetInventoryStatusClass(
+            string? status)
     {
-        return string.IsNullOrWhiteSpace(value) ? "-" : value;
+        return
+            NaviStatusLabels.BadgeClass(status)
+            +
+            " navi-inventory-v23-status-pill";
     }
 
-    private static string GetStatusLabel(string? status)
+    private string
+        GetStatusFilterChipClass(
+            string? status)
+    {
+        var normalizedStatus =
+            status ?? string.Empty;
+
+        var isActive =
+            string.Equals(
+                selectedStatus,
+                normalizedStatus,
+                StringComparison.OrdinalIgnoreCase);
+
+        var classes =
+            string.IsNullOrWhiteSpace(
+                normalizedStatus)
+                ? "navi-inventory-v23-status-chip is-all"
+                : "navi-inventory-v23-status-chip "
+                  + NaviStatusLabels.BadgeClass(
+                      normalizedStatus);
+
+        if (isActive)
+        {
+            classes += " is-active";
+        }
+
+        return classes;
+    }
+
+    private string GetScopeTitle()
+    {
+        if (AccessScope.IsAllBranchScope())
+        {
+            return
+                "Inventario de todas las sedes autorizadas";
+        }
+
+        var branchCode =
+            AccessScope.GetDefaultBranchCode();
+
+        return
+            string.IsNullOrWhiteSpace(branchCode)
+                ? "Inventario según alcance del usuario"
+                : "Inventario de la sede "
+                  + branchCode;
+    }
+
+    private string GetScopeDescription()
+    {
+        return AccessScope.IsAllBranchScope()
+            ? "Los registros respetan los permisos y el alcance configurado para el usuario."
+            : "La consulta está limitada a la sede y responsables autorizados.";
+    }
+
+    private string FormatLastUpdated()
+    {
+        return lastUpdatedAt.HasValue
+            ? lastUpdatedAt.Value.ToString(
+                "dd/MM/yyyy HH:mm")
+            : "Sin actualizar";
+    }
+
+    private static string FormatNumber(
+        int value)
+    {
+        return Math.Max(
+                0,
+                value)
+            .ToString(
+                "N0",
+                System.Globalization
+                    .CultureInfo
+                    .GetCultureInfo("es-CO"));
+    }
+
+    private static string GetBrandModel(
+        ToolListItem tool)
+    {
+        var values =
+            new[]
+            {
+                tool.Brand,
+                tool.Model
+            }
+            .Where(value =>
+                !string.IsNullOrWhiteSpace(value))
+            .Select(value =>
+                value!.Trim());
+
+        return string.Join(
+            " · ",
+            values);
+    }
+
+    private static string GetBranchLabel(
+        ToolListItem tool)
+    {
+        var code =
+            tool.BranchCode?.Trim();
+
+        var name =
+            tool.BranchName?.Trim();
+
+        if (string.IsNullOrWhiteSpace(code) &&
+            string.IsNullOrWhiteSpace(name))
+        {
+            return "-";
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return code ?? "-";
+        }
+
+        if (string.IsNullOrWhiteSpace(code) ||
+            string.Equals(
+                name,
+                code,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return name;
+        }
+
+        return name + " - " + code;
+    }
+
+    private static string GetCustodyLabel(
+        ToolListItem tool)
+    {
+        if (!string.IsNullOrWhiteSpace(
+                tool.CustodyStatus))
+        {
+            return NaviStatusLabels.ToSpanish(
+                tool.CustodyStatus);
+        }
+
+        return string.IsNullOrWhiteSpace(
+            tool.ResponsiblePersonName)
+                ? "Sin responsable"
+                : "Con responsable";
+    }
+
+    private static string ShowValue(
+        string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? "-"
+            : value.Trim();
+    }
+
+    private static string GetStatusLabel(
+        string? status)
     {
         return status switch
         {
-            "Available" => "Disponible",
-            "Assigned" => "Asignada",
-            "Loaned" => "Prestada",
-            "InMaintenance" => "En mantenimiento",
-            "Damaged" => "Dañada",
-            "NotSuitable" => "No apta",
-            "PendingValidation" => "Pendiente validación",
-            "Inconsistent" => "Inconsistente",
-            "NotLocated" => "No localizada",
-            "PendingDisposal" => "Pendiente de baja",
-            "Disposed" => "Dada de baja",
-            _ => NaviStatusLabels.ToSpanish(status)
+            "Available" =>
+                "Disponible",
+
+            "Assigned" =>
+                "Asignada",
+
+            "Loaned" =>
+                "Prestada",
+
+            "InMaintenance" =>
+                "En mantenimiento",
+
+            "Damaged" =>
+                "Dañada",
+
+            "NotSuitable" =>
+                "No apta",
+
+            "PendingValidation" =>
+                "Pendiente validación",
+
+            "Inconsistent" =>
+                "Inconsistente",
+
+            "NotLocated" =>
+                "No localizada",
+
+            "PendingDisposal" =>
+                "Pendiente de baja",
+
+            "Disposed" =>
+                "Dada de baja",
+
+            _ =>
+                NaviStatusLabels.ToSpanish(
+                    status)
         };
     }
 
     private sealed class StatusFilterOption
     {
-        public string Value { get; set; } = string.Empty;
-        public string Label { get; set; } = string.Empty;
+        public string Value { get; set; } =
+            string.Empty;
+
+        public string Label { get; set; } =
+            string.Empty;
+
         public int Count { get; set; }
+    }
+
+    private sealed class BranchFilterOption
+    {
+        public string Code { get; set; } =
+            string.Empty;
+
+        public string? Name { get; set; }
+
+        public string Label
+        {
+            get
+            {
+                if (string.IsNullOrWhiteSpace(Name) ||
+                    string.Equals(
+                        Name,
+                        Code,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return Code;
+                }
+
+                return Name + " - " + Code;
+            }
+        }
     }
 
     private sealed class ToolListItem
     {
         public Guid Id { get; set; }
-        public string InternalCode { get; set; } = string.Empty;
-        public string Name { get; set; } = string.Empty;
+
+        public string InternalCode { get; set; } =
+            string.Empty;
+
+        public string Name { get; set; } =
+            string.Empty;
+
         public string? Description { get; set; }
+
         public string? Brand { get; set; }
+
         public string? Model { get; set; }
+
         public string? SerialNumber { get; set; }
+
         public string? FixedAssetCode { get; set; }
+
         public string? FenixCode { get; set; }
+
         public string? BranchCode { get; set; }
+
         public string? BranchName { get; set; }
+
         public string? LocationCode { get; set; }
+
         public string? LocationName { get; set; }
+
         public string? ShelfLocation { get; set; }
+
         public string? ResponsiblePersonName { get; set; }
+
         public string? ToolTypeCode { get; set; }
+
         public string? ToolTypeName { get; set; }
+
         public string? ToolCategoryCode { get; set; }
+
         public string? ToolCategoryName { get; set; }
-        public string OperationalStatus { get; set; } = string.Empty;
-        public string PhysicalStatus { get; set; } = string.Empty;
-        public string CustodyStatus { get; set; } = string.Empty;
-        public string ReconciliationStatus { get; set; } = string.Empty;
-        public string SyncStatus { get; set; } = string.Empty;
+
+        public string OperationalStatus { get; set; } =
+            string.Empty;
+
+        public string PhysicalStatus { get; set; } =
+            string.Empty;
+
+        public string CustodyStatus { get; set; } =
+            string.Empty;
+
+        public string ReconciliationStatus { get; set; } =
+            string.Empty;
+
+        public string SyncStatus { get; set; } =
+            string.Empty;
+
         public bool IsSpecialized { get; set; }
     }
 }
-
-
-
-
-
-
-</PermissionGuard>

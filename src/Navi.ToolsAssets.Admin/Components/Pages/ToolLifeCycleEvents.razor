@@ -7,24 +7,93 @@
 
 <PageTitle>Trazabilidad de hoja de vida</PageTitle>
 
+<div class="navi-life-record-subpage navi-life-record-subpage--events">
+
+
+
+@* NAVI LIFE RECORD SUBPAGE STANDARD V76 EVENTS START *@
+
 <NaviPageHero
     Pill="ACTIVOS FIJOS"
     Title="Trazabilidad de hoja de vida"
-    Description="Consulta los eventos históricos registrados para la herramienta.">
+    Description="Consulta los eventos históricos registrados para la herramienta." />
 
-    <a href="@($"/tools/{ToolId}/technical-life-record")">
-        ← Volver a hoja de vida
-    </a>
+<NaviKpiToolbar
+    Class="navi-life-record-subpage-toolbar
+           navi-life-record-subpage-toolbar--events"
+    Refresh="LoadAsync"
+    IsRefreshing="isLoading"
+    RefreshTitle="Actualizar trazabilidad"
+    RefreshAriaLabel="Actualizar trazabilidad">
 
-    <button type="button" @onclick="LoadAsync" data-ntx-tone="primary" >
-        Recargar
-    </button>
+    <div class="navi-life-record-subpage-toolbar__body">
 
-</NaviPageHero>
+        <NaviKpiGrid
+            Columns="3"
+            Compact="true"
+            Dividers="true"
+            Class="navi-life-record-subpage-kpis">
+
+            <NaviKpiCard
+                Title="Eventos visibles"
+                Description="Según filtros activos"
+                Value="@filteredEvents.Count.ToString()"
+                Tone="neutral"
+                Compact="true">
+
+                <IconContent>
+                    <NaviKpiIcon Name="document" />
+                </IconContent>
+
+            </NaviKpiCard>
+
+            <NaviKpiCard
+                Title="Tipos de evento"
+                Description="Trazabilidad clasificada"
+                Value="@EventTypes.Count().ToString()"
+                Tone="soft"
+                Compact="true">
+
+                <IconContent>
+                    <NaviKpiIcon Name="clock" />
+                </IconContent>
+
+            </NaviKpiCard>
+
+            <NaviKpiCard
+                Title="Módulo"
+                Description="Hoja de vida técnica"
+                Value="Trazabilidad"
+                Tone="warning"
+                Compact="true">
+
+                <IconContent>
+                    <NaviKpiIcon Name="transfer" />
+                </IconContent>
+
+            </NaviKpiCard>
+
+        </NaviKpiGrid>
+
+        <a class="navi-life-record-subpage-back"
+           href="@($"/tools/{ToolId}/technical-life-record")"
+           aria-label="Volver a hoja de vida"
+           data-ntx-tone="secondary">
+
+            <span aria-hidden="true">←</span>
+            <span>Volver a hoja de vida</span>
+
+        </a>
+
+    </div>
+
+</NaviKpiToolbar>
+
+@* NAVI LIFE RECORD SUBPAGE STANDARD V76 EVENTS END *@
 
 @if (isLoading)
 {
-    <p>Cargando trazabilidad...</p>
+    <p role="status" aria-busy="true">Cargando trazabilidad...</p>
 }
 else if (!string.IsNullOrWhiteSpace(errorMessage))
 {
@@ -39,18 +108,18 @@ else
 
         <section class="traceability-toolbar traceability-toolbar-v2">
         <div>
-            <label>Buscar evento</label>
+            <label for="navi-toollifecycleevents-control-001">Buscar evento</label>
             <input class="form-control"
                    value="@searchText"
                    @oninput="OnSearchTextChanged"
-                   placeholder="Ej: documento, mantenimiento, evidencia, accesorio..." />
+                   placeholder="Ej: documento, mantenimiento, evidencia, accesorio..." id="navi-toollifecycleevents-control-001" />
         </div>
 
         <div>
-            <label>Tipo de evento</label>
+            <label for="navi-toollifecycleevents-control-002">Tipo de evento</label>
             <select class="form-select"
                     value="@selectedEventType"
-                    @onchange="OnEventTypeChanged">
+                    @onchange="OnEventTypeChanged" id="navi-toollifecycleevents-control-002">
                 <option value="">Todos</option>
                 @foreach (var type in EventTypes)
                 {
@@ -59,13 +128,7 @@ else
             </select>
         </div>
 
-        <div class="traceability-counter">
-            <span>Mostrando</span>
-            <strong>@filteredEvents.Count</strong>
-        </div>
-
-        <div>
-            <label>&nbsp;</label>
+<div>
             <button class="btn btn-outline-secondary w-100 traceability-clear-button" @onclick="ClearFilters" data-ntx-tone="secondary" >
                 Limpiar filtros
             </button>
@@ -121,6 +184,9 @@ else
         </section>
     }
 }
+
+
+</div>
 
 @code {
     [Parameter]

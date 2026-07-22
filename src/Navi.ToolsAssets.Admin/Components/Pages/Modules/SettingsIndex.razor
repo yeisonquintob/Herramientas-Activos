@@ -7,16 +7,45 @@
 <PageTitle>Configuración - NAVI Herramientas</PageTitle>
 
 <PermissionGuard Permission="Settings.View" ModuleName="Configuración">
+    <section class="navi-reference-toolbar">
     <NaviPageHero
+        Class="navi-reference-toolbar__actions"
         Pill="CONFIGURACIÓN"
         Title="Configuración"
         Description="Administra sedes, zonas, talleres, ubicaciones, responsables, tipos de activos, documentos, mantenimientos, causales y parámetros base.">
 
-        <button type="button" onclick="window.location.reload()" data-ntx-tone="secondary" >
+        <button type="button" onclick="window.location.reload()" data-ntx-tone="refresh" >
             Actualizar
         </button>
 
     </NaviPageHero>
+
+    <NaviKpiGrid Class="settings-reference-kpis">
+        <NaviKpiCard>
+            <span>Opciones visibles</span>
+            <strong>@VisibleOptions.Count()</strong>
+            <small>Según permisos actuales</small>
+        </NaviKpiCard>
+
+        <NaviKpiCard Class="success">
+            <span>Organización</span>
+            <strong>@VisibleOptions.Count(x => x.Group == "ORGANIZACIÓN")</strong>
+            <small>Sedes y ubicaciones</small>
+        </NaviKpiCard>
+
+        <NaviKpiCard Class="warning">
+            <span>Activos y operación</span>
+            <strong>@VisibleOptions.Count(x => x.Group == "ACTIVOS FIJOS" || x.Group == "OPERACIÓN")</strong>
+            <small>Catálogos operativos</small>
+        </NaviKpiCard>
+
+        <NaviKpiCard Class="primary">
+            <span>Administración</span>
+            <strong>@VisibleOptions.Count(x => x.Group == "SEGURIDAD" || x.Group == "SISTEMA")</strong>
+            <small>Seguridad y apariencia</small>
+        </NaviKpiCard>
+    </NaviKpiGrid>
+    </section>
 
     <section class="settings-tech-grid">
 
@@ -29,7 +58,7 @@
 
                 @if (CanOpenOption(item))
                 {
-                    <a class="btn btn-outline-primary w-100" href="@item.Url" data-ntx-tone="secondary" >
+                    <a class="btn ntx-btn--operation w-100" href="@item.Url" data-ntx-tone="secondary" >
                         @(CanManageOption(item) ? "Gestionar" : "Consultar")
                     </a>
                 }
@@ -104,6 +133,11 @@
 
     private bool CanManageOption(SettingsOption item)
     {
+        if (item.Code == "appearance")
+        {
+            return CanViewSettings;
+        }
+
         if (item.Code == "users")
         {
             return CanManageUsers;
@@ -138,6 +172,7 @@
         new("maintenance-types", "MANTENIMIENTO", "Tipos de mantenimiento", "Preventivo, correctivo, calibración, inspección y certificación.", "/settings/maintenance-types"),
         new("maintenance-plans", "MANTENIMIENTO", "Planes de mantenimiento", "Frecuencias, alertas, cronogramas y reglas por tipo de activo.", "/settings/maintenance-plans"),
         new("causes", "OPERACIÓN", "Causales", "Causales de daño, novedad, pérdida, baja, traslado o mantenimiento.", "/settings/causes"),
+        new("appearance", "SISTEMA", "Apariencia y accesibilidad", "Configurar tamaño de texto, tema visual y colores generales.", "/settings/appearance"),
         new("sync-export", "SISTEMA", "Sincronización y exportación", "Cargar backups de base de datos y preparar exportaciones controladas.", "/settings/sync-export"),
         new("system-parameters", "SISTEMA", "Parámetros", "Reglas globales, días de alerta, límites de archivo y parámetros generales.", "/settings/system-parameters")
     };

@@ -1,17 +1,151 @@
-<article class="navi-ui-kpi @Tone @Class">
-    <span>@Title</span>
-    <strong>@Value</strong>
+@using Microsoft.AspNetCore.Components
 
-    @if (!string.IsNullOrWhiteSpace(Description))
+<article @attributes="AdditionalAttributes"
+         class="@CssClass"
+         data-kpi-tone="@NormalizedTone">
+
+    <span class="navi-kpi-card__icon"
+          aria-hidden="true">
+
+        @if (IconContent is not null)
+        {
+            @IconContent
+        }
+        else if (!string.IsNullOrWhiteSpace(Icon))
+        {
+            <span class="@Icon"></span>
+        }
+        else
+        {
+            <svg viewBox="0 0 24 24"
+                 focusable="false"
+                 aria-hidden="true">
+
+                <path d="M5 19V9M12 19V5M19 19V12M3 19H21" />
+            </svg>
+        }
+    </span>
+
+    @if (!string.IsNullOrWhiteSpace(Title))
     {
-        <small>@Description</small>
+        <span class="navi-kpi-card__title">
+            @Title
+        </span>
     }
+
+    @if (ValueContent is not null)
+    {
+        <strong class="navi-kpi-card__value">
+            @ValueContent
+        </strong>
+    }
+    else if (!string.IsNullOrWhiteSpace(Value))
+    {
+        <strong class="navi-kpi-card__value">
+            @Value
+        </strong>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(EffectiveDescription))
+    {
+        <small class="navi-kpi-card__description">
+            @EffectiveDescription
+        </small>
+    }
+
+    @ChildContent
 </article>
 
 @code {
-    [Parameter] public string Title { get; set; } = string.Empty;
-    [Parameter] public string Value { get; set; } = "0";
-    [Parameter] public string Description { get; set; } = string.Empty;
-    [Parameter] public string Tone { get; set; } = "neutral";
-    [Parameter] public string Class { get; set; } = string.Empty;
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public string? Value { get; set; }
+
+    [Parameter]
+    public RenderFragment? ValueContent { get; set; }
+
+    [Parameter]
+    public string? Description { get; set; }
+
+    [Parameter]
+    public string? Subtitle { get; set; }
+
+    [Parameter]
+    public string? Icon { get; set; }
+
+    [Parameter]
+    public RenderFragment? IconContent { get; set; }
+
+    [Parameter]
+    public string? Tone { get; set; } = "neutral";
+
+    [Parameter]
+    public bool Compact { get; set; } = true;
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>?
+        AdditionalAttributes { get; set; }
+
+    private string? EffectiveDescription =>
+        !string.IsNullOrWhiteSpace(Description)
+            ? Description
+            : Subtitle;
+
+    private string NormalizedTone =>
+        Tone?.Trim().ToLowerInvariant() switch
+        {
+            "positive"
+                or "success"
+                or "ok"
+                or "available"
+                or "approved"
+                or "completed"
+                => "positive",
+
+            "warning"
+                or "pending"
+                or "review"
+                or "quotation"
+                or "amber"
+                => "warning",
+
+            "danger"
+                or "error"
+                or "rejected"
+                or "overdue"
+                => "danger",
+
+            "soft" => "soft",
+
+            _ => "neutral"
+        };
+
+    private string CssClass
+    {
+        get
+        {
+            var classes =
+                $"navi-ui-kpi tone-{NormalizedTone}";
+
+            if (Compact)
+            {
+                classes += " is-compact";
+            }
+
+            if (!string.IsNullOrWhiteSpace(Class))
+            {
+                classes += $" {Class}";
+            }
+
+            return classes;
+        }
+    }
 }

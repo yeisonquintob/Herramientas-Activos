@@ -23,52 +23,142 @@
 }
 else if (isLoading && record is null)
 {
-    <div class="alert alert-info">
+    <div class="alert alert-info" role="status" aria-busy="true">
         Cargando consulta de hoja de vida técnica...
     </div>
 }
 else if (record is not null)
 {
-    <NaviPageHero
-        Pill="ACTIVOS FIJOS"
-        Title='@Show(Text("Summary", "Name"))'
-        Description="Vista solo lectura abierta desde el detalle del activo fijo. Para editar o gestionar, ingresa desde el módulo Hoja de Vida de Herramientas y AF.">
+@* NAVI TECHNICAL LIFE RECORD READONLY WEB V41 START *@
 
-        <button type="button" @onclick="LoadAsync" disabled="@isLoading" data-ntx-tone="secondary" >
-            @(isLoading ? "Actualizando..." : "Actualizar")
-        </button>
+    <section class="readonly-life-record-v41-header">
 
-    </NaviPageHero>
+        <NaviPageHero
+            Pill="ACTIVOS FIJOS"
+            Title='@Show(Text("Summary", "Name"))'
+            Description="Formato técnico del activo fijo con datos generales, accesorios, documentos, mantenimiento, evidencias, prácticas seguras y trazabilidad.">
 
-    <section class="life-record-summary-shell">
-        <section class="life-record-kpis navi-final-kpi-row life-record-summary-kpis">
-            <article>
-                <span>Código interno</span>
-                <strong>@Show(Text("Summary", "InternalCode"))</strong>
-                <small>Activo fijo</small>
-            </article>
+        </NaviPageHero>
 
-            <article>
-                <span>Estado operativo</span>
-                <strong>@GetStatusLabel(Text("Summary", "OperationalStatus"))</strong>
-                <small>Control actual</small>
-            </article>
+        <section class="readonly-life-record-v41-toolbar">
 
-            <article>
-                <span>Clasificación</span>
-                <strong>@(BoolValue("Summary", "IsSpecialized") ? "Especializada" : "No especializada")</strong>
-                <small>Tipo de activo</small>
-            </article>
+            <NaviKpiGrid
+                Columns="3"
+                Compact="true"
+                Dividers="true"
+                Class="readonly-life-record-v41-kpis">
+
+                <NaviKpiCard
+                    Title="Código interno"
+                    Description="Activo fijo"
+                    Tone="neutral">
+
+                    <IconContent>
+                        <NaviKpiIcon Name="inventory" />
+                    </IconContent>
+
+                    <ValueContent>
+                        @Show(
+                            Text(
+                                "Summary",
+                                "InternalCode"))
+                    </ValueContent>
+
+                </NaviKpiCard>
+
+                <NaviKpiCard
+                    Title="Estado operativo"
+                    Description="Control actual"
+                    Tone="warning">
+
+                    <IconContent>
+                        <NaviKpiIcon Name="transfer" />
+                    </IconContent>
+
+                    <ValueContent>
+                        @GetStatusLabel(
+                            Text(
+                                "Summary",
+                                "OperationalStatus"))
+                    </ValueContent>
+
+                </NaviKpiCard>
+
+                <NaviKpiCard
+                    Title="Clasificación"
+                    Description="Tipo de activo"
+                    Tone="soft">
+
+                    <IconContent>
+                        <NaviKpiIcon Name="document" />
+                    </IconContent>
+
+                    <ValueContent>
+                        @(BoolValue(
+                            "Summary",
+                            "IsSpecialized")
+                                ? "Especializada"
+                                : "No especializada")
+                    </ValueContent>
+
+                </NaviKpiCard>
+
+            </NaviKpiGrid>
+
+            <div class="readonly-life-record-v41-actions">
+
+                <button
+                    type="button"
+                    class="readonly-life-record-v41-back"
+                    @onclick="GoBack"
+                    data-ntx-tone="secondary">
+
+                    <svg
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                        focusable="false">
+
+                        <path d="M19 12H5"></path>
+                        <path d="M11 6L5 12L11 18"></path>
+
+                    </svg>
+
+                    <span>Volver al detalle</span>
+
+                </button>
+
+                <button
+                    type="button"
+                    class="readonly-life-record-v41-refresh"
+                    title="Actualizar hoja de vida"
+                    aria-label="Actualizar hoja de vida"
+                    aria-busy="@(isLoading ? "true" : "false")"
+                    disabled="@isLoading"
+                    @onclick="LoadAsync"
+                    data-ntx-icon-only="true"
+                    data-ntx-tone="refresh">
+
+                    <svg
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                        focusable="false">
+
+                        <path d="M20 12A8 8 0 1 1 17.7 6.3"></path>
+                        <path d="M20 4V11H13"></path>
+
+                    </svg>
+
+                </button>
+
+            </div>
+
         </section>
 
-        <aside class="life-record-summary-actions">
-            <button class="btn-life-back" type="button" @onclick="GoBack" data-ntx-tone="secondary" >
-                Volver al detalle
-            </button>
-        </aside>
     </section>
 
-    <section class="life-readonly-note">
+@* NAVI TECHNICAL LIFE RECORD READONLY WEB V41 END *@
+
+<section class="life-readonly-note">
         <strong>Modo solo lectura.</strong>
         Esta consulta no permite editar datos técnicos, accesorios, documentos, mantenimientos ni prácticas seguras.
     </section>
@@ -106,22 +196,22 @@ else if (record is not null)
             </div>
 
             <div class="excel-grid two-columns">
-                <div><label>Código interno</label><strong>@Show(Text("EquipmentInformation", "InternalCode"))</strong></div>
-                <div><label>Nombre</label><strong>@Show(Text("EquipmentInformation", "Name"))</strong></div>
-                <div><label>Marca</label><strong>@Show(Text("EquipmentInformation", "Brand"))</strong></div>
-                <div><label>Modelo</label><strong>@Show(Text("EquipmentInformation", "Model"))</strong></div>
-                <div><label>Serial</label><strong>@Show(Text("EquipmentInformation", "SerialNumber"))</strong></div>
-                <div><label>Activo fijo</label><strong>@Show(Text("EquipmentInformation", "FixedAssetCode"))</strong></div>
-                <div><label>Código Fenix365</label><strong>@Show(Text("EquipmentInformation", "FenixCode"))</strong></div>
-                <div><label>Fecha adquisición</label><strong>@ShowDate(Text("EquipmentInformation", "AcquisitionDate"))</strong></div>
-                <div><label>Zona</label><strong>@Join(Text("EquipmentInformation", "ZoneCode"), Text("EquipmentInformation", "ZoneName"))</strong></div>
-                <div><label>Sede</label><strong>@Join(Text("EquipmentInformation", "BranchCode"), Text("EquipmentInformation", "BranchName"))</strong></div>
-                <div><label>Ubicación</label><strong>@Join(Text("EquipmentInformation", "LocationCode"), Text("EquipmentInformation", "LocationName"))</strong></div>
-                <div><label>Responsable</label><strong>@Show(Text("EquipmentInformation", "ResponsibleName"))</strong></div>
-                <div><label>Tipo</label><strong>@Show(Text("EquipmentInformation", "ToolTypeName"))</strong></div>
-                <div><label>Categoría</label><strong>@Show(Text("EquipmentInformation", "ToolCategoryName"))</strong></div>
-                <div><label>Unidad</label><strong>@Show(Text("EquipmentInformation", "UnitOfMeasure"))</strong></div>
-                <div><label>Cantidad</label><strong>@Show(Text("EquipmentInformation", "Quantity"))</strong></div>
+                <div><span class="navi-data-label">Código interno</span><strong>@Show(Text("EquipmentInformation", "InternalCode"))</strong></div>
+                <div><span class="navi-data-label">Nombre</span><strong>@Show(Text("EquipmentInformation", "Name"))</strong></div>
+                <div><span class="navi-data-label">Marca</span><strong>@Show(Text("EquipmentInformation", "Brand"))</strong></div>
+                <div><span class="navi-data-label">Modelo</span><strong>@Show(Text("EquipmentInformation", "Model"))</strong></div>
+                <div><span class="navi-data-label">Serial</span><strong>@Show(Text("EquipmentInformation", "SerialNumber"))</strong></div>
+                <div><span class="navi-data-label">Activo fijo</span><strong>@Show(Text("EquipmentInformation", "FixedAssetCode"))</strong></div>
+                <div><span class="navi-data-label">Código Fenix365</span><strong>@Show(Text("EquipmentInformation", "FenixCode"))</strong></div>
+                <div><span class="navi-data-label">Fecha adquisición</span><strong>@ShowDate(Text("EquipmentInformation", "AcquisitionDate"))</strong></div>
+                <div><span class="navi-data-label">Zona</span><strong>@Join(Text("EquipmentInformation", "ZoneCode"), Text("EquipmentInformation", "ZoneName"))</strong></div>
+                <div><span class="navi-data-label">Sede</span><strong>@Join(Text("EquipmentInformation", "BranchCode"), Text("EquipmentInformation", "BranchName"))</strong></div>
+                <div><span class="navi-data-label">Ubicación</span><strong>@Join(Text("EquipmentInformation", "LocationCode"), Text("EquipmentInformation", "LocationName"))</strong></div>
+                <div><span class="navi-data-label">Responsable</span><strong>@Show(Text("EquipmentInformation", "ResponsibleName"))</strong></div>
+                <div><span class="navi-data-label">Tipo</span><strong>@Show(Text("EquipmentInformation", "ToolTypeName"))</strong></div>
+                <div><span class="navi-data-label">Categoría</span><strong>@Show(Text("EquipmentInformation", "ToolCategoryName"))</strong></div>
+                <div><span class="navi-data-label">Unidad</span><strong>@Show(Text("EquipmentInformation", "UnitOfMeasure"))</strong></div>
+                <div><span class="navi-data-label">Cantidad</span><strong>@Show(Text("EquipmentInformation", "Quantity"))</strong></div>
             </div>
         </section>
 
@@ -132,15 +222,15 @@ else if (record is not null)
             </div>
 
             <div class="excel-grid two-columns">
-                <div><label>Voltaje</label><strong>@Show(Text("TechnicalSpecifications", "Voltage"))</strong></div>
-                <div><label>Capacidad de carga</label><strong>@Show(Text("TechnicalSpecifications", "LoadCapacity"))</strong></div>
-                <div><label>Proveedor</label><strong>@Show(Text("TechnicalSpecifications", "Provider"))</strong></div>
-                <div><label>Requiere mantenimiento</label><strong>@BoolText(Text("TechnicalSpecifications", "RequiresMaintenance"))</strong></div>
-                <div><label>Requiere preoperacional</label><strong>@BoolText(Text("TechnicalSpecifications", "RequiresPreOperationalCheck"))</strong></div>
-                <div><label>Requiere certificación</label><strong>@BoolText(Text("TechnicalSpecifications", "RequiresCertification"))</strong></div>
-                <div><label>Vence certificación</label><strong>@ShowDate(Text("TechnicalSpecifications", "CertificationExpirationDate"))</strong></div>
-                <div><label>Garantía</label><strong>@BoolText(Text("Warranty", "HasWarranty"))</strong></div>
-                <div><label>Tipo garantía</label><strong>@Show(Text("Warranty", "WarrantyType"))</strong></div>
+                <div><span class="navi-data-label">Voltaje</span><strong>@Show(Text("TechnicalSpecifications", "Voltage"))</strong></div>
+                <div><span class="navi-data-label">Capacidad de carga</span><strong>@Show(Text("TechnicalSpecifications", "LoadCapacity"))</strong></div>
+                <div><span class="navi-data-label">Proveedor</span><strong>@Show(Text("TechnicalSpecifications", "Provider"))</strong></div>
+                <div><span class="navi-data-label">Requiere mantenimiento</span><strong>@BoolText(Text("TechnicalSpecifications", "RequiresMaintenance"))</strong></div>
+                <div><span class="navi-data-label">Requiere preoperacional</span><strong>@BoolText(Text("TechnicalSpecifications", "RequiresPreOperationalCheck"))</strong></div>
+                <div><span class="navi-data-label">Requiere certificación</span><strong>@BoolText(Text("TechnicalSpecifications", "RequiresCertification"))</strong></div>
+                <div><span class="navi-data-label">Vence certificación</span><strong>@ShowDate(Text("TechnicalSpecifications", "CertificationExpirationDate"))</strong></div>
+                <div><span class="navi-data-label">Garantía</span><strong>@BoolText(Text("Warranty", "HasWarranty"))</strong></div>
+                <div><span class="navi-data-label">Tipo garantía</span><strong>@Show(Text("Warranty", "WarrantyType"))</strong></div>
             </div>
         </section>
     </div>
@@ -153,12 +243,12 @@ else if (record is not null)
             </div>
 
             <div class="excel-grid two-columns">
-                <div><label>Fecha inicial vida útil</label><strong>@ShowDate(Text("UsefulLife", "StartDate"))</strong></div>
-                <div><label>Fecha final vida útil</label><strong>@ShowDate(Text("UsefulLife", "EndDate"))</strong></div>
-                <div><label>Vida útil meses</label><strong>@Show(Text("UsefulLife", "UsefulLifeMonths"))</strong></div>
-                <div><label>Vida útil días</label><strong>@Show(Text("UsefulLife", "UsefulLifeDays"))</strong></div>
-                <div><label>Días transcurridos</label><strong>@Show(Text("UsefulLife", "ElapsedDays"))</strong></div>
-                <div><label>Días restantes</label><strong>@Show(Text("UsefulLife", "RemainingDays"))</strong></div>
+                <div><span class="navi-data-label">Fecha inicial vida útil</span><strong>@ShowDate(Text("UsefulLife", "StartDate"))</strong></div>
+                <div><span class="navi-data-label">Fecha final vida útil</span><strong>@ShowDate(Text("UsefulLife", "EndDate"))</strong></div>
+                <div><span class="navi-data-label">Vida útil meses</span><strong>@Show(Text("UsefulLife", "UsefulLifeMonths"))</strong></div>
+                <div><span class="navi-data-label">Vida útil días</span><strong>@Show(Text("UsefulLife", "UsefulLifeDays"))</strong></div>
+                <div><span class="navi-data-label">Días transcurridos</span><strong>@Show(Text("UsefulLife", "ElapsedDays"))</strong></div>
+                <div><span class="navi-data-label">Días restantes</span><strong>@Show(Text("UsefulLife", "RemainingDays"))</strong></div>
             </div>
 
             <div class="life-progress mt-3">
@@ -179,12 +269,12 @@ else if (record is not null)
             </div>
 
             <div class="excel-grid two-columns">
-                <div><label>Último mantenimiento</label><strong>@ShowDate(Text("MaintenancePlan", "LastMaintenanceDate"))</strong></div>
-                <div><label>Próximo mantenimiento</label><strong>@ShowDate(Text("MaintenancePlan", "NextMaintenanceDate"))</strong></div>
-                <div><label>Periodicidad meses</label><strong>@Show(Text("MaintenancePlan", "MaintenancePeriodMonths"))</strong></div>
-                <div><label>Total mantenimientos</label><strong>@Show(Text("MaintenancePlan", "TotalMaintenanceRecords"))</strong></div>
-                <div><label>Completados</label><strong>@Show(Text("MaintenancePlan", "CompletedMaintenanceRecords"))</strong></div>
-                <div><label>Pendientes</label><strong>@Show(Text("MaintenancePlan", "PendingMaintenanceRecords"))</strong></div>
+                <div><span class="navi-data-label">Último mantenimiento</span><strong>@ShowDate(Text("MaintenancePlan", "LastMaintenanceDate"))</strong></div>
+                <div><span class="navi-data-label">Próximo mantenimiento</span><strong>@ShowDate(Text("MaintenancePlan", "NextMaintenanceDate"))</strong></div>
+                <div><span class="navi-data-label">Periodicidad meses</span><strong>@Show(Text("MaintenancePlan", "MaintenancePeriodMonths"))</strong></div>
+                <div><span class="navi-data-label">Total mantenimientos</span><strong>@Show(Text("MaintenancePlan", "TotalMaintenanceRecords"))</strong></div>
+                <div><span class="navi-data-label">Completados</span><strong>@Show(Text("MaintenancePlan", "CompletedMaintenanceRecords"))</strong></div>
+                <div><span class="navi-data-label">Pendientes</span><strong>@Show(Text("MaintenancePlan", "PendingMaintenanceRecords"))</strong></div>
             </div>
         </section>
     </div>
@@ -202,7 +292,8 @@ else if (record is not null)
         else
         {
             <div class="table-responsive">
-                <table class="table table-sm table-bordered excel-table">
+                <div class="ntx-table-scroll">
+                    <table class="table table-sm table-bordered excel-table">
                     <thead>
                         <tr>
                             <th>Accesorio</th>
@@ -225,6 +316,7 @@ else if (record is not null)
                         }
                     </tbody>
                 </table>
+                </div>
             </div>
         }
     </section>
@@ -292,7 +384,8 @@ else if (record is not null)
         else
         {
             <div class="table-responsive">
-                <table class="table table-sm table-bordered excel-table">
+                <div class="ntx-table-scroll">
+                    <table class="table table-sm table-bordered excel-table">
                     <thead>
                         <tr>
                             <th>Número</th>
@@ -323,6 +416,7 @@ else if (record is not null)
                         }
                     </tbody>
                 </table>
+                </div>
             </div>
         }
     </section>
@@ -367,7 +461,8 @@ else if (record is not null)
         else
         {
             <div class="table-responsive">
-                <table class="table table-sm table-bordered excel-table">
+                <div class="ntx-table-scroll">
+                    <table class="table table-sm table-bordered excel-table">
                     <thead>
                         <tr>
                             <th>Fecha</th>
@@ -392,6 +487,7 @@ else if (record is not null)
                         }
                     </tbody>
                 </table>
+                </div>
             </div>
         }
     </section>

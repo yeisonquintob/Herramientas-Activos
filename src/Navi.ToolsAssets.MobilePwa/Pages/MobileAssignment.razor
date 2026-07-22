@@ -6,11 +6,49 @@
 @inject NaviMobileApiClient Api
 @inject MobileAuthSessionService Auth
 @inject NavigationManager Navigation
+@inject NaviMobileNotificationState NotificationState
 
-<PageTitle>Asignación y préstamos móvil - NAVI Herramientas y AF</PageTitle>
+<PageTitle>Asignar Herramientas y AF - NAVI</PageTitle>
 
-<section class="mobile-page mobile-assignment-page">
-    @if (isLoading)
+<section class="mobile-page mobile-assignment-page mobile-assignment-page-v25">
+
+    @*
+        Publica el encabezado estándar del MainLayout.
+        Permanece montado aunque se abran o cierren paneles.
+    *@
+    <NaviMobileAppBanner
+        Class="mobile-assignment-v25-header-publisher"
+        Pill="ACTIVOS FIJOS"
+        Title="Asignar Herramientas y AF"
+        Description="Solicitudes, asignaciones y regresos."
+        HomeUrl="/"
+        ShowHomeButton="false"
+        ShowBackButton="false" />
+
+
+
+    @*
+        Publica el título en el encabezado estándar del
+        MainLayout móvil.
+
+        Está fuera de todos los bloques condicionales para
+        que nunca desaparezca al expandir, ocultar o actualizar.
+    *@
+@*
+        Publica la información en el encabezado estándar
+        permanente del MainLayout móvil.
+
+        Se mantiene fuera de los estados de carga,
+        autenticación, permisos y contenido.
+    *@
+@*
+        Este componente publica el título y la descripción
+        en el encabezado estándar del MainLayout.
+
+        Permanece montado durante carga, actualización,
+        errores y cambios internos de la vista.
+    *@
+@if (isLoading)
     {
         <div class="mobile-loading mobile-assignment-loading-fast">Cargando herramientas visibles...</div>
     }
@@ -19,7 +57,7 @@
         <div class="mobile-empty">
             <strong>Sesión requerida</strong>
             <span>Debes iniciar sesión para usar asignaciones móviles.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="primary" >Ir al login</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="ghost" >Ir al login</button>
         </div>
     }
     else if (!CanUseAssignmentModule)
@@ -27,52 +65,135 @@
         <div class="mobile-empty">
             <strong>Sin permiso</strong>
             <span>Tu usuario no tiene permisos de asignación, devolución, aprobación ni historial.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoHome" data-ntx-tone="primary" >Volver</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoHome" data-ntx-tone="secondary" >Volver</button>
         </div>
     }
     else
     {
-
-        <NaviMobileAppBanner Class="navi-mobile-assignment-app-banner mass-standard-banner-v2 navi-mobile-app-banner--home-only"
-                             Pill="ACTIVOS FIJOS · ASIGNACIÓN"
-                             Title="Asignación y préstamos"
-                             Description="Gestiona asignaciones, préstamos, aprobaciones y regresos según tus permisos."
-                             HomeUrl="/"
-                             ShowHomeButton="true"
-                             ShowBackButton="false" />
-
-        @if (!string.IsNullOrWhiteSpace(message))
+@if (!string.IsNullOrWhiteSpace(message))
         {
             <div class="@messageClass">@message</div>
         }
 
-        <section class="mobile-assignment-kpis mobile-assignment-kpis-standard-v4 mobile-assignment-kpis-standard-v4">
-            <article>
-                <strong>@PendingRequests.Count()</strong>
-                <span>Pendientes visibles</span>
-            </article>
 
-            <article>
-                <strong>@ApprovedOrDeliveredCount</strong>
-                <span>Aprobadas</span>
-            </article>
+<NaviMobileKpiOverflow
+    PrimaryCount="3"
+    OverflowCount="2"
+    Class="navi-mobile-kpi-standard-overflow navi-mobile-assignment-kpi-standard"
+    ButtonLabel="Mostrar indicadores adicionales">
 
-            <article>
-                <strong>@ScopedTools.Count()</strong>
-                <span>Activos sede</span>
-            </article>
-        </section>
+    <PrimaryContent>
+
+        <NaviMobileKpiGrid
+            Columns="3"
+            Compact="true"
+            Dividers="true"
+            Class="navi-mobile-kpi-standard-grid">
+
+            <NaviMobileKpiCard
+                Title="Activos"
+                Description="Visibles"
+                IconKey="inventory"
+                Tone="neutral">
+
+                <ValueContent>
+                    @FilteredTools.Count()
+                </ValueContent>
+
+            </NaviMobileKpiCard>
+
+            <NaviMobileKpiCard
+                Title="Disponibles"
+                Description="Para asignar"
+                IconKey="check"
+                Tone="positive">
+
+                <ValueContent>
+                    @(FilteredTools.Count(tool =>
+                        string.Equals(
+                            tool.OperationalStatus,
+                            "Available",
+                            StringComparison.OrdinalIgnoreCase)))
+                </ValueContent>
+
+            </NaviMobileKpiCard>
+
+            <NaviMobileKpiCard
+                Title="Solicitudes"
+                Description="Pendientes"
+                IconKey="document"
+                Tone="warning">
+
+                <ValueContent>
+                    @PendingRequests.Count()
+                </ValueContent>
+
+            </NaviMobileKpiCard>
+
+        </NaviMobileKpiGrid>
+
+    </PrimaryContent>
+
+    <OverflowContent>
+
+        <NaviMobileKpiGrid
+            Columns="2"
+            Compact="true"
+            Dividers="true"
+            Class="navi-mobile-kpi-standard-grid navi-mobile-assignment-kpi-overflow-grid">
+
+            <NaviMobileKpiCard
+                Title="En uso"
+                Description="Asignados"
+                IconKey="transfer"
+                Tone="soft">
+
+                <ValueContent>
+                    @(FilteredTools.Count(tool =>
+                        string.Equals(
+                            tool.OperationalStatus,
+                            "Assigned",
+                            StringComparison.OrdinalIgnoreCase)
+                        ||
+                        string.Equals(
+                            tool.OperationalStatus,
+                            "Loaned",
+                            StringComparison.OrdinalIgnoreCase)))
+                </ValueContent>
+
+            </NaviMobileKpiCard>
+
+            <NaviMobileKpiCard
+                Title="Sin responsable"
+                Description="Por asignar"
+                IconKey="users"
+                Tone="danger">
+
+                <ValueContent>
+                    @(FilteredTools.Count(tool =>
+                        tool.ResponsiblePersonId is null))
+                </ValueContent>
+
+            </NaviMobileKpiCard>
+
+        </NaviMobileKpiGrid>
+
+    </OverflowContent>
+
+</NaviMobileKpiOverflow>
 
         @if (CanApproveAssignmentRequest || CanDenyAssignmentRequest)
         {
-            <section class="mobile-assignment-card">
+            <section id="solicitudes-pendientes" class="mobile-assignment-card mobile-assignment-pending-v25">
                 <div class="mobile-assignment-card-head">
                     <div>
-                        <strong>Aprobaciones</strong>
-                        <span>Solo visible para roles con permiso de aprobar o denegar</span>
+                        <strong>Solicitudes pendientes</strong>
+                        <span>Solicitudes que requieren una decisión.</span>
                     </div>
 
-                    <button type="button" class="mass-refresh-button-v4" @onclick="ReloadAsync" data-ntx-tone="secondary" >Actualizar</button>
+                    <strong class="mobile-assignment-pending-count-v25">
+                        @PendingRequests.Count()
+                    </strong>
                 </div>
 
                 @if (!PendingRequests.Any())
@@ -96,14 +217,14 @@
                                 <div class="mobile-approval-actions mobile-approval-actions-top">
                                     @if (CanApproveAssignmentRequest)
                                     {
-                                        <button class="approve mass-approve-button-v4" type="button" disabled="@isSaving" @onclick="() => ApproveAsync(request)" data-ntx-tone="danger" >
+                                        <button class="approve mass-approve-button-v4 mobile-assignment-approve-v25" type="button" disabled="@isSaving" @onclick="() => ApproveAsync(request)" data-ntx-tone="affirmative" >
                                             Aprobar
                                         </button>
                                     }
 
                                     @if (CanDenyAssignmentRequest)
                                     {
-                                        <button class="deny mass-deny-button-v4" type="button" disabled="@isSaving" @onclick="() => DenyAsync(request)" data-ntx-tone="danger" >
+                                        <button class="deny mass-deny-button-v4 mobile-assignment-deny-v25" type="button" disabled="@isSaving" @onclick="() => DenyAsync(request)" data-ntx-tone="danger" >
                                             Denegar
                                         </button>
                                     }
@@ -117,14 +238,26 @@
 
         @if (CanDirectAssign || CanReturnAssignment)
         {
-            <section class="mobile-assignment-card">
+            <section class="mobile-assignment-card mobile-assignment-collapsible-v27 @(showNewAssignment ? "is-open" : "is-collapsed")">
                 <div class="mobile-collapse-head">
                     <div>
                         <strong>Nueva asignación / regreso</strong>
                         <span>Solo roles con permiso de asignar o devolver</span>
                     </div>
 
-                    <button type="button" class="mass-toggle-button-v4 mass-toggle-new-assignment-v4" @onclick="ToggleNewAssignment" data-ntx-tone="primary" >
+                    <button type="button"
+                            class="mass-toggle-button-v4
+                                   mass-toggle-new-assignment-v4
+                                   mobile-assignment-toggle-v27"
+                            title="@(showNewAssignment
+                                ? "Ocultar nueva asignación o regreso"
+                                : "Expandir nueva asignación o regreso")"
+                            aria-label="@(showNewAssignment
+                                ? "Ocultar nueva asignación o regreso"
+                                : "Expandir nueva asignación o regreso")"
+                            aria-expanded="@showNewAssignment"
+                            @onclick="ToggleNewAssignment"
+                            data-ntx-tone="expand">
                         @(showNewAssignment ? "Ocultar" : "Expandir")
                     </button>
                 </div>
@@ -153,7 +286,7 @@
 
                                     <button type="button"
                                             class="mobile-request-result @(selected ? "selected" : "")"
-                                            @onclick="() => SelectAssignmentTool(tool)" data-ntx-tone="primary" >
+                                            @onclick="() => SelectAssignmentTool(tool)" data-ntx-tone="ghost" >
                                         <span>
                                             <strong>@tool.InternalCode</strong>
                                             <small>@tool.Name</small>
@@ -247,7 +380,7 @@
                                   placeholder="Observación del movimiento..."></textarea>
                     </label>
 
-                    <button class="mobile-assignment-main-button" type="button" disabled="@isSaving" @onclick="SaveDirectAssignmentAsync" data-ntx-tone="primary" >
+                    <button class="mobile-assignment-main-button mobile-assignment-confirm-v25" type="button" disabled="@isSaving" @onclick="SaveDirectAssignmentAsync" data-ntx-tone="affirmative" >
                         @(isSaving ? "Guardando..." : assignmentForm.AssignmentType == "Warehouse" ? "Confirmar regreso" : "Confirmar asignación")
                     </button>
                 }
@@ -256,102 +389,149 @@
 
         @if (CanViewAssignmentHistory)
         {
-            <section class="mobile-assignment-card">
-                <div class="mobile-collapse-head">
+            <details class="mobile-assignment-card
+                            mobile-assignment-history-v28">
+
+                <summary class="mobile-collapse-head
+                                mobile-assignment-history-summary-v28">
+
                     <div>
                         <strong>Historial</strong>
-                        <span>Movimientos visibles según sede y permisos</span>
+
+                        <span>
+                            Movimientos visibles según sede y permisos.
+                        </span>
                     </div>
 
-                    <button type="button" class="mass-toggle-button-v4 mass-toggle-history-v4" @onclick="ToggleHistory" data-ntx-tone="secondary" >
-                        @(showHistory ? "Ocultar" : "Expandir")
-                    </button>
-                </div>
+                    <span class="mobile-assignment-history-toggle-v28"
+                          aria-hidden="true">
 
-                @if (showHistory)
-                {
-                    <div class="mobile-assignment-filters">
-                        <input value="@historySearch"
+                        <span class="mobile-assignment-history-expand-v28">
+                            Expandir
+                        </span>
+
+                        <span class="mobile-assignment-history-hide-v28">
+                            Ocultar
+                        </span>
+                    </span>
+                </summary>
+
+                <div class="mobile-assignment-history-body-v28">
+
+                    <label class="mobile-field
+                                  mobile-assignment-history-search-v28">
+
+                        <span>Buscar movimiento</span>
+
+                        <input id="mobile-assignment-history-search"
+                               name="mobile-assignment-history-search"
+                               type="search"
+                               autocomplete="off"
+                               value="@historySearch"
                                @oninput="OnHistorySearchChanged"
-                               placeholder="Buscar préstamo, activo o usuario..." />
-                    </div>
+                               placeholder="Préstamo, activo, código o usuario..." />
+                    </label>
 
                     @if (!FilteredHistory.Any())
                     {
-                        <div class="mobile-assignment-empty">No hay historial para los filtros seleccionados.</div>
+                        <div class="mobile-assignment-empty">
+
+                            No hay movimientos para los filtros
+                            seleccionados.
+                        </div>
                     }
                     else
                     {
                         <div class="mobile-history-list">
+
                             @foreach (var request in FilteredHistory.Take(12))
                             {
-                                var item = request.Items.FirstOrDefault();
+                                var item =
+                                    request.Items.FirstOrDefault();
 
                                 <article>
+
                                     <div>
-                                        <span>@request.LoanNumber</span>
-                                        <strong>@Display(item?.ToolInternalCode) - @Display(item?.ToolName)</strong>
-                                        <small>@GetLoanStatusLabel(request.Status) · @ShowDate(request.CreatedAt)</small>
-                                        <small>Usuario: @Display(GetRequesterName(request))</small>
+                                        <span>
+                                            @request.LoanNumber
+                                        </span>
+
+                                        <strong>
+                                            @Display(item?.ToolInternalCode)
+                                            -
+                                            @Display(item?.ToolName)
+                                        </strong>
+
+                                        <small>
+                                            @GetLoanStatusLabel(request.Status)
+                                            ·
+                                            @ShowDate(request.CreatedAt)
+                                        </small>
+
+                                        <small>
+                                            Usuario:
+                                            @Display(GetRequesterName(request))
+                                        </small>
                                     </div>
 
-                                    <em class="@GetLoanStatusClass(request.Status)">
-                                        @GetLoanStatusLabel(request.Status)
+                                    <em class="@GetLoanStatusClass(
+                                        request.Status)">
+
+                                        @GetLoanStatusLabel(
+                                            request.Status)
                                     </em>
                                 </article>
                             }
                         </div>
                     }
-                }
-            </section>
+                </div>
+            </details>
         }
 
-        <section class="mobile-assignment-card">
-            <div class="mobile-assignment-card-head">
+        <section class="mobile-assignment-card mobile-assignment-visible-tools-v28">
+
+            <div class="mobile-assignment-card-head mobile-assignment-visible-tools-head-v28">
+
                 <div>
                     <strong>Herramientas / activos visibles</strong>
-                    <span>Consulta activos de la sede, asigna, devuelve o reporta daño según permiso</span>
+
+                    <span>
+                        Consulta por estado y selecciona un activo para asignar o regresar.
+                    </span>
                 </div>
             </div>
 
-            <div class="mobile-assignment-filters mobile-assignment-tools-filter-v2">
-                <input @bind="toolSearch"
+            <div class="mobile-assignment-visible-tools-content-v28">
+<div class="mobile-assignment-filters mobile-assignment-tools-filter-v2">
+                <input id="mobile-assignment-tool-search"
+                       name="mobile-assignment-tool-search"
+                       type="search"
+                       autocomplete="off" @bind="toolSearch"
                        @bind:event="oninput"
                        placeholder="Buscar código, nombre, serial, sede o ubicación..." />
 
-                <section class="mobile-assignment-status-filter-v2" aria-label="Filtro de estado">
-                    <div class="mobile-assignment-status-filter-head-v2">
-                        <strong>Estado</strong>
+                <label class="mobile-assignment-status-field-v28"
+                       for="mobile-assignment-tool-status">
 
-                        <button type="button"
-                                disabled="@(selectedToolStatuses.Count == 0)"
-                                @onclick="ClearToolStatuses" data-ntx-tone="primary" >
-                            Limpiar
-                        </button>
-                    </div>
+                    <span>Estado</span>
 
-                    <div class="mobile-assignment-status-chip-grid-v2">
-                        <button type="button"
-                                class="mobile-assignment-status-chip-v2 all @(selectedToolStatuses.Count == 0 ? "active" : "")"
-                                @onclick="ClearToolStatuses" data-ntx-tone="secondary" >
-                            Todos
-                            <span>@ToolsBaseFiltered.Count()</span>
-                        </button>
+                    <select id="mobile-assignment-tool-status"
+                            name="mobile-assignment-tool-status"
+                            aria-label="Estado del activo"
+                            @bind="SelectedToolStatusValue">
+
+                        <option value="">
+                            Todos los estados (@ToolsBaseFiltered.Count())
+                        </option>
 
                         @foreach (var status in ToolStatusFilterOptions)
                         {
-                            var selected = selectedToolStatuses.Contains(status.Value);
-                            var count = CountToolsByStatus(status.Value);
-
-                            <button type="button"
-                                    class="@GetToolStatusFilterChipClass(status.Value, selected)"
-                                    @onclick="() => ToggleToolStatus(status.Value)" data-ntx-tone="secondary" >
-                                @status.Text
-                                <span>@count</span>
-                            </button>
+                            <option value="@status.Value">
+                                @status.Text (@CountToolsByStatus(status.Value))
+                            </option>
                         }
-                    </div>
-                </section>
+                    </select>
+                </label>
             </div>
 
             @if (!FilteredTools.Any())
@@ -398,18 +578,34 @@
                             </div>
 
                             <div class="mobile-assignment-tool-actions mobile-assignment-tool-actions-v4">
-                                <button class="mass-tool-assign-button-v4" type="button" @onclick="() => SelectAssignmentTool(tool)" data-ntx-tone="primary" >
+
+                                <button type="button"
+                                        class="mass-tool-assign-button-v4 mobile-assignment-tool-assign-v25"
+                                        title="Asignar activo"
+                                        aria-label="@($"Asignar {tool.InternalCode}")"
+                                        disabled="@(!CanDirectAssign)"
+                                        @onclick="() => SelectAssignmentTool(tool)"
+                                        data-ntx-tone="operation">
+
                                     Asignar
                                 </button>
 
-                                <a class="danger mass-tool-damage-button-v4" href="@GetDamageUrl(tool.Id)" data-ntx-tone="ghost" >
-                                    Dañado
-                                </a>
+                                <button type="button"
+                                        class="mobile-assignment-tool-return-v26"
+                                        title="Regresar activo al almacén"
+                                        aria-label="@($"Regresar {tool.InternalCode} al almacén")"
+                                        disabled="@(!CanReturnAssignment || !CanReturnTool(tool))"
+                                        @onclick="() => SelectReturnTool(tool)"
+                                        data-ntx-tone="warning">
+
+                                    Regresar
+                                </button>
                             </div>
                         </article>
                     }
                 </div>
             }
+            </div>
         </section>
     }
 </section>
@@ -418,8 +614,8 @@
     private bool isLoading = true;
     private bool isSaving;
     private bool isSecondaryLoading;
-    private bool showNewAssignment;
-    private bool showHistory;
+    private bool showNewAssignment = false;
+private bool showSecondaryKpis;
     private string? message;
     private string messageClass = "mobile-alert";
 
@@ -641,7 +837,22 @@
         };
     }
 
-    private void ToggleToolStatus(string status)
+    // NAVI MOBILE ASSIGNMENT KPI V25 START
+
+    private void ToggleSecondaryKpis()
+    {
+        showSecondaryKpis =
+            !showSecondaryKpis;
+    }
+
+    private void CloseSecondaryKpis()
+    {
+        showSecondaryKpis = false;
+    }
+
+    // NAVI MOBILE ASSIGNMENT KPI V25 END
+
+private void ToggleToolStatus(string status)
     {
         if (string.IsNullOrWhiteSpace(status))
         {
@@ -651,6 +862,32 @@
         if (!selectedToolStatuses.Add(status))
         {
             selectedToolStatuses.Remove(status);
+        }
+    }
+
+    private string SelectedToolStatusValue
+    {
+        get
+        {
+            if (selectedToolStatuses.Count != 1)
+            {
+                return string.Empty;
+            }
+
+            return selectedToolStatuses
+                .FirstOrDefault()
+                ??
+                string.Empty;
+        }
+
+        set
+        {
+            selectedToolStatuses.Clear();
+
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                selectedToolStatuses.Add(value);
+            }
         }
     }
 
@@ -686,7 +923,8 @@
     }
     private async Task LoadAsync()
     {
-        try
+
+try
         {
             isLoading = true;
             message = null;
@@ -839,8 +1077,8 @@
             assignmentForm.AssignmentType = "Responsible";
         }
 
-        showNewAssignment = CanDirectAssign || CanReturnAssignment;
-    }
+        showNewAssignment = false;
+}
 
     private static async Task<List<T>> SafeLoadListAsync<T>(
         Func<Task<List<T>>> loader,
@@ -878,27 +1116,27 @@
 
     private void ToggleNewAssignment()
     {
-        if (!CanDirectAssign && !CanReturnAssignment)
+        if (!CanDirectAssign &&
+            !CanReturnAssignment)
         {
-            ShowError("No tienes permiso para crear asignaciones o regresos.");
+            ShowError(
+                "No tienes permiso para crear asignaciones o regresos.");
+
             return;
         }
 
-        showNewAssignment = !showNewAssignment;
-    }
+        var shouldOpen =
+            !showNewAssignment;
 
-    private void ToggleHistory()
-    {
-        if (!CanViewAssignmentHistory)
+        showNewAssignment =
+            shouldOpen;
+
+        if (shouldOpen)
         {
-            ShowError("No tienes permiso para consultar historial.");
-            return;
-        }
-
-        showHistory = !showHistory;
+}
     }
 
-    private void OnLoanSearchChanged(ChangeEventArgs args)
+        private void OnLoanSearchChanged(ChangeEventArgs args)
     {
         loanSearch = args.Value?.ToString() ?? string.Empty;
 
@@ -1063,6 +1301,72 @@
         assignmentSearch = $"{tool.InternalCode} - {tool.Name}";
         showNewAssignment = true;
     }
+
+    // NAVI MOBILE RETURN ACTION V26 START
+
+    private void SelectReturnTool(
+        MobileAvailabilityToolDto tool)
+    {
+        if (!CanReturnAssignment)
+        {
+            ShowError(
+                "No tienes permiso para regresar activos al almacén.");
+
+            return;
+        }
+
+        if (!CanReturnTool(tool))
+        {
+            ShowError(
+                "El activo seleccionado no se encuentra asignado.");
+
+            return;
+        }
+
+        assignmentForm.AssignmentType =
+            "Warehouse";
+
+        SelectAssignmentTool(
+            tool);
+
+        assignmentForm.AssignmentType =
+            "Warehouse";
+
+        assignmentForm.ResponsiblePersonId =
+            null;
+
+        assignmentForm.Observation =
+            $"Regreso del activo {tool.InternalCode} a almacén/taller.";
+
+        showNewAssignment = true;
+    }
+
+    private static bool CanReturnTool(
+        MobileAvailabilityToolDto tool)
+    {
+        if (tool.ResponsiblePersonId.HasValue)
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(
+                tool.ResponsiblePersonName))
+        {
+            return true;
+        }
+
+        return string.Equals(
+                   tool.OperationalStatus,
+                   "Assigned",
+                   StringComparison.OrdinalIgnoreCase)
+               ||
+               string.Equals(
+                   tool.OperationalStatus,
+                   "Loaned",
+                   StringComparison.OrdinalIgnoreCase);
+    }
+
+    // NAVI MOBILE RETURN ACTION V26 END
 
     private void OnAssignmentSearchChanged(ChangeEventArgs args)
     {
@@ -1247,6 +1551,7 @@
 
             ShowSuccess($"Solicitud {request.LoanNumber} aprobada y asignada correctamente.");
             await LoadAsync();
+            NotificationState.RequestRefresh();
         }
         catch (Exception ex)
         {
@@ -1279,6 +1584,7 @@
 
             ShowSuccess($"Solicitud {request.LoanNumber} denegada correctamente.");
             await LoadAsync();
+            NotificationState.RequestRefresh();
         }
         catch (Exception ex)
         {

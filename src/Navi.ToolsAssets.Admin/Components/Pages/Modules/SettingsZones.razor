@@ -26,23 +26,23 @@
             <DataAnnotationsValidator />
 
             <div class="mb-3">
-                <label class="form-label">Código</label>
-                <InputText class="form-control" @bind-Value="formModel.Code" placeholder="ANT, CUN, VAL, NOR"  disabled="@(!CanManageSettings)" />
+                <label class="form-label" for="navi-settingszones-control-001">Código</label>
+                <InputText class="form-control" @bind-Value="formModel.Code" placeholder="ANT, CUN, VAL, NOR"  disabled="@(!CanManageSettings)" id="navi-settingszones-control-001" />
             </div>
 
             <div class="mb-3">
-                <label class="form-label">Nombre</label>
-                <InputText class="form-control" @bind-Value="formModel.Name" placeholder="Antioquia, Cundinamarca, Valle"  disabled="@(!CanManageSettings)" />
+                <label class="form-label" for="navi-settingszones-control-002">Nombre</label>
+                <InputText class="form-control" @bind-Value="formModel.Name" placeholder="Antioquia, Cundinamarca, Valle"  disabled="@(!CanManageSettings)" id="navi-settingszones-control-002" />
             </div>
 
             <div class="mb-3">
-                <label class="form-label">Descripción</label>
-                <InputTextArea class="form-control" @bind-Value="formModel.Description" rows="3" placeholder="Regional, zona operativa o agrupación administrativa."  disabled="@(!CanManageSettings)" />
+                <label class="form-label" for="navi-settingszones-control-003">Descripción</label>
+                <InputTextArea class="form-control" @bind-Value="formModel.Description" rows="3" placeholder="Regional, zona operativa o agrupación administrativa."  disabled="@(!CanManageSettings)" id="navi-settingszones-control-003" />
             </div>
 
             <div class="form-check mb-3">
-                <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive"  disabled="@(!CanManageSettings)" />
-                <label class="form-check-label">Activa</label>
+                <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive"  disabled="@(!CanManageSettings)" name="navi-settingszones-field-001" id="navi-settingszones-control-004" />
+                <label class="form-check-label" for="navi-settingszones-control-004">Activa</label>
             </div>
 
             @if (!string.IsNullOrWhiteSpace(message))
@@ -51,7 +51,7 @@
             }
 
             <div class="settings-crud-actions">
-                <button class="btn btn-primary" type="submit" disabled="@(!CanManageSettings)" data-ntx-tone="primary" >Guardar</button>
+                <button class="btn ntx-btn--operation" type="submit" disabled="@(!CanManageSettings)" data-ntx-tone="affirmative" >Guardar</button>
                 <button class="btn btn-outline-secondary" type="button" @onclick="ClearForm" data-ntx-tone="secondary" >Limpiar</button>
             </div>
         </EditForm>
@@ -60,12 +60,12 @@
     <div class="settings-crud-table">
         <div class="settings-table-header">
             <h2>Zonas registradas</h2>
-            <button class="btn btn-sm btn-outline-primary" @onclick="LoadAsync" data-ntx-tone="secondary" >Actualizar</button>
+            <button class="btn btn-sm ntx-btn--operation" @onclick="LoadAsync" data-ntx-tone="refresh" >Actualizar</button>
         </div>
 
         @if (isLoading)
         {
-            <p>Cargando zonas...</p>
+            <p role="status" aria-busy="true">Cargando zonas...</p>
         }
         else if (zones.Count == 0)
         {
@@ -73,7 +73,8 @@
         }
         else
         {
-            <table class="table table-hover align-middle">
+            <div class="ntx-table-scroll">
+                <table class="table table-hover align-middle">
                 <thead>
                     <tr>
                         <th>Código</th>
@@ -95,24 +96,25 @@
                                 </span>
                             </td>
                             <td>
-                                <span class="badge @(zone.IsActive ? "bg-success" : "bg-secondary")">
+                                <span class="badge @(zone.IsActive ? "navi-bg-affirmative" : "bg-secondary")">
                                     @(zone.IsActive ? "Activa" : "Inactiva")
                                 </span>
                             </td>
                             <td class="text-end">
                                 @if (CanManageSettings)
                                     {
-                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(zone)" data-ntx-tone="danger" >Editar</button>
+                                        <button class="btn btn-sm ntx-btn--operation" @onclick="() => Edit(zone)" data-ntx-tone="operation" >Editar</button>
                                     }
                                 @if (CanManageSettings)
                                     {
-                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(zone.Id)" data-ntx-tone="danger" >Eliminar</button>
+                                        <button class="btn btn-sm ntx-btn--danger" @onclick="() => DeleteAsync(zone.Id)" data-ntx-tone="danger" >Eliminar</button>
                                     }
                             </td>
                         </tr>
                     }
                 </tbody>
             </table>
+            </div>
         }
     </div>
 </section>

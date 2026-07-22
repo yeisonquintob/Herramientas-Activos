@@ -16,13 +16,7 @@
 <NaviPageHero
     Pill="CONTROL"
     Title="@PhysicalCountHeroTitle"
-    Description="Controla quién realizó inventario, quién no lo realizó, herramientas pendientes, diferencias y cierre de la toma.">
-
-    <button type="button" @onclick="LoadAsync" data-ntx-tone="secondary" >
-        Actualizar
-    </button>
-
-</NaviPageHero>
+    Description="Controla quién realizó inventario, quién no lo realizó, herramientas pendientes, diferencias y cierre de la toma." />
 
 @if (!string.IsNullOrWhiteSpace(successMessage))
 {
@@ -36,104 +30,205 @@
 
 @if (isLoading && board is null)
 {
-    <div class="pc-empty">Cargando toma física...</div>
+    <div class="pc-empty" role="status" aria-busy="true">Cargando toma física...</div>
 }
 else if (board is not null)
 {
-    
-    <section class="pc-kpi-grid pc-kpi-grid-standard">
-        <article class="pc-kpi">
-            <span>Participantes</span>
-            <strong>@FilteredParticipants.Count()</strong>
-            <small>Según filtros activos</small>
-        </article>
+    @* NAVI PHYSICAL COUNT DETAIL STANDARD V147 CORR1 START *@
+    <div class="pc-kpi-standard-row-v147"
+         data-navi-kpi-standard="web">
+    <NaviKpiToolbar Class="pc-kpi-toolbar-standard"
+                    Refresh="LoadAsync"
+                    IsRefreshing="isLoading"
+                    RefreshTitle="Actualizar detalle de toma física"
+                    RefreshAriaLabel="Actualizar detalle de toma física">
+        <NaviKpiGrid Columns="6"
+                     Class="pc-kpi-grid pc-kpi-grid-standard">
+            <NaviKpiCard Title="Participantes"
+                         Description="Según filtros activos"
+                         Tone="neutral">
+                <IconContent><NaviKpiIcon Name="users" /></IconContent>
+                <ValueContent>@FilteredParticipants.Count()</ValueContent>
+            </NaviKpiCard>
 
-        <article class="pc-kpi info">
-            <span>En proceso</span>
-            <strong>@FilteredParticipants.Count(IsParticipantInProgress)</strong>
-            <small>Inventario iniciado</small>
-        </article>
+            <NaviKpiCard Title="En proceso"
+                         Description="Inventario iniciado"
+                         Tone="soft">
+                <IconContent><NaviKpiIcon Name="progress" /></IconContent>
+                <ValueContent>@FilteredParticipants.Count(IsParticipantInProgress)</ValueContent>
+            </NaviKpiCard>
 
-        <article class="pc-kpi success">
-            <span>Finalizados</span>
-            <strong>@FilteredParticipants.Count(IsParticipantFinished)</strong>
-            <small>Sin pendientes</small>
-        </article>
+            <NaviKpiCard Title="Finalizados"
+                         Description="Sin pendientes"
+                         Tone="positive">
+                <IconContent><NaviKpiIcon Name="check" /></IconContent>
+                <ValueContent>@FilteredParticipants.Count(IsParticipantFinished)</ValueContent>
+            </NaviKpiCard>
 
-        <article class="pc-kpi warning">
-            <span>Pendientes</span>
-            <strong>@FilteredParticipants.Sum(GetParticipantPendingCount)</strong>
-            <small>Herramientas por validar</small>
-        </article>
+            <NaviKpiCard Title="Pendientes"
+                         Description="Herramientas por validar"
+                         Tone="warning">
+                <IconContent><NaviKpiIcon Name="clock" /></IconContent>
+                <ValueContent>@FilteredParticipants.Sum(GetParticipantPendingCount)</ValueContent>
+            </NaviKpiCard>
 
-        <article class="pc-kpi danger">
-            <span>Diferencias</span>
-            <strong>@FilteredParticipants.Sum(GetParticipantDifferenceCount)</strong>
-            <small>Conciliación</small>
-        </article>
+            <NaviKpiCard Title="Diferencias"
+                         Description="Conciliación"
+                         Tone="danger">
+                <IconContent><NaviKpiIcon Name="alert" /></IconContent>
+                <ValueContent>@FilteredParticipants.Sum(GetParticipantDifferenceCount)</ValueContent>
+            </NaviKpiCard>
 
-        <article class="pc-kpi primary">
-            <span>Avance</span>
-            <strong>@GetFilteredParticipantsProgress()%</strong>
-            <small>@FilteredParticipants.Sum(GetParticipantReportedCount) de @FilteredParticipants.Sum(x => x.ExpectedItems)</small>
-        </article>
-    </section>
+            <NaviKpiCard Title="Avance"
+                         Description="@($"{FilteredParticipants.Sum(GetParticipantReportedCount)} de {FilteredParticipants.Sum(x => x.ExpectedItems)}")"
+                         Tone="soft">
+                <IconContent><NaviKpiIcon Name="report" /></IconContent>
+                <ValueContent>@GetFilteredParticipantsProgress()%</ValueContent>
+            </NaviKpiCard>
+        </NaviKpiGrid>
+    </NaviKpiToolbar>
 
-    <section class="pc-status-filters pc-status-filters-modern" aria-label="Estados de participantes">
-        <button type="button"
-                class="@GetParticipantStatusFilterChipClass(string.Empty)"
-                @onclick="@(() => SelectParticipantStatus(string.Empty))" data-ntx-tone="secondary" >
-            Todos
-            <span>@PhysicalCountBaseFilteredParticipants.Count()</span>
-        </button>
+        <NaviActionButton
+            Tone="secondary"
+            Size="small"
+            Class="pc-top-back-button-v147"
+            OnClick="GoBack"
+            aria-label="Volver a tomas físicas">
 
-        @foreach (var status in ParticipantStatusOptions)
-        {
-            <button type="button"
-                    class="@GetParticipantStatusFilterChipClass(status.Value)"
-                    @onclick="@(() => SelectParticipantStatus(status.Value))" data-ntx-tone="secondary" >
-                @status.Text
-                <span>@PhysicalCountBaseFilteredParticipants.Count(x => string.Equals(x.Status, status.Value, StringComparison.OrdinalIgnoreCase))</span>
-            </button>
-        }
-    </section>
+            <StartContent>
+                <svg viewBox="0 0 24 24"
+                     aria-hidden="true"
+                     focusable="false">
+                    <path d="M19 12H5"></path>
+                    <path d="M11 6L5 12L11 18"></path>
+                </svg>
+            </StartContent>
 
-    <section class="pc-page-filters" aria-label="Filtros de participantes de toma física">
-        <input class="form-control form-control-sm"
-               placeholder="Buscar usuario, área, cargo..."
-               @bind="searchText"
-               @bind:event="oninput" />
-
-        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="ClearParticipantFilters" data-ntx-tone="secondary" >
-            Limpiar
-        </button>
-    </section>
-
-
-    <section class="pc-actions-card">
-        <div>
-            <h3>Acciones de la toma física</h3>
-            <p>Genera participantes desde los usuarios activos de la sede, activa la toma y ciérrala cuando todos terminen.</p>
-        </div>
-
-        <div class="pc-actions">
-            <button class="btn btn-outline-primary" type="button" disabled="@(!CanCreatePhysicalCount)" @onclick="GenerateParticipantsAsync" data-ntx-tone="positive" >
-                Generar participantes
-            </button>
-
-            <button class="btn btn-success" type="button" disabled="@(!CanStartPhysicalCount)" @onclick="ActivateAsync" data-ntx-tone="positive" >
-                Activar toma
-            </button>
-
-            <button class="btn btn-dark" type="button" disabled="@(!CanClosePhysicalCount)" @onclick="CloseAsync" data-ntx-tone="secondary" >
-                Cerrar toma
-            </button>
-
-            <button class="btn btn-outline-secondary" type="button" @onclick="GoBack" data-ntx-tone="secondary" >
+            <ChildContent>
                 Volver
-            </button>
-        </div>
+            </ChildContent>
+        </NaviActionButton>
+    </div>
+    @* NAVI PHYSICAL COUNT DETAIL STANDARD V147 CORR1 END *@
+
+        @* NAVI PHYSICAL COUNT DETAIL FILTERS V151 START *@
+
+    <section class="pc-detail-filterbar-v151"
+             aria-label="Filtros de participantes">
+
+        <label class="pc-detail-filter-v151
+                      pc-detail-filter-v151--search"
+               for="pc-participant-search-v151">
+
+            <span>Buscar participante</span>
+
+            <input
+                id="pc-participant-search-v151"
+                class="form-control"
+                type="search"
+                placeholder="Usuario, área o cargo..."
+                @bind="searchText"
+                @bind:event="oninput"
+                name="navi-physicalcountdetail-field-001" />
+
+        </label>
+
+        <label class="pc-detail-filter-v151
+                      pc-detail-filter-v151--status"
+               for="pc-participant-status-v151">
+
+            <span>Estado</span>
+
+            <select
+                id="pc-participant-status-v151"
+                class="form-select"
+                @bind="selectedParticipantStatus">
+
+                <option value="">Todos (@PhysicalCountBaseFilteredParticipants.Count())</option>
+
+                @foreach (var status in ParticipantStatusOptions)
+                {
+                    <option value="@status.Value">@status.Text (@PhysicalCountBaseFilteredParticipants.Count(x => string.Equals(x.Status, status.Value, StringComparison.OrdinalIgnoreCase)))</option>
+                }
+
+            </select>
+
+        </label>
+
+        <button
+            type="button"
+            class="btn pc-detail-filter-clear-v151"
+            @onclick="ClearParticipantFilters"
+            data-ntx-tone="secondary">
+
+            Limpiar
+
+        </button>
+
     </section>
+
+    @* NAVI PHYSICAL COUNT DETAIL FILTERS V151 END *@
+
+    @* NAVI PHYSICAL COUNT DETAIL ACTIONS V168 START *@
+
+    <section class="pc-actions-card
+                    pc-actions-card-v151">
+
+        <div class="pc-actions-description-v151">
+
+            <h3>Acciones de la toma física</h3>
+
+            <p>
+                Genera participantes antes de activar la toma y ciérrala
+                cuando todos los participantes hayan finalizado.
+            </p>
+
+        </div>
+
+        <div class="pc-actions-v151"
+             aria-label="Acciones de la toma física">
+
+            <button
+                type="button"
+                class="btn pc-count-action-v151
+                       pc-count-action-v151--generate"
+                disabled="@(!CanGenerateParticipantsAction)"
+                @onclick="GenerateParticipantsAsync"
+                data-ntx-tone="operation">
+
+                Generar participantes
+
+            </button>
+
+            <button
+                type="button"
+                class="btn pc-count-action-v151
+                       pc-count-action-v151--activate"
+                disabled="@(!CanActivatePhysicalCountAction)"
+                @onclick="ActivateAsync"
+                data-ntx-tone="affirmative">
+
+                Activar toma
+
+            </button>
+
+            <button
+                type="button"
+                class="btn pc-count-action-v151
+                       pc-count-action-v151--close"
+                disabled="@(!CanClosePhysicalCountAction)"
+                @onclick="CloseAsync"
+                data-ntx-tone="secondary">
+
+                Cerrar toma
+
+            </button>
+
+        </div>
+
+    </section>
+
+    @* NAVI PHYSICAL COUNT DETAIL ACTIONS V168 END *@
 
     <section class="pc-card" id="participants">
         @if (!CanSeeAllParticipants && !VisibleParticipants.Any())
@@ -158,8 +253,9 @@ else if (board is not null)
         }
         else
         {
-            <div class="pc-table-wrapper">
-                <table class="pc-table">
+            <div class="pc-table-wrapper pc-table-wrapper-standard-v147">
+                <div class="ntx-table-scroll">
+                    <table class="pc-table pc-table-standard-v147 pc-participants-table-v147">
                     <thead>
                         <tr>
                             <th>Usuario / responsable</th>
@@ -216,18 +312,19 @@ else if (board is not null)
 
                                 <td>
     <div class="row-actions">
-        <button class="pc-action pc-action-success" disabled="@(!CanStartParticipant(participant))" @onclick="() => StartParticipantAsync(participant.Id)" data-ntx-tone="positive" >
-            Iniciar
-        </button>
-
-        <button class="pc-action pc-action-neutral" disabled="@(!CanFinishParticipant(participant))" @onclick="() => FinishParticipantAsync(participant.Id)" data-ntx-tone="positive" >
-            Finalizar
-        </button>
-
-        <button class="pc-action pc-action-primary"
+        <button class="pc-action pc-action-pending-v147"
                 type="button"
-                @onclick="() => LoadPendingToolsAsync(participant.Id)" data-ntx-tone="ghost" >
+                @onclick="() => LoadPendingToolsAsync(participant.Id)"
+                data-ntx-tone="warning">
             Pendientes
+        </button>
+
+        <button class="pc-action pc-action-finish-v147"
+                type="button"
+                disabled="@(!CanFinishParticipant(participant))"
+                @onclick="() => FinishParticipantAsync(participant.Id)"
+                data-ntx-tone="operation">
+            Finalizar
         </button>
     </div>
 </td>
@@ -237,20 +334,24 @@ else if (board is not null)
                         }
                     </tbody>
                 </table>
+                </div>
             </div>
         }
     </section>
 
     @if (selectedPending is not null)
     {
-        <section class="pc-card">
+        <section class="pc-card pc-pending-card-standard-v147">
             <div class="pc-card-title">
                 <div>
                     <h3>Pendientes de @(selectedPending?.DisplayName ?? "Usuario seleccionado")</h3>
                     <p>Herramientas o activos que aún no han sido validados por este participante.</p>
                 </div>
 
-                <button class="btn btn-sm btn-outline-secondary" @onclick="() => selectedPending = null" data-ntx-tone="secondary" >
+                <button type="button"
+                        class="pc-pending-close-v147"
+                        @onclick="() => selectedPending = null"
+                        data-ntx-tone="secondary">
                     Cerrar
                 </button>
             </div>
@@ -261,8 +362,9 @@ else if (board is not null)
             }
             else
             {
-                <div class="pc-table-wrapper">
-                    <table class="pc-table">
+                <div class="pc-table-wrapper pc-table-wrapper-standard-v147">
+                    <div class="ntx-table-scroll">
+                        <table class="pc-table pc-table-standard-v147 pc-pending-table-v147">
                         <thead>
                             <tr>
                                 <th>Código</th>
@@ -288,8 +390,8 @@ else if (board is not null)
                                     <td>@tool.PhysicalStatus</td>
                                 <td>
                                     <div class="pc-pending-actions">
-                                        <a class="pc-action pc-action-primary"
-                                           href="@($"/physical-counts/{Id}/participants/{GetSelectedPendingParticipantId()}/pending-tools/{GetPendingToolId(tool)}")" data-ntx-tone="ghost" >
+                                        <a class="pc-action pc-action-primary pc-action-report"
+                                           href="@($"/physical-counts/{Id}/participants/{GetSelectedPendingParticipantId()}/pending-tools/{GetPendingToolId(tool)}")" data-ntx-tone="operation" >
                                             @(CanReportPhysicalCount ? "Detalle / Reportar" : "Detalle")
                                         </a>
 
@@ -306,12 +408,13 @@ else if (board is not null)
                             }
                         </tbody>
                     </table>
+                    </div>
                 </div>
             }
         </section>
     }
 
-                <section class="pc-card pc-reported-user-card">
+                <section class="pc-card pc-reported-user-card pc-reported-standard-v147">
         <div class="pc-card-title">
             <div>
                 <h3>
@@ -341,12 +444,14 @@ else if (board is not null)
                 {
                     <button type="button"
                             class="pc-action pc-action-primary"
-                            @onclick="ToggleQuickReportForm" data-ntx-tone="ghost" >
-                        @(showQuickReportForm ? "Ocultar formulario" : "Agregar no listada")
+                            aria-expanded="@showQuickReportForm"
+                            aria-controls="pc-quick-report-form"
+                            @onclick="ToggleQuickReportForm" data-ntx-tone="expand" >
+                        Agregar registro
                     </button>
                 }
 
-                <a class="pc-action pc-action-primary" href="@GetReportedItemsUrl()" data-ntx-tone="ghost" >
+                <a class="pc-action pc-action-primary pc-action-global" href="@GetReportedItemsUrl()" data-ntx-tone="operation" >
                     Ir a conciliación global
                 </a>
             </div>
@@ -388,7 +493,45 @@ else if (board is not null)
 
             @if (showQuickReportForm)
             {
-                <div class="pc-selected-user-banner">
+                @* NAVI REPORTED ITEM MODAL EVIDENCE V155 START *@
+                <div class="pc-report-modal-backdrop"
+                     role="presentation"
+                     @onclick="CloseQuickReportModal">
+
+                    <section class="pc-report-modal"
+                             role="dialog"
+                             aria-modal="true"
+                             aria-labelledby="pc-report-modal-title"
+                             @onclick:stopPropagation="true">
+
+                        <header class="pc-report-modal-header">
+                            <div>
+                                <span class="pc-report-modal-eyebrow">
+                                    Toma física
+                                </span>
+
+                                <h3 id="pc-report-modal-title">
+                                    Agregar registro reportado
+                                </h3>
+
+                                <p>
+                                    Registre la información encontrada
+                                    y adjunte la evidencia física.
+                                </p>
+                            </div>
+
+                            <button type="button"
+                                    class="pc-report-modal-close"
+                                    aria-label="Cerrar formulario"
+                                    title="Cerrar"
+                                    disabled="@isSavingQuickReport"
+                                    @onclick="CloseQuickReportModal">
+                                ×
+                            </button>
+                        </header>
+
+                        <div class="pc-report-modal-body">
+                            <div class="pc-selected-user-banner">
                     <strong>Usuario que reporta:</strong>
                     <span>@(selectedPending?.DisplayName ?? "Usuario seleccionado")</span>
                 </div>
@@ -403,11 +546,11 @@ else if (board is not null)
                     <div class="pc-alert pc-alert-success">@quickReportSuccess</div>
                 }
 
-                <EditForm Model="quickReportedItem" OnSubmit="SaveQuickReportedItemAsync">
+                <EditForm id="pc-quick-report-form" Model="quickReportedItem" OnSubmit="SaveQuickReportedItemAsync">
                     <div class="pc-report-form-grid">
                         <label>
                             Tipo de reporte *
-                            <select @bind="quickReportedItem.ReportType">
+                            <select @bind="quickReportedItem.ReportType" name="navi-physicalcountdetail-field-002">
                                 <option value="ExtraNotListed">Herramienta / activo no listado</option>
                                 <option value="Damaged">Activo dañado</option>
                                 <option value="ReturnedOrDelivered">Activo devuelto / entregado</option>
@@ -416,7 +559,7 @@ else if (board is not null)
 
                         <label>
                             Tipo de activo *
-                            <select @bind="quickReportedItem.AssetTypeName">
+                            <select @bind="quickReportedItem.AssetTypeName" name="navi-physicalcountdetail-field-003">
                                 <option value="Herramienta">Herramienta</option>
                                 <option value="Activo fijo">Activo fijo</option>
                                 <option value="Equipo tecnológico">Equipo tecnológico</option>
@@ -427,34 +570,34 @@ else if (board is not null)
                         <label>
                             Código / placa visible *
                             <input @bind="quickReportedItem.ReportedCode"
-                                   placeholder="Ej: AGU-NO-SIS-001..." />
+                                   placeholder="Ej: AGU-NO-SIS-001..." name="navi-physicalcountdetail-field-004" />
                         </label>
 
                         <label>
                             Nombre del activo / herramienta *
                             <input @bind="quickReportedItem.ReportedName"
-                                   placeholder="Ej: Taladro, gato, escáner..." />
+                                   placeholder="Ej: Taladro, gato, escáner..." name="navi-physicalcountdetail-field-005" />
                         </label>
 
                         <label>
                             Categoría *
                             <input @bind="quickReportedItem.CategoryName"
-                                   placeholder="Ej: Eléctrica, hidráulica, cómputo..." />
+                                   placeholder="Ej: Eléctrica, hidráulica, cómputo..." name="navi-physicalcountdetail-field-006" />
                         </label>
 
                         <label>
                             Sede *
-                            <input @bind="quickReportedItem.BranchCode" />
+                            <input @bind="quickReportedItem.BranchCode" name="navi-physicalcountdetail-field-007" />
                         </label>
 
                         <label>
                             Ubicación encontrada *
-                            <input @bind="quickReportedItem.FoundLocation" />
+                            <input @bind="quickReportedItem.FoundLocation" name="navi-physicalcountdetail-field-008" />
                         </label>
 
                         <label>
                             Estado físico *
-                            <select @bind="quickReportedItem.PhysicalStatus">
+                            <select @bind="quickReportedItem.PhysicalStatus" name="navi-physicalcountdetail-field-009">
                                 <option value="Bueno">Bueno</option>
                                 <option value="Regular">Regular</option>
                                 <option value="Dañado">Dañado</option>
@@ -464,22 +607,22 @@ else if (board is not null)
 
                         <label>
                             Serial
-                            <input @bind="quickReportedItem.SerialNumber" />
+                            <input @bind="quickReportedItem.SerialNumber" name="navi-physicalcountdetail-field-010" />
                         </label>
 
                         <label>
                             Marca
-                            <input @bind="quickReportedItem.Brand" />
+                            <input @bind="quickReportedItem.Brand" name="navi-physicalcountdetail-field-011" />
                         </label>
 
                         <label>
                             Modelo
-                            <input @bind="quickReportedItem.Model" />
+                            <input @bind="quickReportedItem.Model" name="navi-physicalcountdetail-field-012" />
                         </label>
 
                         <label>
                             Estado operativo
-                            <input @bind="quickReportedItem.OperationalStatus" />
+                            <input @bind="quickReportedItem.OperationalStatus" name="navi-physicalcountdetail-field-013" />
                         </label>
                     </div>
 
@@ -487,18 +630,99 @@ else if (board is not null)
                         Observación *
                         <textarea rows="3"
                                   @bind="quickReportedItem.Observation"
-                                  placeholder="Describa lo que reportó el usuario y cualquier detalle para conciliación."></textarea>
+                                  placeholder="Describa lo que reportó el usuario y cualquier detalle para conciliación." name="navi-physicalcountdetail-field-014"></textarea>
                     </label>
 
+                    <div class="pc-report-evidence">
+                        <div class="pc-report-evidence-heading">
+                            <div>
+                                <strong>Evidencia física</strong>
+                                <span>
+                                    Fotografías o PDF del activo,
+                                    herramienta o novedad reportada.
+                                </span>
+                            </div>
+
+                            <small>
+                                Opcional · máximo 10 archivos ·
+                                50 MB por archivo
+                            </small>
+                        </div>
+
+                        @if (CanUploadPhysicalEvidence)
+                        {
+                            <label class="pc-report-evidence-selector">
+                                <span>Seleccionar evidencias</span>
+
+                                <InputFile
+                                    OnChange="OnQuickReportEvidenceSelected"
+                                    multiple
+                                    accept="image/*,.pdf,application/pdf" />
+                            </label>
+
+                            @if (!string.IsNullOrWhiteSpace(
+                                    quickReportEvidenceError))
+                            {
+                                <div class="pc-report-evidence-error">
+                                    @quickReportEvidenceError
+                                </div>
+                            }
+
+                            @if (quickReportEvidenceFiles.Count > 0)
+                            {
+                                <div class="pc-report-evidence-summary">
+                                    @quickReportEvidenceFiles.Count
+                                    archivo(s) seleccionado(s)
+                                </div>
+
+                                <ul class="pc-report-evidence-list">
+                                    @foreach (
+                                        var evidence
+                                        in quickReportEvidenceFiles)
+                                    {
+                                        <li @key="evidence">
+                                            <div>
+                                                <strong>
+                                                    @evidence.Name
+                                                </strong>
+
+                                                <small>
+                                                    @FormatQuickReportEvidenceSize(
+                                                        evidence.Size)
+                                                </small>
+                                            </div>
+
+                                            <button type="button"
+                                                    disabled="@isSavingQuickReport"
+                                                    @onclick="() => RemoveQuickReportEvidence(evidence)">
+                                                Quitar
+                                            </button>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                        }
+                        else
+                        {
+                            <div class="pc-report-evidence-permission">
+                                No tienes el permiso
+                                <strong>
+                                    PhysicalCounts.Evidence.Upload
+                                </strong>
+                                para cargar evidencia.
+                            </div>
+                        }
+                    </div>
+
                     <label class="pc-check-row">
-                        <input type="checkbox" @bind="quickReportedItem.RequiresUserClarification" />
+                        <input type="checkbox" @bind="quickReportedItem.RequiresUserClarification" name="navi-physicalcountdetail-field-015" />
                         Requiere llamar/contactar al usuario para aclaración
                     </label>
 
                     <div class="pc-form-actions">
                         <button type="submit"
                                 class="pc-primary-btn"
-                                disabled="@isSavingQuickReport" data-ntx-tone="primary" >
+                                disabled="@isSavingQuickReport" data-ntx-tone="affirmative" >
                             @(isSavingQuickReport ? "Guardando..." : "Guardar registro reportado")
                         </button>
 
@@ -510,6 +734,10 @@ else if (board is not null)
                         </button>
                     </div>
                 </EditForm>
+                        </div>
+                    </section>
+                </div>
+                @* NAVI REPORTED ITEM MODAL EVIDENCE V155 END *@
             }
 
             @if (!SelectedParticipantReportedItems.Any())
@@ -520,8 +748,9 @@ else if (board is not null)
             }
             else
             {
-                <div class="pc-table-wrapper">
-                    <table class="pc-table">
+                <div class="pc-table-wrapper pc-table-wrapper-standard-v147">
+                    <div class="ntx-table-scroll">
+                        <table class="pc-table pc-table-standard-v147 pc-reported-table-v147">
                         <thead>
                             <tr>
                                 <th>Código</th>
@@ -581,6 +810,7 @@ else if (board is not null)
                             }
                         </tbody>
                     </table>
+                    </div>
                 </div>
             }
         }
@@ -609,6 +839,32 @@ else if (board is not null)
     private bool CanCancelPhysicalCount => PcHasPermission("PhysicalCounts.Cancel");
     private bool CanReportPhysicalCount => PcHasPermission("PhysicalCounts.Report");
     private bool CanUploadPhysicalEvidence => PcHasPermission("PhysicalCounts.Evidence.Upload");
+
+    // NAVI V168: la matriz de permisos se conserva y se combina con el estado real de la toma.
+    private bool IsPhysicalCountDraft =>
+        board is not null
+        && string.Equals(board.Status, "Draft", StringComparison.OrdinalIgnoreCase);
+
+    private bool IsPhysicalCountActive =>
+        board is not null
+        && string.Equals(board.Status, "InProgress", StringComparison.OrdinalIgnoreCase);
+
+    private bool IsPhysicalCountFinal =>
+        board is not null
+        && (string.Equals(board.Status, "Completed", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(board.Status, "Reconciled", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(board.Status, "Cancelled", StringComparison.OrdinalIgnoreCase));
+
+    private bool CanGenerateParticipantsAction =>
+        CanCreatePhysicalCount && IsPhysicalCountDraft;
+
+    private bool CanActivatePhysicalCountAction =>
+        CanStartPhysicalCount
+        && IsPhysicalCountDraft
+        && (board?.Participants.Count ?? 0) > 0;
+
+    private bool CanClosePhysicalCountAction =>
+        CanClosePhysicalCount && IsPhysicalCountActive;
 
     private bool CanSeeAllParticipants => IsAdmin || CanCreatePhysicalCount;
 
@@ -666,14 +922,19 @@ else if (board is not null)
         return CanSeeAllParticipants || PcIsCurrentUserParticipant(participant);
     }
 
-    private bool CanStartParticipant(ParticipantItem participant)
-    {
-        return CanStartPhysicalCount && CanViewParticipantDetail(participant);
-    }
-
     private bool CanFinishParticipant(ParticipantItem participant)
     {
-        return CanClosePhysicalCount && CanViewParticipantDetail(participant);
+        return CanClosePhysicalCount
+            && IsPhysicalCountActive
+            && CanViewParticipantDetail(participant)
+            && !IsParticipantFinishedState(participant);
+    }
+
+    private static bool IsParticipantFinishedState(ParticipantItem participant)
+    {
+        return string.Equals(participant.Status, "Finished", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(participant.Status, "FinishedWithDifferences", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(participant.Status, "Expired", StringComparison.OrdinalIgnoreCase);
     }
 
     private bool PcIsCurrentUserParticipant(ParticipantItem participant)
@@ -775,12 +1036,22 @@ private bool CanManagePhysicalCount =>
 
     private PhysicalCountBoard? board;
     private ExtraItemsResponse? extraItems;
+    private const int MaxQuickReportEvidenceFiles = 10;
+
+    private const long MaxQuickReportEvidenceBytes =
+        50L * 1024L * 1024L;
+
     private ReportedItemsBoard? reportedItemsBoard;
     private QuickReportedItemForm quickReportedItem = new();
+
+    private readonly List<IBrowserFile>
+        quickReportEvidenceFiles = new();
+
     private bool isSavingQuickReport;
     private bool showQuickReportForm;
     private string? quickReportError;
     private string? quickReportSuccess;
+    private string? quickReportEvidenceError;
     private PendingToolsResponse? selectedPending;
     private bool isLoading;
     private string searchText = string.Empty;
@@ -1076,9 +1347,11 @@ private async Task LoadAsync()
     }
 private async Task GenerateParticipantsAsync()
     {
-        if (!CanCreatePhysicalCount)
+        if (!CanGenerateParticipantsAction)
         {
-            errorMessage = "No tienes permiso para generar participantes de la toma física.";
+            errorMessage = IsPhysicalCountFinal
+                ? "No se pueden generar participantes porque la toma física ya está cerrada, conciliada o cancelada."
+                : "Los participantes solo pueden generarse antes de activar la toma física.";
             return;
         }
 
@@ -1094,9 +1367,13 @@ private async Task GenerateParticipantsAsync()
     }
 private async Task ActivateAsync()
     {
-        if (!CanStartPhysicalCount)
+        if (!CanActivatePhysicalCountAction)
         {
-            errorMessage = "No tienes permiso para activar o iniciar tomas físicas.";
+            errorMessage = IsPhysicalCountActive
+                ? "La toma física ya se encuentra activa."
+                : IsPhysicalCountFinal
+                    ? "No se puede activar una toma física cerrada, conciliada o cancelada."
+                    : "Debe generar participantes y contar con permiso antes de activar la toma física.";
             return;
         }
 
@@ -1111,9 +1388,11 @@ private async Task ActivateAsync()
     }
 private async Task CloseAsync()
     {
-        if (!CanClosePhysicalCount)
+        if (!CanClosePhysicalCountAction)
         {
-            errorMessage = "No tienes permiso para cerrar tomas físicas.";
+            errorMessage = IsPhysicalCountFinal
+                ? "La toma física ya está cerrada, conciliada o cancelada."
+                : "Solo se puede cerrar una toma física activa y con el permiso correspondiente.";
             return;
         }
 
@@ -1127,31 +1406,13 @@ private async Task CloseAsync()
             },
             "Toma física cerrada correctamente.");
     }
-private async Task StartParticipantAsync(Guid participantId)
-    {
-        var participant = (board?.Participants ?? new()).FirstOrDefault(x => x.Id == participantId);
-
-        if (participant is null || !CanStartParticipant(participant))
-        {
-            errorMessage = "No tienes permiso para iniciar este participante.";
-            return;
-        }
-
-        await PatchAsync(
-            $"api/physical-counts/participants/{participantId}/start",
-            new
-            {
-                ActionBy = AuthSession.UserName ?? "admin"
-            },
-            "Participante iniciado.");
-    }
 private async Task FinishParticipantAsync(Guid participantId)
     {
         var participant = (board?.Participants ?? new()).FirstOrDefault(x => x.Id == participantId);
 
         if (participant is null || !CanFinishParticipant(participant))
         {
-            errorMessage = "No tienes permiso para finalizar este participante.";
+            errorMessage = "Solo se puede finalizar un participante cuando la toma física está activa y el usuario aún no ha finalizado.";
             return;
         }
 
@@ -1160,11 +1421,10 @@ private async Task FinishParticipantAsync(Guid participantId)
             new
             {
                 ActionBy = AuthSession.UserName ?? "admin",
-                Observation = "Finalizado desde administración."
+                Observation = "Finalizado desde administración. Las herramientas pendientes se registran automáticamente como encontradas."
             },
-            "Participante finalizado.");
+            "Participante finalizado y herramientas pendientes registradas automáticamente como encontradas.");
     }
-
 
 
 
@@ -1377,6 +1637,14 @@ private async Task FinishParticipantAsync(Guid participantId)
         public string? Observation { get; set; }
         public bool RequiresUserClarification { get; set; }
     }
+    private sealed class CreatedReportedItemResponse
+    {
+        public Guid Id { get; set; }
+
+        public string? Message { get; set; }
+    }
+
+
     private sealed class ReportedItemsBoard
     {
         public Guid Id { get; set; }
@@ -1494,12 +1762,212 @@ private async Task FinishParticipantAsync(Guid participantId)
 
     private void ToggleQuickReportForm()
     {
-        showQuickReportForm = !showQuickReportForm;
-
         if (showQuickReportForm)
         {
-            quickReportError = null;
-            quickReportSuccess = null;
+            CloseQuickReportModal();
+            return;
+        }
+
+        showQuickReportForm = true;
+        quickReportError = null;
+        quickReportSuccess = null;
+        quickReportEvidenceError = null;
+    }
+
+
+    private void CloseQuickReportModal()
+    {
+        if (isSavingQuickReport)
+        {
+            return;
+        }
+
+        showQuickReportForm = false;
+        ResetQuickReportedItemForm();
+    }
+
+
+    private void OnQuickReportEvidenceSelected(
+        InputFileChangeEventArgs args)
+    {
+        quickReportEvidenceError = null;
+        quickReportEvidenceFiles.Clear();
+
+        IReadOnlyList<IBrowserFile> selectedFiles;
+
+        try
+        {
+            selectedFiles =
+                args.GetMultipleFiles(
+                    MaxQuickReportEvidenceFiles);
+        }
+        catch
+        {
+            quickReportEvidenceError =
+                $"Solo puedes seleccionar hasta "
+                + $"{MaxQuickReportEvidenceFiles} archivos.";
+
+            return;
+        }
+
+        foreach (var file in selectedFiles)
+        {
+            if (file.Size > MaxQuickReportEvidenceBytes)
+            {
+                quickReportEvidenceError =
+                    $"El archivo {file.Name} supera "
+                    + "el tamaño máximo de 50 MB.";
+
+                continue;
+            }
+
+            if (!IsAllowedQuickReportEvidence(file))
+            {
+                quickReportEvidenceError =
+                    $"El archivo {file.Name} no es "
+                    + "una fotografía ni un PDF.";
+
+                continue;
+            }
+
+            quickReportEvidenceFiles.Add(file);
+        }
+    }
+
+
+    private static bool IsAllowedQuickReportEvidence(
+        IBrowserFile file)
+    {
+        var contentType =
+            file.ContentType?.Trim()
+            ?? string.Empty;
+
+        if (contentType.StartsWith(
+                "image/",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (contentType.Equals(
+                "application/pdf",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var extension =
+            System.IO.Path
+                .GetExtension(file.Name)
+                .ToLowerInvariant();
+
+        return extension is
+            ".jpg"
+            or ".jpeg"
+            or ".png"
+            or ".webp"
+            or ".gif"
+            or ".heic"
+            or ".heif"
+            or ".pdf";
+    }
+
+
+    private void RemoveQuickReportEvidence(
+        IBrowserFile evidence)
+    {
+        if (isSavingQuickReport)
+        {
+            return;
+        }
+
+        quickReportEvidenceFiles.Remove(evidence);
+        quickReportEvidenceError = null;
+    }
+
+
+    private static string
+        FormatQuickReportEvidenceSize(long bytes)
+    {
+        if (bytes >= 1024L * 1024L)
+        {
+            return $"{bytes / 1024d / 1024d:N1} MB";
+        }
+
+        if (bytes >= 1024L)
+        {
+            return $"{bytes / 1024d:N1} KB";
+        }
+
+        return $"{bytes} bytes";
+    }
+
+
+    private async Task UploadQuickReportEvidencesAsync(
+        HttpClient api,
+        Guid reportedItemId)
+    {
+        foreach (
+            var evidence
+            in quickReportEvidenceFiles.ToList())
+        {
+            using var multipart =
+                new MultipartFormDataContent();
+
+            await using var stream =
+                evidence.OpenReadStream(
+                    MaxQuickReportEvidenceBytes);
+
+            using var fileContent =
+                new StreamContent(stream);
+
+            var contentType =
+                string.IsNullOrWhiteSpace(
+                    evidence.ContentType)
+                    ? "application/octet-stream"
+                    : evidence.ContentType;
+
+            fileContent.Headers.ContentType =
+                new System.Net.Http.Headers
+                    .MediaTypeHeaderValue(contentType);
+
+            multipart.Add(
+                fileContent,
+                "file",
+                evidence.Name);
+
+            multipart.Add(
+                new StringContent(
+                    selectedPending?.DisplayName
+                    ?? AuthSession.UserName
+                    ?? "admin"),
+                "uploadedBy");
+
+            multipart.Add(
+                new StringContent(
+                    "Evidencia física adjunta "
+                    + "al registro reportado."),
+                "description");
+
+            var response =
+                await api.PostAsync(
+                    $"api/physical-counts/"
+                    + $"reported-items/{reportedItemId}/"
+                    + "evidences",
+                    multipart);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail =
+                    await response.Content
+                        .ReadAsStringAsync();
+
+                throw new InvalidOperationException(
+                    $"No se pudo cargar "
+                    + $"{evidence.Name}: "
+                    + $"{(int)response.StatusCode} "
+                    + $"{detail}");
+            }
         }
     }
     private async Task SaveQuickReportedItemAsync()
@@ -1510,6 +1978,25 @@ private async Task FinishParticipantAsync(Guid participantId)
         if (selectedPending is null)
         {
             quickReportError = "Debe seleccionar un participante antes de crear el registro.";
+            return;
+        }
+
+        if (
+            quickReportEvidenceFiles.Count > 0
+            && !CanUploadPhysicalEvidence)
+        {
+            quickReportError =
+                "No tienes permiso para cargar evidencia física.";
+
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(
+                quickReportEvidenceError))
+        {
+            quickReportError =
+                quickReportEvidenceError;
+
             return;
         }
 
@@ -1559,14 +2046,64 @@ private async Task FinishParticipantAsync(Guid participantId)
 
             if (!response.IsSuccessStatusCode)
             {
-                var error = await response.Content.ReadAsStringAsync();
-                quickReportError = $"No se pudo guardar el registro reportado: {(int)response.StatusCode} {error}";
+                var error =
+                    await response.Content.ReadAsStringAsync();
+
+                quickReportError =
+                    $"No se pudo guardar el registro "
+                    + $"reportado: "
+                    + $"{(int)response.StatusCode} "
+                    + $"{error}";
+
                 return;
             }
 
-            quickReportSuccess = "Registro reportado guardado correctamente. Ahora aparece en los registros del usuario y en conciliación global.";
+            var created =
+                await response.Content
+                    .ReadFromJsonAsync<
+                        CreatedReportedItemResponse>();
 
-            ResetQuickReportedItemForm(keepMessages: true);
+            if (created is null || created.Id == Guid.Empty)
+            {
+                quickReportError =
+                    "El registro fue procesado, pero la API "
+                    + "no devolvió su identificador.";
+
+                await LoadReportedItemsAsync();
+                return;
+            }
+
+            var evidenceCount =
+                quickReportEvidenceFiles.Count;
+
+            if (evidenceCount > 0)
+            {
+                try
+                {
+                    await UploadQuickReportEvidencesAsync(
+                        api,
+                        created.Id);
+                }
+                catch (Exception evidenceException)
+                {
+                    quickReportError =
+                        "El registro fue guardado, pero no "
+                        + "se pudo cargar toda la evidencia: "
+                        + evidenceException.Message;
+
+                    await LoadReportedItemsAsync();
+                    return;
+                }
+            }
+
+            quickReportSuccess =
+                evidenceCount > 0
+                    ? $"Registro reportado guardado con "
+                      + $"{evidenceCount} evidencia(s) física(s)."
+                    : "Registro reportado guardado correctamente.";
+
+            ResetQuickReportedItemForm(
+                keepMessages: true);
 
             await LoadReportedItemsAsync();
         }
@@ -1588,6 +2125,9 @@ private async Task FinishParticipantAsync(Guid participantId)
     private void ResetQuickReportedItemForm(bool keepMessages)
     {
         quickReportedItem = new QuickReportedItemForm();
+
+        quickReportEvidenceFiles.Clear();
+        quickReportEvidenceError = null;
 
         if (!keepMessages)
         {

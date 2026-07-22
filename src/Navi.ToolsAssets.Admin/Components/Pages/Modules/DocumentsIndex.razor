@@ -7,42 +7,76 @@
 
 <PageTitle>Documentos - NAVI</PageTitle>
 
+@* NAVI V196-CORR2 - KPI DOCUMENTOS CANONICO *@
 <NaviPageHero
     Pill="DOCUMENTOS"
     Title="Gestión documental"
-    Description="Consulta, carga y descarga documentos reales asociados a herramientas, activos y procesos de toma física existentes en NAVI.">
+    Description="Consulta, carga y descarga documentos reales asociados a herramientas, activos y procesos de toma física existentes en NAVI." />
 
-    <button type="button" @onclick="LoadAsync" disabled="@isLoading" data-ntx-tone="secondary" >
-        @(isLoading ? "Actualizando..." : "Actualizar")
-    </button>
+<NaviKpiToolbar
+    Class="docs-kpi-standard-toolbar"
+    Refresh="LoadAsync"
+    IsRefreshing="isLoading"
+    RefreshTitle="Actualizar gestión documental"
+    RefreshAriaLabel="Actualizar indicadores de gestión documental">
 
-</NaviPageHero>
+    <NaviKpiGrid
+        Columns="4"
+        Compact="true"
+        Dividers="true"
+        Class="docs-kpis docs-kpi-standard-grid navi-final-kpi-row">
 
-<section class="docs-kpis navi-final-kpi-row">
-    <article>
-        <span>Total documentos</span>
-        <strong>@documents.Count</strong>
-        <small>Documentos reales</small>
-    </article>
+        <NaviKpiCard
+            Title="Total documentos"
+            Description="Documentos reales"
+            Value="@(documents.Count.ToString())"
+            Tone="neutral">
 
-    <article class="success">
-        <span>Activos con soporte</span>
-        <strong>@documents.Select(x => x.ToolAssetId).Distinct().Count()</strong>
-        <small>Asociados a inventario</small>
-    </article>
+            <IconContent>
+                <NaviKpiIcon Name="document" />
+            </IconContent>
 
-    <article class="warning">
-        <span>Clasificación actual</span>
-        <strong>@CountByCategory(selectedCategory)</strong>
-        <small>@selectedCategory</small>
-    </article>
+        </NaviKpiCard>
 
-    <article class="primary">
-        <span>Inventario</span>
-        <strong>@assets.Count</strong>
-        <small>Activos disponibles</small>
-    </article>
-</section>
+        <NaviKpiCard
+            Title="Activos con soporte"
+            Description="Asociados a inventario"
+            Value="@(documents.Select(x => x.ToolAssetId).Distinct().Count().ToString())"
+            Tone="positive">
+
+            <IconContent>
+                <NaviKpiIcon Name="check" />
+            </IconContent>
+
+        </NaviKpiCard>
+
+        <NaviKpiCard
+            Title="Clasificación actual"
+            Description="@selectedCategory"
+            Value="@(CountByCategory(selectedCategory).ToString())"
+            Tone="warning">
+
+            <IconContent>
+                <NaviKpiIcon Name="document" />
+            </IconContent>
+
+        </NaviKpiCard>
+
+        <NaviKpiCard
+            Title="Inventario"
+            Description="Activos disponibles"
+            Value="@(assets.Count.ToString())"
+            Tone="soft">
+
+            <IconContent>
+                <NaviKpiIcon Name="inventory" />
+            </IconContent>
+
+        </NaviKpiCard>
+
+    </NaviKpiGrid>
+
+</NaviKpiToolbar>
 
 <section class="docs-workspace">
     <aside class="docs-left-stack">
@@ -88,7 +122,7 @@
                             <small>@item.Module</small>
                         </div>
 
-                        <button type="button" @onclick="() => OpenManual(item.Code)" data-ntx-tone="secondary" >
+                        <button type="button" @onclick="() => OpenManual(item.Code)" data-ntx-tone="ghost" >
                             Ver
                         </button>
                     </div>
@@ -112,8 +146,8 @@
 
                 <div class="docs-form-grid physical-selector">
                     <div class="span-2">
-                        <label>Toma física</label>
-                        <select class="form-select" value="@selectedPhysicalCountId" @onchange="OnPhysicalCountSelected">
+                        <label for="navi-documentsindex-control-001">Toma física</label>
+                        <select class="form-select" value="@selectedPhysicalCountId" @onchange="OnPhysicalCountSelected" id="navi-documentsindex-control-001">
                             <option value="">Seleccione una toma física</option>
 
                             @foreach (var count in physicalCounts)
@@ -126,34 +160,64 @@
                     </div>
                 </div>
 
-                <div class="docs-physical-summary navi-final-kpi-row">
-                    <div>
-                        <span>Tomas creadas</span>
-                        <strong>@physicalCounts.Count</strong>
-                        <small>Campañas reales</small>
-                    </div>
+                <NaviKpiGrid
+                    Columns="4"
+                    Compact="true"
+                    Dividers="true"
+                    Class="docs-physical-summary">
 
-                    <div>
-                        <span>Participantes</span>
-                        <strong>@SelectedBoardSummary.TotalParticipants</strong>
-                        <small>De la toma seleccionada</small>
-                    </div>
+                    <NaviKpiCard
+                        Title="Tomas creadas"
+                        Description="Campañas reales"
+                        Value="@(physicalCounts.Count.ToString())"
+                        Tone="neutral">
 
-                    <div>
-                        <span>Reportes</span>
-                        <strong>@SelectedReportedSummary.Total</strong>
-                        <small>Registros de usuario</small>
-                    </div>
+                        <IconContent>
+                            <NaviKpiIcon Name="calendar" />
+                        </IconContent>
 
-                    <div>
-                        <span>Pendientes</span>
-                        <strong>@PendingPhysicalDecisions</strong>
-                        <small>Aclarar / crear / conciliar</small>
-                    </div>
-                </div>
+                    </NaviKpiCard>
+
+                    <NaviKpiCard
+                        Title="Participantes"
+                        Description="De la toma seleccionada"
+                        Value="@(SelectedBoardSummary.TotalParticipants.ToString())"
+                        Tone="soft">
+
+                        <IconContent>
+                            <NaviKpiIcon Name="users" />
+                        </IconContent>
+
+                    </NaviKpiCard>
+
+                    <NaviKpiCard
+                        Title="Reportes"
+                        Description="Registros de usuario"
+                        Value="@(SelectedReportedSummary.Total.ToString())"
+                        Tone="positive">
+
+                        <IconContent>
+                            <NaviKpiIcon Name="report" />
+                        </IconContent>
+
+                    </NaviKpiCard>
+
+                    <NaviKpiCard
+                        Title="Pendientes"
+                        Description="Aclarar / crear / conciliar"
+                        Value="@(PendingPhysicalDecisions.ToString())"
+                        Tone="warning">
+
+                        <IconContent>
+                            <NaviKpiIcon Name="clock" />
+                        </IconContent>
+
+                    </NaviKpiCard>
+
+                </NaviKpiGrid>
 
                 <div class="docs-physical-actions">
-                    <button type="button" @onclick="OpenPhysicalModal" disabled="@(SelectedPhysicalCount is null)" data-ntx-tone="primary" >
+                    <button type="button" @onclick="OpenPhysicalModal" disabled="@(SelectedPhysicalCount is null)" data-ntx-tone="consult" >
                         Visualizar consolidado
                     </button>
 
@@ -165,14 +229,15 @@
                     }
                     else
                     {
-                        <button type="button" class="docs-disabled-action" disabled data-ntx-tone="primary" >
+                        <button type="button" class="docs-disabled-action" disabled data-ntx-tone="consult" >
                             Descargar consolidado CSV
                         </button>
                     }
                 </div>
 
                 <div class="docs-table-wrapper">
-                    <table class="docs-table">
+                    <div class="ntx-table-scroll">
+                        <table class="docs-table">
                         <thead>
                             <tr>
                                 <th>Toma</th>
@@ -218,6 +283,7 @@
                             }
                         </tbody>
                     </table>
+                    </div>
                 </div>
             </article>
 
@@ -232,7 +298,7 @@
                         <input class="form-control"
                                placeholder="Buscar código, nombre, usuario, estado, ubicación..."
                                @bind="physicalSearchText"
-                               @bind:event="oninput" />
+                               @bind:event="oninput" name="navi-documentsindex-field-001" />
                     </div>
                 </div>
 
@@ -247,7 +313,8 @@
                 else
                 {
                     <div class="docs-table-wrapper">
-                        <table class="docs-table">
+                        <div class="ntx-table-scroll">
+                            <table class="docs-table">
                             <thead>
                                 <tr>
                                     <th>Tipo</th>
@@ -297,6 +364,7 @@
                                 }
                             </tbody>
                         </table>
+                        </div>
                     </div>
                 }
             </article>
@@ -320,17 +388,17 @@
 
                 <div class="docs-form-grid">
                     <div>
-                        <label>Clasificación</label>
-                        <input class="form-control" value="@selectedCategory" readonly />
+                        <label for="navi-documentsindex-control-002">Clasificación</label>
+                        <input class="form-control" value="@selectedCategory" readonly id="navi-documentsindex-control-002" />
                     </div>
 
                     <div>
-                        <label>Activo / herramienta existente</label>
+                        <label for="navi-documentsindex-control-003">Activo / herramienta existente</label>
                         <input class="form-control"
                                list="docs-assets-list"
                                placeholder="Escribe código, nombre, serial, sede o responsable"
                                @bind="assetSearchText"
-                               @bind:event="oninput" />
+                               @bind:event="oninput" id="navi-documentsindex-control-003" />
 
                         <datalist id="docs-assets-list">
                             @foreach (var asset in FilteredAssets)
@@ -343,36 +411,36 @@
                     </div>
 
                     <div>
-                        <label>Nombre del documento</label>
+                        <label for="navi-documentsindex-control-004">Nombre del documento</label>
                         <input class="form-control"
                                placeholder="Ej: factura compra kit scanner"
-                               @bind="documentName" />
+                               @bind="documentName" id="navi-documentsindex-control-004" />
                     </div>
 
                     <div>
-                        <label>Responsable de carga</label>
+                        <label for="navi-documentsindex-control-005">Responsable de carga</label>
                         <input class="form-control"
                                placeholder="Usuario que carga el documento"
-                               @bind="uploadedBy" />
+                               @bind="uploadedBy" id="navi-documentsindex-control-005" />
                     </div>
 
                     <div class="span-2">
-                        <label>Archivo</label>
-                        <InputFile class="form-control" OnChange="OnFileSelected" />
+                        <label for="navi-documentsindex-control-006">Archivo</label>
+                        <InputFile class="form-control" OnChange="OnFileSelected" id="navi-documentsindex-control-006" />
                         <small class="docs-asset-hint ok">@(selectedFile is null ? "Seleccione PDF, imagen, Excel o Word." : $"Archivo seleccionado: {selectedFile.Name}")</small>
                     </div>
 
                     <div class="span-2">
-                        <label>Descripción</label>
+                        <label for="navi-documentsindex-control-007">Descripción</label>
                         <textarea class="form-control"
                                   rows="3"
                                   placeholder="Detalle del soporte o evidencia cargada"
-                                  @bind="description"></textarea>
+                                  @bind="description" id="navi-documentsindex-control-007"></textarea>
                     </div>
                 </div>
 
                 <div class="docs-actions">
-                    <button type="button" @onclick="UploadAsync" disabled="@(!CanSaveDocument || isSaving)" data-ntx-tone="primary" >
+                    <button type="button" @onclick="UploadAsync" disabled="@(!CanSaveDocument || isSaving)" data-ntx-tone="affirmative" >
                         @(isSaving ? "Guardando..." : "Guardar documento")
                     </button>
 
@@ -393,9 +461,9 @@
                         <input class="form-control"
                                placeholder="Buscar documento, activo, código, responsable..."
                                @bind="documentSearchText"
-                               @bind:event="oninput" />
+                               @bind:event="oninput" name="navi-documentsindex-field-002" />
 
-                        <select class="form-select" @bind="selectedToolFilter">
+                        <select class="form-select" @bind="selectedToolFilter" name="navi-documentsindex-field-003">
                             <option value="">Todos los activos</option>
                             @foreach (var asset in assets.OrderBy(x => x.InternalCode))
                             {
@@ -407,7 +475,7 @@
 
                 @if (isLoading)
                 {
-                    <div class="docs-empty">Cargando documentos desde inventario...</div>
+                    <div class="docs-empty" role="status" aria-busy="true">Cargando documentos desde inventario...</div>
                 }
                 else if (!FilteredDocuments.Any())
                 {
@@ -416,7 +484,8 @@
                 else
                 {
                     <div class="docs-table-wrapper">
-                        <table class="docs-table">
+                        <div class="ntx-table-scroll">
+                            <table class="docs-table">
                             <thead>
                                 <tr>
                                     <th>Documento</th>
@@ -455,7 +524,7 @@
 
                                         <td>
                                             <div class="docs-row-actions">
-                                                <button type="button" @onclick="() => OpenDocument(item)" data-ntx-tone="secondary" >
+                                                <button type="button" @onclick="() => OpenDocument(item)" data-ntx-tone="ghost" >
                                                     Ver
                                                 </button>
 
@@ -467,7 +536,7 @@
                                                 }
                                                 else
                                                 {
-                                                    <button type="button" class="docs-disabled-action" disabled data-ntx-tone="primary" >
+                                                    <button type="button" class="docs-disabled-action" disabled data-ntx-tone="consult" >
                                                         Descargar
                                                     </button>
                                                 }
@@ -477,6 +546,7 @@
                                 }
                             </tbody>
                         </table>
+                        </div>
                     </div>
                 }
             </article>
@@ -497,7 +567,7 @@
                     </div>
                 </div>
 
-                <button type="button" @onclick="ClosePhysicalModal" data-ntx-tone="secondary" >Cerrar</button>
+                <button type="button" @onclick="ClosePhysicalModal" data-ntx-tone="affirmative" >Cerrar</button>
             </header>
 
             <div class="docs-modal-body">
@@ -521,7 +591,8 @@
                     <h3>Registros reportados</h3>
 
                     <div class="docs-table-wrapper">
-                        <table class="docs-table">
+                        <div class="ntx-table-scroll">
+                            <table class="docs-table">
                             <thead>
                                 <tr>
                                     <th>Tipo</th>
@@ -549,6 +620,7 @@
                                 }
                             </tbody>
                         </table>
+                        </div>
                     </div>
                 </article>
             </div>
@@ -569,7 +641,7 @@
                     </div>
                 </div>
 
-                <button type="button" @onclick="CloseDocument" data-ntx-tone="secondary" >Cerrar</button>
+                <button type="button" @onclick="CloseDocument" data-ntx-tone="ghost" >Cerrar</button>
             </header>
 
             <div class="docs-modal-body">
@@ -626,7 +698,7 @@
                     </div>
                 </div>
 
-                <button type="button" @onclick="CloseManual" data-ntx-tone="secondary" >Cerrar</button>
+                <button type="button" @onclick="CloseManual" data-ntx-tone="ghost" >Cerrar</button>
             </header>
 
             <div class="docs-modal-body">

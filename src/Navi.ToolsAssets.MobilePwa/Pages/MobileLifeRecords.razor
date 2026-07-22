@@ -11,14 +11,14 @@
 <section class="mobile-page mobile-life-list-page navi-life-mobile-v2">
     @if (isLoading)
     {
-        <div class="mobile-loading">Cargando hojas de vida...</div>
+        <div class="mobile-loading" role="status" aria-busy="true">Cargando hojas de vida...</div>
     }
     else if (!Auth.IsAuthenticated)
     {
         <div class="mobile-empty">
             <strong>Sesión requerida</strong>
             <span>Debes iniciar sesión para consultar hojas de vida.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="secondary" >Ir al login</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="ghost" >Ir al login</button>
         </div>
     }
     else if (!CanViewLifeRecord)
@@ -44,80 +44,289 @@
         {
             <div class="mobile-alert">@message</div>
         }
+        @* NAVI MOBILE LIFE RECORDS VISUAL KPI V27 START *@
 
-        <section class="mlife-kpis">
-            <article>
-                <span>Mostrando</span>
-                <strong>@FilteredTools.Count()</strong>
-                <small>Con filtros</small>
-            </article>
+        <NaviMobileKpiOverflow
+            PrimaryCount="3"
+            OverflowCount="1"
+            Class="mlife-v27-kpi-shell"
+            ButtonLabel="Mostrar indicador adicional"
+            PanelLabel="Indicador adicional de hojas de vida">
 
-            <article>
-                <span>Total visible</span>
-                <strong>@ScopedTools.Count()</strong>
-                <small>@ScopeLabel</small>
-            </article>
+            <PrimaryContent>
 
-            <article>
-                <span>Mantenimiento</span>
-                <strong>@FilteredTools.Count(x => x.RequiresMaintenance)</strong>
-                <small>Requieren control</small>
-            </article>
+                <NaviMobileKpiGrid
+                    Columns="3"
+                    Compact="true"
+                    Dividers="true"
+                    Class="mlife-v27-kpis">
 
-            <article>
-                <span>Editables</span>
-                <strong>@FilteredTools.Count(x => CanManageTool(x))</strong>
-                <small>Según rol</small>
-            </article>
-        </section>
+                    <NaviMobileKpiCard
+                        Title="Mostrando"
+                        Description="Con filtros"
+                        IconKey="document"
+                        Tone="neutral">
 
-        <section class="mlife-filter-card">
-            <label>
-                <span>Buscar</span>
-                <input value="@search"
-                       @oninput="OnSearchChanged"
-                       placeholder="Código, nombre, serial, sede, ubicación, responsable..." />
-            </label>
+                        <ValueContent>
+                            @FilteredTools.Count()
+                        </ValueContent>
 
-            @if (UserCanSeeAllBranches())
-            {
-                <label>
-                    <span>Sede</span>
-                    <select value="@selectedBranchCode" @onchange="OnBranchChanged">
-                        <option value="">Todas las sedes</option>
-                        @foreach (var branch in BranchOptions)
-                        {
-                            <option value="@branch">@branch</option>
-                        }
-                    </select>
-                </label>
-            }
-            else
-            {
-                <label>
-                    <span>Sede</span>
-                    <input value="@ScopeLabel" disabled />
-                </label>
-            }
+                    </NaviMobileKpiCard>
 
-            <div class="mlife-status-head">
-                <strong>Estado</strong>
-                <button type="button" @onclick="ClearFilters" data-ntx-tone="secondary" >Limpiar filtros</button>
-            </div>
+                    <NaviMobileKpiCard
+                        Title="Total visible"
+                        Description="@ScopeLabel"
+                        IconKey="inventory"
+                        Tone="soft">
 
-            <div class="mlife-status-chips">
-                @foreach (var status in StatusOptions)
-                {
-                    var selected = selectedStatuses.Contains(status.Value);
+                        <ValueContent>
+                            @ScopedTools.Count()
+                        </ValueContent>
 
-                    <button type="button"
-                            class="@(selected ? "selected" : "")"
-                            @onclick="() => ToggleStatus(status.Value)" data-ntx-tone="secondary" >
-                        @status.Text
+                    </NaviMobileKpiCard>
+
+                    <NaviMobileKpiCard
+                        Title="Mantenimiento"
+                        Description="Requieren control"
+                        IconKey="wrench"
+                        Tone="warning">
+
+                        <ValueContent>
+                            @FilteredTools.Count(
+                                x => x.RequiresMaintenance)
+                        </ValueContent>
+
+                    </NaviMobileKpiCard>
+
+                </NaviMobileKpiGrid>
+
+            </PrimaryContent>
+
+            <OverflowContent>
+
+                <NaviMobileKpiGrid
+                    Columns="1"
+                    Compact="true"
+                    Dividers="false"
+                    Class="mlife-v27-overflow-kpis">
+
+                    <NaviMobileKpiCard
+                        Title="Editables"
+                        Description="Según rol"
+                        IconKey="document"
+                        Tone="soft">
+
+                        <ValueContent>
+                            @FilteredTools.Count(
+                                x => CanManageTool(x))
+                        </ValueContent>
+
+                    </NaviMobileKpiCard>
+
+                </NaviMobileKpiGrid>
+
+            </OverflowContent>
+
+        </NaviMobileKpiOverflow>
+
+        @* NAVI MOBILE LIFE RECORDS VISUAL KPI V27 END *@
+        @* NAVI MOBILE LIFE RECORDS VISUAL FILTERS V27 START *@
+
+        <section
+            class="mlife-filter-card mlife-v27-filter-card"
+            aria-label="Filtros de hojas de vida">
+
+            <div class="mlife-v27-search-field">
+
+                <div class="mlife-v27-filter-heading">
+
+                    <strong class="mlife-v28-filter-title">
+                        Filtrar hojas de vida
+                    </strong>
+
+                    <button
+                        type="button"
+                        class="mlife-v27-clear"
+                        @onclick="ClearFilters"
+                        data-ntx-tone="secondary">
+
+                        Limpiar filtros
+
                     </button>
-                }
+
+                </div>
+
+                <span class="mlife-v28-search-label">
+                    Buscar
+                </span>
+
+                <div class="mlife-v27-search-control mlife-v30-search-control">
+
+                    <svg
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                        focusable="false">
+
+                        <circle
+                            cx="10.5"
+                            cy="10.5"
+                            r="6.5">
+                        </circle>
+
+                        <path d="M15.5 15.5L21 21"></path>
+
+                    </svg>
+
+                    <input
+                        id="mlife-v27-search"
+                        value="@search"
+                        @oninput="OnSearchChanged"
+                        placeholder="Código, nombre, serial, ubicación o responsable..."
+                        name="navi-mobileliferecords-field-001" />
+
+                </div>
+
             </div>
+
+            <div class="mlife-v27-filter-row">
+
+                @if (UserCanSeeAllBranches())
+                {
+                    <label class="mlife-v27-branch-field">
+
+                        <span>Sede</span>
+
+                        <select
+                            value="@selectedBranchCode"
+                            @onchange="OnBranchChanged"
+                            name="navi-mobileliferecords-field-002">
+
+                            <option value="">
+                                Todas las sedes
+                            </option>
+
+                            @foreach (var branch in BranchOptions)
+                            {
+                                <option value="@branch">
+                                    @branch
+                                </option>
+                            }
+
+                        </select>
+
+                    </label>
+                }
+                else
+                {
+                    <label class="mlife-v27-branch-field">
+
+                        <span>Sede</span>
+
+                        <input
+                            value="@ScopeLabel"
+                            disabled
+                            name="navi-mobileliferecords-field-003" />
+
+                    </label>
+                }
+
+                <details class="mlife-v27-status-dropdown">
+
+                    <summary>
+
+                        <span>Estado</span>
+
+                        <strong>
+                            @(selectedStatuses.Count == 0
+                                ? "Todos"
+                                : $"{selectedStatuses.Count} activos")
+                        </strong>
+
+                        <svg
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
+                            focusable="false">
+
+                            <path d="M7 10L12 15L17 10"></path>
+
+                        </svg>
+
+                    </summary>
+
+                    <div class="mlife-v27-status-panel">
+
+                        <div class="mlife-v27-status-panel-head">
+
+                            <strong>
+                                Filtrar por estado
+                            </strong>
+
+                            <small>
+                                Puedes seleccionar varios
+                            </small>
+
+                        </div>
+
+                        <div class="mlife-v27-status-options mlife-v30-status-list">
+
+                            @foreach (var status in StatusOptions)
+                            {
+                                var selected =
+                                    selectedStatuses.Contains(
+                                        status.Value);
+
+                                <button
+                                    type="button"
+                                    class="@(selected ? "selected" : "")"
+                                    aria-pressed="@selected"
+                                    @onclick="() => ToggleStatus(status.Value)"
+                                    data-ntx-tone="operation">
+
+                                    <span
+                                        class="@(
+                                            $"mlife-v27-status-dot "
+                                            + GetStatusClass(
+                                                status.Value))"
+                                        aria-hidden="true">
+                                    </span>
+
+                                    <span>@status.Text</span>
+
+                                </button>
+                            }
+
+                        </div>
+
+                    </div>
+
+                </details>
+
+            </div>
+
         </section>
+
+        @* NAVI MOBILE LIFE RECORDS VISUAL FILTERS V27 END *@
+
+
+        @* NAVI MOBILE LIFE RECORDS RESULTS HEADER V28 START *@
+
+        <section class="mlife-v28-results-header">
+
+            <div>
+
+                <span>HOJAS DE VIDA DE ACTIVOS</span>
+
+                <strong>Resultado de la consulta</strong>
+
+                <small>@ScopeLabel</small>
+
+            </div>
+
+            <b>@FilteredTools.Count()</b>
+
+        </section>
+
+        @* NAVI MOBILE LIFE RECORDS RESULTS HEADER V28 END *@
 
         @if (!FilteredTools.Any())
         {
@@ -125,30 +334,59 @@
         }
         else
         {
-            <section class="mobile-life-list-items">
+            <section class="mobile-life-list-items mlife-v28-list">
                 @foreach (var tool in FilteredTools.Take(150))
                 {
-                    <article class="mlife-card">
-                        <div class="mobile-life-list-item-head">
+                    <article class="mlife-card mlife-v28-card">
+                        <div class="mobile-life-list-item-head mlife-v28-card-header">
                             <div>
                                 <span>@tool.InternalCode</span>
                                 <strong>@tool.Name</strong>
                                 <small>@Display(tool.BranchCode) · @Display(tool.LocationName)</small>
                             </div>
 
+                            @* NAVI MOBILE LIFE RECORD LIST PREVIEW STATUS V52 START *@
+
                             <em class="@GetStatusClass(tool.OperationalStatus)">
                                 @GetStatusLabel(tool.OperationalStatus)
                             </em>
+
+                            <button
+                                type="button"
+                                class="mlife-v52-preview-button"
+                                title="Ver imagen"
+                                aria-label="@($"Ver imagen de {tool.Name}")"
+                                data-ntx-tone="consult"
+                                @onclick="() => OpenToolImagePreviewV50(tool)"
+                                @onclick:stopPropagation="true">
+
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    aria-hidden="true">
+
+                                    <circle
+                                        cx="11"
+                                        cy="11"
+                                        r="7">
+                                    </circle>
+
+                                    <path d="M20 20L16.5 16.5"></path>
+
+                                </svg>
+
+                            </button>
+
+@* NAVI MOBILE LIFE RECORD LIST PREVIEW STATUS V52 END *@
                         </div>
 
-                        <div class="mobile-life-list-grid">
+                        <div class="mobile-life-list-grid mlife-v28-card-grid">
                             <div><span>Serial</span><strong>@Display(tool.SerialNumber)</strong></div>
                             <div><span>Responsable</span><strong>@Display(tool.ResponsiblePersonName)</strong></div>
                             <div><span>Tipo</span><strong>@Display(tool.ToolTypeName)</strong></div>
                             <div><span>Físico</span><strong>@Display(tool.PhysicalStatus)</strong></div>
                         </div>
 
-                        <div class="mlife-actions">
+                        <div class="mlife-actions mlife-v28-actions">
                             <a href="@GetLifeRecordUrl(tool.Id)">Abrir hoja de vida</a>
 
                             @if (CanManageTool(tool))
@@ -169,6 +407,171 @@
         }
     }
 </section>
+
+
+@* NAVI MOBILE LIFE RECORD LIST PREVIEW MODAL V50 START *@
+
+@if (IsToolImagePreviewOpenV50 && PreviewToolV50 is not null)
+{
+    <div
+        class="mlife-v50-preview-overlay"
+        role="presentation"
+        @onclick="CloseToolImagePreviewV50">
+
+        <section
+            class="mlife-v50-preview-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Vista de la herramienta"
+            @onclick:stopPropagation="true">
+
+            <header class="mlife-v50-preview-header">
+
+                <div>
+
+                    <span>
+                        @PreviewToolV50.InternalCode
+                    </span>
+
+                    <strong>
+                        @PreviewToolV50.Name
+                    </strong>
+
+                </div>
+
+                <button
+                    type="button"
+                    class="mlife-v50-preview-close"
+                    title="Cerrar"
+                    aria-label="Cerrar imagen"
+                    data-ntx-tone="secondary"
+                    @onclick="CloseToolImagePreviewV50">
+
+                    <svg
+                        viewBox="0 0 24 24"
+                        aria-hidden="true">
+
+                        <path d="M6 6L18 18"></path>
+                        <path d="M18 6L6 18"></path>
+
+                    </svg>
+
+                </button>
+
+            </header>
+
+            <div class="mlife-v50-preview-content">
+
+                @if (IsToolImagePreviewLoadingV50)
+                {
+                    <div class="mlife-v50-preview-loading">
+
+                        <span class="mlife-v50-preview-spinner">
+                        </span>
+
+                        <strong>Cargando imagen...</strong>
+
+                    </div>
+                }
+                else if (!string.IsNullOrWhiteSpace(
+                    ToolImagePreviewErrorV50))
+                {
+                    <div class="mlife-v50-preview-empty">
+
+                        <svg
+                            viewBox="0 0 24 24"
+                            aria-hidden="true">
+
+                            <rect
+                                x="3"
+                                y="5"
+                                width="18"
+                                height="14"
+                                rx="2">
+                            </rect>
+
+                            <circle
+                                cx="9"
+                                cy="10"
+                                r="2">
+                            </circle>
+
+                            <path d="M4 17L9 13L13 16L16 13L20 17"></path>
+
+                        </svg>
+
+                        <strong>
+                            @ToolImagePreviewErrorV50
+                        </strong>
+
+                    </div>
+                }
+                else if (!string.IsNullOrWhiteSpace(
+                    ToolImagePreviewUrlV50))
+                {
+                    <img
+                        src="@ToolImagePreviewUrlV50"
+                        alt="@($"Imagen de {PreviewToolV50.Name}")" />
+                }
+                else
+                {
+                    <div class="mlife-v50-preview-empty">
+
+                        <svg
+                            viewBox="0 0 24 24"
+                            aria-hidden="true">
+
+                            <rect
+                                x="3"
+                                y="5"
+                                width="18"
+                                height="14"
+                                rx="2">
+                            </rect>
+
+                            <circle
+                                cx="9"
+                                cy="10"
+                                r="2">
+                            </circle>
+
+                            <path d="M4 17L9 13L13 16L16 13L20 17"></path>
+
+                        </svg>
+
+                        <strong>
+                            Sin imagen registrada
+                        </strong>
+
+                    </div>
+                }
+
+            </div>
+
+            <footer class="mlife-v50-preview-footer">
+
+                <span>
+                    @GetStatusLabel(
+                        PreviewToolV50.OperationalStatus)
+                </span>
+
+                <button
+                    type="button"
+                    @onclick="CloseToolImagePreviewV50"
+                    data-ntx-tone="secondary">
+
+                    Cerrar
+
+                </button>
+
+            </footer>
+
+        </section>
+
+    </div>
+}
+
+@* NAVI MOBILE LIFE RECORD LIST PREVIEW MODAL V50 END *@
 
 @code {
     private bool isLoading = true;

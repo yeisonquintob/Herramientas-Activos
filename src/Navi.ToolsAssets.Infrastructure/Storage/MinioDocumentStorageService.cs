@@ -97,6 +97,28 @@ public sealed class MinioDocumentStorageService : IDocumentStorageService
         }
     }
 
+    public async Task DeleteAsync(
+        string objectName,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(objectName))
+        {
+            return;
+        }
+
+        await EnsureBucketExistsAsync(
+            cancellationToken);
+
+        var removeObjectArgs =
+            new RemoveObjectArgs()
+                .WithBucket(_bucketName)
+                .WithObject(objectName);
+
+        await _minioClient.RemoveObjectAsync(
+            removeObjectArgs,
+            cancellationToken);
+    }
+
     private async Task EnsureBucketExistsAsync(CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(_bucketName))

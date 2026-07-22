@@ -11,52 +11,133 @@
 
 <PageTitle>Consulta hoja de vida AF - NAVI Herramientas y AF</PageTitle>
 
-<section class="mobile-page mobile-compact-page">
+<section class="mobile-page mobile-compact-page mobile-technical-life-record-standard-v90">
     @if (isLoading)
     {
-        <div class="mobile-loading">Cargando hoja de vida...</div>
+        <div class="mobile-loading" role="status" aria-busy="true">Cargando hoja de vida...</div>
     }
     else if (!Auth.IsAuthenticated)
     {
         <div class="mobile-empty">
             <strong>Sesión requerida</strong>
             <span>Debes iniciar sesión para consultar la hoja de vida.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="secondary" >Ir al login</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="ghost" >Ir al login</button>
         </div>
     }
     else if (!string.IsNullOrWhiteSpace(message))
     {
         <div class="mobile-alert">@message</div>
-        <button class="mobile-detail-back" type="button" @onclick="GoBack" data-ntx-tone="secondary" >Regresar</button>
+        <button class="mobile-detail-back" type="button" @onclick="GoBack" data-ntx-tone="warning" >Regresar</button>
     }
     else if (life is not null)
     {
-        <NaviMobileAppBanner Class="navi-mobile-life-view-app-banner navi-mobile-app-banner--detail"
+        <NaviMobileAppBanner Class="navi-mobile-life-view-app-banner navi-mobile-app-banner--home-only"
                              Pill="ACTIVOS FIJOS · HOJA DE VIDA"
                              Title="@Show(life.EquipmentInformation.Name ?? life.Summary.Name)"
                              Description="@($"{Show(life.EquipmentInformation.InternalCode ?? life.Summary.InternalCode)} · {StatusLabel(life.Summary.OperationalStatus)}")"
                              HomeUrl="/"
-                             BackUrl="@GetNaviMobileBackUrl()"
-                             BackFallbackUrl="@GetDetailUrl()"
                              ShowHomeButton="true"
-                             ShowBackButton="true" />
+                             ShowBackButton="false" />
 
-        <section class="mobile-compact-kpis">
-            <article>
-                <span>Vida útil</span>
-                <strong>@PercentLabel(life.UsefulLife.UsedPercentage)</strong>
-            </article>
+                @* NAVI MOBILE TECHNICAL LIFE RECORD KPI V90 START *@
 
-            <article>
-                <span>Mantenimientos</span>
-                <strong>@life.MaintenancePlan.TotalMaintenanceRecords</strong>
-            </article>
+        <NaviMobileKpiOverflow
+            PrimaryCount="2"
+            OverflowCount="1"
+            Class="navi-mobile-kpi-standard-overflow mobile-technical-life-kpi-overflow-v90"
+            ButtonLabel="Mostrar documentos"
+            PanelLabel="Documentos asociados al activo">
 
-            <article>
-                <span>Documentos</span>
-                <strong>@life.Documents.AllDocuments.Count</strong>
-            </article>
-        </section>
+            <PrimaryContent>
+
+                <NaviMobileKpiGrid
+                    Columns="2"
+                    Compact="true"
+                    Dividers="true"
+                    Class="navi-mobile-kpi-standard-grid mobile-technical-life-kpi-primary-v90">
+
+                    <NaviMobileKpiCard
+                        Title="Vida útil"
+                        Description="Consumo estimado"
+                        IconKey="clock"
+                        Tone="soft"
+                        Compact="true">
+
+                        <ValueContent>
+                            @PercentLabel(
+                                life.UsefulLife.UsedPercentage)
+                        </ValueContent>
+
+                    </NaviMobileKpiCard>
+
+                    <NaviMobileKpiCard
+                        Title="Mantenimientos"
+                        Description="Registros técnicos"
+                        IconKey="wrench"
+                        Tone="warning"
+                        Compact="true">
+
+                        <ValueContent>
+                            @life.MaintenancePlan.TotalMaintenanceRecords
+                        </ValueContent>
+
+                    </NaviMobileKpiCard>
+
+                </NaviMobileKpiGrid>
+
+            </PrimaryContent>
+
+            <OverflowContent>
+
+                <NaviMobileKpiGrid
+                    Columns="1"
+                    Compact="true"
+                    Dividers="false"
+                    Class="navi-mobile-kpi-standard-grid mobile-technical-life-kpi-panel-v90">
+
+                    <NaviMobileKpiCard
+                        Title="Documentos"
+                        Description="Soportes asociados"
+                        IconKey="document"
+                        Tone="neutral"
+                        Compact="true">
+
+                        <ValueContent>
+                            @life.Documents.AllDocuments.Count
+                        </ValueContent>
+
+                    </NaviMobileKpiCard>
+
+                </NaviMobileKpiGrid>
+
+            </OverflowContent>
+
+        </NaviMobileKpiOverflow>
+
+        <div class="mobile-technical-life-actions-v90">
+
+            <button
+                type="button"
+                class="mobile-technical-life-back-v90"
+                @onclick="GoBack"
+                data-ntx-tone="warning">
+
+                <svg
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    focusable="false">
+
+                    <path d="M15 6L9 12L15 18"></path>
+
+                </svg>
+
+                <span>Regresar</span>
+
+            </button>
+
+        </div>
+
+        @* NAVI MOBILE TECHNICAL LIFE RECORD KPI V90 END *@
 
         <details class="mobile-fold" open>
             <summary>Información del equipo</summary>

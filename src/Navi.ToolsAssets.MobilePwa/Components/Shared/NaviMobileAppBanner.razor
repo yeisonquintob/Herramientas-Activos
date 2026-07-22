@@ -1,116 +1,95 @@
 @using System.Collections.Generic
 @using Microsoft.AspNetCore.Components
-@using Microsoft.JSInterop
 
-@inject NavigationManager Navigation
-@inject IJSRuntime JS
+@inject NaviMobilePageHeaderState ShellHeader
 
-<header @attributes="AdditionalAttributes" class="@CssClass">
-    <div class="navi-mobile-app-banner__copy">
-        @if (!string.IsNullOrWhiteSpace(Pill))
-        {
-            <span class="navi-mobile-app-banner__pill">@Pill</span>
-        }
-
-        @if (!string.IsNullOrWhiteSpace(Title))
-        {
-            <h1>@Title</h1>
-        }
-
-        @if (!string.IsNullOrWhiteSpace(Description))
-        {
-            <p>@Description</p>
-        }
+@if (RenderActions)
+{
+    <div @attributes="AdditionalAttributes"
+         class="@ActionsCssClass"
+         data-ntx-component="mobile-page-published-actions">
+        @Actions
     </div>
-
-    @if (HasActions)
-    {
-        <nav class="navi-mobile-app-banner__actions" aria-label="Acciones de navegación">
-            @if (Actions is not null)
-            {
-                @Actions
-            }
-            else
-            {
-                @if (ShowHomeButton)
-                {
-                    <button type="button"
-                            class="navi-mobile-app-banner__button navi-mobile-app-banner__button-home"
-                            @onclick="GoHomeAsync" data-ntx-tone="secondary" >
-                        @HomeText
-                    </button>
-                }
-
-                @if (ShowBackButton)
-                {
-                    <button type="button"
-                            class="navi-mobile-app-banner__button navi-mobile-app-banner__button-back"
-                            @onclick="GoBackAsync" data-ntx-tone="secondary" >
-                        @BackText
-                    </button>
-                }
-            }
-        </nav>
-    }
-</header>
+}
 
 @code {
-    [Parameter] public string? Pill { get; set; }
-    [Parameter] public string? Title { get; set; }
-    [Parameter] public string? Description { get; set; }
+    /*
+     * Este componente se conserva para no modificar todas las
+     * páginas que ya lo utilizan.
+     *
+     * Ya no dibuja un segundo encabezado. Publica el título,
+     * descripción y configuración del botón regresar al banner
+     * global del MainLayout.
+     */
 
-    [Parameter] public string? Class { get; set; }
+    [Parameter]
+    public string? Pill { get; set; }
 
-    [Parameter] public bool ShowHomeButton { get; set; } = true;
-    [Parameter] public bool ShowBackButton { get; set; } = true;
+    [Parameter]
+    public string? Title { get; set; }
 
-    [Parameter] public string HomeText { get; set; } = "Inicio";
-    [Parameter] public string BackText { get; set; } = "Atrás";
+    [Parameter]
+    public string? Description { get; set; }
 
-    [Parameter] public string HomeUrl { get; set; } = "/";
-    [Parameter] public string? BackUrl { get; set; }
-    [Parameter] public string BackFallbackUrl { get; set; } = "/";
+    [Parameter]
+    public string? Class { get; set; }
 
-    [Parameter] public bool UseBrowserHistoryWhenNoBackUrl { get; set; } = true;
+    [Parameter]
+    public bool ShowHomeButton { get; set; } = true;
 
-    [Parameter] public RenderFragment? Actions { get; set; }
+    [Parameter]
+    public bool ShowBackButton { get; set; } = true;
+
+    [Parameter]
+    public string HomeText { get; set; } = "Inicio";
+
+    [Parameter]
+    public string BackText { get; set; } = "Atrás";
+
+    [Parameter]
+    public string HomeUrl { get; set; } = "/";
+
+    [Parameter]
+    public string? BackUrl { get; set; }
+
+    [Parameter]
+    public string BackFallbackUrl { get; set; } = "/";
+
+    [Parameter]
+    public bool UseBrowserHistoryWhenNoBackUrl { get; set; } = true;
+
+    [Parameter]
+    public RenderFragment? Actions { get; set; }
 
     [Parameter(CaptureUnmatchedValues = true)]
-    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+    public IReadOnlyDictionary<string, object>?
+        AdditionalAttributes { get; set; }
 
-    private bool HasActions => Actions is not null || ShowHomeButton || ShowBackButton;
-
-    private string CssClass =>
-        string.IsNullOrWhiteSpace(Class)
-            ? "navi-mobile-app-banner"
-            : $"navi-mobile-app-banner {Class}";
-
-    private Task GoHomeAsync()
+    protected override void OnParametersSet()
     {
-        Navigation.NavigateTo(string.IsNullOrWhiteSpace(HomeUrl) ? "/" : HomeUrl);
-        return Task.CompletedTask;
+        ShellHeader.Set(
+            Title,
+            Description,
+            ShowBackButton,
+            BackUrl,
+            BackFallbackUrl,
+            UseBrowserHistoryWhenNoBackUrl);
     }
 
-    private async Task GoBackAsync()
-    {
-        if (!string.IsNullOrWhiteSpace(BackUrl))
-        {
-            Navigation.NavigateTo(BackUrl);
-            return;
-        }
+    private bool IsHomePrincipalBanner =>
+        !string.IsNullOrWhiteSpace(Class) &&
+        Class.Contains(
+            "navi-mobile-home-principal-banner",
+            StringComparison.OrdinalIgnoreCase);
 
-        if (UseBrowserHistoryWhenNoBackUrl)
-        {
-            try
-            {
-                await JS.InvokeVoidAsync("history.back");
-                return;
-            }
-            catch
-            {
-            }
-        }
+    /*
+     * El inicio ya tiene el cierre de sesión dentro del avatar.
+     * Por eso se descartan las acciones antiguas de ese banner.
+     */
+    private bool RenderActions =>
+        Actions is not null &&
+        !IsHomePrincipalBanner;
 
-        Navigation.NavigateTo(string.IsNullOrWhiteSpace(BackFallbackUrl) ? "/" : BackFallbackUrl);
-    }
+    private string ActionsCssClass =>
+        "navi-mobile-published-actions";
 }

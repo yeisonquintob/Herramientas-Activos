@@ -16,17 +16,7 @@
     <NaviPageHero
         Pill="CONTROL"
         Title="Registros reportados"
-        Description="@ReportedItemsHeroDescription">
-
-        <button type="button" @onclick="LoadAsync" disabled="@isLoading" data-ntx-tone="secondary" >
-            @(isLoading ? "Actualizando..." : "Actualizar")
-        </button>
-
-        <button type="button" @onclick="GoBack" data-ntx-tone="secondary" >
-            Volver
-        </button>
-
-    </NaviPageHero>
+        Description="@ReportedItemsHeroDescription" />
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
     {
@@ -35,7 +25,7 @@
 
     @if (isLoading && board is null)
     {
-        <div class="ri-empty">Cargando registros reportados...</div>
+        <div class="ri-empty" role="status" aria-busy="true">Cargando registros reportados...</div>
     }
     else if (board is null)
     {
@@ -43,7 +33,137 @@
     }
     else
     {
+        @* NAVI REPORTED ITEMS CANONICAL KPI V176 CORR1 START *@
+        <div class="ri-kpi-standard-row"
+             data-navi-kpi-standard="web">
+
+            <NaviKpiToolbar
+                Class="ri-kpi-standard-toolbar"
+                Refresh="@LoadAsync"
+                IsRefreshing="@isLoading"
+                RefreshTitle="Actualizar registros reportados"
+                RefreshAriaLabel="Actualizar registros reportados">
+
+                <NaviKpiGrid
+                    Columns="6"
+                    Compact="true"
+                    Dividers="true"
+                    Class="ri-kpis ri-kpi-standard-grid">
+
+                    <NaviKpiCard
+                        Title="Total"
+                        Description="Registros del usuario"
+                        Value="@TotalKpiValue"
+                        Tone="neutral"
+                        Compact="true">
+
+                        <IconContent>
+                            <NaviKpiIcon Name="report" />
+                        </IconContent>
+
+                    </NaviKpiCard>
+
+                    <NaviKpiCard
+                        Title="Completos"
+                        Description="Validados o creados"
+                        Value="@CompleteKpiValue"
+                        Tone="positive"
+                        Compact="true">
+
+                        <IconContent>
+                            <NaviKpiIcon Name="check" />
+                        </IconContent>
+
+                    </NaviKpiCard>
+
+                    <NaviKpiCard
+                        Title="Pendientes"
+                        Description="Por conciliación"
+                        Value="@PendingKpiValue"
+                        Tone="warning"
+                        Compact="true">
+
+                        <IconContent>
+                            <NaviKpiIcon Name="clock" />
+                        </IconContent>
+
+                    </NaviKpiCard>
+
+                    <NaviKpiCard
+                        Title="No listadas"
+                        Description="Reportes nuevos"
+                        Value="@ExtraNotListedKpiValue"
+                        Tone="soft"
+                        Compact="true">
+
+                        <IconContent>
+                            <NaviKpiIcon Name="document" />
+                        </IconContent>
+
+                    </NaviKpiCard>
+
+                    <NaviKpiCard
+                        Title="No encontradas"
+                        Description="Faltantes"
+                        Value="@NotFoundKpiValue"
+                        Tone="danger"
+                        Compact="true">
+
+                        <IconContent>
+                            <NaviKpiIcon Name="alert" />
+                        </IconContent>
+
+                    </NaviKpiCard>
+
+                    <NaviKpiCard
+                        Title="Aclaración"
+                        Description="Requieren contacto"
+                        Value="@ClarificationKpiValue"
+                        Tone="warning"
+                        Compact="true">
+
+                        <IconContent>
+                            <NaviKpiIcon Name="users" />
+                        </IconContent>
+
+                    </NaviKpiCard>
+
+                </NaviKpiGrid>
+
+            </NaviKpiToolbar>
+
+
+            <NaviActionButton
+                Tone="secondary"
+                Size="small"
+                Class="ri-kpi-standard-back"
+                OnClick="@GoBack"
+                aria-label="Volver al detalle de la toma física">
+
+                <StartContent>
+
+                    <svg viewBox="0 0 24 24"
+                         aria-hidden="true"
+                         focusable="false">
+
+                        <path d="M19 12H5"></path>
+                        <path d="M11 6L5 12L11 18"></path>
+
+                    </svg>
+
+                </StartContent>
+
+                <ChildContent>
+                    Volver
+                </ChildContent>
+
+            </NaviActionButton>
+
+        </div>
+        @* NAVI REPORTED ITEMS CANONICAL KPI V176 CORR1 END *@
+
         <section class="ri-context-card">
+
             <div>
                 <span>Toma física</span>
                 <strong>@Display(board.CountNumber)</strong>
@@ -61,44 +181,7 @@
                 <strong>Solo lectura</strong>
                 <small>Las decisiones se hacen en el menú Conciliación</small>
             </div>
-        </section>
 
-        <section class="ri-kpis ri-kpis-standard">
-            <article>
-                <span>Total</span>
-                <strong>@VisibleItems.Count()</strong>
-                <small>Registros del usuario</small>
-            </article>
-
-            <article>
-                <span>Completos</span>
-                <strong>@VisibleItems.Count(IsComplete)</strong>
-                <small>Validados o creados</small>
-            </article>
-
-            <article>
-                <span>Pendientes</span>
-                <strong>@VisibleItems.Count(IsPending)</strong>
-                <small>Por conciliación</small>
-            </article>
-
-            <article>
-                <span>No listadas</span>
-                <strong>@VisibleItems.Count(x => IsReportType(x, "ExtraNotListed"))</strong>
-                <small>Reportes nuevos</small>
-            </article>
-
-            <article>
-                <span>No encontradas</span>
-                <strong>@VisibleItems.Count(x => IsReportType(x, "NotFound"))</strong>
-                <small>Faltantes</small>
-            </article>
-
-            <article>
-                <span>Aclaración</span>
-                <strong>@VisibleItems.Count(x => x.RequiresUserClarification || IsStatus(x, "RequiresUserClarification"))</strong>
-                <small>Requieren contacto</small>
-            </article>
         </section>
 
         <section class="ri-card ri-filter-card">
@@ -111,9 +194,13 @@
                     </p>
                 </div>
 
-                <button class="btn btn-sm btn-outline-secondary" type="button" @onclick="ClearFilters" data-ntx-tone="secondary" >
+                <NaviActionButton
+                    Tone="secondary"
+                    Size="small"
+                    OnClick="@ClearFilters"
+                    Class="ri-clear-filters">
                     Limpiar filtros
-                </button>
+                </NaviActionButton>
             </div>
 
             <div class="ri-filter-grid ri-filter-grid-simple">
@@ -122,65 +209,70 @@
                     <input class="form-control"
                            placeholder="Código, nombre, serial, categoría, observación..."
                            @bind="searchText"
-                           @bind:event="oninput" />
+                           @bind:event="oninput" name="navi-physicalcountreporteditems-field-001" />
                 </label>
 
                 <label>
                     Desde
                     <input class="form-control"
                            placeholder="yyyy-MM-dd"
-                           @bind="filterFromDateText" />
+                           @bind="filterFromDateText" name="navi-physicalcountreporteditems-field-002" />
                 </label>
 
                 <label>
                     Hasta
                     <input class="form-control"
                            placeholder="yyyy-MM-dd"
-                           @bind="filterToDateText" />
+                           @bind="filterToDateText" name="navi-physicalcountreporteditems-field-003" />
                 </label>
             </div>
 
-            <div class="ri-filter-checks">
-                <label>
-                    <input type="checkbox" @bind="onlyCreatedAssets" />
-                    Mostrar solo activos creados en inventario
+            <div class="ri-filter-checks"
+                 role="group"
+                 aria-label="Filtros adicionales">
+
+                <label class="ri-check-option"
+                       for="ri-only-created-assets">
+
+                    <input id="ri-only-created-assets"
+                           class="form-check-input"
+                           type="checkbox"
+                           @bind="onlyCreatedAssets"
+                           name="navi-physicalcountreporteditems-field-004" />
+
+                    <span>
+                        Mostrar solo activos creados en inventario
+                    </span>
+
                 </label>
 
-                <label>
-                    <input type="checkbox" @bind="onlyExtraNotListed" />
-                    Mostrar solo herramientas no listadas
+                <label class="ri-check-option"
+                       for="ri-only-extra-not-listed">
+
+                    <input id="ri-only-extra-not-listed"
+                           class="form-check-input"
+                           type="checkbox"
+                           @bind="onlyExtraNotListed"
+                           name="navi-physicalcountreporteditems-field-005" />
+
+                    <span>
+                        Mostrar solo herramientas no listadas
+                    </span>
+
                 </label>
+
             </div>
         </section>
 
-        <section class="ri-card">
-            <div class="ri-card-title">
-                <div>
-                    <h3>
-                        @if (SelectedParticipant is not null)
-                        {
-                            <span>Registros reportados de @SelectedParticipant.DisplayName</span>
-                        }
-                        else if (!string.IsNullOrWhiteSpace(CurrentResponsibleName))
-                        {
-                            <span>Registros reportados de @CurrentResponsibleName</span>
-                        }
-                        else
-                        {
-                            <span>Registros reportados</span>
-                        }
-                    </h3>
-                    <p>
-                        Se muestran los registros encontrados, rechazados, no encontrados o no listados.
-                        Las acciones administrativas se realizan únicamente en el módulo Conciliación.
-                    </p>
-                </div>
-
-                <div class="ri-result-counter">
-                    <span>Filtrados</span>
-                    <strong>@FilteredItems.Count()</strong>
-                </div>
-            </div>
+        @* NAVI REPORTED ITEMS STANDARD V175 TABLE START *@
+        <NaviTableShell
+            Title="@ReportedItemsTableTitle"
+            Description="Se muestran los registros encontrados, rechazados, no encontrados o no listados. Las decisiones administrativas se realizan únicamente en Conciliación."
+            CountLabel="@FilteredCountLabel"
+            AriaLabel="Registros reportados por el usuario"
+            Compact="true"
+            StickyHeader="true"
+            Class="ri-reported-table-shell">
 
             @if (!FilteredItems.Any())
             {
@@ -191,82 +283,163 @@
             else
             {
                 <div class="ri-table-wrapper">
+
                     <table class="ri-table">
+
                         <thead>
                             <tr>
-                                <th>Tipo / usuario</th>
-                                <th>Código / activo</th>
-                                <th>Clasificación</th>
-                                <th>Ubicación / responsable</th>
-                                <th>Estado reportado</th>
-                                <th>Datos mínimos</th>
-                                <th>Estado conciliación</th>
-                                <th>Consulta</th>
+                                <th scope="col">Tipo / usuario</th>
+                                <th scope="col">Código / activo</th>
+                                <th scope="col">Clasificación</th>
+                                <th scope="col">Ubicación / responsable</th>
+                                <th scope="col">Estado reportado</th>
+                                <th scope="col">Datos mínimos</th>
+                                <th scope="col">Estado conciliación</th>
+                                <th scope="col">Consulta</th>
                             </tr>
                         </thead>
 
                         <tbody>
+
                             @foreach (var item in FilteredItems)
                             {
-                                var lifeRecordId = GetLifeRecordId(item);
+                                var lifeRecordId =
+                                    GetLifeRecordId(item);
 
                                 <tr class="@GetRowClass(item)">
+
                                     <td>
                                         <span class="@GetReportTypeClass(item)">
                                             @GetReportTypeLabel(item)
                                         </span>
 
-                                        <small>@Display(item.ParticipantName)</small>
-                                        <small>@Display(item.ParticipantUserName)</small>
+                                        <small>
+                                            @Display(item.ParticipantName)
+                                        </small>
+
+                                        <small>
+                                            @Display(item.ParticipantUserName)
+                                        </small>
                                     </td>
 
                                     <td>
-                                        <strong>@Display(item.ToolInternalCode ?? item.ReportedCode ?? item.MatchedToolInternalCode)</strong>
-                                        <span>@Display(item.ToolName ?? item.ReportedName ?? item.MatchedToolName)</span>
+                                        <strong>
+                                            @Display(
+                                                item.ToolInternalCode
+                                                ?? item.ReportedCode
+                                                ?? item.MatchedToolInternalCode)
+                                        </strong>
 
-                                        @if (!string.IsNullOrWhiteSpace(item.SerialNumber))
+                                        <span>
+                                            @Display(
+                                                item.ToolName
+                                                ?? item.ReportedName
+                                                ?? item.MatchedToolName)
+                                        </span>
+
+                                        @if (!string.IsNullOrWhiteSpace(
+                                            item.SerialNumber))
                                         {
-                                            <small>Serial: @item.SerialNumber</small>
+                                            <small>
+                                                Serial: @item.SerialNumber
+                                            </small>
                                         }
 
-                                        @if (!string.IsNullOrWhiteSpace(item.Brand) || !string.IsNullOrWhiteSpace(item.Model))
+                                        @if (
+                                            !string.IsNullOrWhiteSpace(
+                                                item.Brand)
+                                            ||
+                                            !string.IsNullOrWhiteSpace(
+                                                item.Model))
                                         {
-                                            <small>Marca/Modelo: @Display(item.Brand) @Display(item.Model)</small>
+                                            <small>
+                                                Marca/Modelo:
+                                                @Display(item.Brand)
+                                                @Display(item.Model)
+                                            </small>
                                         }
 
-                                        @if (item.CreatedToolAssetId.HasValue && item.CreatedToolAssetId.Value != Guid.Empty)
+                                        @if (
+                                            item.CreatedToolAssetId.HasValue
+                                            &&
+                                            item.CreatedToolAssetId.Value
+                                                != Guid.Empty)
                                         {
-                                            <small class="ri-created-id">Activo creado en inventario: @item.CreatedToolAssetId</small>
+                                            <small class="ri-created-id">
+                                                Activo creado en inventario:
+                                                @item.CreatedToolAssetId
+                                            </small>
                                         }
                                     </td>
 
                                     <td>
-                                        <small>Tipo: @Display(item.AssetTypeName)</small>
-                                        <small>Categoría: @Display(item.CategoryName)</small>
+                                        <small>
+                                            Tipo:
+                                            @Display(item.AssetTypeName)
+                                        </small>
+
+                                        <small>
+                                            Categoría:
+                                            @Display(item.CategoryName)
+                                        </small>
                                     </td>
 
                                     <td>
-                                        <small>Sede: @Display(item.BranchCode)</small>
-                                        <small>Ubicación: @Display(item.FoundLocation)</small>
-                                        <small>Responsable: @Display(item.ResponsibleName)</small>
+                                        <small>
+                                            Sede:
+                                            @Display(item.BranchCode)
+                                        </small>
+
+                                        <small>
+                                            Ubicación:
+                                            @Display(item.FoundLocation)
+                                        </small>
+
+                                        <small>
+                                            Responsable:
+                                            @Display(item.ResponsibleName)
+                                        </small>
                                     </td>
 
                                     <td>
-                                        <small>Físico: @Display(item.PhysicalStatus)</small>
-                                        <small>Operativo: @Display(item.OperationalStatus)</small>
-                                        <small>Reportó: @Display(item.ReportedBy)</small>
-                                        <small>Fecha: @FormatDate(item.ReportedAt)</small>
+                                        <small>
+                                            Físico:
+                                            @Display(item.PhysicalStatus)
+                                        </small>
+
+                                        <small>
+                                            Operativo:
+                                            @Display(item.OperationalStatus)
+                                        </small>
+
+                                        <small>
+                                            Reportó:
+                                            @Display(item.ReportedBy)
+                                        </small>
+
+                                        <small>
+                                            Fecha:
+                                            @FormatDate(item.ReportedAt)
+                                        </small>
                                     </td>
 
                                     <td>
                                         @if (item.MinimumDataCompleted)
                                         {
-                                            <span class="ri-status ok">Completos</span>
+                                            <span class="ri-status ok">
+                                                Completos
+                                            </span>
                                         }
                                         else
                                         {
-                                            <span class="ri-status danger">Sin mínimos</span>
-                                            <small>@Display(item.MissingRequiredData)</small>
+                                            <span class="ri-status danger">
+                                                Sin mínimos
+                                            </span>
+
+                                            <small>
+                                                @Display(
+                                                    item.MissingRequiredData)
+                                            </small>
                                         }
                                     </td>
 
@@ -275,41 +448,71 @@
                                             @GetVisualReconciliationLabel(item)
                                         </span>
 
-                                        <small>@Display(item.SuggestedAction)</small>
-                                        <small>@Display(item.ReconciliationObservation)</small>
+                                        <small>
+                                            @Display(item.SuggestedAction)
+                                        </small>
+
+                                        <small>
+                                            @Display(
+                                                item.ReconciliationObservation)
+                                        </small>
                                     </td>
 
                                     <td>
                                         <div class="ri-row-actions">
+
                                             @if (lifeRecordId.HasValue)
                                             {
-                                                <a class="btn btn-sm btn-outline-primary"
-                                                   href="@($"/tools/{lifeRecordId.Value}/technical-life-record")" data-ntx-tone="primary" >
-                                                    Hoja de vida
-                                                </a>
+                                                <NaviActionButton
+                                                    Href="@GetTechnicalLifeRecordUrl(lifeRecordId.Value)"
+                                                    Tone="consult"
+                                                    Size="small"
+                                                    Block="true"
+                                                    Class="ri-life-record-button">
+                                                    Hoja de vida técnica
+                                                </NaviActionButton>
                                             }
 
-                                            @if (item.CreatedToolAssetId.HasValue && item.CreatedToolAssetId.Value != Guid.Empty)
+                                            @if (
+                                                item.CreatedToolAssetId.HasValue
+                                                &&
+                                                item.CreatedToolAssetId.Value
+                                                    != Guid.Empty)
                                             {
-                                                <a class="btn btn-sm btn-success"
-                                                   href="@($"/tools/{item.CreatedToolAssetId.Value}")" data-ntx-tone="primary" >
+                                                <NaviActionButton
+                                                    Href="@GetToolUrl(item.CreatedToolAssetId.Value)"
+                                                    Tone="consult"
+                                                    Size="small"
+                                                    Class="ri-table-action">
                                                     Ver activo
-                                                </a>
+                                                </NaviActionButton>
                                             }
 
-                                            @if (!lifeRecordId.HasValue && !item.CreatedToolAssetId.HasValue)
+                                            @if (
+                                                !lifeRecordId.HasValue
+                                                &&
+                                                !item.CreatedToolAssetId.HasValue)
                                             {
-                                                <span class="ri-muted">Pendiente de creación</span>
+                                                <span class="ri-muted">
+                                                    Pendiente de creación
+                                                </span>
                                             }
+
                                         </div>
                                     </td>
+
                                 </tr>
                             }
+
                         </tbody>
+
                     </table>
+
                 </div>
             }
-        </section>
+
+        </NaviTableShell>
+        @* NAVI REPORTED ITEMS STANDARD V175 TABLE END *@
     }
 
 </PermissionGuard>
@@ -322,6 +525,60 @@
         SelectedParticipant is not null
             ? $"Vista informativa de los registros reportados por {SelectedParticipant.DisplayName}. Aquí no se realizan acciones administrativas."
             : "Vista informativa de registros reportados durante la toma física. Para ver solo un usuario, ingrese desde el botón de la toma física.";
+
+    private string ReportedItemsTableTitle =>
+        SelectedParticipant is not null
+            ? $"Registros reportados de {SelectedParticipant.DisplayName}"
+            : !string.IsNullOrWhiteSpace(CurrentResponsibleName)
+                ? $"Registros reportados de {CurrentResponsibleName}"
+                : "Registros reportados";
+
+    private string FilteredCountLabel =>
+        $"{FilteredItems.Count()} registro(s)";
+
+    private string TotalKpiValue =>
+        VisibleItems.Count().ToString();
+
+    private string CompleteKpiValue =>
+        VisibleItems.Count(IsComplete).ToString();
+
+    private string PendingKpiValue =>
+        VisibleItems.Count(IsPending).ToString();
+
+    private string ExtraNotListedKpiValue =>
+        VisibleItems
+            .Count(
+                item => IsReportType(
+                    item,
+                    "ExtraNotListed"))
+            .ToString();
+
+    private string NotFoundKpiValue =>
+        VisibleItems
+            .Count(
+                item => IsReportType(
+                    item,
+                    "NotFound"))
+            .ToString();
+
+    private string ClarificationKpiValue =>
+        VisibleItems
+            .Count(
+                item =>
+                    item.RequiresUserClarification
+                    ||
+                    IsStatus(
+                        item,
+                        "RequiresUserClarification"))
+            .ToString();
+
+    private static string GetTechnicalLifeRecordUrl(
+        Guid toolId) =>
+        $"/tools/{toolId}/technical-life-record-view";
+
+    private static string GetToolUrl(
+        Guid toolId) =>
+        $"/tools/{toolId}";
 
     [Parameter] public Guid Id { get; set; }
 

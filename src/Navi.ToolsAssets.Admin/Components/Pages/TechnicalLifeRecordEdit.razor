@@ -9,20 +9,90 @@
 
 <PermissionGuard Permission="TechnicalLifeRecord.Edit" ModuleName="Editar hoja de vida">
 
+<div class="navi-life-record-subpage navi-life-record-subpage--technical-edit">
+
+
+
+@* NAVI LIFE RECORD SUBPAGE STANDARD V76 TECHNICAL-EDIT START *@
+
 <NaviPageHero
     Pill="ACTIVOS FIJOS"
     Title="Editar datos técnicos"
-    Description="Actualiza la información técnica, garantía, vida útil y plan de mantenimiento de la herramienta.">
+    Description="Actualiza la información técnica, garantía, vida útil y plan de mantenimiento de la herramienta." />
 
-    <button type="button" @onclick="GoBack" data-ntx-tone="primary" >
-        ← Volver a hoja de vida
-    </button>
+<NaviKpiToolbar
+    Class="navi-life-record-subpage-toolbar
+           navi-life-record-subpage-toolbar--technical-edit"
+    Refresh="LoadAsync"
+    IsRefreshing="isLoading"
+    RefreshTitle="Actualizar datos técnicos"
+    RefreshAriaLabel="Actualizar datos técnicos">
 
-    <button type="button" @onclick="LoadAsync" disabled="@isLoading" data-ntx-tone="primary" >
-        @(isLoading ? "Cargando..." : "Recargar")
-    </button>
+    <div class="navi-life-record-subpage-toolbar__body">
 
-</NaviPageHero>
+        <NaviKpiGrid
+            Columns="3"
+            Compact="true"
+            Dividers="true"
+            Class="navi-life-record-subpage-kpis">
+
+            <NaviKpiCard
+                Title="Código interno"
+                Description="Identificación del activo"
+                Value="@internalCode"
+                Tone="neutral"
+                Compact="true">
+
+                <IconContent>
+                    <NaviKpiIcon Name="inventory" />
+                </IconContent>
+
+            </NaviKpiCard>
+
+            <NaviKpiCard
+                Title="Herramienta / activo"
+                Description="Hoja de vida técnica"
+                Value="@toolName"
+                Tone="soft"
+                Compact="true"
+                     Class="navi-life-record-kpi-asset">
+
+                <IconContent>
+                    <NaviKpiIcon Name="document" />
+                </IconContent>
+
+            </NaviKpiCard>
+
+            <NaviKpiCard
+                Title="Modo"
+                Description="Datos técnicos controlados"
+                Value="Edición"
+                Tone="warning"
+                Compact="true">
+
+                <IconContent>
+                    <NaviKpiIcon Name="wrench" />
+                </IconContent>
+
+            </NaviKpiCard>
+
+        </NaviKpiGrid>
+
+        <a class="navi-life-record-subpage-back"
+           href="@($"/tools/{ToolId}/technical-life-record")"
+           aria-label="Volver a hoja de vida"
+           data-ntx-tone="secondary">
+
+            <span aria-hidden="true">←</span>
+            <span>Volver a hoja de vida</span>
+
+        </a>
+
+    </div>
+
+</NaviKpiToolbar>
+
+@* NAVI LIFE RECORD SUBPAGE STANDARD V76 TECHNICAL-EDIT END *@
 
 @if (!string.IsNullOrWhiteSpace(errorMessage))
 {
@@ -40,7 +110,7 @@
 
 @if (isLoading && editModel is null)
 {
-    <div class="alert alert-info">
+    <div class="alert alert-info" role="status" aria-busy="true">
         Cargando datos técnicos...
     </div>
 }
@@ -57,33 +127,33 @@ else if (editModel is not null)
 
                 <div class="edit-form-grid">
                     <div>
-                        <label>Marca</label>
-                        <InputText class="form-control" @bind-Value="editModel.Brand" />
+                        <label for="navi-technicalliferecordedit-control-001">Marca</label>
+                        <InputText class="form-control" @bind-Value="editModel.Brand" id="navi-technicalliferecordedit-control-001" />
                     </div>
 
                     <div>
-                        <label>Modelo</label>
-                        <InputText class="form-control" @bind-Value="editModel.Model" />
+                        <label for="navi-technicalliferecordedit-control-002">Modelo</label>
+                        <InputText class="form-control" @bind-Value="editModel.Model" id="navi-technicalliferecordedit-control-002" />
                     </div>
 
                     <div>
-                        <label>Serial</label>
-                        <InputText class="form-control" @bind-Value="editModel.SerialNumber" />
+                        <label for="navi-technicalliferecordedit-control-003">Serial</label>
+                        <InputText class="form-control" @bind-Value="editModel.SerialNumber" id="navi-technicalliferecordedit-control-003" />
                     </div>
 
                     <div>
-                        <label>Activo fijo</label>
-                        <InputText class="form-control" @bind-Value="editModel.FixedAssetCode" />
+                        <label for="navi-technicalliferecordedit-control-004">Activo fijo</label>
+                        <InputText class="form-control" @bind-Value="editModel.FixedAssetCode" id="navi-technicalliferecordedit-control-004" />
                     </div>
 
                     <div>
-                        <label>Código Fenix365</label>
-                        <InputText class="form-control" @bind-Value="editModel.FenixCode" />
+                        <label for="navi-technicalliferecordedit-control-005">Código Fenix365</label>
+                        <InputText class="form-control" @bind-Value="editModel.FenixCode" id="navi-technicalliferecordedit-control-005" />
                     </div>
 
                     <div>
-                        <label>Fecha adquisición</label>
-                        <InputDate class="form-control" @bind-Value="editModel.AcquisitionDate" />
+                        <label for="navi-technicalliferecordedit-control-006">Fecha adquisición</label>
+                        <InputDate class="form-control" @bind-Value="editModel.AcquisitionDate" id="navi-technicalliferecordedit-control-006" />
                     </div>
                 </div>
             </section>
@@ -96,38 +166,38 @@ else if (editModel is not null)
 
                 <div class="edit-form-grid">
                     <div>
-                        <label>Voltaje</label>
-                        <InputText class="form-control" @bind-Value="editModel.Voltage" />
+                        <label for="navi-technicalliferecordedit-control-007">Voltaje</label>
+                        <InputText class="form-control" @bind-Value="editModel.Voltage" id="navi-technicalliferecordedit-control-007" />
                     </div>
 
                     <div>
-                        <label>Capacidad de carga</label>
-                        <InputText class="form-control" @bind-Value="editModel.LoadCapacity" />
+                        <label for="navi-technicalliferecordedit-control-008">Capacidad de carga</label>
+                        <InputText class="form-control" @bind-Value="editModel.LoadCapacity" id="navi-technicalliferecordedit-control-008" />
                     </div>
 
                     <div>
-                        <label>Proveedor</label>
-                        <InputText class="form-control" @bind-Value="editModel.Provider" />
+                        <label for="navi-technicalliferecordedit-control-009">Proveedor</label>
+                        <InputText class="form-control" @bind-Value="editModel.Provider" id="navi-technicalliferecordedit-control-009" />
                     </div>
 
                     <div class="form-check-row">
-                        <InputCheckbox class="form-check-input" @bind-Value="editModel.RequiresMaintenance" />
-                        <label>Requiere mantenimiento</label>
+                        <InputCheckbox class="form-check-input" @bind-Value="editModel.RequiresMaintenance" name="navi-technicalliferecordedit-field-001" id="navi-technicalliferecordedit-control-018" />
+                        <label for="navi-technicalliferecordedit-control-018">Requiere mantenimiento</label>
                     </div>
 
                     <div class="form-check-row">
-                        <InputCheckbox class="form-check-input" @bind-Value="editModel.RequiresPreOperationalCheck" />
-                        <label>Requiere preoperacional</label>
+                        <InputCheckbox class="form-check-input" @bind-Value="editModel.RequiresPreOperationalCheck" name="navi-technicalliferecordedit-field-002" id="navi-technicalliferecordedit-control-019" />
+                        <label for="navi-technicalliferecordedit-control-019">Requiere preoperacional</label>
                     </div>
 
                     <div class="form-check-row">
-                        <InputCheckbox class="form-check-input" @bind-Value="editModel.RequiresCertification" />
-                        <label>Requiere certificación</label>
+                        <InputCheckbox class="form-check-input" @bind-Value="editModel.RequiresCertification" name="navi-technicalliferecordedit-field-003" id="navi-technicalliferecordedit-control-020" />
+                        <label for="navi-technicalliferecordedit-control-020">Requiere certificación</label>
                     </div>
 
                     <div>
-                        <label>Fecha vencimiento certificación</label>
-                        <InputDate class="form-control" @bind-Value="editModel.CertificationExpirationDate" />
+                        <label for="navi-technicalliferecordedit-control-010">Fecha vencimiento certificación</label>
+                        <InputDate class="form-control" @bind-Value="editModel.CertificationExpirationDate" id="navi-technicalliferecordedit-control-010" />
                     </div>
                 </div>
             </section>
@@ -142,13 +212,13 @@ else if (editModel is not null)
 
                 <div class="edit-form-grid">
                     <div class="form-check-row">
-                        <InputCheckbox class="form-check-input" @bind-Value="editModel.HasWarranty" />
-                        <label>Tiene garantía</label>
+                        <InputCheckbox class="form-check-input" @bind-Value="editModel.HasWarranty" name="navi-technicalliferecordedit-field-004" id="navi-technicalliferecordedit-control-021" />
+                        <label for="navi-technicalliferecordedit-control-021">Tiene garantía</label>
                     </div>
 
                     <div>
-                        <label>Tipo de garantía</label>
-                        <InputText class="form-control" @bind-Value="editModel.WarrantyType" />
+                        <label for="navi-technicalliferecordedit-control-011">Tipo de garantía</label>
+                        <InputText class="form-control" @bind-Value="editModel.WarrantyType" id="navi-technicalliferecordedit-control-011" />
                     </div>
                 </div>
             </section>
@@ -161,18 +231,18 @@ else if (editModel is not null)
 
                 <div class="edit-form-grid">
                     <div>
-                        <label>Fecha inicial vida útil</label>
-                        <InputDate class="form-control" @bind-Value="editModel.UsefulLifeStartDate" />
+                        <label for="navi-technicalliferecordedit-control-012">Fecha inicial vida útil</label>
+                        <InputDate class="form-control" @bind-Value="editModel.UsefulLifeStartDate" id="navi-technicalliferecordedit-control-012" />
                     </div>
 
                     <div>
-                        <label>Vida útil meses</label>
-                        <InputNumber class="form-control" @bind-Value="editModel.UsefulLifeMonths" />
+                        <label for="navi-technicalliferecordedit-control-013">Vida útil meses</label>
+                        <InputNumber class="form-control" @bind-Value="editModel.UsefulLifeMonths" id="navi-technicalliferecordedit-control-013" />
                     </div>
 
                     <div>
-                        <label>Vida útil días</label>
-                        <InputNumber class="form-control" @bind-Value="editModel.UsefulLifeDays" />
+                        <label for="navi-technicalliferecordedit-control-014">Vida útil días</label>
+                        <InputNumber class="form-control" @bind-Value="editModel.UsefulLifeDays" id="navi-technicalliferecordedit-control-014" />
                     </div>
                 </div>
             </section>
@@ -186,18 +256,18 @@ else if (editModel is not null)
 
             <div class="edit-form-grid three-columns">
                 <div>
-                    <label>Último mantenimiento</label>
-                    <InputDate class="form-control" @bind-Value="editModel.LastMaintenanceDate" />
+                    <label for="navi-technicalliferecordedit-control-015">Último mantenimiento</label>
+                    <InputDate class="form-control" @bind-Value="editModel.LastMaintenanceDate" id="navi-technicalliferecordedit-control-015" />
                 </div>
 
                 <div>
-                    <label>Próximo mantenimiento</label>
-                    <InputDate class="form-control" @bind-Value="editModel.NextMaintenanceDate" />
+                    <label for="navi-technicalliferecordedit-control-016">Próximo mantenimiento</label>
+                    <InputDate class="form-control" @bind-Value="editModel.NextMaintenanceDate" id="navi-technicalliferecordedit-control-016" />
                 </div>
 
                 <div>
-                    <label>Periodicidad meses</label>
-                    <InputNumber class="form-control" @bind-Value="editModel.MaintenancePeriodMonths" />
+                    <label for="navi-technicalliferecordedit-control-017">Periodicidad meses</label>
+                    <InputNumber class="form-control" @bind-Value="editModel.MaintenancePeriodMonths" id="navi-technicalliferecordedit-control-017" />
                 </div>
             </div>
         </section>
@@ -210,20 +280,24 @@ else if (editModel is not null)
 
             <InputTextArea class="form-control technical-observation"
                            @bind-Value="editModel.Observation"
-                           placeholder="Describe el motivo de la actualización..." />
+                           placeholder="Describe el motivo de la actualización..." name="navi-technicalliferecordedit-field-005" />
         </section>
 
         <div class="technical-edit-actions">
-            <button type="button" class="btn btn-outline-secondary" @onclick="GoBack" data-ntx-tone="primary" >
+            <button type="button" class="btn btn-outline-secondary" @onclick="GoBack" data-ntx-tone="secondary" >
                 Cancelar
             </button>
 
-            <button type="submit" class="btn btn-primary" disabled="@isSaving" data-ntx-tone="primary" >
+            <button type="submit" class="btn ntx-btn--operation" disabled="@isSaving" data-ntx-tone="affirmative" >
                 @(isSaving ? "Guardando..." : "Guardar datos técnicos")
             </button>
         </div>
     </EditForm>
 }
+
+
+
+</div>
 
 </PermissionGuard>
 

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Text;
 using Navi.ToolsAssets.Api.Security;
+using Navi.ToolsAssets.Application.Documents;
 using Navi.ToolsAssets.Domain.Entities.Purchases;
 using Navi.ToolsAssets.Infrastructure.Persistence.Context;
 
@@ -11,11 +12,17 @@ namespace Navi.ToolsAssets.Api.Controllers;
 [Route("api/purchase-requests")]
 public sealed class PurchaseRequestsController : ControllerBase
 {
-    private readonly NaviToolsAssetsDbContext _context;
+    private const long MaxEvidenceFileBytes = 5L * 1024L * 1024L;
 
-    public PurchaseRequestsController(NaviToolsAssetsDbContext context)
+    private readonly NaviToolsAssetsDbContext _context;
+    private readonly IDocumentStorageService _storageService;
+
+    public PurchaseRequestsController(
+        NaviToolsAssetsDbContext context,
+        IDocumentStorageService storageService)
     {
         _context = context;
+        _storageService = storageService;
     }
     [RequirePermission("Purchases.View")]
     [HttpGet]
@@ -160,8 +167,217 @@ public sealed class PurchaseRequestsController : ControllerBase
             return NotFound(new { Message = "No se encontró la solicitud de compra." });
         }
 
+        var evidences = await _context.PurchaseRequestEvidences
+            .AsNoTracking()
+            .Where(x =>
+                !x.IsDeleted &&
+                x.PurchaseRequestId == id)
+            .OrderBy(x => x.EvidenceType)
+            .ThenBy(x => x.ReferenceName)
+            .ThenBy(x => x.UploadedAt)
+            .ToListAsync(cancellationToken);
+
+        item.Evidences = evidences
+            .Select(ToEvidenceDto)
+            .ToList();
+
         return Ok(item);
     }
+
+    [RequirePermission("Purchases.Request", "Purchases.Quote")]
+    [HttpPost("workspaces/{workspaceId:guid}/evidences")]
+    [RequestSizeLimit(MaxEvidenceFileBytes + 1024L * 1024L)]
+    public async Task<IActionResult> UploadWorkspaceEvidence(
+        Guid workspaceId,
+        [FromForm] IFormFile file,
+        [FromForm] Guid referenceId,
+        [FromForm] string evidenceType,
+        [FromForm] string? referenceName,
+        CancellationToken cancellationToken)
+    {
+        await EnsurePurchaseSchemaAsync(cancellationToken);
+
+        if (workspaceId == Guid.Empty || referenceId == Guid.Empty)
+        {
+            return BadRequest(new
+            {
+                Message = "La referencia de la solicitud o de la evidencia no es válida."
+            });
+        }
+
+        if (file is null || file.Length <= 0)
+        {
+            return BadRequest(new { Message = "Debes seleccionar una imagen válida." });
+        }
+
+        if (file.Length > MaxEvidenceFileBytes)
+        {
+            return BadRequest(new { Message = "La imagen no puede superar 5 MB." });
+        }
+
+        var normalizedType = NormalizeEvidenceType(evidenceType);
+
+        if (normalizedType is null)
+        {
+            return BadRequest(new
+            {
+                Message = "El tipo de evidencia debe ser ToolImage o QuotationImage."
+            });
+        }
+
+        var normalizedContentType = NormalizeImageContentType(
+            file.ContentType,
+            file.FileName);
+
+        if (normalizedContentType is null)
+        {
+            return BadRequest(new
+            {
+                Message = "Solo se permiten imágenes JPG, PNG o WEBP."
+            });
+        }
+
+        var currentUser = GetUserName();
+        var extension = GetImageExtension(normalizedContentType);
+        var objectKey =
+            $"purchase-requests/workspaces/{workspaceId:N}/" +
+            $"{normalizedType.ToLowerInvariant()}/{referenceId:N}/" +
+            $"{DateTime.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}{extension}";
+
+        var existing = await _context.PurchaseRequestEvidences
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(x =>
+                x.WorkspaceId == workspaceId &&
+                x.ReferenceId == referenceId &&
+                x.EvidenceType == normalizedType,
+                cancellationToken);
+
+        if (existing?.PurchaseRequestId is not null)
+        {
+            return BadRequest(new
+            {
+                Message = "La evidencia ya pertenece a una solicitud generada y no puede reemplazarse."
+            });
+        }
+
+        var previousObjectKey = existing?.ObjectKey;
+
+        await using var inputStream = file.OpenReadStream();
+        using var uploadStream = new MemoryStream();
+        await inputStream.CopyToAsync(uploadStream, cancellationToken);
+        uploadStream.Position = 0;
+
+        await _storageService.UploadAsync(
+            objectKey,
+            uploadStream,
+            normalizedContentType,
+            cancellationToken);
+
+        try
+        {
+            if (existing is null)
+            {
+                existing = new PurchaseRequestEvidence
+                {
+                    Id = Guid.NewGuid(),
+                    WorkspaceId = workspaceId,
+                    ReferenceId = referenceId,
+                    EvidenceType = normalizedType,
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = currentUser
+                };
+
+                _context.PurchaseRequestEvidences.Add(existing);
+            }
+
+            existing.IsDeleted = false;
+            existing.ReferenceName = string.IsNullOrWhiteSpace(referenceName)
+                ? null
+                : referenceName.Trim();
+            existing.FileName = Path.GetFileName(file.FileName);
+            existing.ContentType = normalizedContentType;
+            existing.ObjectKey = objectKey;
+            existing.FileSize = file.Length;
+            existing.UploadedBy = currentUser;
+            existing.UploadedAt = DateTime.UtcNow;
+            existing.UpdatedAt = DateTime.UtcNow;
+            existing.UpdatedBy = currentUser;
+
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            try
+            {
+                await _storageService.DeleteAsync(objectKey, cancellationToken);
+            }
+            catch
+            {
+                // No se oculta el error principal de persistencia.
+            }
+
+            throw;
+        }
+
+        if (!string.IsNullOrWhiteSpace(previousObjectKey) &&
+            !string.Equals(previousObjectKey, objectKey, StringComparison.Ordinal))
+        {
+            try
+            {
+                await _storageService.DeleteAsync(
+                    previousObjectKey,
+                    cancellationToken);
+            }
+            catch
+            {
+                // El nuevo archivo ya está persistido.
+            }
+        }
+
+        return Ok(ToEvidenceDto(existing));
+    }
+
+    [RequirePermission("Purchases.View", "Purchases.Request", "Purchases.Quote")]
+    [HttpGet("evidences/{evidenceId:guid}/download")]
+    public async Task<IActionResult> DownloadEvidence(
+        Guid evidenceId,
+        CancellationToken cancellationToken)
+    {
+        await EnsurePurchaseSchemaAsync(cancellationToken);
+
+        var evidence = await _context.PurchaseRequestEvidences
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x =>
+                !x.IsDeleted &&
+                x.Id == evidenceId,
+                cancellationToken);
+
+        if (evidence is null)
+        {
+            return NotFound(new { Message = "No se encontró la evidencia." });
+        }
+
+        if (!await _storageService.ExistsAsync(
+                evidence.ObjectKey,
+                cancellationToken))
+        {
+            return NotFound(new
+            {
+                Message = "El archivo físico de la evidencia no está disponible."
+            });
+        }
+
+        var stream = await _storageService.DownloadAsync(
+            evidence.ObjectKey,
+            cancellationToken);
+
+        return File(
+            stream,
+            evidence.ContentType,
+            evidence.FileName,
+            enableRangeProcessing: true);
+    }
+
     [RequirePermission("Purchases.Generate")]
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreatePurchaseRequestRequest request, CancellationToken cancellationToken)
@@ -221,6 +437,38 @@ public sealed class PurchaseRequestsController : ControllerBase
         }
 
         _context.PurchaseRequests.Add(item);
+
+        if (request.WorkspaceId.HasValue &&
+            request.EvidenceIds is { Count: > 0 })
+        {
+            var evidenceIds = request.EvidenceIds
+                .Where(x => x != Guid.Empty)
+                .Distinct()
+                .ToList();
+
+            var evidences = await _context.PurchaseRequestEvidences
+                .Where(x =>
+                    x.WorkspaceId == request.WorkspaceId.Value &&
+                    x.PurchaseRequestId == null &&
+                    evidenceIds.Contains(x.Id))
+                .ToListAsync(cancellationToken);
+
+            if (evidences.Count != evidenceIds.Count)
+            {
+                return BadRequest(new
+                {
+                    Message = "Una o más evidencias no pertenecen a la solicitud activa."
+                });
+            }
+
+            foreach (var evidence in evidences)
+            {
+                evidence.PurchaseRequestId = item.Id;
+                evidence.UpdatedAt = DateTime.UtcNow;
+                evidence.UpdatedBy = currentUser;
+            }
+        }
+
         await _context.SaveChangesAsync(cancellationToken);
 
         return Ok(new
@@ -585,6 +833,78 @@ public sealed class PurchaseRequestsController : ControllerBase
         });
     }
 
+    private static PurchaseRequestEvidenceDto ToEvidenceDto(
+        PurchaseRequestEvidence evidence)
+    {
+        return new PurchaseRequestEvidenceDto
+        {
+            Id = evidence.Id,
+            WorkspaceId = evidence.WorkspaceId,
+            PurchaseRequestId = evidence.PurchaseRequestId,
+            ReferenceId = evidence.ReferenceId,
+            EvidenceType = evidence.EvidenceType,
+            ReferenceName = evidence.ReferenceName,
+            FileName = evidence.FileName,
+            ContentType = evidence.ContentType,
+            FileSize = evidence.FileSize,
+            UploadedBy = evidence.UploadedBy,
+            UploadedAt = evidence.UploadedAt,
+            DownloadUrl =
+                $"api/purchase-requests/evidences/{evidence.Id}/download"
+        };
+    }
+
+    private static string? NormalizeEvidenceType(string? value)
+    {
+        if (string.Equals(
+                value,
+                "ToolImage",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return "ToolImage";
+        }
+
+        if (string.Equals(
+                value,
+                "QuotationImage",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return "QuotationImage";
+        }
+
+        return null;
+    }
+
+    private static string? NormalizeImageContentType(
+        string? contentType,
+        string? fileName)
+    {
+        var normalized = contentType?.Trim().ToLowerInvariant();
+
+        if (normalized is "image/jpeg" or "image/png" or "image/webp")
+        {
+            return normalized;
+        }
+
+        return Path.GetExtension(fileName).ToLowerInvariant() switch
+        {
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".webp" => "image/webp",
+            _ => null
+        };
+    }
+
+    private static string GetImageExtension(string contentType)
+    {
+        return contentType switch
+        {
+            "image/png" => ".png",
+            "image/webp" => ".webp",
+            _ => ".jpg"
+        };
+    }
+
     private async Task<string> GenerateRequestNumberAsync(CancellationToken cancellationToken)
     {
         var prefix = $"SPC-NAVI-{DateTime.UtcNow:yyyyMM}";
@@ -716,6 +1036,74 @@ BEGIN
     CREATE UNIQUE INDEX [IX_PurchaseRequests_RequestNumber]
         ON [Purchases].[PurchaseRequests]([RequestNumber]);
 END
+
+IF OBJECT_ID('[Purchases].[PurchaseRequestEvidences]', 'U') IS NULL
+BEGIN
+    CREATE TABLE [Purchases].[PurchaseRequestEvidences](
+        [Id] UNIQUEIDENTIFIER NOT NULL CONSTRAINT [PK_PurchaseRequestEvidences] PRIMARY KEY,
+        [WorkspaceId] UNIQUEIDENTIFIER NOT NULL,
+        [PurchaseRequestId] UNIQUEIDENTIFIER NULL,
+        [ReferenceId] UNIQUEIDENTIFIER NOT NULL,
+        [EvidenceType] NVARCHAR(40) NOT NULL,
+        [ReferenceName] NVARCHAR(300) NULL,
+        [FileName] NVARCHAR(260) NOT NULL,
+        [ContentType] NVARCHAR(100) NOT NULL,
+        [ObjectKey] NVARCHAR(700) NOT NULL,
+        [FileSize] BIGINT NOT NULL,
+        [UploadedBy] NVARCHAR(150) NOT NULL,
+        [UploadedAt] DATETIME2 NOT NULL,
+        [CreatedAt] DATETIME2 NOT NULL,
+        [CreatedBy] NVARCHAR(150) NULL,
+        [UpdatedAt] DATETIME2 NULL,
+        [UpdatedBy] NVARCHAR(150) NULL,
+        [IsDeleted] BIT NOT NULL CONSTRAINT [DF_PurchaseRequestEvidences_IsDeleted] DEFAULT(0)
+    );
+END
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_PurchaseRequestEvidences_WorkspaceId'
+      AND object_id = OBJECT_ID('[Purchases].[PurchaseRequestEvidences]')
+)
+BEGIN
+    CREATE INDEX [IX_PurchaseRequestEvidences_WorkspaceId]
+        ON [Purchases].[PurchaseRequestEvidences]([WorkspaceId]);
+END
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_PurchaseRequestEvidences_PurchaseRequestId'
+      AND object_id = OBJECT_ID('[Purchases].[PurchaseRequestEvidences]')
+)
+BEGIN
+    CREATE INDEX [IX_PurchaseRequestEvidences_PurchaseRequestId]
+        ON [Purchases].[PurchaseRequestEvidences]([PurchaseRequestId]);
+END
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_PurchaseRequestEvidences_Workspace_Type_Reference'
+      AND object_id = OBJECT_ID('[Purchases].[PurchaseRequestEvidences]')
+)
+BEGIN
+    CREATE INDEX [IX_PurchaseRequestEvidences_Workspace_Type_Reference]
+        ON [Purchases].[PurchaseRequestEvidences](
+            [WorkspaceId],
+            [EvidenceType],
+            [ReferenceId]
+        );
+END
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.foreign_keys
+    WHERE name = 'FK_PurchaseRequestEvidences_PurchaseRequests_PurchaseRequestId'
+)
+BEGIN
+    ALTER TABLE [Purchases].[PurchaseRequestEvidences]
+        ADD CONSTRAINT [FK_PurchaseRequestEvidences_PurchaseRequests_PurchaseRequestId]
+        FOREIGN KEY ([PurchaseRequestId])
+        REFERENCES [Purchases].[PurchaseRequests]([Id]);
+END
 ";
         await _context.Database.ExecuteSqlRawAsync(sql, cancellationToken);
     }
@@ -783,6 +1171,8 @@ public sealed class CreatePurchaseRequestRequest
     public DateTime? ReceivedAt { get; set; }
     public string? ReceivedBy { get; set; }
     public string? Notes { get; set; }
+    public Guid? WorkspaceId { get; set; }
+    public List<Guid> EvidenceIds { get; set; } = new();
     public bool SendToReview { get; set; }
 }
 
@@ -839,4 +1229,21 @@ public sealed class PurchaseRequestDto
     public string? DynamicsStatus { get; set; }
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; }
+    public List<PurchaseRequestEvidenceDto> Evidences { get; set; } = new();
+}
+
+public sealed class PurchaseRequestEvidenceDto
+{
+    public Guid Id { get; set; }
+    public Guid WorkspaceId { get; set; }
+    public Guid? PurchaseRequestId { get; set; }
+    public Guid ReferenceId { get; set; }
+    public string EvidenceType { get; set; } = string.Empty;
+    public string? ReferenceName { get; set; }
+    public string FileName { get; set; } = string.Empty;
+    public string ContentType { get; set; } = string.Empty;
+    public long FileSize { get; set; }
+    public string UploadedBy { get; set; } = string.Empty;
+    public DateTime UploadedAt { get; set; }
+    public string DownloadUrl { get; set; } = string.Empty;
 }

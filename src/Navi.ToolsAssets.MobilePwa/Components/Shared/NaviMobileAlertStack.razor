@@ -1,0 +1,52 @@
+@using System.Collections.Generic
+@using Microsoft.AspNetCore.Components
+
+<div @attributes="AdditionalAttributes"
+     class="@CssClass"
+     data-ntx-component="mobile-alert-stack"
+     aria-label="@AriaLabel">
+    @ChildContent
+</div>
+
+@code {
+    [Parameter]
+    public bool Compact { get; set; } = true;
+
+    [Parameter]
+    public string AriaLabel { get; set; } =
+        "Mensajes del sistema";
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>?
+        AdditionalAttributes { get; set; }
+
+    private string CssClass
+    {
+        get
+        {
+            var classes = new List<string>
+            {
+                "navi-mobile-alert-stack"
+            };
+
+            if (Compact)
+            {
+                classes.Add(
+                    "navi-mobile-alert-stack--compact");
+            }
+
+            if (!string.IsNullOrWhiteSpace(Class))
+            {
+                classes.Add(Class.Trim());
+            }
+
+            return string.Join(" ", classes);
+        }
+    }
+}

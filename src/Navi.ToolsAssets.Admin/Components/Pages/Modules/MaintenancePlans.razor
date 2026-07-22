@@ -11,85 +11,74 @@
 
 <PermissionGuard Permission="MaintenancePlans.View" ModuleName="Planes de Mantenimiento">
 
+<section class="navi-reference-toolbar maintenance-plans-kpi-toolbar">
 <NaviPageHero
+    Class="navi-reference-toolbar__actions"
     Pill="OPERACIONES"
     Title="Planes de mantenimiento"
     Description="Controla vencimientos, cobertura, solicitudes pendientes, cronograma y relación con solicitudes de mantenimiento.">
 
-    @if (CanRequestMaintenance)
-    {
-        <a href="/maintenance-request">Solicitar</a>
-    }
-
-    <button type="button" @onclick="LoadAsync" data-ntx-tone="secondary" >
+    <button type="button"
+            title="Actualizar planes de mantenimiento"
+            aria-label="Actualizar planes de mantenimiento"
+            data-ntx-icon-only="true"
+            @onclick="LoadAsync"
+            data-ntx-tone="refresh">
         Actualizar
     </button>
 
 </NaviPageHero>
 
+<NaviKpiGrid Columns="6"
+             Class="plans-kpis plans-kpis-inline plans-kpis-standard">
+    <NaviKpiCard Title="Total activos"
+                 Description="Según filtros activos"
+                 Tone="neutral">
+        <IconContent><NaviKpiIcon Name="inventory" /></IconContent>
+        <ValueContent>@FilteredPlans.Count()</ValueContent>
+    </NaviKpiCard>
+
+    <NaviKpiCard Title="Al día"
+                 Description="Sin vencimiento"
+                 Tone="positive">
+        <IconContent><NaviKpiIcon Name="check" /></IconContent>
+        <ValueContent>@FilteredPlans.Count(x => x.PlanStatus == "OnTime")</ValueContent>
+    </NaviKpiCard>
+
+    <NaviKpiCard Title="Por vencer"
+                 Description="Próximos 30 días"
+                 Tone="warning">
+        <IconContent><NaviKpiIcon Name="clock" /></IconContent>
+        <ValueContent>@FilteredPlans.Count(x => x.PlanStatus == "DueSoon")</ValueContent>
+    </NaviKpiCard>
+
+    <NaviKpiCard Title="Vencidos"
+                 Description="Requieren atención"
+                 Tone="danger">
+        <IconContent><NaviKpiIcon Name="alert" /></IconContent>
+        <ValueContent>@FilteredPlans.Count(x => x.PlanStatus == "Overdue")</ValueContent>
+    </NaviKpiCard>
+
+    <NaviKpiCard Title="Solicitudes"
+                 Description="Pendientes abiertas"
+                 Tone="soft">
+        <IconContent><NaviKpiIcon Name="document" /></IconContent>
+        <ValueContent>@FilteredPlans.Sum(x => x.PendingRequests)</ValueContent>
+    </NaviKpiCard>
+
+    <NaviKpiCard Title="Completados"
+                 Description="Registros cerrados"
+                 Tone="positive">
+        <IconContent><NaviKpiIcon Name="progress" /></IconContent>
+        <ValueContent>@FilteredPlans.Sum(x => x.CompletedMaintenances)</ValueContent>
+    </NaviKpiCard>
+</NaviKpiGrid>
+</section>
+
 @if (!string.IsNullOrWhiteSpace(errorMessage))
 {
     <div class="alert alert-danger">@errorMessage</div>
 }
-
-<section class="plans-kpis plans-kpis-inline plans-kpis-standard">
-    <article>
-        <span>Total activos</span>
-        <strong>@FilteredPlans.Count()</strong>
-        <small>Según filtros activos</small>
-    </article>
-
-    <article class="success">
-        <span>Al día</span>
-        <strong>@FilteredPlans.Count(x => x.PlanStatus == "OnTime")</strong>
-        <small>Sin vencimiento</small>
-    </article>
-
-    <article class="warning">
-        <span>Por vencer</span>
-        <strong>@FilteredPlans.Count(x => x.PlanStatus == "DueSoon")</strong>
-        <small>Próximos 30 días</small>
-    </article>
-
-    <article class="danger">
-        <span>Vencidos</span>
-        <strong>@FilteredPlans.Count(x => x.PlanStatus == "Overdue")</strong>
-        <small>Requieren atención</small>
-    </article>
-
-    <article class="primary">
-        <span>Solicitudes</span>
-        <strong>@FilteredPlans.Sum(x => x.PendingRequests)</strong>
-        <small>Pendientes abiertas</small>
-    </article>
-
-    <article class="info">
-        <span>Completados</span>
-        <strong>@FilteredPlans.Sum(x => x.CompletedMaintenances)</strong>
-        <small>Registros cerrados</small>
-    </article>
-</section>
-
-
-
-<section class="plans-status-filters plans-status-filters-modern" aria-label="Estados de planes de mantenimiento">
-    <button type="button"
-            class="@GetPlanStatusFilterChipClass(string.Empty)"
-            @onclick="@(() => SelectPlanStatus(string.Empty))" data-ntx-tone="secondary" >
-        Todos
-        <span>@PlanBaseFilteredPlans.Count()</span>
-    </button>
-
-    @foreach (var status in PlanStatusOptions)
-    {
-        <button type="button"
-                class="@GetPlanStatusFilterChipClass(status.Value)"
-                @onclick="@(() => SelectPlanStatus(status.Value))" data-ntx-tone="secondary" >
-            @status.Text
-            <span>@PlanBaseFilteredPlans.Count(x => x.PlanStatus == status.Value)</span>
-        </button>
-    }
-</section>
 
 
 
@@ -97,9 +86,9 @@
     <input class="form-control form-control-sm"
            placeholder="Buscar código, activo, ubicación, responsable, proveedor o técnico..."
            @bind="searchText"
-           @bind:event="oninput" />
+           @bind:event="oninput" name="navi-maintenanceplans-field-001" />
 
-    <select class="form-select form-select-sm" @bind="selectedBranchCode">
+    <select class="form-select form-select-sm" @bind="selectedBranchCode" name="navi-maintenanceplans-field-002">
         <option value="">Todas las sedes</option>
         @foreach (var branch in PlanBranchOptions)
         {
@@ -110,6 +99,25 @@
     <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="ClearPlanFilters" data-ntx-tone="secondary" >
         Limpiar
     </button>
+</section>
+
+<section class="plans-status-filters plans-status-filters-modern" aria-label="Estados de planes de mantenimiento">
+    <button type="button"
+            class="@GetPlanStatusFilterChipClass(string.Empty)"
+            @onclick="@(() => SelectPlanStatus(string.Empty))" data-ntx-tone="ghost" >
+        Todos
+        <span>@PlanBaseFilteredPlans.Count()</span>
+    </button>
+
+    @foreach (var status in PlanStatusOptions)
+    {
+        <button type="button"
+                class="@GetPlanStatusFilterChipClass(status.Value)"
+                @onclick="@(() => SelectPlanStatus(status.Value))" data-ntx-tone="ghost" >
+            @status.Text
+            <span>@PlanBaseFilteredPlans.Count(x => x.PlanStatus == status.Value)</span>
+        </button>
+    }
 </section>
 
 
@@ -126,7 +134,7 @@
 
     @if (isLoading)
     {
-        <div class="plans-empty">Cargando planes...</div>
+        <div class="plans-empty" role="status" aria-busy="true">Cargando planes...</div>
     }
     else if (!FilteredPlans.Any())
     {
@@ -135,7 +143,8 @@
     else
     {
         <div class="plans-table-wrapper">
-            <table class="plans-table">
+            <div class="ntx-table-scroll">
+                <table class="plans-table">
                 <thead>
                     <tr>
                         <th>Activo</th>
@@ -196,24 +205,17 @@
 
                             <td>
                                 <div class="plans-actions">
-    @if (CanOpenLifeRecord)
-    {
-        <a class="plans-action neutral" href="@($"/tools/{item.ToolAssetId}/technical-life-record")" data-ntx-tone="ghost" >
-            Hoja de vida
-        </a>
-    }
-
     @if (CanOpenMaintenanceSchedule)
     {
-        <a class="plans-action primary" href="@($"/tools/{item.ToolAssetId}/maintenance-schedule")" data-ntx-tone="primary" >
+        <a class="plans-action primary" href="@($"/tools/{item.ToolAssetId}/maintenance-schedule")" data-ntx-tone="operation" >
             Cronograma
         </a>
     }
 
     @if (CanRequestMaintenance)
     {
-        <a class="plans-action success" href="/maintenance-request" data-ntx-tone="primary" >
-            Solicitar
+        <a class="plans-action success" href="/maintenance-request" data-ntx-tone="operation" >
+            Solicitud
         </a>
     }
 </div>
@@ -222,6 +224,7 @@
                     }
                 </tbody>
             </table>
+            </div>
         </div>
     }
 </section>
@@ -436,7 +439,7 @@
 
         if (total <= 0)
         {
-            return "background: #FFFFFF;";
+            return "background: var(--navi-color-surface);";
         }
 
         var onTime = plans.Count(x => x.PlanStatus == "OnTime");
@@ -446,7 +449,7 @@
         var onTimeEnd = PercentEnd(onTime, total, 0);
         var dueSoonEnd = PercentEnd(dueSoon, total, onTimeEnd);
 
-        return "background: #FFFFFF;";
+        return "background: var(--navi-color-surface);";
     }
 
     private static decimal PercentEnd(int value, int total, decimal start)

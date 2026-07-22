@@ -15,14 +15,14 @@
 <section class="mobile-page mobile-documents-web">
     @if (isLoading && !initialized)
     {
-        <div class="mobile-loading">Cargando gestión documental...</div>
+        <div class="mobile-loading" role="status" aria-busy="true">Cargando gestión documental...</div>
     }
     else if (!Auth.IsAuthenticated)
     {
         <div class="mobile-empty">
             <strong>Sesión requerida</strong>
             <span>Debes iniciar sesión para consultar documentos.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="secondary" >Ir al login</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="ghost" >Ir al login</button>
         </div>
     }
     else if (!CanAccessDocuments)
@@ -44,31 +44,39 @@
                              ShowHomeButton="true"
                              ShowBackButton="false" />
 
-        <section class="navi-mobile-documents-kpi-board-v2">
-            <div class="navi-mobile-documents-kpi-tile-v2 total">
+        <NaviMobileKpiOverflow PrimaryCount="3" OverflowCount="1" ButtonLabel="Mostrar indicador adicional">
+            <PrimaryContent>
+        <NaviMobileKpiGrid Class="navi-mobile-documents-kpi-board-v2">
+            <NaviMobileKpiCard Class="navi-mobile-documents-kpi-tile-v2 total">
                 <span>Total</span>
                 <strong>@CatalogDocuments.Count</strong>
                 <small>Documentos reales</small>
-            </div>
+            </NaviMobileKpiCard>
 
-            <div class="navi-mobile-documents-kpi-tile-v2 success">
+            <NaviMobileKpiCard Class="navi-mobile-documents-kpi-tile-v2 success">
                 <span>Con soporte</span>
                 <strong>@AssetsWithSupport</strong>
                 <small>Activos asociados</small>
-            </div>
+            </NaviMobileKpiCard>
 
-            <div class="navi-mobile-documents-kpi-tile-v2 warning">
+            <NaviMobileKpiCard Class="navi-mobile-documents-kpi-tile-v2 warning">
                 <span>Clasificación</span>
                 <strong>@CurrentCategoryCount</strong>
                 <small>@SelectedCategory.Label</small>
-            </div>
+            </NaviMobileKpiCard>
+        </NaviMobileKpiGrid>
+            </PrimaryContent>
+            <OverflowContent>
+        <NaviMobileKpiGrid Class="navi-mobile-documents-kpi-board-v2">
 
-            <div class="navi-mobile-documents-kpi-tile-v2 primary">
+            <NaviMobileKpiCard Class="navi-mobile-documents-kpi-tile-v2 primary">
                 <span>Inventario</span>
                 <strong>@VisibleTools.Count()</strong>
                 <small>Activos disponibles</small>
-            </div>
-        </section>
+            </NaviMobileKpiCard>
+        </NaviMobileKpiGrid>
+            </OverflowContent>
+        </NaviMobileKpiOverflow>
 
         @if (!string.IsNullOrWhiteSpace(errorMessage))
         {
@@ -102,7 +110,7 @@
                                     </div>
                                 </div>
 
-                                <button type="button" class="mweb-doc-manual-view-button-v3" @onclick="() => SelectedManual = manual" data-ntx-tone="secondary" >
+                                <button type="button" class="mweb-doc-manual-view-button-v3" @onclick="() => SelectedManual = manual" data-ntx-tone="consult" >
                                     Ver
                                 </button>
                             </article>
@@ -155,14 +163,14 @@
                     <div class="mweb-doc-form-grid">
                         <label>
                             <span>Clasificación</span>
-                            <input value="@SelectedCategory.Label" readonly />
+                            <input value="@SelectedCategory.Label" readonly name="navi-mobiledocuments-field-001" />
                         </label>
 
                         <label>
                             <span>Activo / herramienta existente</span>
                             <input @bind="assetSearch"
                                    @bind:event="oninput"
-                                   placeholder="Escribe código, nombre, serial, sede o responsable" />
+                                   placeholder="Escribe código, nombre, serial, sede o responsable" name="navi-mobiledocuments-field-002" />
                             @if (!string.IsNullOrWhiteSpace(assetSearch) && SelectedTool is null)
                             {
                                 <small class="mweb-doc-help warn">Escribe y selecciona un activo existente del inventario.</small>
@@ -172,12 +180,12 @@
                         <label>
                             <span>Nombre del documento</span>
                             <input @bind="uploadForm.DocumentName"
-                                   placeholder="Ej: factura compra kit scanner" />
+                                   placeholder="Ej: factura compra kit scanner" name="navi-mobiledocuments-field-003" />
                         </label>
 
                         <label>
                             <span>Responsable de carga</span>
-                            <input value="@UploadUser" readonly />
+                            <input value="@UploadUser" readonly name="navi-mobiledocuments-field-004" />
                         </label>
                     </div>
 
@@ -205,13 +213,13 @@
 
                             <small>@Display(SelectedTool.BranchCode) · @Display(SelectedTool.LocationName)</small>
 
-                            <button type="button" @onclick="ClearSelectedAsset" data-ntx-tone="ghost" >Cambiar</button>
+                            <button type="button" @onclick="ClearSelectedAsset" data-ntx-tone="operation" >Cambiar</button>
                         </div>
                     }
 
                     <label>
                         <span>Archivo</span>
-                        <InputFile OnChange="OnFileSelected" disabled="@(!CanUploadDocuments)" />
+                        <InputFile OnChange="OnFileSelected" disabled="@(!CanUploadDocuments)" name="navi-mobiledocuments-field-005" />
                         <small class="mweb-doc-help">Seleccione PDF, imagen, Excel o Word.</small>
                     </label>
 
@@ -227,14 +235,14 @@
                         <span>Descripción</span>
                         <textarea rows="4"
                                   @bind="uploadForm.Description"
-                                  placeholder="Detalle del soporte o evidencia cargada"></textarea>
+                                  placeholder="Detalle del soporte o evidencia cargada" name="navi-mobiledocuments-field-006"></textarea>
                     </label>
 
                     <div class="mweb-doc-actions">
                         <button type="button"
                                 class="success mweb-doc-save-button-v2"
                                  disabled="@(!CanSaveDocument)"
-                                 @onclick="UploadAsync" data-ntx-tone="primary" >
+                                 @onclick="UploadAsync" data-ntx-tone="affirmative" >
                             @(isSaving ? "Guardando..." : "Guardar documento")
                         </button>
 
@@ -255,9 +263,9 @@
                     <div class="mweb-doc-found-filters">
                         <input @bind="documentSearch"
                                @bind:event="oninput"
-                               placeholder="Buscar documento, activo, código, responsable..." />
+                               placeholder="Buscar documento, activo, código, responsable..." name="navi-mobiledocuments-field-007" />
 
-                        <select @bind="documentScope">
+                        <select @bind="documentScope" name="navi-mobiledocuments-field-008">
                             <option value="all">Todos los activos</option>
                             <option value="selected">Activo seleccionado</option>
                         </select>
@@ -265,7 +273,7 @@
 
                     @if (isLoadingCatalog)
                     {
-                        <div class="mobile-empty compact">Cargando documentos encontrados...</div>
+                        <div class="mobile-empty compact" role="status" aria-busy="true">Cargando documentos encontrados...</div>
                     }
                     else if (!FilteredDocuments.Any())
                     {
@@ -344,7 +352,7 @@
                             <p>@SelectedManual.Subtitle</p>
                         </div>
 
-                        <button type="button" @onclick="() => SelectedManual = null" data-ntx-tone="secondary" >Cerrar</button>
+                        <button type="button" @onclick="() => SelectedManual = null" data-ntx-tone="ghost" >Cerrar</button>
                     </header>
 
                     <p>@SelectedManual.Description</p>

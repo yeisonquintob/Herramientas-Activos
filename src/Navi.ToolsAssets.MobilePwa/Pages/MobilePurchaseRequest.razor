@@ -16,14 +16,14 @@
 <section class="mobile-page navi-mobile-purchase-request-v1">
     @if (isLoading && !initialized)
     {
-        <div class="mobile-loading">Cargando solicitud de compra...</div>
+        <div class="mobile-loading" role="status" aria-busy="true">Cargando solicitud de compra...</div>
     }
     else if (!Auth.IsAuthenticated)
     {
         <div class="mobile-empty">
             <strong>Sesión requerida</strong>
             <span>Debes iniciar sesión para continuar.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="secondary" >Ir al login</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="ghost" >Ir al login</button>
         </div>
     }
     else if (!CanAccessModule)
@@ -54,45 +54,53 @@
             <div class="mobile-alert error">@errorMessage</div>
         }
 
-        <section class="mpur-kpis mpur-kpis-compact-v2">
-            <article>
+        <NaviMobileKpiOverflow PrimaryCount="3" OverflowCount="1" ButtonLabel="Mostrar indicador adicional">
+            <PrimaryContent>
+        <NaviMobileKpiGrid Class="mpur-kpis mpur-kpis-compact-v2">
+            <NaviMobileKpiCard>
                 <span>Locales</span>
                 <strong>@LocalVisibleRequests.Count()</strong>
                 <small>Local</small>
-            </article>
+            </NaviMobileKpiCard>
 
-            <article>
+            <NaviMobileKpiCard>
                 <span>Generadas</span>
                 <strong>@FilteredRegistered.Count()</strong>
                 <small>API</small>
-            </article>
+            </NaviMobileKpiCard>
 
-            <article>
+            <NaviMobileKpiCard>
                 <span>Pendientes</span>
                 <strong>@FilteredRegistered.Count(x => IsOpenStatus(x.Status))</strong>
                 <small>Abiertas</small>
-            </article>
+            </NaviMobileKpiCard>
+        </NaviMobileKpiGrid>
+            </PrimaryContent>
+            <OverflowContent>
+        <NaviMobileKpiGrid Class="mpur-kpis mpur-kpis-compact-v2">
 
-            <article>
+            <NaviMobileKpiCard>
                 <span>Permiso</span>
                 <strong>@PermissionMode</strong>
                 <small>Rol</small>
-            </article>
-        </section>
+            </NaviMobileKpiCard>
+        </NaviMobileKpiGrid>
+            </OverflowContent>
+        </NaviMobileKpiOverflow>
 
         <section class="mpur-filter-card">
             <label>
                 <span>Buscar</span>
                 <input value="@searchText"
                        @oninput="OnSearchChanged"
-                       placeholder="Número, activo, herramienta, solicitante, sede..." />
+                       placeholder="Número, activo, herramienta, solicitante, sede..." name="navi-mobilepurchaserequest-field-001" />
             </label>
 
             @if (UserCanSeeAllBranches())
             {
                 <label>
                     <span>Sede</span>
-                    <select value="@selectedBranchCode" @onchange="OnBranchFilterChanged">
+                    <select value="@selectedBranchCode" @onchange="OnBranchFilterChanged" name="navi-mobilepurchaserequest-field-002">
                         <option value="">Todas las sedes</option>
                         @foreach (var branch in VisibleBranches)
                         {
@@ -105,7 +113,7 @@
             {
                 <label>
                     <span>Sede</span>
-                    <input value="@ScopeLabel" disabled />
+                    <input value="@ScopeLabel" disabled name="navi-mobilepurchaserequest-field-003" />
                 </label>
             }
 
@@ -123,7 +131,7 @@
             <section class="mpur-bottom-filter">
                 <label>
                     <span>Estado</span>
-                    <select value="@selectedBottomStatus" @onchange="OnBottomStatusChanged">
+                    <select value="@selectedBottomStatus" @onchange="OnBottomStatusChanged" name="navi-mobilepurchaserequest-field-004">
                         <option value="">Todos los estados</option>
                         @foreach (var status in BottomStatusOptions)
                         {
@@ -158,16 +166,16 @@
                             <div class="mpur-row-actions">
                                 @if (item.Status == LocalStatusDraft && CanCreateOrConfirmRequest)
                                 {
-                                    <button type="button" @onclick="() => LoadDraftForEdit(item.Id)" data-ntx-tone="primary" >Editar</button>
-                                    <button type="button" class="primary" @onclick="() => ConfirmStoredRequestAsync(item.Id)" data-ntx-tone="primary" >Confirmar</button>
+                                    <button type="button" @onclick="() => LoadDraftForEdit(item.Id)" data-ntx-tone="operation" >Editar</button>
+                                    <button type="button" class="primary" @onclick="() => ConfirmStoredRequestAsync(item.Id)" data-ntx-tone="affirmative" >Confirmar</button>
                                 }
                                 else if (item.Status == LocalStatusConfirmed && CanRegisterQuotation)
                                 {
-                                    <button type="button" class="warning" @onclick="() => StartQuotationAsync(item.Id)" data-ntx-tone="primary" >Realizar cotización</button>
+                                    <button type="button" class="warning" @onclick="() => StartQuotationAsync(item.Id)" data-ntx-tone="operation" >Realizar cotización</button>
                                 }
                                 else if (item.Status == LocalStatusQuoting && CanRegisterQuotation)
                                 {
-                                    <button type="button" class="warning" @onclick="() => ContinueQuotation(item.Id)" data-ntx-tone="danger" >Continuar cotización</button>
+                                    <button type="button" class="warning" @onclick="() => ContinueQuotation(item.Id)" data-ntx-tone="operation" >Continuar cotización</button>
                                 }
 
                                 <button type="button" class="danger" @onclick="() => DeleteLocalRequestAsync(item.Id)" data-ntx-tone="danger" >Eliminar</button>
@@ -190,7 +198,7 @@
                                 <div class="mpur-row-actions">
                                     @if (CanApproveRequest && item.Status == "InReview")
                                     {
-                                        <button type="button" class="approve" @onclick="() => ApproveAsync(item)" data-ntx-tone="danger" >Aprobar</button>
+                                        <button type="button" class="approve" @onclick="() => ApproveAsync(item)" data-ntx-tone="affirmative" >Aprobar</button>
                                     }
 
                                     @if (CanRejectRequest && item.Status == "InReview")
@@ -200,7 +208,7 @@
 
                                     @if (CanApproveRequest && item.Status == "Approved")
                                     {
-                                        <button type="button" class="primary" @onclick="() => ClosePurchaseAsync(item)" data-ntx-tone="primary" >Cerrar</button>
+                                        <button type="button" class="primary" @onclick="() => ClosePurchaseAsync(item)" data-ntx-tone="ghost" >Cerrar</button>
                                     }
                                 </div>
                             </article>
@@ -232,12 +240,12 @@
                 <div class="mpur-form-grid">
                     <label>
                         <span>Nombre de la solicitud</span>
-                        <InputText @bind-Value="header.RequestName" disabled="@(!CanEditRequest)" />
+                        <InputText @bind-Value="header.RequestName" disabled="@(!CanEditRequest)" name="navi-mobilepurchaserequest-field-005" />
                     </label>
 
                     <label>
                         <span>Sede</span>
-                        <InputSelect @bind-Value="header.BranchIdText" disabled="@(!CanEditRequest)">
+                        <InputSelect @bind-Value="header.BranchIdText" disabled="@(!CanEditRequest)" name="navi-mobilepurchaserequest-field-006">
                             <option value="">Seleccione sede</option>
                             @foreach (var branch in VisibleBranches)
                             {
@@ -248,17 +256,17 @@
 
                     <label>
                         <span>Solicitante</span>
-                        <InputText @bind-Value="header.RequestedBy" disabled />
+                        <InputText @bind-Value="header.RequestedBy" disabled name="navi-mobilepurchaserequest-field-007" />
                     </label>
 
                     <label>
                         <span>Responsable que aprueba</span>
-                        <InputText @bind-Value="header.Approver" disabled="@(!CanEditRequest)" />
+                        <InputText @bind-Value="header.Approver" disabled="@(!CanEditRequest)" name="navi-mobilepurchaserequest-field-008" />
                     </label>
 
                     <label>
                         <span>Tipo de compra</span>
-                        <InputSelect @bind-Value="header.PurchasePurpose" disabled="@(!CanEditRequest)">
+                        <InputSelect @bind-Value="header.PurchasePurpose" disabled="@(!CanEditRequest)" name="navi-mobilepurchaserequest-field-009">
                             <option value="SPC">SPC</option>
                             <option value="Activo fijo">Activo fijo</option>
                             <option value="Herramienta">Herramienta</option>
@@ -272,7 +280,7 @@
 
                     <label>
                         <span>Prioridad</span>
-                        <InputSelect @bind-Value="header.Priority" disabled="@(!CanEditRequest)">
+                        <InputSelect @bind-Value="header.Priority" disabled="@(!CanEditRequest)" name="navi-mobilepurchaserequest-field-010">
                             <option value="Baja">Baja</option>
                             <option value="Media">Media</option>
                             <option value="Alta">Alta</option>
@@ -282,18 +290,18 @@
 
                     <label>
                         <span>Fecha requerida</span>
-                        <InputDate @bind-Value="header.RequiredAt" disabled="@(!CanEditRequest)" />
+                        <InputDate @bind-Value="header.RequiredAt" disabled="@(!CanEditRequest)" name="navi-mobilepurchaserequest-field-011" />
                     </label>
 
                     <label>
                         <span>Área / centro de costo</span>
-                        <InputText @bind-Value="header.AreaOrCostCenter" disabled="@(!CanEditRequest)" />
+                        <InputText @bind-Value="header.AreaOrCostCenter" disabled="@(!CanEditRequest)" name="navi-mobilepurchaserequest-field-012" />
                     </label>
                 </div>
 
                 <label class="mpur-full">
                     <span>Justificación general de la compra</span>
-                    <InputTextArea @bind-Value="header.Justification" disabled="@(!CanEditRequest)" />
+                    <InputTextArea @bind-Value="header.Justification" disabled="@(!CanEditRequest)" name="navi-mobilepurchaserequest-field-026" />
                 </label>
 
                 <div class="mpur-subsection-title">
@@ -304,32 +312,32 @@
                 <div class="mpur-form-grid">
                     <label>
                         <span>Imagen / referencia visual</span>
-                        <InputFile OnChange="OnImageSelected" accept="image/*" disabled="@(!CanEditRequest)" />
+                        <InputFile OnChange="OnImageSelected" accept="image/*" disabled="@(!CanEditRequest)" name="navi-mobilepurchaserequest-field-013" />
                     </label>
 
                     <label>
                         <span>Código / referencia</span>
-                        <InputText @bind-Value="lineForm.ItemCode" disabled="@(!CanEditRequest)" />
+                        <InputText @bind-Value="lineForm.ItemCode" disabled="@(!CanEditRequest)" name="navi-mobilepurchaserequest-field-014" />
                     </label>
 
                     <label>
                         <span>Nombre del activo / herramienta</span>
-                        <InputText @bind-Value="lineForm.ItemName" disabled="@(!CanEditRequest)" />
+                        <InputText @bind-Value="lineForm.ItemName" disabled="@(!CanEditRequest)" name="navi-mobilepurchaserequest-field-015" />
                     </label>
 
                     <label>
                         <span>Cantidad</span>
-                        <InputNumber @bind-Value="lineForm.Quantity" disabled="@(!CanEditRequest)" />
+                        <InputNumber @bind-Value="lineForm.Quantity" disabled="@(!CanEditRequest)" name="navi-mobilepurchaserequest-field-016" />
                     </label>
 
                     <label>
                         <span>Unidad</span>
-                        <InputText @bind-Value="lineForm.Unit" disabled="@(!CanEditRequest)" />
+                        <InputText @bind-Value="lineForm.Unit" disabled="@(!CanEditRequest)" name="navi-mobilepurchaserequest-field-017" />
                     </label>
 
                     <label>
                         <span>Tipo / categoría</span>
-                        <InputSelect @bind-Value="lineForm.Category" disabled="@(!CanEditRequest)">
+                        <InputSelect @bind-Value="lineForm.Category" disabled="@(!CanEditRequest)" name="navi-mobilepurchaserequest-field-018">
                             <option value="Herramienta">Herramienta</option>
                             <option value="Activo fijo">Activo fijo</option>
                             <option value="Equipo">Equipo</option>
@@ -347,16 +355,16 @@
 
                 <label class="mpur-full">
                     <span>Descripción técnica</span>
-                    <InputTextArea @bind-Value="lineForm.ItemDescription" disabled="@(!CanEditRequest)" />
+                    <InputTextArea @bind-Value="lineForm.ItemDescription" disabled="@(!CanEditRequest)" name="navi-mobilepurchaserequest-field-027" />
                 </label>
 
                 <label class="mpur-full">
                     <span>Observación / necesidad</span>
-                    <InputTextArea @bind-Value="lineForm.NeedDetail" disabled="@(!CanEditRequest)" />
+                    <InputTextArea @bind-Value="lineForm.NeedDetail" disabled="@(!CanEditRequest)" name="navi-mobilepurchaserequest-field-028" />
                 </label>
 
                 <div class="mpur-action-row">
-                    <button type="button" class="primary" @onclick="AddLine" disabled="@(!CanEditRequest)" data-ntx-tone="secondary" >
+                    <button type="button" class="primary" @onclick="AddLine" disabled="@(!CanEditRequest)" data-ntx-tone="refresh" >
                         @(editingLineId.HasValue ? "Actualizar" : "Agregar")
                     </button>
 
@@ -390,11 +398,11 @@
 
                                 <div class="mpur-row-actions">
                                     <label>
-                                        <InputCheckbox @bind-Value="item.Selected" disabled="@(!CanEditRequest)" />
+                                        <InputCheckbox @bind-Value="item.Selected" disabled="@(!CanEditRequest)" name="navi-mobilepurchaserequest-field-019" />
                                         Usar
                                     </label>
 
-                                    <button type="button" @onclick="() => EditLine(item.Id)" disabled="@(!CanEditRequest)" data-ntx-tone="danger" >Editar</button>
+                                    <button type="button" @onclick="() => EditLine(item.Id)" disabled="@(!CanEditRequest)" data-ntx-tone="operation" >Editar</button>
                                     <button type="button" class="danger" @onclick="() => RemoveLine(item.Id)" disabled="@(!CanEditRequest)" data-ntx-tone="danger" >Quitar</button>
                                 </div>
                             </article>
@@ -415,11 +423,11 @@
                 </div>
 
                 <div class="mpur-action-row">
-                    <button type="button" @onclick="SaveDraftAsync" disabled="@(!CanSaveAsDraft)" data-ntx-tone="primary" >
+                    <button type="button" @onclick="SaveDraftAsync" disabled="@(!CanSaveAsDraft)" data-ntx-tone="affirmative" >
                         Guardar borrador
                     </button>
 
-                    <button type="button" class="primary" @onclick="ConfirmRequestAsync" disabled="@(!CanConfirmRequest)" data-ntx-tone="primary" >
+                    <button type="button" class="primary" @onclick="ConfirmRequestAsync" disabled="@(!CanConfirmRequest)" data-ntx-tone="affirmative" >
                         Confirmar solicitud
                     </button>
 
@@ -465,12 +473,12 @@
                 <div class="mpur-form-grid">
                     <label>
                         <span>Proveedor</span>
-                        <InputText @bind-Value="quoteForm.Provider" disabled="@(!CanQuote)" />
+                        <InputText @bind-Value="quoteForm.Provider" disabled="@(!CanQuote)" name="navi-mobilepurchaserequest-field-020" />
                     </label>
 
                     <label>
                         <span>Activo cotizado</span>
-                        <InputSelect @bind-Value="quoteForm.LineIdText" disabled="@(!CanQuote)">
+                        <InputSelect @bind-Value="quoteForm.LineIdText" disabled="@(!CanQuote)" name="navi-mobilepurchaserequest-field-021">
                             <option value="">Toda la solicitud / kit</option>
                             @foreach (var line in currentLines)
                             {
@@ -481,27 +489,27 @@
 
                     <label>
                         <span>Fecha cotización</span>
-                        <InputDate @bind-Value="quoteForm.QuotationDate" disabled="@(!CanQuote)" />
+                        <InputDate @bind-Value="quoteForm.QuotationDate" disabled="@(!CanQuote)" name="navi-mobilepurchaserequest-field-022" />
                     </label>
 
                     <label>
                         <span>Tiempo entrega</span>
-                        <InputText @bind-Value="quoteForm.DeliveryTime" disabled="@(!CanQuote)" />
+                        <InputText @bind-Value="quoteForm.DeliveryTime" disabled="@(!CanQuote)" name="navi-mobilepurchaserequest-field-023" />
                     </label>
 
                     <label>
                         <span>Precio antes de IVA</span>
-                        <InputNumber @bind-Value="quoteForm.PriceBeforeVat" disabled="@(!CanQuote)" />
+                        <InputNumber @bind-Value="quoteForm.PriceBeforeVat" disabled="@(!CanQuote)" name="navi-mobilepurchaserequest-field-024" />
                     </label>
                 </div>
 
                 <label class="mpur-full">
                     <span>Detalles adicionales de cotización</span>
-                    <InputTextArea @bind-Value="quoteForm.AdditionalDetails" disabled="@(!CanQuote)" />
+                    <InputTextArea @bind-Value="quoteForm.AdditionalDetails" disabled="@(!CanQuote)" name="navi-mobilepurchaserequest-field-029" />
                 </label>
 
                 <div class="mpur-action-row">
-                    <button type="button" class="primary" @onclick="AddQuotationAsync" disabled="@(!CanQuote)" data-ntx-tone="secondary" >
+                    <button type="button" class="primary" @onclick="AddQuotationAsync" disabled="@(!CanQuote)" data-ntx-tone="refresh" >
                         @(editingQuoteId.HasValue ? "Actualizar cotización" : "Agregar cotización")
                     </button>
 
@@ -530,11 +538,11 @@
 
                                 <div class="mpur-row-actions">
                                     <label>
-                                        <InputCheckbox @bind-Value="quote.Selected" disabled="@(!CanQuote)" />
+                                        <InputCheckbox @bind-Value="quote.Selected" disabled="@(!CanQuote)" name="navi-mobilepurchaserequest-field-025" />
                                         Usar
                                     </label>
 
-                                    <button type="button" @onclick="() => EditQuotation(quote.Id)" disabled="@(!CanQuote)" data-ntx-tone="danger" >Editar</button>
+                                    <button type="button" @onclick="() => EditQuotation(quote.Id)" disabled="@(!CanQuote)" data-ntx-tone="operation" >Editar</button>
                                     <button type="button" class="danger" @onclick="() => RemoveQuotationAsync(quote.Id)" disabled="@(!CanQuote)" data-ntx-tone="danger" >Quitar</button>
                                 </div>
                             </article>
@@ -552,22 +560,22 @@
                     <em>@SelectedQuotes.Count() cotización(es)</em>
                 </summary>
 
-                <div class="mpur-summary-grid">
-                    <article>
+                <NaviMobileKpiGrid Columns="3" Class="mpur-summary-grid">
+                    <NaviMobileKpiCard>
                         <span>Activos seleccionados</span>
                         <strong>@SelectedLines.Count()</strong>
-                    </article>
+                    </NaviMobileKpiCard>
 
-                    <article>
+                    <NaviMobileKpiCard>
                         <span>Cotizaciones seleccionadas</span>
                         <strong>@SelectedQuotes.Count()</strong>
-                    </article>
+                    </NaviMobileKpiCard>
 
-                    <article>
+                    <NaviMobileKpiCard>
                         <span>Total antes de IVA</span>
                         <strong>@MoneyLabel(SelectedQuotes.Sum(x => x.PriceBeforeVat ?? 0))</strong>
-                    </article>
-                </div>
+                    </NaviMobileKpiCard>
+                </NaviMobileKpiGrid>
 
                 @if (!CanGenerateRequest)
                 {
@@ -576,7 +584,7 @@
                     </div>
                 }
 
-                <button type="button" class="mpur-generate" @onclick="GenerateAsync" disabled="@(!CanGenerateRequest || isSaving)" data-ntx-tone="primary" >
+                <button type="button" class="mpur-generate" @onclick="GenerateAsync" disabled="@(!CanGenerateRequest || isSaving)" data-ntx-tone="ghost" >
                     @(isSaving ? "Generando..." : "Generar solicitud de compra")
                 </button>
             </details>

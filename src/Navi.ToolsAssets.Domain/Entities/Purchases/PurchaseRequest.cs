@@ -173,4 +173,7 @@ public class PurchaseRequest : BaseEntity
     public string? ReceivedBy { get; set; }
 
     public string? Notes { get; set; }
+
+    public ICollection<PurchaseRequestEvidence> Evidences { get; set; } =
+        new List<PurchaseRequestEvidence>();
 }

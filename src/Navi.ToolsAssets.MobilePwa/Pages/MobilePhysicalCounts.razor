@@ -14,14 +14,14 @@
 <section class="mobile-page navi-mobile-physical-v3 mobile-physical-standard-page navi-mobile-physical-counts-v6 navi-mobile-physical-counts-kpi-inicio-v7 navi-mobile-physical-counts-kpis-standard-v8">
     @if (isLoading && !initialized)
     {
-        <div class="mobile-loading">Cargando toma física...</div>
+        <div class="mobile-loading" role="status" aria-busy="true">Cargando toma física...</div>
     }
     else if (!Auth.IsAuthenticated)
     {
         <div class="mobile-empty">
             <strong>Sesión requerida</strong>
             <span>Debes iniciar sesión para consultar toma física.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="secondary" >Ir al login</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="ghost" >Ir al login</button>
         </div>
     }
     else if (!CanAccessPhysicalCounts)
@@ -29,7 +29,7 @@
         <div class="mobile-empty">
             <strong>Sin permiso</strong>
             <span>No tienes permisos para consultar toma física.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoHome" data-ntx-tone="primary" >Volver al inicio</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoHome" data-ntx-tone="secondary" >Volver al inicio</button>
         </div>
     }
     else
@@ -43,43 +43,51 @@
                              ShowHomeButton="true"
                              ShowBackButton="false" />
 
-        <section class="navi-mobile-physical-kpi-board-v2 navi-mobile-physical-kpi-board-v2--counts">
-            <div class="navi-mobile-physical-kpi-tile-v2 total">
+        <NaviMobileKpiOverflow PrimaryCount="3" OverflowCount="3" ButtonLabel="Mostrar indicadores adicionales">
+            <PrimaryContent>
+        <NaviMobileKpiGrid Class="navi-mobile-physical-kpi-board-v2 navi-mobile-physical-kpi-board-v2--counts">
+            <NaviMobileKpiCard Class="navi-mobile-physical-kpi-tile-v2 total">
                 <span>Total</span>
                 <strong>@FilteredCounts.Count()</strong>
                 <small>Tomas visibles</small>
-            </div>
+            </NaviMobileKpiCard>
 
-            <div class="navi-mobile-physical-kpi-tile-v2 info">
+            <NaviMobileKpiCard Class="navi-mobile-physical-kpi-tile-v2 info">
                 <span>En proceso</span>
                 <strong>@FilteredCounts.Count(x => Same(x.Status, "InProgress"))</strong>
                 <small>Activas</small>
-            </div>
+            </NaviMobileKpiCard>
 
-            <div class="navi-mobile-physical-kpi-tile-v2 success">
+            <NaviMobileKpiCard Class="navi-mobile-physical-kpi-tile-v2 success">
                 <span>Cerradas</span>
                 <strong>@FilteredCounts.Count(x => Same(x.Status, "Completed") || Same(x.Status, "Reconciled"))</strong>
                 <small>Finalizadas</small>
-            </div>
+            </NaviMobileKpiCard>
+        </NaviMobileKpiGrid>
+            </PrimaryContent>
+            <OverflowContent>
+        <NaviMobileKpiGrid Class="navi-mobile-physical-kpi-board-v2 navi-mobile-physical-kpi-board-v2--counts">
 
-            <div class="navi-mobile-physical-kpi-tile-v2 warning">
+            <NaviMobileKpiCard Class="navi-mobile-physical-kpi-tile-v2 warning">
                 <span>Reportadas</span>
                 <strong>@FilteredCounts.Sum(GetManagedAssignedItems)</strong>
                 <small>Gestionadas</small>
-            </div>
+            </NaviMobileKpiCard>
 
-            <div class="navi-mobile-physical-kpi-tile-v2 danger">
+            <NaviMobileKpiCard Class="navi-mobile-physical-kpi-tile-v2 danger">
                 <span>Pendientes</span>
                 <strong>@FilteredCounts.Sum(GetPendingAssignedItems)</strong>
                 <small>Sin reportar</small>
-            </div>
+            </NaviMobileKpiCard>
 
-            <div class="navi-mobile-physical-kpi-tile-v2 primary">
+            <NaviMobileKpiCard Class="navi-mobile-physical-kpi-tile-v2 primary">
                 <span>Avance</span>
                 <strong>@OverallProgressText</strong>
                 <small>@OverallProgressManagedItems de @OverallProgressExpectedItems</small>
-            </div>
-        </section>
+            </NaviMobileKpiCard>
+        </NaviMobileKpiGrid>
+            </OverflowContent>
+        </NaviMobileKpiOverflow>
 
         @if (!string.IsNullOrWhiteSpace(errorMessage))
         {
@@ -89,7 +97,7 @@
         <section class="mph-filter-card mobile-physical-filter mobile-physical-filter-v4">
             <label>
                 <span>Estado</span>
-                <select @bind="selectedStatus">
+                <select @bind="selectedStatus" name="navi-mobilephysicalcounts-field-001">
                     <option value="">Todos los estados</option>
                     <option value="Draft">Borrador</option>
                     <option value="InProgress">En proceso</option>
@@ -103,7 +111,7 @@
                 <span>Toma</span>
                 @if (UserCanSeeAllBranches)
                 {
-                    <select @bind="selectedCountId">
+                    <select @bind="selectedCountId" name="navi-mobilephysicalcounts-field-002">
                         <option value="">Todas las tomas</option>
                         @foreach (var count in CountFilterOptions)
                         {
@@ -113,7 +121,7 @@
                 }
                 else
                 {
-                    <input value="@LatestActiveCountLabel" disabled />
+                    <input value="@LatestActiveCountLabel" disabled name="navi-mobilephysicalcounts-field-003" />
                 }
             </label>
 
@@ -121,7 +129,7 @@
                 <span>Sede</span>
                 @if (UserCanSeeAllBranches)
                 {
-                    <select @bind="selectedBranchCode">
+                    <select @bind="selectedBranchCode" name="navi-mobilephysicalcounts-field-004">
                         <option value="">Todas las sedes</option>
                         @foreach (var branch in VisibleBranches)
                         {
@@ -131,29 +139,29 @@
                 }
                 else
                 {
-                    <input value="@ScopeLabel" disabled />
+                    <input value="@ScopeLabel" disabled name="navi-mobilephysicalcounts-field-005" />
                 }
             </label>
 
             <label>
                 <span>Desde</span>
-                <InputDate TValue="DateTime?" @bind-Value="fromDate" />
+                <InputDate TValue="DateTime?" @bind-Value="fromDate" name="navi-mobilephysicalcounts-field-006" />
             </label>
 
             <label>
                 <span>Hasta</span>
-                <InputDate TValue="DateTime?" @bind-Value="toDate" />
+                <InputDate TValue="DateTime?" @bind-Value="toDate" name="navi-mobilephysicalcounts-field-007" />
             </label>
 
             <label class="mph-full">
                 <span>Buscar</span>
                 <input @bind="searchText"
                        @bind:event="oninput"
-                       placeholder="Toma, sede, responsable, observación..." />
+                       placeholder="Toma, sede, responsable, observación..." name="navi-mobilephysicalcounts-field-008" />
             </label>
 
             <div class="mph-filter-actions">
-                <button type="button" @onclick="ClearFilters" data-ntx-tone="primary" >Limpiar</button>
+                <button type="button" @onclick="ClearFilters" data-ntx-tone="secondary" >Limpiar</button>
             </div>
         </section>
 
@@ -169,7 +177,7 @@
 
             @if (isLoading)
             {
-                <div class="mobile-empty compact">Cargando tomas físicas...</div>
+                <div class="mobile-empty compact" role="status" aria-busy="true">Cargando tomas físicas...</div>
             }
             else if (!FilteredCounts.Any())
             {
@@ -207,7 +215,7 @@
                             }
 
                             <div class="mph-actions one">
-                                <button type="button" class="view" @onclick="() => GoDetail(item.Id)" data-ntx-tone="secondary" >
+                                <button type="button" class="view" @onclick="() => GoDetail(item.Id)" data-ntx-tone="consult" >
                                     Detalle
                                 </button>
                             </div>

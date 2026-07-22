@@ -5,108 +5,219 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
-<PageTitle>Login móvil - NAVI Herramientas y AF</PageTitle>
+<PageTitle>Ingreso móvil - Navitrans Herramientas y Activos</PageTitle>
 
-<section class="mobile-login-page navi-mobile-login-v6">
-    <aside class="navi-mobile-login-v6-brand" aria-label="NAVI Herramientas y AF">
-        <div class="navi-mobile-login-v6-brand-inner">
-            <div class="navi-mobile-login-v6-logo-row">
-                <div class="navi-mobile-login-v6-logo">N</div>
+<section class="navi-mobile-login-v8">
+    <div class="navi-mobile-login-v7 navi-mobile-login-v8__access-panel">
+    <main class="navi-mobile-login-v7__container">
+        <header class="navi-mobile-login-v7__brand"
+                aria-label="40 años Navitrans">
+            <div class="navi-mobile-login-v7__anniversary"
+                 aria-hidden="true">
+                <strong>40</strong>
 
-                <div>
-<h1>Navitrans<br />Herramientas y AF</h1>
-                    <p>Consulta activos, reporta novedades y acompaña la operación desde campo.</p>
-                </div>
+                <span>años</span>
             </div>
 
-            <div class="navi-mobile-login-v6-brand-lines" aria-hidden="true">
-                <span></span>
-                <span></span>
-                <span></span>
+            <span class="navi-mobile-login-v7__divider"
+                  aria-hidden="true">
+            </span>
+
+            <div class="navi-mobile-login-v7__brand-copy">
+                <strong>Navitrans</strong>
             </div>
+        </header>
 
-            <div class="navi-mobile-login-v6-brand-footer">
-                <strong>Navitrans 40 años</strong>
-                <span>Operación segura y controlada</span>
-            </div>
-        </div>
-    </aside>
+        <section class="navi-mobile-login-v7__access"
+                 aria-labelledby="navi-mobile-login-title">
+            <header class="navi-mobile-login-v7__heading">
+                <span class="navi-mobile-login-v7__eyebrow">
+                    HERRAMIENTAS Y ACTIVOS
+                </span>
 
-    <main class="navi-mobile-login-v6-main">
-        <section class="navi-mobile-login-v6-card" aria-label="Ingreso móvil">
-            <div class="navi-mobile-login-v6-user-icon" aria-hidden="true">
-                <span></span>
-            </div>
+                <h1 id="navi-mobile-login-title">
+                    Bienvenido
+                </h1>
 
-            <span class="navi-mobile-login-v6-pill">Acceso móvil</span>
-
-            <h2>Ingreso</h2>
-            <p>Ingresa con tu documento y contraseña.</p>
+                <p>
+                    Ingresa tus credenciales para continuar.
+                </p>
+            </header>
 
             @if (!string.IsNullOrWhiteSpace(message))
             {
-                <div class="mobile-alert navi-mobile-login-v6-alert">@message</div>
+                <div class="@MobileLoginAlertCssClass"
+                     role="alert"
+                     aria-live="assertive"
+                     aria-atomic="true">
+                    <div class="navi-mobile-login-v7__alert-copy">
+                        <strong>@messageTitle</strong>
+
+                        <span>@message</span>
+                    </div>
+
+                    <button type="button"
+                            class="navi-mobile-login-v7__alert-close"
+                            aria-label="Cerrar mensaje"
+                            title="Cerrar mensaje"
+                            @onclick="DismissMobileLoginAlert">
+                        <span aria-hidden="true">×</span>
+                    </button>
+                </div>
             }
+<EditForm Model="model"
+                      OnValidSubmit="LoginAsync">
+                <div class="navi-mobile-login-v7__form">
+                    <div class="navi-mobile-login-v7__field">
+                        <label for="naviMobileLoginUser">
+                            Número de documento o usuario
+                        </label>
 
-            <EditForm Model="model" OnValidSubmit="LoginAsync">
-                <label class="navi-mobile-login-v6-field">
-                    <span>Documento / usuario</span>
+                        <div class="navi-mobile-login-v7__input-frame">
+                            <span class="navi-mobile-login-v7__input-code"
+                                  aria-hidden="true">
+                                ID
+                            </span>
 
-                    <div class="navi-mobile-login-v6-input-wrap">
-                        <span class="navi-mobile-login-v6-input-icon" aria-hidden="true">👤</span>
-                        <InputText class="mobile-input"
-                                   @bind-Value="model.UserName"
-                                   placeholder="Documento o usuario" />
+                            <InputText id="naviMobileLoginUser"
+                                       class="navi-mobile-login-v7__input"
+                                       @bind-Value="model.UserName"
+                                       autocomplete="username"
+                                       autocapitalize="none"
+                                       spellcheck="false"
+                                       placeholder="Número de documento"
+                                       aria-label="Número de documento o usuario"
+                                       autofocus />
+                        </div>
                     </div>
-                </label>
 
-                <label class="navi-mobile-login-v6-field">
-                    <span>Contraseña</span>
+                    <div class="navi-mobile-login-v7__field">
+                        <label for="naviMobileLoginPassword">
+                            Contraseña
+                        </label>
 
-                    <div class="navi-mobile-login-v6-input-wrap navi-mobile-login-v6-password-wrap">
-                        <span class="navi-mobile-login-v6-input-icon" aria-hidden="true">🔒</span>
+                        <div class="navi-mobile-login-v7__input-frame
+                                    navi-mobile-login-v7__input-frame--password">
+                            <span class="navi-mobile-login-v7__input-code"
+                                  aria-hidden="true">
+                                CL
+                            </span>
 
-                        <InputText class="mobile-input"
-                                   type="@PasswordInputType"
-                                   @bind-Value="model.Password"
-                                   placeholder="Contraseña" />
+                            <InputText id="naviMobileLoginPassword"
+                                       class="navi-mobile-login-v7__input"
+                                       type="@PasswordInputType"
+                                       @bind-Value="model.Password"
+                                       autocomplete="current-password"
+                                       placeholder="Contraseña"
+                                       aria-label="Contraseña" />
 
-                        <button class="navi-mobile-login-v6-eye"
-                                type="button"
-                                @onclick="TogglePasswordVisibility"
-                                aria-label="@PasswordToggleLabel" data-ntx-tone="primary" >
-                            @(showPassword ? "Ocultar" : "Ver")
-                        </button>
+                            <button type="button"
+                                    class="navi-mobile-login-v7__password-toggle"
+                                    aria-label="@PasswordToggleLabel"
+                                    aria-pressed="@showPassword"
+                                    title="@PasswordToggleLabel"
+                                    data-ntx-tone="secondary"
+                                    @onclick="TogglePasswordVisibility">
+                                <svg class="navi-mobile-login-v7__password-icon"
+                                     viewBox="0 0 24 24"
+                                     aria-hidden="true"
+                                     focusable="false">
+                                    <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6S2.5 12 2.5 12Z"></path>
+                                    <circle cx="12"
+                                            cy="12"
+                                            r="2.75"></circle>
+
+                                    @if (showPassword)
+                                    {
+                                        <path class="navi-mobile-login-v7__password-slash"
+                                              d="M4 4l16 16"></path>
+                                    }
+                                </svg>
+                            </button>
+                        </div>
                     </div>
-                </label>
 
-                <NaviMobileActionButton Type="submit"
-                                        Tone="primary"
-                                        Class="mobile-primary-button navi-mobile-login-v6-submit"
-                                        Disabled="@isLoading"
-                                        Block="true">
-                    @(isLoading ? "Ingresando..." : "Ingresar")
-                </NaviMobileActionButton>
+                    <div class="navi-mobile-login-v7__help">
+                        <span>
+                            Acceso autorizado para usuarios Navitrans.
+                        </span>
+                    </div>
+
+                    <div class="navi-mobile-login-v7__actions">
+                        <NaviMobileActionButton
+                            Type="submit"
+                            Tone="operation"
+                            Class="navi-mobile-login-v7__submit"
+                            Disabled="@isLoading"
+                            Block="true">
+                            @if (isLoading)
+                            {
+                                <span class="navi-mobile-login-v7__loading"
+                                      aria-hidden="true">
+                                </span>
+
+                                <span>Ingresando...</span>
+                            }
+                            else
+                            {
+                                <span>Ingresar</span>
+                            }
+                        </NaviMobileActionButton>
+                    </div>
+                </div>
             </EditForm>
         </section>
+
+        <footer class="navi-mobile-login-v7__footer">
+            <div class="navi-mobile-login-v7__footer-mark"
+                 aria-hidden="true">
+                N
+            </div>
+
+            <div>
+                <strong>Navitrans</strong>
+                <span>Herramientas y Activos · Aplicación móvil</span>
+            </div>
+        </footer>
     </main>
+    </div>
+
+    <MobileLoginBrandMedia />
 </section>
 
 @code {
-    // NAVI MOBILE LOGIN HISTORY FIX:
-    // Si ya existe sesión, /login debe volver al inicio reemplazando el historial.
-    // Después de iniciar sesión, atrás no debe volver al login.
-    private const string RememberEnabledKey = "navi-mobile-login-remember-enabled";
-    private const string RememberUserNameKey = "navi-mobile-login-remember-username";
-    private const string RememberPasswordKey = "navi-mobile-login-remember-password";
+    private const string RememberEnabledKey =
+        "navi-mobile-login-remember-enabled";
+
+    private const string RememberUserNameKey =
+        "navi-mobile-login-remember-username";
+
+    private const string RememberPasswordKey =
+        "navi-mobile-login-remember-password";
 
     private LoginForm model = new();
+
     private bool isLoading;
     private bool showPassword;
     private string? message;
+    // NAVI MOBILE LOGIN ALERT STATE START
+    private string messageTitle = "No fue posible ingresar";
 
-    private string PasswordInputType => showPassword ? "text" : "password";
-    private string PasswordToggleLabel => showPassword ? "Ocultar contraseña" : "Ver contraseña";
+    private string messageTone = "danger";
+
+    private string MobileLoginAlertCssClass =>
+        $"navi-mobile-login-v7__alert navi-mobile-login-v7__alert--compact navi-mobile-login-v7__alert--{messageTone}";
+    // NAVI MOBILE LOGIN ALERT STATE END
+
+    private string PasswordInputType =>
+        showPassword
+            ? "text"
+            : "password";
+
+    private string PasswordToggleLabel =>
+        showPassword
+            ? "Ocultar contraseña"
+            : "Mostrar contraseña";
 
     protected override async Task OnInitializedAsync()
     {
@@ -114,17 +225,38 @@
 
         if (Auth.IsAuthenticated)
         {
-            Navigation.NavigateTo("/", replace: true);
+            Navigation.NavigateTo(
+                "/",
+                replace: true);
         }
     }
 
     private async Task LoginAsync()
     {
-        message = null;
+        DismissMobileLoginAlert();
 
-        if (string.IsNullOrWhiteSpace(model.UserName) || string.IsNullOrWhiteSpace(model.Password))
+        var normalizedUserName =
+            model.UserName?.Trim();
+
+        if (string.IsNullOrWhiteSpace(
+                normalizedUserName))
         {
-            message = "Ingrese documento/usuario y contraseña.";
+            SetMobileLoginAlert(
+                "Completa los datos",
+                "Ingresa tu documento o usuario.",
+                "warning");
+
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(
+                model.Password))
+        {
+            SetMobileLoginAlert(
+                "Completa los datos",
+                "Ingresa tu contraseña.",
+                "warning");
+
             return;
         }
 
@@ -132,12 +264,61 @@
 
         try
         {
-            await Api.LoginAsync(model.UserName.Trim(), model.Password.Trim());
-            Navigation.NavigateTo("/", replace: true);
+            /*
+             * El usuario se normaliza, pero la contraseña
+             * se envía exactamente como fue escrita.
+             */
+            await Api.LoginAsync(
+                normalizedUserName,
+                model.Password);
+
+
+
+            model.Password =
+                null;
+
+            Navigation.NavigateTo(
+                "/",
+                replace: true);
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
-            message = ex.Message;
+            var alert =
+                BuildMobileLoginError(
+                    ex.Message);
+
+            SetMobileLoginAlert(
+                alert.Title,
+                alert.Message,
+                alert.Tone);
+
+            /*
+             * Se conserva el usuario y solamente se limpia
+             * la contraseña incorrecta.
+             */
+            model.Password =
+                null;
+        }
+        catch (HttpRequestException)
+        {
+            SetMobileLoginAlert(
+                "Servicio no disponible",
+                "No se pudo conectar con el servicio de acceso.",
+                "danger");
+        }
+        catch (TaskCanceledException)
+        {
+            SetMobileLoginAlert(
+                "La conexión tardó demasiado",
+                "Inténtalo nuevamente en unos segundos.",
+                "warning");
+        }
+        catch
+        {
+            SetMobileLoginAlert(
+                "No fue posible ingresar",
+                "Ocurrió un inconveniente. Inténtalo nuevamente.",
+                "danger");
         }
         finally
         {
@@ -149,16 +330,30 @@
     {
         try
         {
-            var remember = await JS.InvokeAsync<string?>("localStorage.getItem", RememberEnabledKey);
+            var remember =
+                await JS.InvokeAsync<string?>(
+                    "localStorage.getItem",
+                    RememberEnabledKey);
 
-            if (!string.Equals(remember, "true", StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(
+                    remember,
+                    "true",
+                    StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
 
             model.RememberCredentials = true;
-            model.UserName = await JS.InvokeAsync<string?>("localStorage.getItem", RememberUserNameKey);
-            model.Password = await JS.InvokeAsync<string?>("localStorage.getItem", RememberPasswordKey);
+
+            model.UserName =
+                await JS.InvokeAsync<string?>(
+                    "localStorage.getItem",
+                    RememberUserNameKey);
+
+            model.Password =
+                await JS.InvokeAsync<string?>(
+                    "localStorage.getItem",
+                    RememberPasswordKey);
         }
         catch
         {
@@ -172,16 +367,170 @@
     {
         if (model.RememberCredentials)
         {
-            await JS.InvokeVoidAsync("localStorage.setItem", RememberEnabledKey, "true");
-            await JS.InvokeVoidAsync("localStorage.setItem", RememberUserNameKey, model.UserName?.Trim() ?? string.Empty);
-            await JS.InvokeVoidAsync("localStorage.setItem", RememberPasswordKey, model.Password ?? string.Empty);
+            await JS.InvokeVoidAsync(
+                "localStorage.setItem",
+                RememberEnabledKey,
+                "true");
+
+            await JS.InvokeVoidAsync(
+                "localStorage.setItem",
+                RememberUserNameKey,
+                model.UserName?.Trim()
+                    ?? string.Empty);
+
+            await JS.InvokeVoidAsync(
+                "localStorage.setItem",
+                RememberPasswordKey,
+                model.Password
+                    ?? string.Empty);
+
             return;
         }
 
-        await JS.InvokeVoidAsync("localStorage.removeItem", RememberEnabledKey);
-        await JS.InvokeVoidAsync("localStorage.removeItem", RememberUserNameKey);
-        await JS.InvokeVoidAsync("localStorage.removeItem", RememberPasswordKey);
+        await JS.InvokeVoidAsync(
+            "localStorage.removeItem",
+            RememberEnabledKey);
+
+        await JS.InvokeVoidAsync(
+            "localStorage.removeItem",
+            RememberUserNameKey);
+
+        await JS.InvokeVoidAsync(
+            "localStorage.removeItem",
+            RememberPasswordKey);
     }
+
+    // NAVI MOBILE LOGIN ALERT HELPERS START
+    private void SetMobileLoginAlert(
+        string title,
+        string text,
+        string tone)
+    {
+        messageTitle =
+            string.IsNullOrWhiteSpace(title)
+                ? "No fue posible ingresar"
+                : title.Trim();
+
+        message =
+            string.IsNullOrWhiteSpace(text)
+                ? "Verifica los datos e inténtalo nuevamente."
+                : text.Trim();
+
+        messageTone =
+            string.Equals(
+                tone,
+                "warning",
+                StringComparison.OrdinalIgnoreCase)
+                ? "warning"
+                : "danger";
+    }
+
+    private void DismissMobileLoginAlert()
+    {
+        message = null;
+        messageTitle = "No fue posible ingresar";
+        messageTone = "danger";
+    }
+
+    private static (
+        string Title,
+        string Message,
+        string Tone)
+        BuildMobileLoginError(
+            string? rawMessage)
+    {
+        if (string.IsNullOrWhiteSpace(
+                rawMessage))
+        {
+            return (
+                "Credenciales incorrectas",
+                "Verifica tu usuario y contraseña.",
+                "danger"
+            );
+        }
+
+        var normalized =
+            rawMessage.Trim();
+
+        if (
+            normalized.Contains(
+                "usuario o contraseña",
+                StringComparison.OrdinalIgnoreCase)
+            ||
+            normalized.Contains(
+                "credenciales",
+                StringComparison.OrdinalIgnoreCase)
+            ||
+            normalized.Contains(
+                "unauthorized",
+                StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return (
+                "Credenciales incorrectas",
+                "Verifica tu usuario y contraseña.",
+                "danger"
+            );
+        }
+
+        if (
+            normalized.Contains(
+                "usuario no tiene una contraseña",
+                StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return (
+                "Contraseña no configurada",
+                "Solicita al administrador restablecer tu contraseña.",
+                "warning"
+            );
+        }
+
+        if (
+            normalized.Contains(
+                "usuario inactivo",
+                StringComparison.OrdinalIgnoreCase)
+            ||
+            normalized.Contains(
+                "deshabilitado",
+                StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return (
+                "Usuario no disponible",
+                "Tu usuario está inactivo. Contacta al administrador.",
+                "warning"
+            );
+        }
+
+        if (
+            normalized.StartsWith(
+                "{",
+                StringComparison.Ordinal)
+            ||
+            normalized.Contains(
+                "HttpRequest",
+                StringComparison.OrdinalIgnoreCase)
+            ||
+            normalized.Contains(
+                "Exception",
+                StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return (
+                "No fue posible ingresar",
+                "Verifica los datos e inténtalo nuevamente.",
+                "danger"
+            );
+        }
+
+        return (
+            "No fue posible ingresar",
+            normalized,
+            "danger"
+        );
+    }
+    // NAVI MOBILE LOGIN ALERT HELPERS END
 
     private void TogglePasswordVisibility()
     {
@@ -191,7 +540,9 @@
     private sealed class LoginForm
     {
         public string? UserName { get; set; }
+
         public string? Password { get; set; }
+
         public bool RememberCredentials { get; set; }
     }
 }

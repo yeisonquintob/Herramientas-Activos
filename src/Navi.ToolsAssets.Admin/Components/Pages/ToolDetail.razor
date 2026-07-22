@@ -1,6 +1,7 @@
 @page "/tools/{ToolId:guid}"
 @rendermode InteractiveServer
 @using System.Net.Http.Json
+@using System.Text.Json
 @using Navi.ToolsAssets.Admin.Services.Auth
 @using Navi.ToolsAssets.Admin.Components.Shared
 @inject IHttpClientFactory HttpClientFactory
@@ -24,7 +25,8 @@
         <strong>Error:</strong> @errorMessage
     </div>
 }
-else if (isLoading && tool is null)
+
+@if (isLoading && tool is null)
 {
     <div class="alert alert-info">
         Cargando detalle de la herramienta...
@@ -32,132 +34,288 @@ else if (isLoading && tool is null)
 }
 else if (tool is not null)
 {
+    <section class="tool-detail-web-v26 tool-detail-web-v30">
+
         <NaviPageHero
         Pill="ACTIVOS FIJOS"
         Title="@tool!.Name"
         Description="Consulta visual de datos maestros, ubicación, clasificación, estados y hoja de vida operativa.">
-
-        <button type="button" @onclick="LoadAsync" disabled="@isLoading" data-ntx-tone="secondary" >
-            @(isLoading ? "Actualizando..." : "Actualizar")
-        </button>
-
-    </NaviPageHero>
-
-    <section class="tool-detail-summary-shell">
-        <section class="tool-detail-kpis navi-final-kpi-row tool-detail-summary-kpis">
-        <article>
-            <span>Código interno</span>
-            <strong>@ShowValue(tool!.InternalCode)</strong>
-            <small>Activo fijo</small>
-        </article>
-
-        <article>
-            <span>Estado operativo</span>
-            <strong>@GetStatusLabel(tool!.OperationalStatus)</strong>
-            <small>Control actual</small>
-        </article>
-
-        <article>
-            <span>Clasificación</span>
-            <strong>@(tool!.IsSpecialized ? "Especializada" : "No especializada")</strong>
-            <small>Tipo de activo</small>
-        </article>
-
-        <article>
-            <span>Responsable</span>
-            <strong>@ShowValue(tool!.ResponsiblePersonName)</strong>
-            <small>Custodia actual</small>
-        </article>
-    </section>
-
-        <aside class="tool-detail-summary-actions">
-            <button type="button" @onclick="GoBack" class="btn-detail-back" data-ntx-tone="secondary" >
-                Volver al inventario
-            </button>
-
-            @if (CanOpenLifeRecord)
-            {
-                <a class="detail-action detail-action-primary navi-life-record-hero-link"
-                   href="@($"/tools/{ToolId}/technical-life-record-view")" data-ntx-tone="primary" >
-                    Ver hoja vida técnica
-                </a>
-            }
-        </aside>
-    </section>
+</NaviPageHero>
 
 
-    <section class="tool-detail-panel tool-admin-control">
-        <div class="admin-control-header">
+@* NAVI TOOL DETAIL KPI STANDARD V67 START *@
+
+<div class="tool-detail-standard-row-v67
+            navi-inventory-web-v23">
+
+    <NaviKpiToolbar
+        Class="tool-detail-standard-toolbar-v67"
+        Refresh="LoadAsync"
+        IsRefreshing="isLoading"
+        RefreshTitle="Actualizar información"
+        RefreshAriaLabel="Actualizar información">
+
+        <NaviKpiGrid
+            Columns="4"
+            Compact="true"
+            Dividers="true"
+            Class="navi-inventory-v23-kpis
+                   tool-detail-standard-kpis-v67">
+
+            <NaviKpiCard
+                Title="Código interno"
+                Description="Identificación del activo"
+                Tone="neutral"
+                Compact="true"
+                Class="metric-total
+                       tool-detail-standard-text-v67">
+
+                <IconContent>
+
+                    <svg viewBox="0 0 24 24"
+                         aria-hidden="true"
+                         focusable="false">
+
+                        <path d="M4 7H20V20H4Z"></path>
+                        <path d="M8 7V4H16V7"></path>
+                        <path d="M8 11H16"></path>
+                        <path d="M8 15H14"></path>
+
+                    </svg>
+
+                </IconContent>
+
+                <ValueContent>
+                    @ShowValue(tool.InternalCode)
+                </ValueContent>
+
+            </NaviKpiCard>
+
+            <NaviKpiCard
+                Title="Estado operativo"
+                Description="Situación actual"
+                Tone="soft"
+                Compact="true"
+                Class="metric-in-use
+                       tool-detail-standard-status-v67">
+
+                <IconContent>
+
+                    <svg viewBox="0 0 24 24"
+                         aria-hidden="true"
+                         focusable="false">
+
+                        <path d="M7 7H18"></path>
+                        <path d="M15 4L18 7L15 10"></path>
+                        <path d="M17 17H6"></path>
+                        <path d="M9 14L6 17L9 20"></path>
+
+                    </svg>
+
+                </IconContent>
+
+                <ValueContent>
+                    @GetStatusLabel(tool.OperationalStatus)
+                </ValueContent>
+
+            </NaviKpiCard>
+
+            <NaviKpiCard
+                Title="Clasificación"
+                Description="Tipo de operación"
+                Tone="soft"
+                Compact="true"
+                Class="metric-validation
+                       tool-detail-standard-text-v67">
+
+                <IconContent>
+
+                    <svg viewBox="0 0 24 24"
+                         aria-hidden="true"
+                         focusable="false">
+
+                        <path d="M6 3H15L19 7V21H6Z"></path>
+                        <path d="M15 3V8H19"></path>
+                        <path d="M9 13H16"></path>
+                        <path d="M9 17H13"></path>
+
+                    </svg>
+
+                </IconContent>
+
+                <ValueContent>
+                    @(tool.IsSpecialized
+                        ? "Especializada"
+                        : "No especializada")
+                </ValueContent>
+
+            </NaviKpiCard>
+
+            <NaviKpiCard
+                Title="Responsable"
+                Description="Custodia registrada"
+                Tone="neutral"
+                Compact="true"
+                Class="metric-total
+                       tool-detail-standard-text-v67">
+
+                <IconContent>
+                    <NaviKpiIcon Name="users" />
+                </IconContent>
+
+                <ValueContent>
+                    @ShowValue(tool.ResponsiblePersonName)
+                </ValueContent>
+
+            </NaviKpiCard>
+
+        </NaviKpiGrid>
+
+    </NaviKpiToolbar>
+
+    <NaviActionButton
+        Tone="secondary"
+        Size="small"
+        Class="tool-detail-standard-back-v67"
+        OnClick="GoBack"
+        aria-label="Volver al inventario">
+
+        <StartContent>
+
+            <svg viewBox="0 0 24 24"
+                 aria-hidden="true"
+                 focusable="false">
+
+                <path d="M19 12H5"></path>
+                <path d="M11 6L5 12L11 18"></path>
+
+            </svg>
+
+        </StartContent>
+
+        <ChildContent>
+            Volver al inventario
+        </ChildContent>
+
+    </NaviActionButton>
+
+</div>
+
+@* NAVI TOOL DETAIL KPI STANDARD V67 END *@
+
+
+<section class="tool-detail-panel
+                            tool-admin-control
+                            tool-admin-control-v30">
+
+        <header class="tool-admin-control-header-v30">
+
             <div>
+                <span class="tool-detail-section-label-v30">
+                    ADMINISTRACIÓN
+                </span>
+
                 <h2>Control administrativo del activo</h2>
-                <p>Permite editar datos maestros, guardar cambios, cancelar edición o marcar el activo como no apto.</p>
+
+                <p>
+                    Consulta o modifica los datos maestros del activo
+                    según los permisos asignados.
+                </p>
             </div>
-
-            <div class="admin-control-actions">
-                @if (!isEditingMasterData)
-                {
-                    <button type="button" @onclick="StartMasterDataEdit" class="detail-action detail-action-primary" data-ntx-tone="primary" >
-                        Editar
-                    </button>
-
-
-                }
-                else
-                {
-                    <button type="button" @onclick="SaveMasterDataAsync" class="detail-action detail-action-success" data-ntx-tone="primary" >
-                        Guardar
-                    </button>
-
-                    <button type="button" @onclick="CancelMasterDataEdit" class="detail-action detail-action-neutral" data-ntx-tone="secondary" >
-                        Cancelar
-                    </button>
-
-
-                }
-            </div>
-        </div>
+        </header>
 
         @if (isEditingMasterData)
         {
-            <div class="admin-edit-grid">
+            <div class="admin-edit-grid
+                        admin-edit-grid-v30">
+
                 <div>
-                    <label>Código interno</label>
-                    <input class="form-control" @bind="editModel.InternalCode" />
+                    <label for="tool-edit-internal-code">
+                        Código interno
+                    </label>
+
+                    <input id="tool-edit-internal-code"
+                           name="tool-edit-internal-code"
+                           class="form-control"
+                           @bind="editModel.InternalCode" />
                 </div>
 
                 <div>
-                    <label>Nombre</label>
-                    <input class="form-control" @bind="editModel.Name" />
+                    <label for="tool-edit-name">
+                        Nombre
+                    </label>
+
+                    <input id="tool-edit-name"
+                           name="tool-edit-name"
+                           class="form-control"
+                           @bind="editModel.Name" />
                 </div>
 
                 <div>
-                    <label>Serial</label>
-                    <input class="form-control" @bind="editModel.SerialNumber" />
+                    <label for="tool-edit-serial">
+                        Serial
+                    </label>
+
+                    <input id="tool-edit-serial"
+                           name="tool-edit-serial"
+                           class="form-control"
+                           @bind="editModel.SerialNumber" />
                 </div>
 
                 <div>
-                    <label>Activo fijo</label>
-                    <input class="form-control" @bind="editModel.FixedAssetCode" />
+                    <label for="tool-edit-fixed-asset">
+                        Activo fijo
+                    </label>
+
+                    <input id="tool-edit-fixed-asset"
+                           name="tool-edit-fixed-asset"
+                           class="form-control"
+                           @bind="editModel.FixedAssetCode" />
                 </div>
 
                 <div>
-                    <label>Código Fenix365</label>
-                    <input class="form-control" @bind="editModel.FenixCode" />
+                    <label for="tool-edit-fenix">
+                        Código Fenix365
+                    </label>
+
+                    <input id="tool-edit-fenix"
+                           name="tool-edit-fenix"
+                           class="form-control"
+                           @bind="editModel.FenixCode" />
                 </div>
 
                 <div>
-                    <label>Marca</label>
-                    <input class="form-control" @bind="editModel.Brand" />
+                    <label for="tool-edit-brand">
+                        Marca
+                    </label>
+
+                    <input id="tool-edit-brand"
+                           name="tool-edit-brand"
+                           class="form-control"
+                           @bind="editModel.Brand" />
                 </div>
 
                 <div>
-                    <label>Modelo</label>
-                    <input class="form-control" @bind="editModel.Model" />
+                    <label for="tool-edit-model">
+                        Modelo
+                    </label>
+
+                    <input id="tool-edit-model"
+                           name="tool-edit-model"
+                           class="form-control"
+                           @bind="editModel.Model" />
                 </div>
 
                 <div>
-                    <label>Estado operativo</label>
-                    <select class="form-select" @bind="editModel.OperationalStatus">
+                    <label for="tool-edit-operational-status">
+                        Estado operativo
+                    </label>
+
+                    <select id="tool-edit-operational-status"
+                            name="tool-edit-operational-status"
+                            class="form-select"
+                            @bind="editModel.OperationalStatus">
+
                         <option value="Available">Disponible</option>
                         <option value="Assigned">Asignado</option>
                         <option value="Loaned">Prestado</option>
@@ -173,8 +331,15 @@ else if (tool is not null)
                 </div>
 
                 <div>
-                    <label>Estado físico</label>
-                    <select class="form-select" @bind="editModel.PhysicalStatus">
+                    <label for="tool-edit-physical-status">
+                        Estado físico
+                    </label>
+
+                    <select id="tool-edit-physical-status"
+                            name="tool-edit-physical-status"
+                            class="form-select"
+                            @bind="editModel.PhysicalStatus">
+
                         <option value="Good">Bueno</option>
                         <option value="Regular">Regular</option>
                         <option value="Damaged">Dañado</option>
@@ -183,48 +348,160 @@ else if (tool is not null)
                     </select>
                 </div>
 
-                <div class="admin-check">
-                    <input type="checkbox" class="form-check-input" @bind="editModel.IsSpecialized" />
-                    <label>Activo especializado</label>
-                </div>
+                <label class="tool-edit-check-v30">
 
-                <div class="admin-check">
-                    <input type="checkbox" class="form-check-input" @bind="editModel.RequiresMaintenance" />
-                    <label>Requiere mantenimiento</label>
-                </div>
+                    <input id="tool-edit-specialized"
+                           name="tool-edit-specialized"
+                           type="checkbox"
+                           @bind="editModel.IsSpecialized"
+                           disabled="@(!CanMarkSpecialized)" />
 
-                <div class="admin-check">
-                    <input type="checkbox" class="form-check-input" @bind="editModel.RequiresPreOperationalCheck" />
-                    <label>Requiere preoperacional</label>
-                </div>
+                    <span>Activo especializado</span>
+                </label>
 
-                <div class="admin-check">
-                    <input type="checkbox" class="form-check-input" @bind="editModel.RequiresCertification" />
-                    <label>Requiere certificación</label>
+                <label class="tool-edit-check-v30">
+
+                    <input id="tool-edit-maintenance"
+                           name="tool-edit-maintenance"
+                           type="checkbox"
+                           @bind="editModel.RequiresMaintenance" />
+
+                    <span>Requiere mantenimiento</span>
+                </label>
+
+                <label class="tool-edit-check-v30">
+
+                    <input id="tool-edit-preoperational"
+                           name="tool-edit-preoperational"
+                           type="checkbox"
+                           @bind="editModel.RequiresPreOperationalCheck" />
+
+                    <span>Requiere preoperacional</span>
+                </label>
+
+                <label class="tool-edit-check-v30">
+
+                    <input id="tool-edit-certification"
+                           name="tool-edit-certification"
+                           type="checkbox"
+                           @bind="editModel.RequiresCertification" />
+
+                    <span>Requiere certificación</span>
+                </label>
+
+                <div>
+                    <label for="tool-edit-certification-expiration">
+                        Vence certificación
+                    </label>
+
+                    <InputDate id="tool-edit-certification-expiration"
+                               name="tool-edit-certification-expiration"
+                               class="form-control"
+                               @bind-Value="editModel.CertificationExpirationDate" />
                 </div>
 
                 <div>
-                    <label>Vence certificación</label>
-                    <InputDate class="form-control" @bind-Value="editModel.CertificationExpirationDate" />
-                </div>
+                    <label for="tool-edit-maintenance-period">
+                        Periodo mantenimiento meses
+                    </label>
 
-                <div>
-                    <label>Periodo mantenimiento meses</label>
-                    <input type="number" class="form-control" @bind="editModel.MaintenancePeriodMonths" min="0" />
+                    <input id="tool-edit-maintenance-period"
+                           name="tool-edit-maintenance-period"
+                           type="number"
+                           min="0"
+                           class="form-control"
+                           @bind="editModel.MaintenancePeriodMonths" />
                 </div>
 
                 <div class="admin-edit-full">
-                    <label>Descripción / observación</label>
-                    <textarea class="form-control" rows="3" @bind="editModel.Description"></textarea>
+
+                    <label for="tool-edit-description">
+                        Descripción u observación
+                    </label>
+
+                    <textarea id="tool-edit-description"
+                              name="tool-edit-description"
+                              class="form-control"
+                              rows="3"
+                              @bind="editModel.Description">
+                    </textarea>
                 </div>
             </div>
         }
         else
         {
-            <div class="admin-readonly-note">
-                <strong>Modo lectura.</strong> Presiona <b>Editar</b> para modificar datos del activo. Usa <b>No apto</b> cuando el activo debe permanecer creado, pero fuera de operación.
+            <div class="admin-readonly-note
+                        admin-readonly-note-v30">
+
+                <strong>Modo lectura.</strong>
+
+                Presiona <b>Editar</b> para modificar los datos
+                maestros del activo.
             </div>
         }
+
+        <footer class="tool-admin-actions-v30">
+
+            @if (!isEditingMasterData)
+            {
+@if (CanEditTool)
+                {
+                    <button type="button"
+                            class="tool-admin-button-v30
+                                   tool-admin-edit-v30"
+                            @onclick="StartMasterDataEdit" data-ntx-tone="operation">
+
+                        <svg viewBox="0 0 24 24"
+                             aria-hidden="true"
+                             focusable="false">
+
+                            <path d="M4 20L8.5 19L19 8.5L15.5 5L5 15.5Z"></path>
+                            <path d="M13.5 7L17 10.5"></path>
+                        </svg>
+
+                        <span>Editar</span>
+                    </button>
+                }
+
+                @if (CanOpenLifeRecord)
+                {
+                    <a class="tool-admin-button-v30
+                              tool-admin-life-v30"
+                       href="@($"/tools/{ToolId}/technical-life-record-view")">
+
+                        <svg viewBox="0 0 24 24"
+                             aria-hidden="true"
+                             focusable="false">
+
+                            <path d="M6 3H15L19 7V21H6Z"></path>
+                            <path d="M15 3V8H19"></path>
+                            <path d="M9 12H16"></path>
+                            <path d="M9 16H16"></path>
+                        </svg>
+
+                        <span>Ver hoja de vida técnica</span>
+                    </a>
+                }
+            }
+            else
+            {
+                <button type="button"
+                        class="tool-admin-button-v30
+                               tool-admin-cancel-v30"
+                        @onclick="CancelMasterDataEdit" data-ntx-tone="secondary">
+
+                    Cancelar
+                </button>
+
+                <button type="button"
+                        class="tool-admin-button-v30
+                               tool-admin-save-v30"
+                        @onclick="SaveMasterDataAsync" data-ntx-tone="affirmative">
+
+                    Guardar cambios
+                </button>
+            }
+        </footer>
     </section>
 
 
@@ -280,7 +557,7 @@ else if (tool is not null)
         </section>
     }
 
-<div class="tool-detail-grid"><section class="tool-detail-panel">
+<div class="tool-detail-grid"><section class="tool-detail-panel tool-detail-v26-main-data">
             <h2>Datos principales</h2>
 
             <div class="detail-list">
@@ -316,7 +593,7 @@ else if (tool is not null)
             </div>
         </section>
 
-        <section class="tool-detail-panel">
+        <section class="tool-detail-panel tool-detail-v26-location">
             <h2>Ubicación y clasificación</h2>
 
             <div class="detail-list">
@@ -406,57 +683,167 @@ else if (tool is not null)
         </section>
     }
 
-<div class="tool-detail-grid">
-        @if (CanUseDetailActions)
+@* NAVI TOOL DETAIL IMAGE LAYOUT V64 START *@
+
+<div class="tool-detail-operation-layout-v64">
+
+    <div class="tool-detail-operation-column-v64">
+
+@if (CanUseDetailActions)
     {
-<section class="tool-detail-panel">
-            <h2>Acciones rápidas</h2>
+<section class="tool-detail-panel
+                            tool-detail-v26-quick-actions
+                            tool-detail-quick-actions-v30">
 
-            <div class="quick-actions">
-                <div>
-                    <label class="form-label">Cambiar estado operativo</label>
-                    <select class="form-select" @bind="selectedOperationalStatus" disabled="@(!CanChangeOperationalStatus)">
-                        <option value="Available">Disponible</option>
-                        <option value="PendingValidation">Pendiente validación</option>
-                        <option value="Assigned">Asignada</option>
-                        <option value="Loaned">Prestada</option>
-                        <option value="InMaintenance">En mantenimiento</option>
-                        <option value="Damaged">Dañada</option>
-                        <option value="NotSuitable">No apta</option>
-                        <option value="Inconsistent">Inconsistente</option>
-                        <option value="NotLocated">No localizada</option>
-                        <option value="PendingDisposal">Pendiente de baja</option>
-                        <option value="Disposed">Dada de baja</option>
-                    </select>
-                </div>
+            <header class="tool-detail-panel-header-v30">
 
                 <div>
-                    <label class="form-label">Observación</label>
-                    <input class="form-control"
-                           placeholder="Motivo del cambio..."
-                           @bind="actionObservation"
-                           disabled="@(!CanChangeOperationalStatus)" />
-                </div>
+                    <span class="tool-detail-section-label-v30">
+                        OPERACIÓN
+                    </span>
 
-                <div class="detail-actions-group">
-                    @if (CanChangeOperationalStatus)
-                    {
-                        <button @onclick="ChangeOperationalStatusAsync" disabled="@isSaving" class="btn btn-primary btn-sm navi-admin-quick-save-status-tone-positive-v5" data-ntx-tone="primary" >
-                            @(isSaving ? "Guardando..." : "Guardar estado")
-                        </button>
-                    }
+                    <h2>Acciones rápidas</h2>
 
-                    @if (CanMarkSpecialized)
-                    {
-                        <button @onclick="ToggleSpecializedAsync" disabled="@isSaving" class="btn btn-outline-primary btn-sm" data-ntx-tone="ghost" >
-                            @(tool!.IsSpecialized == true ? "Marcar no especializada" : "Marcar especializada")
-                        </button>
-                    }
+                    <p>
+                        Actualiza el estado operativo o la clasificación
+                        del activo según tus permisos.
+                    </p>
                 </div>
+            </header>
+
+            <div class="quick-actions-v30">
+
+                @if (CanChangeOperationalStatus)
+                {
+                    <div class="quick-action-field-v30">
+
+                        <label for="tool-detail-operational-status">
+                            Estado operativo
+                        </label>
+
+                        <select id="tool-detail-operational-status"
+                                name="tool-detail-operational-status"
+                                class="form-select"
+                                @bind="selectedOperationalStatus"
+                                disabled="@isSaving">
+
+                            <option value="Available">Disponible</option>
+                            <option value="PendingValidation">Pendiente validación</option>
+                            <option value="Assigned">Asignada</option>
+                            <option value="Loaned">Prestada</option>
+                            <option value="InMaintenance">En mantenimiento</option>
+                            <option value="Damaged">Dañada</option>
+                            <option value="NotSuitable">No apta</option>
+                            <option value="Inconsistent">Inconsistente</option>
+                            <option value="NotLocated">No localizada</option>
+                            <option value="PendingDisposal">Pendiente de baja</option>
+                            <option value="Disposed">Dada de baja</option>
+                        </select>
+                    </div>
+
+                    <div class="quick-action-field-v30">
+
+                        <label for="tool-detail-action-observation">
+
+                            Observación
+
+                            @if (OperationalStatusReasonRequired)
+                            {
+                                <span class="navi-text-danger">
+                                    · Obligatoria
+                                </span>
+                            }
+                        </label>
+
+                        <input id="tool-detail-action-observation"
+                               name="tool-detail-action-observation"
+                               class="form-control"
+                               placeholder="Motivo del cambio..."
+                               @bind="actionObservation"
+                               @bind:event="oninput"
+                               disabled="@isSaving"
+                               aria-required="@(OperationalStatusReasonRequired ? "true" : "false")" />
+
+                        <!-- NAVI TOOL DETAIL STATUS REASON V31 START -->
+
+                        @if (OperationalStatusReasonRequired)
+                        {
+                            <small class="navi-text-danger">
+                                Para realizar este cambio debes registrar
+                                el motivo en la observación.
+                            </small>
+                        }
+
+                        <!-- NAVI TOOL DETAIL STATUS REASON V31 END -->
+                    </div>
+
+                    <div class="quick-action-save-v30">
+
+                        <button type="button"
+                                class="tool-detail-save-status-v30"
+                                @onclick="ChangeOperationalStatusAsync"
+                                disabled="@isSaving" data-ntx-tone="affirmative">
+
+                            <svg viewBox="0 0 24 24"
+                                 aria-hidden="true"
+                                 focusable="false">
+
+                                <path d="M5 4H17L20 7V20H5Z"></path>
+                                <path d="M8 4V10H16V4"></path>
+                                <path d="M8 15H17"></path>
+                            </svg>
+
+                            <span>
+                                @(isSaving
+                                    ? "Guardando..."
+                                    : "Guardar estado")
+                            </span>
+                        </button>
+                    </div>
+                }
+
+                @if (CanMarkSpecialized)
+                {
+                    <label class="tool-specialized-control-v30">
+
+                        <input type="checkbox"
+                               id="tool-specialized-toggle"
+                               name="tool-specialized-toggle"
+                               checked="@tool.IsSpecialized"
+                               @onchange="OnSpecializedToggleChanged"
+                               disabled="@isSaving" />
+
+                        <span class="tool-specialized-track-v30"
+                              aria-hidden="true">
+
+                            <span class="tool-specialized-thumb-v30">
+                            </span>
+                        </span>
+
+                        <span class="tool-specialized-copy-v30">
+
+                            <strong>Herramienta especializada</strong>
+
+                            <small>
+                                Activa o desactiva la clasificación especial
+                                del activo.
+                            </small>
+                        </span>
+
+                        <b class="tool-specialized-state-v30">
+
+                            @(tool.IsSpecialized
+                                ? "Activa"
+                                : "Inactiva")
+                        </b>
+                    </label>
+                }
 
                 @if (!string.IsNullOrWhiteSpace(actionMessage))
                 {
-                    <div class="alert alert-success mb-0">
+                    <div class="alert alert-success
+                                quick-action-message-v30">
+
                         @actionMessage
                     </div>
                 }
@@ -464,40 +851,7 @@ else if (tool is not null)
         </section>
     }
 
-
-
-        <section class="tool-detail-panel">
-            <h2>Estados</h2>
-
-            <div class="status-chip-grid">
-                <div>
-                    <span>Operativo</span>
-                    <strong>@GetStatusLabel(tool!.OperationalStatus)</strong>
-                </div>
-
-                <div>
-                    <span>Físico</span>
-                    <strong>@ShowValue(tool!.PhysicalStatus)</strong>
-                </div>
-
-                <div>
-                    <span>Custodia</span>
-                    <strong>@ShowValue(tool!.CustodyStatus)</strong>
-                </div>
-
-                <div>
-                    <span>Conciliación</span>
-                    <strong>@ShowValue(tool!.ReconciliationStatus)</strong>
-                </div>
-
-                <div>
-                    <span>Sincronización</span>
-                    <strong>@ShowValue(tool!.SyncStatus)</strong>
-                </div>
-            </div>
-        </section>
-
-        <section class="tool-detail-panel">
+<section class="tool-detail-panel tool-detail-v26-rules">
             <h2>Reglas operativas</h2>
 
             <div class="status-chip-grid">
@@ -522,9 +876,122 @@ else if (tool is not null)
                 </div>
             </div>
         </section>
+
     </div>
 
-    <section class="tool-detail-panel">
+    <div class="tool-detail-visual-column-v64">
+
+<section class="tool-detail-panel tool-detail-v26-states">
+            <h2>Estados</h2>
+
+            <div class="status-chip-grid">
+                <div>
+                    <span>Operativo</span>
+                    <strong>@GetStatusLabel(tool!.OperationalStatus)</strong>
+                </div>
+
+                <div>
+                    <span>Físico</span>
+                    <strong>@GetDetailStateLabel(tool!.PhysicalStatus)</strong>
+                </div>
+
+                <div>
+                    <span>Custodia</span>
+                    <strong>@GetDetailStateLabel(tool!.CustodyStatus)</strong>
+                </div>
+
+                <div>
+                    <span>Conciliación</span>
+                    <strong>@GetDetailStateLabel(tool!.ReconciliationStatus)</strong>
+                </div>
+
+                <div>
+                    <span>Sincronización</span>
+                    <strong>@GetDetailStateLabel(tool!.SyncStatus)</strong>
+                </div>
+            </div>
+        </section>
+
+<section class="tool-detail-panel
+                tool-detail-image-v64">
+
+    <header class="tool-detail-image-header-v64">
+
+        <div>
+            <span class="tool-detail-section-label-v30">
+                IMAGEN DEL ACTIVO
+            </span>
+
+            <h2>Vista del activo</h2>
+        </div>
+
+    </header>
+
+    <div class="tool-detail-image-content-v64">
+
+        @if (isToolImageLoading)
+        {
+            <div class="tool-detail-image-state-v64">
+
+                <span class="tool-detail-image-spinner-v64"
+                      aria-hidden="true">
+                </span>
+
+                <strong>Cargando imagen...</strong>
+
+            </div>
+        }
+        else if (!string.IsNullOrWhiteSpace(toolImageUrl))
+        {
+            <img src="@toolImageUrl"
+                 alt="@($"Imagen de {tool!.Name}")"
+                 title="@toolImageFileName" />
+        }
+        else
+        {
+            <div class="tool-detail-image-state-v64">
+
+                <svg viewBox="0 0 24 24"
+                     aria-hidden="true"
+                     focusable="false">
+
+                    <rect x="3"
+                          y="5"
+                          width="18"
+                          height="14"
+                          rx="2">
+                    </rect>
+
+                    <circle cx="9"
+                            cy="10"
+                            r="2">
+                    </circle>
+
+                    <path d="M4 17L9 13L13 16L16 13L20 17">
+                    </path>
+
+                </svg>
+
+                <strong>Sin imagen registrada</strong>
+
+                <small>
+                    La imagen se carga desde la hoja de vida técnica.
+                </small>
+
+            </div>
+        }
+
+    </div>
+
+</section>
+
+    </div>
+
+</div>
+
+@* NAVI TOOL DETAIL IMAGE LAYOUT V64 END *@
+
+<section class="tool-detail-panel tool-detail-v26-activity">
         <h2>Hoja de vida / Actividad reciente</h2>
 
         @if (lifeCycleEvents.Count == 0)
@@ -562,6 +1029,7 @@ else if (tool is not null)
                 }
             </div>
         }
+    </section>
     </section>
 }
 
@@ -604,6 +1072,17 @@ else if (tool is not null)
     private List<LifeCycleEventItem> lifeCycleEvents = new();
     private ToolReportedSourceModel? reportedSource;
 
+    // NAVI TOOL DETAIL IMAGE FIELDS V64 START
+
+    private bool isToolImageLoading;
+
+    private string? toolImageUrl;
+
+    private string? toolImageFileName;
+
+    // NAVI TOOL DETAIL IMAGE FIELDS V64 END
+
+
     protected override async Task OnInitializedAsync()
     {
         await LoadAsync();
@@ -626,6 +1105,8 @@ else if (tool is not null)
             }
             lifeCycleEvents = await client.GetFromJsonAsync<List<LifeCycleEventItem>>($"api/tools/{ToolId}/life-cycle-events") ?? new();
                 reportedSource = await client.GetFromJsonAsync<ToolReportedSourceModel>($"api/tools/{ToolId}/reported-source");
+
+            await LoadToolImageAsync(client);
         }
         catch (Exception ex)
         {
@@ -637,12 +1118,184 @@ else if (tool is not null)
         }
     }
 
+    // NAVI TOOL DETAIL IMAGE METHODS V64 START
+
+    private async Task LoadToolImageAsync(
+        System.Net.Http.HttpClient client)
+    {
+        isToolImageLoading = true;
+
+        toolImageUrl = null;
+        toolImageFileName = null;
+
+        try
+        {
+            var documents =
+                await client.GetFromJsonAsync<
+                    List<ToolDetailImageDocument>>(
+                    $"api/tools/{ToolId}/documents")
+                ??
+                new();
+
+            var latestImage =
+                documents
+                    .Where(
+                        IsToolDetailImage)
+                    .OrderByDescending(
+                        document =>
+                            document.UploadedAt
+                            ??
+                            DateTime.MinValue)
+                    .FirstOrDefault();
+
+            if (
+                latestImage is null
+                ||
+                string.IsNullOrWhiteSpace(
+                    latestImage.DownloadUrl))
+            {
+                return;
+            }
+
+            toolImageFileName =
+                latestImage.FileName;
+
+            toolImageUrl =
+                BuildToolDetailImageUrl(
+                    client,
+                    latestImage.DownloadUrl);
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                exception);
+
+            toolImageUrl = null;
+            toolImageFileName = null;
+        }
+        finally
+        {
+            isToolImageLoading = false;
+        }
+    }
+
+
+    private static bool IsToolDetailImage(
+        ToolDetailImageDocument document)
+    {
+        if (
+            document.ContentType?.StartsWith(
+                "image/",
+                StringComparison.OrdinalIgnoreCase)
+            ==
+            true)
+        {
+            return true;
+        }
+
+        var extension =
+            System.IO.Path.GetExtension(
+                document.FileName
+                ??
+                string.Empty);
+
+        return extension.Equals(
+                   ".jpg",
+                   StringComparison.OrdinalIgnoreCase)
+               ||
+               extension.Equals(
+                   ".jpeg",
+                   StringComparison.OrdinalIgnoreCase)
+               ||
+               extension.Equals(
+                   ".png",
+                   StringComparison.OrdinalIgnoreCase)
+               ||
+               extension.Equals(
+                   ".webp",
+                   StringComparison.OrdinalIgnoreCase)
+               ||
+               extension.Equals(
+                   ".gif",
+                   StringComparison.OrdinalIgnoreCase)
+               ||
+               extension.Equals(
+                   ".bmp",
+                   StringComparison.OrdinalIgnoreCase)
+               ||
+               extension.Equals(
+                   ".avif",
+                   StringComparison.OrdinalIgnoreCase);
+    }
+
+
+    private static string BuildToolDetailImageUrl(
+        System.Net.Http.HttpClient client,
+        string? downloadUrl)
+    {
+        if (string.IsNullOrWhiteSpace(downloadUrl))
+        {
+            return string.Empty;
+        }
+
+        var value =
+            downloadUrl.Trim();
+
+        if (
+            Uri.TryCreate(
+                value,
+                UriKind.Absolute,
+                out var absoluteUri))
+        {
+            if (
+                absoluteUri.Scheme.Equals(
+                    Uri.UriSchemeHttp,
+                    StringComparison.OrdinalIgnoreCase)
+                ||
+                absoluteUri.Scheme.Equals(
+                    Uri.UriSchemeHttps,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return absoluteUri.ToString();
+            }
+
+            if (
+                absoluteUri.Scheme.Equals(
+                    Uri.UriSchemeFile,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                value =
+                    absoluteUri.AbsolutePath;
+            }
+        }
+
+        if (client.BaseAddress is null)
+        {
+            return value;
+        }
+
+        return new Uri(
+                client.BaseAddress,
+                value.TrimStart('/'))
+            .ToString();
+    }
+
+    // NAVI TOOL DETAIL IMAGE METHODS V64 END
+
+
+    private bool OperationalStatusReasonRequired =>
+        tool is not null &&
+        RequiresReasonForStatusChange(
+            tool.OperationalStatus,
+            selectedOperationalStatus);
+
     private async Task ChangeOperationalStatusAsync()
     {
-
         if (!CanChangeOperationalStatus)
         {
-            DenyAction("cambiar el estado operativo del activo");
+            DenyAction(
+                "cambiar el estado operativo del activo");
+
             return;
         }
 
@@ -651,45 +1304,251 @@ else if (tool is not null)
             return;
         }
 
+        var currentStatus =
+            tool.OperationalStatus?.Trim()
+            ?? string.Empty;
+
+        var targetStatus =
+            selectedOperationalStatus?.Trim()
+            ?? string.Empty;
+
+        var reason =
+            actionObservation?.Trim()
+            ?? string.Empty;
+
+        actionMessage = null;
+        errorMessage = null;
+
+        if (string.IsNullOrWhiteSpace(targetStatus))
+        {
+            errorMessage =
+                "Debes seleccionar el nuevo estado operativo.";
+
+            return;
+        }
+
+        if (currentStatus.Equals(
+                targetStatus,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            actionMessage =
+                $"La herramienta ya se encuentra en estado "
+                + $"{GetStatusLabel(targetStatus)}.";
+
+            return;
+        }
+
+        if (
+            RequiresReasonForStatusChange(
+                currentStatus,
+                targetStatus)
+            &&
+            string.IsNullOrWhiteSpace(reason)
+        )
+        {
+            errorMessage =
+                $"Para cambiar la herramienta de "
+                + $"{GetStatusLabel(currentStatus)} a "
+                + $"{GetStatusLabel(targetStatus)} debes indicar "
+                + "una razón en el campo Observación.";
+
+            return;
+        }
+
         try
         {
             isSaving = true;
-            actionMessage = null;
-            errorMessage = null;
 
-            var client = HttpClientFactory.CreateClient("NaviApi");
+            var client =
+                HttpClientFactory.CreateClient(
+                    "NaviApi");
 
             var payload = new
             {
-                operationalStatus = selectedOperationalStatus,
+                operationalStatus = targetStatus,
                 changedBy = "yquinto",
                 updatedBy = "yquinto",
-                reason = actionObservation,
-                observation = actionObservation
+                reason,
+                observation = reason
             };
 
-            var response = await client.PatchAsJsonAsync($"api/tools/{tool.Id}/operational-status", payload);
+            var response =
+                await client.PatchAsJsonAsync(
+                    $"api/tools/{tool.Id}/operational-status",
+                    payload);
 
             if (!response.IsSuccessStatusCode)
             {
-                var detail = await response.Content.ReadAsStringAsync();
-                errorMessage = $"No se pudo cambiar el estado. Código: {(int)response.StatusCode}. Detalle: {detail}";
+                var detail =
+                    await ReadApiErrorMessageAsync(
+                        response);
+
+                errorMessage =
+                    $"No se pudo cambiar el estado. "
+                    + $"Código: {(int)response.StatusCode}. "
+                    + detail;
+
                 return;
             }
 
-            actionMessage = "Estado operativo actualizado correctamente.";
-            actionObservation = string.Empty;
+            actionMessage =
+                "Estado operativo actualizado correctamente.";
+
+            actionObservation =
+                string.Empty;
 
             await LoadAsync();
         }
         catch (Exception ex)
         {
-            errorMessage = $"No se pudo cambiar el estado. Detalle: {ex.Message}";
+            errorMessage =
+                $"No se pudo cambiar el estado. "
+                + $"Detalle: {ex.Message}";
         }
         finally
         {
             isSaving = false;
         }
+    }
+
+    private static bool RequiresReasonForStatusChange(
+        string? currentStatus,
+        string? targetStatus)
+    {
+        var current =
+            currentStatus?.Trim()
+            ?? string.Empty;
+
+        var target =
+            targetStatus?.Trim()
+            ?? string.Empty;
+
+        if (
+            target.Equals(
+                "Damaged",
+                StringComparison.OrdinalIgnoreCase)
+            ||
+            target.Equals(
+                "NotSuitable",
+                StringComparison.OrdinalIgnoreCase)
+            ||
+            target.Equals(
+                "InMaintenance",
+                StringComparison.OrdinalIgnoreCase)
+            ||
+            target.Equals(
+                "PendingDisposal",
+                StringComparison.OrdinalIgnoreCase)
+            ||
+            target.Equals(
+                "Disposed",
+                StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return true;
+        }
+
+        return
+            target.Equals(
+                "Available",
+                StringComparison.OrdinalIgnoreCase)
+            &&
+            IsBlockedForDirectAvailability(
+                current);
+    }
+
+    private static bool IsBlockedForDirectAvailability(
+        string? status)
+    {
+        var value =
+            status?.Trim()
+            ?? string.Empty;
+
+        return
+            value.Equals(
+                "Damaged",
+                StringComparison.OrdinalIgnoreCase)
+            ||
+            value.Equals(
+                "NotSuitable",
+                StringComparison.OrdinalIgnoreCase)
+            ||
+            value.Equals(
+                "InMaintenance",
+                StringComparison.OrdinalIgnoreCase)
+            ||
+            value.Equals(
+                "PendingDisposal",
+                StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static async Task<string>
+        ReadApiErrorMessageAsync(
+            System.Net.Http.HttpResponseMessage response)
+    {
+        var content =
+            await response.Content.ReadAsStringAsync();
+
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return
+                "La API no devolvió información adicional.";
+        }
+
+        try
+        {
+            using var document =
+                JsonDocument.Parse(content);
+
+            var root =
+                document.RootElement;
+
+            if (
+                root.ValueKind
+                    == JsonValueKind.Object
+                &&
+                root.TryGetProperty(
+                    "message",
+                    out var message)
+                &&
+                message.ValueKind
+                    == JsonValueKind.String
+            )
+            {
+                return
+                    message.GetString()
+                    ?? content;
+            }
+
+            if (
+                root.ValueKind
+                    == JsonValueKind.Object
+                &&
+                root.TryGetProperty(
+                    "Message",
+                    out var upperMessage)
+                &&
+                upperMessage.ValueKind
+                    == JsonValueKind.String
+            )
+            {
+                return
+                    upperMessage.GetString()
+                    ?? content;
+            }
+        }
+        catch (JsonException)
+        {
+            // La respuesta no es JSON.
+        }
+
+        return content;
+    }
+
+    private async Task OnSpecializedToggleChanged(
+        ChangeEventArgs _)
+    {
+        await ToggleSpecializedAsync();
     }
 
     private async Task ToggleSpecializedAsync()
@@ -764,6 +1623,56 @@ else if (tool is not null)
         return value.HasValue ? value.Value.ToString("dd/MM/yyyy") : "-";
     }
 
+    // NAVI TOOL DETAIL STATE LABELS V27 START
+
+    private static string GetDetailStateLabel(
+        string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "-";
+        }
+
+        return value.Trim() switch
+        {
+            "Good" => "Bueno",
+            "Regular" => "Regular",
+            "Damaged" => "Dañado",
+            "Lost" => "Perdido",
+            "Incomplete" => "Incompleto",
+
+            "Available" => "Disponible",
+            "Assigned" => "Asignado",
+            "Loaned" => "Prestado",
+            "InMaintenance" => "En mantenimiento",
+            "NotSuitable" => "No apto",
+            "PendingValidation" => "Pendiente de validación",
+            "Inconsistent" => "Inconsistente",
+            "NotLocated" => "No localizado",
+            "PendingDisposal" => "Pendiente de baja",
+            "Disposed" => "Dado de baja",
+
+            "InWarehouse" => "En almacén",
+            "AssignedToResponsible" => "Asignado a responsable",
+            "LoanedToResponsible" => "Prestado a responsable",
+            "InTransit" => "En tránsito",
+            "WithoutResponsible" => "Sin responsable",
+
+            "Validated" => "Validado",
+            "Reconciled" => "Conciliado",
+            "Pending" => "Pendiente",
+            "Rejected" => "Rechazado",
+
+            "Synced" => "Sincronizado",
+            "PendingSync" => "Pendiente de sincronización",
+            "SyncError" => "Error de sincronización",
+
+            _ => NaviStatusLabels.ToSpanish(value)
+        };
+    }
+
+    // NAVI TOOL DETAIL STATE LABELS V27 END
+
     private static string GetStatusLabel(string? status)
     {
         return status switch
@@ -782,6 +1691,32 @@ else if (tool is not null)
             _ => NaviStatusLabels.ToSpanish(status)
         };
     }
+
+    // NAVI TOOL DETAIL IMAGE DTO V64 START
+
+    private sealed class ToolDetailImageDocument
+    {
+        public Guid Id { get; set; }
+
+        public Guid ToolAssetId { get; set; }
+
+        public string? DocumentType { get; set; }
+
+        public string? FileName { get; set; }
+
+        public string? ObjectKey { get; set; }
+
+        public string? ContentType { get; set; }
+
+        public DateTime? UploadedAt { get; set; }
+
+        public string? Description { get; set; }
+
+        public string? DownloadUrl { get; set; }
+    }
+
+    // NAVI TOOL DETAIL IMAGE DTO V64 END
+
 
     private sealed class ToolDetailItem
     {

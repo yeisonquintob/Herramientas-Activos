@@ -1,57 +1,417 @@
 @using Microsoft.AspNetCore.Components
 
-<article @attributes="AdditionalAttributes" class="@CssClass">
+<article @attributes="AdditionalAttributes"
+         class="@CssClass"
+         data-kpi-tone="@NormalizedTone"
+         data-kpi-icon="@ResolvedIconKey">
+
+    @if (UseLegacyIconClass)
+    {
+        <span class="navi-mobile-kpi-card__icon"
+              aria-hidden="true">
+            <span class="@Icon"></span>
+        </span>
+    }
+    else
+    {
+        <NaviMobileKpiIcon Name="@ResolvedIconKey"
+                     Class="navi-mobile-kpi-card__icon" />
+    }
+
     @if (!string.IsNullOrWhiteSpace(Title))
     {
-        <span>@Title</span>
+        <span class="navi-mobile-kpi-card__title">
+            @Title
+        </span>
     }
 
     @if (ValueContent is not null)
     {
-        <strong>@ValueContent</strong>
+        <strong class="navi-mobile-kpi-card__value">
+            @ValueContent
+        </strong>
     }
     else if (!string.IsNullOrWhiteSpace(Value))
     {
-        <strong>@Value</strong>
+        <strong class="navi-mobile-kpi-card__value">
+            @Value
+        </strong>
     }
 
-    @if (!string.IsNullOrWhiteSpace(Subtitle))
+    @if (!string.IsNullOrWhiteSpace(
+        EffectiveDescription))
     {
-        <small>@Subtitle</small>
+        <small class="navi-mobile-kpi-card__description">
+            @EffectiveDescription
+        </small>
     }
 
     @ChildContent
 </article>
 
 @code {
-    [Parameter] public string? Title { get; set; }
-    [Parameter] public string? Value { get; set; }
-    [Parameter] public RenderFragment? ValueContent { get; set; }
-    [Parameter] public string? Subtitle { get; set; }
-    [Parameter] public string? Tone { get; set; } = "neutral";
-    [Parameter] public string? Class { get; set; }
-    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public string? Value { get; set; }
+
+    [Parameter]
+    public RenderFragment? ValueContent { get; set; }
+
+    [Parameter]
+    public string? Description { get; set; }
+
+    [Parameter]
+    public string? Subtitle { get; set; }
+
+    /*
+     * Conserva compatibilidad con clases de iconos antiguas.
+     */
+    [Parameter]
+    public string? Icon { get; set; }
+
+    /*
+     * Nuevo identificador semántico:
+     * users, inventory, check, clock, alert, progress,
+     * bell, location, transfer, document, wrench,
+     * cart, calendar, report o metric.
+     */
+    [Parameter]
+    public string? IconKey { get; set; }
+
+    [Parameter]
+    public string? Tone { get; set; } = "neutral";
+
+    [Parameter]
+    public bool Compact { get; set; } = true;
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
 
     [Parameter(CaptureUnmatchedValues = true)]
-    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+    public IReadOnlyDictionary<string, object>?
+        AdditionalAttributes { get; set; }
+
+    private string? EffectiveDescription =>
+        !string.IsNullOrWhiteSpace(Description)
+            ? Description
+            : Subtitle;
+
+    private string NormalizedTone
+    {
+        get
+        {
+            var source =
+                $"{Tone} {Class}"
+                .ToLowerInvariant();
+
+            if (ContainsAny(
+                source,
+                "positive",
+                "success",
+                " ok",
+                "available",
+                "approved",
+                "completed"))
+            {
+                return "positive";
+            }
+
+            if (ContainsAny(
+                source,
+                "warning",
+                "pending",
+                "review",
+                "quotation",
+                "amber"))
+            {
+                return "warning";
+            }
+
+            if (ContainsAny(
+                source,
+                "danger",
+                "error",
+                "rejected",
+                "overdue",
+                "damaged",
+                "notlocated"))
+            {
+                return "danger";
+            }
+
+            if (source.Contains(
+                "soft",
+                StringComparison.OrdinalIgnoreCase))
+            {
+                return "soft";
+            }
+
+            return "neutral";
+        }
+    }
+
+    private bool UseLegacyIconClass =>
+        !string.IsNullOrWhiteSpace(Icon) &&
+        string.IsNullOrWhiteSpace(IconKey) &&
+        !IsSemanticIcon(Icon);
+
+    private string ResolvedIconKey
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(IconKey))
+            {
+                return NormalizeIconKey(IconKey);
+            }
+
+            if (IsSemanticIcon(Icon))
+            {
+                return NormalizeIconKey(Icon);
+            }
+
+            var source =
+                $"{Title} {EffectiveDescription} {Class}"
+                .ToLowerInvariant();
+
+            if (ContainsAny(
+                source,
+                "usuario",
+                "responsable",
+                "participante",
+                "persona"))
+            {
+                return "users";
+            }
+
+            if (ContainsAny(
+                source,
+                "avance",
+                "progreso",
+                "porcentaje",
+                "cumplimiento"))
+            {
+                return "progress";
+            }
+
+            if (ContainsAny(
+                source,
+                "documento",
+                "archivo",
+                "hoja de vida",
+                "soporte"))
+            {
+                return "document";
+            }
+
+            if (ContainsAny(
+                source,
+                "mantenimiento",
+                "mtto",
+                "reparación",
+                "reparacion",
+                "técnico",
+                "tecnico"))
+            {
+                return "wrench";
+            }
+
+            if (ContainsAny(
+                source,
+                "compra",
+                "costo",
+                "proveedor",
+                "cotización",
+                "cotizacion"))
+            {
+                return "cart";
+            }
+
+            if (ContainsAny(
+                source,
+                "sede",
+                "ubicación",
+                "ubicacion",
+                "localización",
+                "localizacion"))
+            {
+                return "location";
+            }
+
+            if (ContainsAny(
+                source,
+                "asignación",
+                "asignacion",
+                "préstamo",
+                "prestamo",
+                "custodia",
+                "movimiento",
+                "regreso"))
+            {
+                return "transfer";
+            }
+
+            if (ContainsAny(
+                source,
+                "novedad",
+                "daño",
+                "dano",
+                "diferencia",
+                "rechazada",
+                "vencido"))
+            {
+                return "alert";
+            }
+
+            if (ContainsAny(
+                source,
+                "pendiente",
+                "por validar",
+                "en proceso",
+                "solicitud"))
+            {
+                return "clock";
+            }
+
+            if (ContainsAny(
+                source,
+                "finalizado",
+                "disponible",
+                "aprobado",
+                "completo",
+                "al día",
+                "al dia"))
+            {
+                return "check";
+            }
+
+            if (ContainsAny(
+                source,
+                "inventario",
+                "activo",
+                "herramienta",
+                "total"))
+            {
+                return "inventory";
+            }
+
+            return NormalizedTone switch
+            {
+                "positive" => "check",
+                "warning" => "clock",
+                "danger" => "alert",
+                _ => "metric"
+            };
+        }
+    }
 
     private string CssClass
     {
         get
         {
-            var classes = "navi-mobile-kpi-card";
+            var classes =
+                $"navi-mobile-kpi-card tone-{NormalizedTone}";
 
-            if (!string.IsNullOrWhiteSpace(Tone))
+            if (Compact)
             {
-                classes += $" tone-{Tone}";
+                classes += " is-compact";
             }
 
             if (!string.IsNullOrWhiteSpace(Class))
             {
-                classes += $" {Class}";
+                classes += $" {Class.Trim()}";
             }
 
             return classes;
         }
+    }
+
+    private static bool ContainsAny(
+        string source,
+        params string[] values)
+    {
+        foreach (var value in values)
+        {
+            if (source.Contains(
+                value,
+                StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsSemanticIcon(
+        string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        return NormalizeIconKey(value) != "metric" ||
+               value.Trim().Equals(
+                   "metric",
+                   StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeIconKey(
+        string? value)
+    {
+        return value?.Trim().ToLowerInvariant() switch
+        {
+            "user" or "users" or "person" or
+            "people" or "participant" or
+            "responsible" => "users",
+
+            "asset" or "assets" or "tool" or
+            "tools" or "inventory" or
+            "briefcase" => "inventory",
+
+            "success" or "available" or
+            "approved" or "completed" or
+            "check" => "check",
+
+            "pending" or "time" or
+            "clock" or "history" => "clock",
+
+            "danger" or "damage" or
+            "difference" or "warning-alert" or
+            "alert" => "alert",
+
+            "advance" or "progress" or
+            "percentage" => "progress",
+
+            "notification" or "novelty" or
+            "bell" => "bell",
+
+            "branch" or "site" or
+            "location" => "location",
+
+            "assignment" or "loan" or
+            "movement" or "transfer" => "transfer",
+
+            "file" or "document" or
+            "life-record" => "document",
+
+            "maintenance" or "repair" or
+            "wrench" => "wrench",
+
+            "purchase" or "cost" or
+            "cart" => "cart",
+
+            "plan" or "date" or
+            "calendar" => "calendar",
+
+            "chart" or "report" => "report",
+
+            _ => "metric"
+        };
     }
 }

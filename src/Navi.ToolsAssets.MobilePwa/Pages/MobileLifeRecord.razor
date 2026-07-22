@@ -12,17 +12,17 @@
 
 <PageTitle>Hoja de vida AF - NAVI Herramientas y AF</PageTitle>
 
-<section class="mobile-page mobile-compact-page navi-life-manage-v3">
+<section class="mobile-page mobile-compact-page navi-life-manage-v3 mlife-v45-page mobile-life-record-standard-v91">
     @if (isLoading)
     {
-        <div class="mobile-loading">Cargando hoja de vida...</div>
+        <div class="mobile-loading" role="status" aria-busy="true">Cargando hoja de vida...</div>
     }
     else if (!Auth.IsAuthenticated)
     {
         <div class="mobile-empty">
             <strong>Sesión requerida</strong>
             <span>Debes iniciar sesión para consultar la hoja de vida.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="secondary" >Ir al login</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="ghost" >Ir al login</button>
         </div>
     }
     else if (!CanViewLifeRecord)
@@ -30,56 +30,460 @@
         <div class="mobile-empty">
             <strong>Sin permiso</strong>
             <span>Tu usuario no tiene permiso para consultar hoja de vida.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoBack" data-ntx-tone="secondary" >Regresar</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoBack" data-ntx-tone="warning" >Regresar</button>
         </div>
     }
     else if (!string.IsNullOrWhiteSpace(message) && life is null)
     {
         <div class="mobile-alert">@message</div>
-        <button class="mobile-primary-button" type="button" @onclick="GoBack" data-ntx-tone="secondary" >Regresar</button>
+        <button class="mobile-primary-button" type="button" @onclick="GoBack" data-ntx-tone="warning" >Regresar</button>
     }
     else if (life is not null)
     {
-        <NaviMobileAppBanner Class="navi-mobile-life-edit-app-banner navi-mobile-app-banner--detail"
+        <NaviMobileAppBanner Class="navi-mobile-life-edit-app-banner navi-mobile-app-banner--home-only"
                              Pill="ACTIVOS FIJOS · HOJA DE VIDA"
                              Title="@Show(life.EquipmentInformation.Name ?? life.Summary.Name)"
                              Description="@($"{Show(life.EquipmentInformation.InternalCode ?? life.Summary.InternalCode)} · {StatusLabel(life.Summary.OperationalStatus)}")"
                              HomeUrl="/"
-                             BackUrl="@GetNaviMobileBackUrl()"
-                             BackFallbackUrl="/all-tools"
                              ShowHomeButton="true"
-                             ShowBackButton="true" />
+                             ShowBackButton="false" />
 
         @if (!string.IsNullOrWhiteSpace(message))
         {
             <div class="mobile-alert">@message</div>
         }
 
-        <section class="mlife-kpis">
-            <article>
-                <span>Vida útil</span>
-                <strong>@PercentLabel(life.UsefulLife.UsedPercentage)</strong>
-                <small>Uso</small>
-            </article>
+        @* NAVI MOBILE LIFE RECORD KPI V91 START *@
 
-            <article>
-                <span>Documentos</span>
-                <strong>@life.Documents.AllDocuments.Count</strong>
-                <small>Archivos</small>
-            </article>
+        <NaviMobileKpiOverflow
+            PrimaryCount="2"
+            OverflowCount="4"
+            Class="navi-mobile-kpi-standard-overflow mlife-v91-kpi-overflow"
+            ButtonLabel="Mostrar indicadores adicionales"
+            PanelLabel="Indicadores adicionales de la hoja de vida">
 
-            <article>
-                <span>Accesorios</span>
-                <strong>@life.Accessories.Count</strong>
-                <small>Componentes</small>
-            </article>
+            <PrimaryContent>
 
-            <article>
-                <span>Permiso</span>
-                <strong>@PermissionMode</strong>
-                <small>Matriz</small>
-            </article>
+                <NaviMobileKpiGrid
+                    Columns="2"
+                    Compact="true"
+                    Dividers="true"
+                    Class="navi-mobile-kpi-standard-grid mlife-v91-kpi-primary">
+
+                    <NaviMobileKpiCard
+                        Title="Código"
+                        Description="Identificación"
+                        IconKey="inventory"
+                        Tone="neutral"
+                        Compact="true">
+
+                        <ValueContent>
+                            @Show(life.Summary.InternalCode)
+                        </ValueContent>
+
+                    </NaviMobileKpiCard>
+
+                    <NaviMobileKpiCard
+                        Title="Estado"
+                        Description="Operativo"
+                        IconKey="transfer"
+                        Tone="warning"
+                        Compact="true">
+
+                        <ValueContent>
+                            @StatusLabel(
+                                life.Summary.OperationalStatus)
+                        </ValueContent>
+
+                    </NaviMobileKpiCard>
+
+                </NaviMobileKpiGrid>
+
+            </PrimaryContent>
+
+            <OverflowContent>
+
+                <NaviMobileKpiGrid
+                    Columns="2"
+                    Compact="true"
+                    Dividers="true"
+                    Class="navi-mobile-kpi-standard-grid mlife-v91-kpi-panel">
+
+                    <NaviMobileKpiCard
+                        Title="Clasificación"
+                        Description="Tipo de activo"
+                        IconKey="document"
+                        Tone="soft"
+                        Compact="true">
+
+                        <ValueContent>
+                            @(life.Summary.IsSpecialized
+                                ? "Especializada"
+                                : "Estándar")
+                        </ValueContent>
+
+                    </NaviMobileKpiCard>
+
+                    <NaviMobileKpiCard
+                        Title="Vida útil"
+                        Description="Consumo estimado"
+                        IconKey="progress"
+                        Tone="neutral"
+                        Compact="true">
+
+                        <ValueContent>
+                            @PercentLabel(
+                                life.UsefulLife.UsedPercentage)
+                        </ValueContent>
+
+                    </NaviMobileKpiCard>
+
+                    <NaviMobileKpiCard
+                        Title="Documentos"
+                        Description="Archivos"
+                        IconKey="document"
+                        Tone="soft"
+                        Compact="true">
+
+                        <ValueContent>
+                            @life.Documents.AllDocuments.Count
+                        </ValueContent>
+
+                    </NaviMobileKpiCard>
+
+                    <NaviMobileKpiCard
+                        Title="Accesorios"
+                        Description="Componentes"
+                        IconKey="inventory"
+                        Tone="neutral"
+                        Compact="true">
+
+                        <ValueContent>
+                            @life.Accessories.Count
+                        </ValueContent>
+
+                    </NaviMobileKpiCard>
+
+                </NaviMobileKpiGrid>
+
+            </OverflowContent>
+
+        </NaviMobileKpiOverflow>
+
+        <div class="mlife-v91-main-actions">
+
+            <button
+                type="button"
+                class="mlife-v91-back-button"
+                @onclick="GoBack"
+                data-ntx-tone="warning">
+
+                <svg
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    focusable="false">
+
+                    <path d="M19 12H5"></path>
+                    <path d="M11 6L5 12L11 18"></path>
+
+                </svg>
+
+                <span>Regresar</span>
+
+            </button>
+
+        </div>
+
+@* NAVI MOBILE LIFE RECORD KPI V91 END *@
+
+@* NAVI MOBILE LIFE RECORD PHOTO V91 START *@
+
+        <section class="mlife-v91-photo-card">
+
+            <div class="mlife-v91-photo-header">
+
+                <div>
+                    <small>IMAGEN DEL ACTIVO</small>
+                    <strong>Vista del activo</strong>
+                </div>
+
+            </div>
+
+            <div class="mlife-v91-photo-frame">
+
+                @if (
+                    LifeImageV45 is not null
+                    &&
+                    !string.IsNullOrWhiteSpace(
+                        LifeImageUrlV46))
+                {
+                    <button
+                        type="button"
+                        class="mlife-v91-photo-trigger"
+                        title="Ampliar imagen"
+                        aria-label="Ampliar imagen del activo"
+                        data-ntx-tone="consult"
+                        @onclick="OpenLifeImagePreviewV49">
+
+                        <img
+                            src="@LifeImageUrlV46"
+                            alt="Imagen del activo"
+                            draggable="false"
+                            loading="eager"
+                            decoding="auto"
+                            fetchpriority="high" />
+
+                        <span
+                            class="mlife-v91-photo-zoom"
+                            aria-hidden="true">
+
+                            <svg
+                                viewBox="0 0 24 24">
+
+                                <circle
+                                    cx="11"
+                                    cy="11"
+                                    r="7">
+                                </circle>
+
+                                <path d="M20 20L16.5 16.5"></path>
+                                <path d="M11 8V14"></path>
+                                <path d="M8 11H14"></path>
+
+                            </svg>
+
+                        </span>
+
+                    </button>
+                }
+                else
+                {
+                    <div class="mlife-v91-photo-empty">
+
+                        <svg
+                            viewBox="0 0 24 24"
+                            aria-hidden="true">
+
+                            <rect
+                                x="3"
+                                y="5"
+                                width="18"
+                                height="14"
+                                rx="2">
+                            </rect>
+
+                            <circle
+                                cx="9"
+                                cy="10"
+                                r="2">
+                            </circle>
+
+                            <path d="M4 17L9 13L13 16L16 13L20 17"></path>
+
+                        </svg>
+
+                        <strong>Sin imagen registrada</strong>
+
+                    </div>
+                }
+
+            </div>
+
+            @if (CanUploadLifeImageV45)
+            {
+                <label class="mlife-v91-upload-button">
+
+                    <svg
+                        viewBox="0 0 24 24"
+                        aria-hidden="true">
+
+                        <path d="M12 16V4"></path>
+                        <path d="M7 9L12 4L17 9"></path>
+                        <path d="M5 20H19"></path>
+
+                    </svg>
+
+                    <span>
+                        @(IsUploadingLifeImageV45
+                            ? "Subiendo..."
+                            : "Subir imagen")
+                    </span>
+
+                    <InputFile
+                        id="mobile-life-record-image-upload"
+                        name="mobile-life-record-image-upload"
+                        class="mlife-v91-upload-input"
+                        OnChange="OnLifeImageSelectedV45"
+                        accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                        disabled="@IsUploadingLifeImageV45" />
+
+                </label>
+            }
+
+            @if (
+                !string.IsNullOrWhiteSpace(
+                    LifeImageMessageV45))
+            {
+                <div class="@LifeImageMessageClassV45">
+                    @LifeImageMessageV45
+                </div>
+            }
+
         </section>
+
+        @if (
+            IsLifeImagePreviewOpenV49
+            &&
+            !string.IsNullOrWhiteSpace(
+                LifeImageUrlV46))
+        {
+            <div
+                class="navi-mobile-home-image-preview-v80 mlife-v91-image-preview"
+                role="presentation"
+                @onclick="CloseLifeImagePreviewV49">
+
+                <section
+                    class="navi-mobile-home-image-preview-v80__dialog"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="mlife-v91-image-title"
+                    @onclick:stopPropagation="true">
+
+                    <header
+                        class="navi-mobile-home-image-preview-v80__header">
+
+                        <div
+                            class="navi-mobile-home-image-preview-v80__title">
+
+                            <span>
+                                @Show(
+                                    life.Summary.InternalCode)
+                            </span>
+
+                            <strong id="mlife-v91-image-title">
+                                @Show(
+                                    life.EquipmentInformation.Name
+                                    ??
+                                    life.Summary.Name)
+                            </strong>
+
+                        </div>
+
+                        <div
+                            class="navi-mobile-home-image-preview-v80__header-actions">
+
+                            <div
+                                class="navi-mobile-home-image-preview-v80__zoom"
+                                aria-label="Controles de zoom">
+
+                                <button
+                                    type="button"
+                                    class="navi-mobile-home-image-preview-v80__zoom-out"
+                                    title="Alejar imagen"
+                                    aria-label="Alejar imagen"
+                                    data-navi-home-image-action="zoom-out">
+
+                                    <span aria-hidden="true">−</span>
+
+                                </button>
+
+                                <button
+                                    type="button"
+                                    class="navi-mobile-home-image-preview-v80__zoom-value"
+                                    title="Restablecer imagen"
+                                    aria-label="Restablecer zoom al 100 por ciento"
+                                    data-navi-home-image-action="reset">
+
+                                    100%
+
+                                </button>
+
+                                <button
+                                    type="button"
+                                    class="navi-mobile-home-image-preview-v80__zoom-in"
+                                    title="Aumentar imagen"
+                                    aria-label="Aumentar imagen"
+                                    data-navi-home-image-action="zoom-in">
+
+                                    <span aria-hidden="true">+</span>
+
+                                </button>
+
+                            </div>
+
+                            <button
+                                type="button"
+                                class="navi-mobile-home-image-preview-v80__close"
+                                title="Cerrar"
+                                aria-label="Cerrar vista de imagen"
+                                data-ntx-tone="danger"
+                                @onclick="CloseLifeImagePreviewV49">
+
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    aria-hidden="true"
+                                    focusable="false">
+
+                                    <path d="M6 6L18 18"></path>
+                                    <path d="M18 6L6 18"></path>
+
+                                </svg>
+
+                            </button>
+
+                        </div>
+
+                    </header>
+
+                    <div
+                        class="navi-mobile-home-image-preview-v80__viewport"
+                        data-navi-home-image-viewport
+                        tabindex="0"
+                        aria-label="Imagen ampliable y desplazable">
+
+                        <img
+                            class="navi-mobile-home-image-preview-v80__image"
+                            src="@LifeImageUrlV46"
+                            alt="Imagen ampliada del activo"
+                            draggable="false"
+                            loading="eager"
+                            decoding="auto"
+                            fetchpriority="high"
+                            data-navi-home-image />
+
+                    </div>
+
+                    <footer
+                        class="navi-mobile-home-image-preview-v80__footer">
+
+                        <em class="mlife-v91-image-status">
+                            @StatusLabel(
+                                life.Summary.OperationalStatus)
+                        </em>
+
+                        <small>
+                            Usa + o − para ampliar. Arrastra la imagen
+                            con el dedo cuando esté ampliada.
+                        </small>
+
+                        <button
+                            type="button"
+                            class="navi-mobile-home-image-preview-v80__close-secondary"
+                            data-ntx-tone="secondary"
+                            @onclick="CloseLifeImagePreviewV49">
+
+                            Cerrar
+
+                        </button>
+
+                    </footer>
+
+                </section>
+
+            </div>
+        }
+
+@* NAVI MOBILE LIFE RECORD PHOTO V91 END *@
 
         @if (!CanManageThisTool && HasAnyManagementPermission)
         {
@@ -97,14 +501,14 @@
                     {
                         @if (editInfoMode)
                         {
-                            <button type="button" class="cancel" @onclick="CancelInfoEdit" @onclick:stopPropagation="true" data-ntx-tone="primary" >Cancelar</button>
-                            <button type="button" class="save" @onclick="SaveTechnicalAsync" @onclick:stopPropagation="true" disabled="@isSaving" data-ntx-tone="primary" >
+                            <button type="button" class="cancel" @onclick="CancelInfoEdit" @onclick:stopPropagation="true" data-ntx-tone="secondary" >Cancelar</button>
+                            <button type="button" class="save" @onclick="SaveTechnicalAsync" @onclick:stopPropagation="true" disabled="@isSaving" data-ntx-tone="affirmative" >
                                 @(isSaving ? "Guardando..." : "Guardar")
                             </button>
                         }
                         else
                         {
-                            <button type="button" @onclick="BeginInfoEdit" @onclick:stopPropagation="true" data-ntx-tone="secondary" >Editar</button>
+                            <button type="button" @onclick="BeginInfoEdit" @onclick:stopPropagation="true" data-ntx-tone="affirmative" >Editar</button>
                         }
                     }
                 </div>
@@ -129,17 +533,17 @@
             {
                 <EditForm Model="technicalForm" OnValidSubmit="SaveTechnicalAsync">
                     <div class="mlife-form-grid">
-                        <label><span>Marca</span><InputText @bind-Value="technicalForm.Brand" /></label>
-                        <label><span>Modelo</span><InputText @bind-Value="technicalForm.Model" /></label>
-                        <label><span>Serial</span><InputText @bind-Value="technicalForm.SerialNumber" /></label>
-                        <label><span>Activo fijo</span><InputText @bind-Value="technicalForm.FixedAssetCode" /></label>
-                        <label><span>Código Fenix365</span><InputText @bind-Value="technicalForm.FenixCode" /></label>
-                        <label><span>Fecha adquisición</span><InputDate @bind-Value="technicalForm.AcquisitionDate" /></label>
+                        <label><span>Marca</span><InputText @bind-Value="technicalForm.Brand" name="navi-mobileliferecord-field-001" /></label>
+                        <label><span>Modelo</span><InputText @bind-Value="technicalForm.Model" name="navi-mobileliferecord-field-002" /></label>
+                        <label><span>Serial</span><InputText @bind-Value="technicalForm.SerialNumber" name="navi-mobileliferecord-field-003" /></label>
+                        <label><span>Activo fijo</span><InputText @bind-Value="technicalForm.FixedAssetCode" name="navi-mobileliferecord-field-004" /></label>
+                        <label><span>Código Fenix365</span><InputText @bind-Value="technicalForm.FenixCode" name="navi-mobileliferecord-field-005" /></label>
+                        <label><span>Fecha adquisición</span><InputDate @bind-Value="technicalForm.AcquisitionDate" name="navi-mobileliferecord-field-006" /></label>
                     </div>
 
                     <label class="mlife-full">
                         <span>Observación</span>
-                        <InputTextArea @bind-Value="technicalForm.Observation" />
+                        <InputTextArea @bind-Value="technicalForm.Observation" name="navi-mobileliferecord-field-038" />
                     </label>
                 </EditForm>
             }
@@ -155,17 +559,17 @@
                     {
                         @if (editTechnicalMode)
                         {
-                            <button type="button" class="cancel" @onclick="CancelTechnicalEdit" @onclick:stopPropagation="true" data-ntx-tone="primary" >
+                            <button type="button" class="cancel" @onclick="CancelTechnicalEdit" @onclick:stopPropagation="true" data-ntx-tone="secondary" >
                                 Cancelar
                             </button>
 
-                            <button type="button" class="save" @onclick="SaveTechnicalAsync" @onclick:stopPropagation="true" disabled="@isSaving" data-ntx-tone="primary" >
+                            <button type="button" class="save" @onclick="SaveTechnicalAsync" @onclick:stopPropagation="true" disabled="@isSaving" data-ntx-tone="affirmative" >
                                 @(isSaving ? "Guardando..." : "Guardar")
                             </button>
                         }
                         else
                         {
-                            <button type="button" @onclick="BeginTechnicalEdit" @onclick:stopPropagation="true" data-ntx-tone="secondary" >
+                            <button type="button" @onclick="BeginTechnicalEdit" @onclick:stopPropagation="true" data-ntx-tone="affirmative" >
                                 Editar
                             </button>
                         }
@@ -263,85 +667,85 @@
                     <div class="mlife-form-grid">
                         <label>
                             <span>Voltaje</span>
-                            <InputText @bind-Value="technicalForm.Voltage" />
+                            <InputText @bind-Value="technicalForm.Voltage" name="navi-mobileliferecord-field-007" />
                         </label>
 
                         <label>
                             <span>Capacidad carga</span>
-                            <InputText @bind-Value="technicalForm.LoadCapacity" />
+                            <InputText @bind-Value="technicalForm.LoadCapacity" name="navi-mobileliferecord-field-008" />
                         </label>
 
                         <label>
                             <span>Proveedor</span>
-                            <InputText @bind-Value="technicalForm.Provider" />
+                            <InputText @bind-Value="technicalForm.Provider" name="navi-mobileliferecord-field-009" />
                         </label>
 
                         <label>
                             <span>Tipo garantía</span>
-                            <InputText @bind-Value="technicalForm.WarrantyType" />
+                            <InputText @bind-Value="technicalForm.WarrantyType" name="navi-mobileliferecord-field-010" />
                         </label>
 
                         <label>
                             <span>Inicio vida útil</span>
-                            <InputDate @bind-Value="technicalForm.UsefulLifeStartDate" />
+                            <InputDate @bind-Value="technicalForm.UsefulLifeStartDate" name="navi-mobileliferecord-field-011" />
                         </label>
 
                         <label>
                             <span>Vida útil meses</span>
-                            <InputNumber @bind-Value="technicalForm.UsefulLifeMonths" />
+                            <InputNumber @bind-Value="technicalForm.UsefulLifeMonths" name="navi-mobileliferecord-field-012" />
                         </label>
 
                         <label>
                             <span>Vida útil días</span>
-                            <InputNumber @bind-Value="technicalForm.UsefulLifeDays" />
+                            <InputNumber @bind-Value="technicalForm.UsefulLifeDays" name="navi-mobileliferecord-field-013" />
                         </label>
 
                         <label>
                             <span>Último mantenimiento</span>
-                            <InputDate @bind-Value="technicalForm.LastMaintenanceDate" />
+                            <InputDate @bind-Value="technicalForm.LastMaintenanceDate" name="navi-mobileliferecord-field-014" />
                         </label>
 
                         <label>
                             <span>Próximo mantenimiento</span>
-                            <InputDate @bind-Value="technicalForm.NextMaintenanceDate" />
+                            <InputDate @bind-Value="technicalForm.NextMaintenanceDate" name="navi-mobileliferecord-field-015" />
                         </label>
 
                         <label>
                             <span>Periodicidad meses</span>
-                            <InputNumber @bind-Value="technicalForm.MaintenancePeriodMonths" />
+                            <InputNumber @bind-Value="technicalForm.MaintenancePeriodMonths" name="navi-mobileliferecord-field-016" />
                         </label>
 
                         <label>
                             <span>Vence certificación</span>
-                            <InputDate @bind-Value="technicalForm.CertificationExpirationDate" />
+                            <InputDate @bind-Value="technicalForm.CertificationExpirationDate" name="navi-mobileliferecord-field-017" />
                         </label>
                     </div>
 
                     <div class="mlife-check-grid">
                         <label>
-                            <InputCheckbox @bind-Value="technicalForm.HasWarranty" />
+                            <InputCheckbox @bind-Value="technicalForm.HasWarranty" name="navi-mobileliferecord-field-018" />
                             Garantía
                         </label>
 
                         <label>
-                            <InputCheckbox @bind-Value="technicalForm.RequiresMaintenance" />
+                            <InputCheckbox @bind-Value="technicalForm.RequiresMaintenance" name="navi-mobileliferecord-field-019" />
                             Requiere mantenimiento
                         </label>
 
                         <label>
-                            <InputCheckbox @bind-Value="technicalForm.RequiresPreOperationalCheck" />
+                            <InputCheckbox @bind-Value="technicalForm.RequiresPreOperationalCheck" name="navi-mobileliferecord-field-020" />
                             Requiere preoperacional
                         </label>
 
                         <label>
-                            <InputCheckbox @bind-Value="technicalForm.RequiresCertification" />
+                            <InputCheckbox @bind-Value="technicalForm.RequiresCertification" name="navi-mobileliferecord-field-021" />
                             Requiere certificación
                         </label>
                     </div>
 
                     <label class="mlife-full">
                         <span>Observación</span>
-                        <InputTextArea @bind-Value="technicalForm.Observation" />
+                        <InputTextArea @bind-Value="technicalForm.Observation" name="navi-mobileliferecord-field-039" />
                     </label>
                 </EditForm>
             }
@@ -357,14 +761,14 @@
                     {
                         @if (editAccessoriesMode)
                         {
-                            <button type="button" class="cancel" @onclick="CancelAccessoriesSection" @onclick:stopPropagation="true" data-ntx-tone="primary" >Cancelar</button>
-                            <button type="button" class="save" @onclick="SaveAccessoryAsync" @onclick:stopPropagation="true" disabled="@isSaving" data-ntx-tone="primary" >
+                            <button type="button" class="cancel" @onclick="CancelAccessoriesSection" @onclick:stopPropagation="true" data-ntx-tone="secondary" >Cancelar</button>
+                            <button type="button" class="save" @onclick="SaveAccessoryAsync" @onclick:stopPropagation="true" disabled="@isSaving" data-ntx-tone="affirmative" >
                                 @(isSaving ? "Guardando..." : "Guardar")
                             </button>
                         }
                         else
                         {
-                            <button type="button" @onclick="BeginAccessoriesEdit" @onclick:stopPropagation="true" data-ntx-tone="secondary" >Editar</button>
+                            <button type="button" @onclick="BeginAccessoriesEdit" @onclick:stopPropagation="true" data-ntx-tone="affirmative" >Editar</button>
                         }
                     }
                 </div>
@@ -374,18 +778,18 @@
             {
                 <EditForm Model="accessoryForm" OnValidSubmit="SaveAccessoryAsync">
                     <div class="mlife-form-grid">
-                        <label><span>Nombre</span><InputText @bind-Value="accessoryForm.Name" /></label>
-                        <label><span>Cantidad</span><InputNumber @bind-Value="accessoryForm.Quantity" /></label>
+                        <label><span>Nombre</span><InputText @bind-Value="accessoryForm.Name" name="navi-mobileliferecord-field-022" /></label>
+                        <label><span>Cantidad</span><InputNumber @bind-Value="accessoryForm.Quantity" name="navi-mobileliferecord-field-023" /></label>
                     </div>
 
                     <div class="mlife-check-grid">
-                        <label><InputCheckbox @bind-Value="accessoryForm.RequiresMaintenance" /> Requiere mantenimiento</label>
-                        <label><InputCheckbox @bind-Value="accessoryForm.IsMeasurementEquipment" /> Equipo medición</label>
+                        <label><InputCheckbox @bind-Value="accessoryForm.RequiresMaintenance" name="navi-mobileliferecord-field-024" /> Requiere mantenimiento</label>
+                        <label><InputCheckbox @bind-Value="accessoryForm.IsMeasurementEquipment" name="navi-mobileliferecord-field-025" /> Equipo medición</label>
                     </div>
 
                     <label class="mlife-full">
                         <span>Observación</span>
-                        <InputTextArea @bind-Value="accessoryForm.Observation" />
+                        <InputTextArea @bind-Value="accessoryForm.Observation" name="navi-mobileliferecord-field-040" />
                     </label>
                 </EditForm>
             }
@@ -401,7 +805,7 @@
                         @if (editAccessoriesMode && CanManageAccessories)
                         {
                             <div class="mlife-row-actions">
-                                <button type="button" @onclick="() => StartAccessoryEdit(item)" data-ntx-tone="danger" >Editar este</button>
+                                <button type="button" @onclick="() => StartAccessoryEdit(item)" data-ntx-tone="operation" >Editar este</button>
                                 <button class="danger" type="button" @onclick="() => DeleteAccessoryAsync(item)" data-ntx-tone="danger" >Desactivar</button>
                             </div>
                         }
@@ -419,14 +823,14 @@
                     {
                         @if (editDocumentsMode)
                         {
-                            <button type="button" class="cancel" @onclick="CancelDocumentsSection" @onclick:stopPropagation="true" data-ntx-tone="primary" >Cancelar</button>
-                            <button type="button" class="save" @onclick="UploadDocumentAsync" @onclick:stopPropagation="true" disabled="@isSaving" data-ntx-tone="primary" >
+                            <button type="button" class="cancel" @onclick="CancelDocumentsSection" @onclick:stopPropagation="true" data-ntx-tone="secondary" >Cancelar</button>
+                            <button type="button" class="save" @onclick="UploadDocumentAsync" @onclick:stopPropagation="true" disabled="@isSaving" data-ntx-tone="affirmative" >
                                 @(isSaving ? "Cargando..." : "Guardar")
                             </button>
                         }
                         else
                         {
-                            <button type="button" @onclick="BeginDocumentsEdit" @onclick:stopPropagation="true" data-ntx-tone="secondary" >Editar</button>
+                            <button type="button" @onclick="BeginDocumentsEdit" @onclick:stopPropagation="true" data-ntx-tone="affirmative" >Editar</button>
                         }
                     }
                 </div>
@@ -437,7 +841,7 @@
                 <div class="mlife-form-grid">
                     <label>
                         <span>Tipo documento</span>
-                        <InputSelect @bind-Value="documentForm.DocumentType">
+                        <InputSelect @bind-Value="documentForm.DocumentType" name="navi-mobileliferecord-field-026">
                             <option value="TechnicalDocument">Ficha técnica</option>
                             <option value="PhotographicRecord">Registro fotográfico</option>
                             <option value="MaintenanceEvidence">Evidencia mantenimiento</option>
@@ -447,13 +851,13 @@
 
                     <label>
                         <span>Archivo</span>
-                        <InputFile OnChange="OnFileSelected" />
+                        <InputFile OnChange="OnFileSelected" name="navi-mobileliferecord-field-027" />
                     </label>
                 </div>
 
                 <label class="mlife-full">
                     <span>Descripción</span>
-                    <InputTextArea @bind-Value="documentForm.Description" />
+                    <InputTextArea @bind-Value="documentForm.Description" name="navi-mobileliferecord-field-041" />
                 </label>
 
                 @if (selectedFile is not null)
@@ -490,14 +894,14 @@
                     {
                         @if (editMaintenanceMode)
                         {
-                            <button type="button" class="cancel" @onclick="CancelMaintenanceSection" @onclick:stopPropagation="true" data-ntx-tone="primary" >Cancelar</button>
-                            <button type="button" class="save" @onclick="SaveMaintenanceAsync" @onclick:stopPropagation="true" disabled="@isSaving" data-ntx-tone="primary" >
+                            <button type="button" class="cancel" @onclick="CancelMaintenanceSection" @onclick:stopPropagation="true" data-ntx-tone="secondary" >Cancelar</button>
+                            <button type="button" class="save" @onclick="SaveMaintenanceAsync" @onclick:stopPropagation="true" disabled="@isSaving" data-ntx-tone="affirmative" >
                                 @(isSaving ? "Guardando..." : "Guardar")
                             </button>
                         }
                         else
                         {
-                            <button type="button" @onclick="BeginMaintenanceEdit" @onclick:stopPropagation="true" data-ntx-tone="secondary" >Editar</button>
+                            <button type="button" @onclick="BeginMaintenanceEdit" @onclick:stopPropagation="true" data-ntx-tone="affirmative" >Editar</button>
                         }
                     }
                 </div>
@@ -507,11 +911,11 @@
             {
                 <EditForm Model="maintenanceForm" OnValidSubmit="SaveMaintenanceAsync">
                     <div class="mlife-form-grid">
-                        <label><span>Número</span><InputText @bind-Value="maintenanceForm.MaintenanceNumber" /></label>
-                        <label><span>Fecha programada</span><InputDate @bind-Value="maintenanceForm.ScheduledAt" /></label>
+                        <label><span>Número</span><InputText @bind-Value="maintenanceForm.MaintenanceNumber" name="navi-mobileliferecord-field-028" /></label>
+                        <label><span>Fecha programada</span><InputDate @bind-Value="maintenanceForm.ScheduledAt" name="navi-mobileliferecord-field-029" /></label>
                         <label>
                             <span>Tipo</span>
-                            <InputSelect @bind-Value="maintenanceForm.Type">
+                            <InputSelect @bind-Value="maintenanceForm.Type" name="navi-mobileliferecord-field-030">
                                 <option value="Preventive">Preventivo</option>
                                 <option value="Corrective">Correctivo</option>
                                 <option value="Calibration">Calibración</option>
@@ -520,22 +924,22 @@
                         </label>
                         <label>
                             <span>Estado</span>
-                            <InputSelect @bind-Value="maintenanceForm.Status">
+                            <InputSelect @bind-Value="maintenanceForm.Status" name="navi-mobileliferecord-field-031">
                                 <option value="Scheduled">Programado</option>
                                 <option value="InProgress">En proceso</option>
                                 <option value="Completed">Completado</option>
                                 <option value="Cancelled">Cancelado</option>
                             </InputSelect>
                         </label>
-                        <label><span>Proveedor</span><InputText @bind-Value="maintenanceForm.Provider" /></label>
-                        <label><span>Técnico</span><InputText @bind-Value="maintenanceForm.Technician" /></label>
-                        <label><span>Factura</span><InputText @bind-Value="maintenanceForm.InvoiceNumber" /></label>
-                        <label><span>Costo</span><InputNumber @bind-Value="maintenanceForm.Cost" /></label>
+                        <label><span>Proveedor</span><InputText @bind-Value="maintenanceForm.Provider" name="navi-mobileliferecord-field-032" /></label>
+                        <label><span>Técnico</span><InputText @bind-Value="maintenanceForm.Technician" name="navi-mobileliferecord-field-033" /></label>
+                        <label><span>Factura</span><InputText @bind-Value="maintenanceForm.InvoiceNumber" name="navi-mobileliferecord-field-034" /></label>
+                        <label><span>Costo</span><InputNumber @bind-Value="maintenanceForm.Cost" name="navi-mobileliferecord-field-035" /></label>
                     </div>
 
-                    <label class="mlife-full"><span>Descripción</span><InputTextArea @bind-Value="maintenanceForm.Description" /></label>
-                    <label class="mlife-full"><span>Actividades</span><InputTextArea @bind-Value="maintenanceForm.MaintenanceActivities" /></label>
-                    <label class="mlife-full"><span>Resultado</span><InputTextArea @bind-Value="maintenanceForm.Result" /></label>
+                    <label class="mlife-full"><span>Descripción</span><InputTextArea @bind-Value="maintenanceForm.Description" name="navi-mobileliferecord-field-042" /></label>
+                    <label class="mlife-full"><span>Actividades</span><InputTextArea @bind-Value="maintenanceForm.MaintenanceActivities" name="navi-mobileliferecord-field-043" /></label>
+                    <label class="mlife-full"><span>Resultado</span><InputTextArea @bind-Value="maintenanceForm.Result" name="navi-mobileliferecord-field-044" /></label>
                 </EditForm>
             }
 
@@ -550,7 +954,7 @@
                         @if (editMaintenanceMode && CanManageMaintenance)
                         {
                             <div class="mlife-row-actions">
-                                <button type="button" @onclick="() => StartMaintenanceEdit(item)" data-ntx-tone="danger" >Editar este</button>
+                                <button type="button" @onclick="() => StartMaintenanceEdit(item)" data-ntx-tone="operation" >Editar este</button>
                                 <button class="danger" type="button" @onclick="() => DeleteMaintenanceAsync(item)" data-ntx-tone="danger" >Desactivar</button>
                             </div>
                         }
@@ -568,14 +972,14 @@
                     {
                         @if (editSafePracticesMode)
                         {
-                            <button type="button" class="cancel" @onclick="CancelSafePracticesSection" @onclick:stopPropagation="true" data-ntx-tone="primary" >Cancelar</button>
-                            <button type="button" class="save" @onclick="SaveSafePracticeAsync" @onclick:stopPropagation="true" disabled="@isSaving" data-ntx-tone="primary" >
+                            <button type="button" class="cancel" @onclick="CancelSafePracticesSection" @onclick:stopPropagation="true" data-ntx-tone="secondary" >Cancelar</button>
+                            <button type="button" class="save" @onclick="SaveSafePracticeAsync" @onclick:stopPropagation="true" disabled="@isSaving" data-ntx-tone="affirmative" >
                                 @(isSaving ? "Guardando..." : "Guardar")
                             </button>
                         }
                         else
                         {
-                            <button type="button" @onclick="BeginSafePracticesEdit" @onclick:stopPropagation="true" data-ntx-tone="secondary" >Editar</button>
+                            <button type="button" @onclick="BeginSafePracticesEdit" @onclick:stopPropagation="true" data-ntx-tone="affirmative" >Editar</button>
                         }
                     }
                 </div>
@@ -585,16 +989,16 @@
             {
                 <EditForm Model="safePracticeForm" OnValidSubmit="SaveSafePracticeAsync">
                     <div class="mlife-form-grid">
-                        <label><span>Orden</span><InputNumber @bind-Value="safePracticeForm.SortOrder" /></label>
-                        <label><span>Práctica</span><InputText @bind-Value="safePracticeForm.PracticeName" /></label>
+                        <label><span>Orden</span><InputNumber @bind-Value="safePracticeForm.SortOrder" name="navi-mobileliferecord-field-036" /></label>
+                        <label><span>Práctica</span><InputText @bind-Value="safePracticeForm.PracticeName" name="navi-mobileliferecord-field-037" /></label>
                     </div>
 
                     <label class="mlife-full">
                         <span>Descripción</span>
-                        <InputTextArea @bind-Value="safePracticeForm.Description" />
+                        <InputTextArea @bind-Value="safePracticeForm.Description" name="navi-mobileliferecord-field-045" />
                     </label>
 
-                    <button class="mlife-secondary inline" type="button" @onclick="CreateDefaultSafePracticesAsync" disabled="@isSaving" data-ntx-tone="primary" >
+                    <button class="mlife-secondary inline" type="button" @onclick="CreateDefaultSafePracticesAsync" disabled="@isSaving" data-ntx-tone="ghost" >
                         Cargar predeterminadas
                     </button>
                 </EditForm>
@@ -610,7 +1014,7 @@
                         @if (editSafePracticesMode && CanManageSafePractices)
                         {
                             <div class="mlife-row-actions">
-                                <button type="button" @onclick="() => StartSafePracticeEdit(item)" data-ntx-tone="danger" >Editar este</button>
+                                <button type="button" @onclick="() => StartSafePracticeEdit(item)" data-ntx-tone="operation" >Editar este</button>
                                 <button class="danger" type="button" @onclick="() => DeleteSafePracticeAsync(item)" data-ntx-tone="danger" >Desactivar</button>
                             </div>
                         }

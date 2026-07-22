@@ -1,102 +1,112 @@
+@using System.Collections.Generic
 @using Microsoft.AspNetCore.Components
 
-<header @attributes="AdditionalAttributes" class="@CssClass">
-    <div class="navi-mobile-page-hero__copy">
-        @if (!string.IsNullOrWhiteSpace(Pill))
-        {
-            <span class="navi-mobile-page-hero__pill">@Pill</span>
-        }
+@inject NaviMobilePageHeaderState ShellHeader
 
-        @if (!string.IsNullOrWhiteSpace(Title))
-        {
-            <h1>@Title</h1>
-        }
+@if (HasPublishedActions)
+{
+    <div @attributes="AdditionalAttributes"
+         class="navi-mobile-published-actions"
+         data-ntx-component="mobile-page-published-actions">
 
-        @if (!string.IsNullOrWhiteSpace(Description))
+        @if (Actions is not null)
         {
-            <p>@Description</p>
+            @Actions
         }
-
-        @if (HeaderContent is not null)
+        else if (ChildContent is not null)
         {
-            <div class="navi-mobile-page-hero__extra">
-                @HeaderContent
-            </div>
+            @ChildContent
+        }
+        else
+        {
+            @if (!string.IsNullOrWhiteSpace(
+                SecondaryButtonText))
+            {
+                <button type="button"
+                        @onclick="SecondaryButtonAction"
+                        disabled="@SecondaryButtonDisabled"
+                        data-ntx-tone="ghost">
+                    @SecondaryButtonText
+                </button>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(
+                PrimaryButtonText))
+            {
+                <button type="button"
+                        @onclick="PrimaryButtonAction"
+                        disabled="@PrimaryButtonDisabled"
+                        data-ntx-tone="ghost">
+                    @PrimaryButtonText
+                </button>
+            }
         }
     </div>
-
-    @if (HasActions)
-    {
-        <div class="navi-mobile-page-hero__actions">
-            @if (Actions is not null)
-            {
-                @Actions
-            }
-            else if (ChildContent is not null)
-            {
-                @ChildContent
-            }
-            else
-            {
-                @if (!string.IsNullOrWhiteSpace(SecondaryButtonText))
-                {
-                    <button type="button" @onclick="SecondaryButtonAction" disabled="@SecondaryButtonDisabled" data-ntx-tone="ghost" >
-                        @SecondaryButtonText
-                    </button>
-                }
-
-                @if (!string.IsNullOrWhiteSpace(PrimaryButtonText))
-                {
-                    <button type="button" @onclick="PrimaryButtonAction" disabled="@PrimaryButtonDisabled" data-ntx-tone="ghost" >
-                        @PrimaryButtonText
-                    </button>
-                }
-            }
-        </div>
-    }
-</header>
+}
 
 @code {
-    [Parameter] public string? Pill { get; set; }
-    [Parameter] public string? Title { get; set; }
-    [Parameter] public string? Description { get; set; }
-    [Parameter] public RenderFragment? HeaderContent { get; set; }
-    [Parameter] public RenderFragment? Actions { get; set; }
-    [Parameter] public RenderFragment? ChildContent { get; set; }
-    [Parameter] public string? Class { get; set; }
-    [Parameter] public string? PrimaryButtonText { get; set; }
-    [Parameter] public EventCallback PrimaryButtonAction { get; set; }
-    [Parameter] public bool PrimaryButtonDisabled { get; set; }
-    [Parameter] public string? SecondaryButtonText { get; set; }
-    [Parameter] public EventCallback SecondaryButtonAction { get; set; }
-    [Parameter] public bool SecondaryButtonDisabled { get; set; }
+    /*
+     * Componente compatible con las páginas antiguas.
+     * Ya no genera un segundo encabezado.
+     */
+
+    [Parameter]
+    public string? Pill { get; set; }
+
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public string? Description { get; set; }
+
+    [Parameter]
+    public RenderFragment? HeaderContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? Actions { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public string? PrimaryButtonText { get; set; }
+
+    [Parameter]
+    public EventCallback PrimaryButtonAction { get; set; }
+
+    [Parameter]
+    public bool PrimaryButtonDisabled { get; set; }
+
+    [Parameter]
+    public string? SecondaryButtonText { get; set; }
+
+    [Parameter]
+    public EventCallback SecondaryButtonAction { get; set; }
+
+    [Parameter]
+    public bool SecondaryButtonDisabled { get; set; }
 
     [Parameter(CaptureUnmatchedValues = true)]
-    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+    public IReadOnlyDictionary<string, object>?
+        AdditionalAttributes { get; set; }
 
-    private bool HasActions =>
+    protected override void OnParametersSet()
+    {
+        ShellHeader.Set(
+            Title,
+            Description,
+            false,
+            null,
+            "/",
+            true);
+    }
+
+    private bool HasPublishedActions =>
         Actions is not null ||
         ChildContent is not null ||
         !string.IsNullOrWhiteSpace(PrimaryButtonText) ||
         !string.IsNullOrWhiteSpace(SecondaryButtonText);
-
-    private string CssClass
-    {
-        get
-        {
-            var classes = "navi-mobile-page-hero";
-
-            if (!HasActions)
-            {
-                classes += " is-actionless";
-            }
-
-            if (!string.IsNullOrWhiteSpace(Class))
-            {
-                classes += $" {Class}";
-            }
-
-            return classes;
-        }
-    }
 }

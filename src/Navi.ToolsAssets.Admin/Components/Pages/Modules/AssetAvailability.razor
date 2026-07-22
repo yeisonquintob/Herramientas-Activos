@@ -1,275 +1,602 @@
 @page "/asset-availability"
 @rendermode InteractiveServer
+
 @using Navi.ToolsAssets.Admin.Services.Auth
 @using System.Net.Http.Json
 @using Navi.ToolsAssets.Admin.Components.Shared
+
 @inject IHttpClientFactory HttpClientFactory
 @inject NaviAccessScopeService AccessScope
 @inject WebAuthSessionService AuthSession
 
 <PageTitle>Disponible y Ubicación de Herramientas - NAVI</PageTitle>
 
-<PermissionGuard Permission="AssetAvailability.View" ModuleName="Disponible y Ubicación de Herramientas">
+<PermissionGuard Permission="AssetAvailability.View"
+                 ModuleName="Disponible y Ubicación de Herramientas">
 
-<NaviPageHero
-    Pill="ACTIVOS FIJOS"
-    Title="Disponible y Ubicación de Herramientas"
-    Description="Gestiona disponibilidad, sede, almacén, taller o ubicación interna de las herramientas.">
+    <section class="availability-web-v24">
 
-    <button type="button" @onclick="LoadAsync" data-ntx-tone="secondary" >
-        Actualizar
-    </button>
+        <NaviPageHero
+            Pill="ACTIVOS FIJOS"
+            Title="Disponible y Ubicación de Herramientas"
+            Description="Gestiona disponibilidad, sede, almacén, taller o ubicación interna de las herramientas." />
 
-</NaviPageHero>
-
-@if (!string.IsNullOrWhiteSpace(message))
-{
-    <div class="@messageClass">@message</div>
-}
-
-
-<section class="availability-kpi-grid">
-    <article class="availability-kpi total">
-        <span>Total herramientas</span>
-        <strong>@FilteredTools.Count()</strong>
-        <small>Visibles por alcance</small>
-    </article>
-
-    <article class="availability-kpi success">
-        <span>Disponibles</span>
-        <strong>@FilteredTools.Count(x => string.Equals(x.OperationalStatus, "Available", StringComparison.OrdinalIgnoreCase))</strong>
-        <small>Listas para uso</small>
-    </article>
-
-    <article class="availability-kpi neutral">
-        <span>Asignadas / prestadas</span>
-        <strong>@FilteredTools.Count(x => string.Equals(x.OperationalStatus, "Assigned", StringComparison.OrdinalIgnoreCase) || string.Equals(x.OperationalStatus, "Loaned", StringComparison.OrdinalIgnoreCase))</strong>
-        <small>Con responsable</small>
-    </article>
-
-    <article class="availability-kpi warning">
-        <span>En mantenimiento</span>
-        <strong>@FilteredTools.Count(x => string.Equals(x.OperationalStatus, "InMaintenance", StringComparison.OrdinalIgnoreCase))</strong>
-        <small>Fuera de operación</small>
-    </article>
-
-    <article class="availability-kpi danger">
-        <span>Sin ubicación</span>
-        <strong>@FilteredTools.Count(x => string.IsNullOrWhiteSpace(x.LocationName))</strong>
-        <small>Requieren revisión</small>
-    </article>
-</section>
-
-<section class="availability-status-filters availability-status-filters-modern" aria-label="Estados de disponibilidad">
-    <button type="button"
-            class="@GetAvailabilityStatusFilterChipClass(string.Empty)"
-            @onclick="@(() => SelectAvailabilityStatus(string.Empty))" data-ntx-tone="secondary" >
-        Todos
-        <span>@AvailabilityBaseFilteredTools.Count()</span>
-    </button>
-
-    @foreach (var option in AvailabilityStatusFilterOptions)
-    {
-        <button type="button"
-                class="@GetAvailabilityStatusFilterChipClass(option.Value)"
-                @onclick="@(() => SelectAvailabilityStatus(option.Value))" data-ntx-tone="secondary" >
-            @option.Label
-            <span>@option.Count</span>
-        </button>
-    }
-</section>
-
-<section class="availability-page-filters" aria-label="Filtros de disponibilidad y ubicación">
-    <input class="form-control form-control-sm"
-           placeholder="Buscar por código, nombre, serial, sede, ubicación o responsable..."
-           @bind="search"
-           @bind:event="oninput" />
-
-    <select class="form-select form-select-sm availability-branch-filter" @bind="selectedBranchCode">
-        <option value="">@(AccessScope.IsAllBranchScope() ? "Todas las sedes" : AccessScope.GetDefaultBranchFilterText())</option>
-        @foreach (var branch in ScopedTools
-            .Select(x => x.BranchCode)
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Distinct()
-            .OrderBy(x => x))
+        @if (!string.IsNullOrWhiteSpace(message))
         {
-            <option value="@branch">@branch</option>
-        }
-    </select>
-</section>
+            <div class="@messageClass"
+                 role="alert">
 
-<section class="af-grid">
-    <aside class="af-card">
-        <h3>Gestionar ubicación</h3>
-
-        <div class="mb-2 navi-search-field">
-            <label class="form-label">Herramienta</label>
-            <input class="form-control"
-                   list="availability-tools-list"
-                   value="@toolSearchText"
-                   @oninput="OnToolSearchInput"
-                   placeholder="Escriba código, nombre o serial..." />
-
-            <datalist id="availability-tools-list">
-                @foreach (var tool in ScopedTools.OrderBy(x => x.InternalCode))
-                {
-                    <option value="@FormatToolOption(tool)"></option>
-                }
-            </datalist>
-
-            <small class="@GetToolSearchHintClass()">@GetToolSearchHint()</small>
-        </div>
-
-        <div class="mb-2 navi-search-field">
-            <label class="form-label">Sede</label>
-            <input class="form-control"
-                   list="availability-branches-list"
-                   value="@branchSearchText"
-                   @oninput="OnBranchSearchInput"
-                   placeholder="Escriba código o nombre de sede..." / disabled="@(!CanChangeAvailabilityLocation)">
-
-            <datalist id="availability-branches-list">
-                @foreach (var branch in branches.OrderBy(x => x.Code))
-                {
-                    <option value="@FormatBranchOption(branch)"></option>
-                }
-            </datalist>
-
-            <small class="@GetBranchSearchHintClass()">@GetBranchSearchHint()</small>
-        </div>
-
-        <div class="mb-2 navi-search-field">
-            <label class="form-label">Almacén / Taller / Ubicación</label>
-            <input class="form-control"
-                   list="availability-locations-list"
-                   value="@locationSearchText"
-                   @oninput="OnLocationSearchInput"
-                   placeholder="Escriba almacén, taller o ubicación..." / disabled="@(!CanChangeAvailabilityLocation)">
-
-            <datalist id="availability-locations-list">
-                @foreach (var location in AvailableLocations.OrderBy(x => x.Code))
-                {
-                    <option value="@FormatLocationOption(location)"></option>
-                }
-            </datalist>
-
-            <small class="@GetLocationSearchHintClass()">@GetLocationSearchHint()</small>
-        </div>
-
-
-        <div class="mb-2">
-            <label class="form-label">Estantería / ubicación exacta</label>
-            <InputText class="form-control"
-                       @bind-Value="form.ShelfLocation"
-                       placeholder="Ej: EST-A1, RACK-3, CAJÓN 2"
-                       disabled="@(!CanChangeAvailabilityLocation)" />
-            <small class="navi-search-hint ok">Punto exacto dentro del almacén, taller o ubicación seleccionada.</small>
-        </div>
-
-        <div class="mb-2">
-            <label class="form-label">Estado operativo</label>
-            <InputSelect class="form-select" @bind-Value="form.OperationalStatus" disabled="@(!CanChangeAvailabilityStatus)">
-                <option value="Available">Disponible</option>
-                <option value="Assigned">Asignada</option>
-                <option value="Loaned">Prestada</option>
-                <option value="InMaintenance">En mantenimiento</option>
-                <option value="Damaged">Dañada</option>
-                <option value="NotSuitable">No apta</option>
-                <option value="PendingValidation">Pendiente validación</option>
-                <option value="NotLocated">No localizada</option>
-                <option value="PendingDisposal">Pendiente baja</option>
-                <option value="Disposed">Dada de baja</option>
-            </InputSelect>
-        </div>
-
-        <div class="mb-3">
-            <label class="form-label">Observación</label>
-            <InputTextArea class="form-control" @bind-Value="form.Observation" rows="3" />
-        </div>
-
-        <div class="d-grid gap-2">
-            @if (!CanChangeAvailabilityLocation || !CanChangeAvailabilityStatus)
-        {
-            <div class="availability-permission-note">
-                @if (!CanChangeAvailabilityLocation)
-                {
-                    <span>Ubicación bloqueada</span>
-                }
-
-                @if (!CanChangeAvailabilityStatus)
-                {
-                    <span>Estado bloqueado</span>
-                }
+                @message
             </div>
         }
 
-        <button class="btn btn-primary" @onclick="SaveAsync" disabled="@(isSaving || !CanSaveAvailability || !form.ToolId.HasValue)" data-ntx-tone="primary" >
-                @(isSaving ? "Guardando..." : "Guardar cambios")
-            </button>
 
-            <button class="btn btn-outline-secondary" @onclick="ClearForm" data-ntx-tone="secondary" >
-                Limpiar
-            </button>
-        </div>
-    </aside>
+<NaviKpiToolbar Class="availability-v24-kpi-row"
+                Refresh="LoadAsync"
+                IsRefreshing="isLoading"
+                RefreshTitle="Actualizar disponible y ubicación"
+                RefreshAriaLabel="Actualizar disponible y ubicación">
+    <NaviKpiGrid Columns="5" Dividers="true" Class="availability-v24-kpis">
+        <NaviKpiCard Title="Inventario visible" Description="Herramientas según alcance" Tone="neutral">
+            <IconContent><NaviKpiIcon Name="inventory" /></IconContent>
+            <ValueContent>@FilteredTools.Count()</ValueContent>
+        </NaviKpiCard>
+        <NaviKpiCard Title="Disponibles" Description="Listas para operación" Tone="positive">
+            <IconContent><NaviKpiIcon Name="check" /></IconContent>
+            <ValueContent>
+                @FilteredTools.Count(tool => string.Equals(
+                    tool.OperationalStatus, "Available", StringComparison.OrdinalIgnoreCase))
+            </ValueContent>
+        </NaviKpiCard>
+        <NaviKpiCard Title="En uso" Description="Asignadas o prestadas" Tone="soft">
+            <IconContent><NaviKpiIcon Name="transfer" /></IconContent>
+            <ValueContent>
+                @FilteredTools.Count(tool =>
+                    string.Equals(tool.OperationalStatus, "Assigned", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(tool.OperationalStatus, "Loaned", StringComparison.OrdinalIgnoreCase))
+            </ValueContent>
+        </NaviKpiCard>
+        <NaviKpiCard Title="Mantenimiento" Description="Fuera de operación" Tone="warning">
+            <IconContent><NaviKpiIcon Name="wrench" /></IconContent>
+            <ValueContent>
+                @FilteredTools.Count(tool => string.Equals(
+                    tool.OperationalStatus, "InMaintenance", StringComparison.OrdinalIgnoreCase))
+            </ValueContent>
+        </NaviKpiCard>
+        <NaviKpiCard Title="Sin ubicación" Description="Requieren revisión" Tone="danger">
+            <IconContent><NaviKpiIcon Name="location" /></IconContent>
+            <ValueContent>
+                @FilteredTools.Count(tool => string.IsNullOrWhiteSpace(tool.LocationName))
+            </ValueContent>
+        </NaviKpiCard>
+    </NaviKpiGrid>
+</NaviKpiToolbar>
 
-    <section class="af-card">
-        <div class="af-table-header">
-            <div>
-                <h3>Herramientas por disponibilidad</h3>
-                <p>Selecciona una herramienta para modificar su ubicación.</p>
-            </div>
-</div>
+        <section class="availability-v24-filter-card"
+                 aria-label="Filtros de disponibilidad y ubicación">
 
-        @if (isLoading)
-        {
-            <p>Cargando herramientas...</p>
-        }
-        else
-        {
-            <table class="table table-hover align-middle af-table">
-                <thead>
-                    <tr>
-                        <th>Código</th>
-                        <th>Activo</th>
-                        <th>Sede</th>
-                        <th>Ubicación</th>
-                        <th>Estantería</th>
-                        <th>Responsable</th>
-                        <th>Estado</th>
-                        <th class="text-end">Acción</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var tool in FilteredTools)
+            <label class="availability-v24-field
+                          availability-v24-search">
+
+                <span>Buscar activo</span>
+
+                <div>
+                    <svg viewBox="0 0 24 24"
+                         aria-hidden="true"
+                         focusable="false">
+
+                        <circle cx="10.5"
+                                cy="10.5"
+                                r="6.5">
+                        </circle>
+
+                        <path d="M15.5 15.5L21 21"></path>
+                    </svg>
+
+                    <input id="availability-search"
+                           name="availability-search"
+                           type="search"
+                           placeholder="Código, nombre, serial, sede, ubicación o responsable..."
+                           @bind="search"
+                           @bind:event="oninput" />
+                </div>
+            </label>
+
+            <label class="availability-v24-field">
+
+                <span>Sede</span>
+
+                <select id="availability-branch-filter"
+                        name="availability-branch-filter"
+                        class="availability-branch-filter"
+                        disabled="@(!AccessScope.IsAllBranchScope())"
+                        @bind="selectedBranchCode">
+
+                    <option value="">
+                        @(AccessScope.IsAllBranchScope()
+                            ? "Todas las sedes visibles"
+                            : AccessScope.GetDefaultBranchFilterText())
+                    </option>
+
+                    @foreach (var branch in ScopedTools
+                        .Select(tool => tool.BranchCode)
+                        .Where(branch =>
+                            !string.IsNullOrWhiteSpace(branch))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(branch => branch))
                     {
-                        <tr>
-                            <td><strong>@tool.InternalCode</strong></td>
-                            <td>
-                                <div>@tool.Name</div>
-                                <small class="text-muted">@tool.SerialNumber</small>
-                            </td>
-                            <td>@Show(tool.BranchCode)</td>
-                            <td>@Show(tool.LocationName)</td>
-                            <td><span class="availability-shelf-pill">@Show(tool.ShelfLocation)</span></td>
-                            <td>@Show(tool.ResponsiblePersonName)</td>
-                            <td><span class="@GetStatusBadge(tool.OperationalStatus)">@GetStatusLabel(tool.OperationalStatus)</span></td>
-                            <td class="text-end">
-                                <button class="avail-action avail-action-primary" @onclick="() => SelectTool(tool)" data-ntx-tone="primary" >
-                                    Gestionar
-                                </button>
-                            </td>
-                        </tr>
+                        <option value="@branch">
+                            @branch
+                        </option>
                     }
-                </tbody>
-            </table>
-        }
-    </section>
+                </select>
+            </label>
 </section>
 
+        <section class="availability-v24-status-card"
+                 aria-label="Estados de disponibilidad">
+
+            <header>
+                <div>
+                    <strong>Estado operativo</strong>
+
+                    <small>
+                        Selecciona un estado para limitar el listado.
+                    </small>
+                </div>
+
+                <span>
+                    @AvailabilityBaseFilteredTools.Count() registros
+                </span>
+            </header>
+
+            <div class="availability-v24-status-list">
+
+                <button type="button"
+                        class="@GetAvailabilityStatusFilterChipClass(string.Empty)"
+                        @onclick="@(() => SelectAvailabilityStatus(string.Empty))"
+                        data-ntx-tone="ghost">
+
+                    <i aria-hidden="true"></i>
+
+                    <span>Todos</span>
+
+                    <strong>
+                        @AvailabilityBaseFilteredTools.Count()
+                    </strong>
+                </button>
+
+                @foreach (var option in AvailabilityStatusFilterOptions)
+                {
+                    <button type="button"
+                            class="@GetAvailabilityStatusFilterChipClass(option.Value)"
+                            @onclick="@(() => SelectAvailabilityStatus(option.Value))"
+                            data-ntx-tone="ghost">
+
+                        <i aria-hidden="true"></i>
+
+                        <span>@option.Label</span>
+
+                        <strong>@option.Count</strong>
+                    </button>
+                }
+
+            </div>
+        </section>
+
+        <section class="availability-v24-workspace">
+
+            <aside class="availability-v24-form-card">
+
+                <header class="availability-v24-form-header">
+
+                    <span>GESTIÓN OPERATIVA</span>
+
+                    <h2>Gestionar ubicación</h2>
+
+                    <p>
+                        Selecciona una herramienta y actualiza únicamente
+                        los campos autorizados para tu usuario.
+                    </p>
+                </header>
+
+                @if (SelectedAvailabilityTool is not null)
+                {
+                    <section class="availability-v24-selected-tool">
+
+                        <div>
+                            <span>Activo seleccionado</span>
+
+                            <strong>
+                                @SelectedAvailabilityTool.InternalCode
+                                ·
+                                @SelectedAvailabilityTool.Name
+                            </strong>
+                        </div>
+
+                        <span class="@GetStatusBadge(
+                            SelectedAvailabilityTool.OperationalStatus)">
+
+                            @GetStatusLabel(
+                                SelectedAvailabilityTool.OperationalStatus)
+                        </span>
+                    </section>
+                }
+
+                <div class="availability-v24-form-fields">
+
+                    <label class="availability-v24-form-field">
+
+                        <span>Herramienta</span>
+
+                        <input id="availability-tool"
+                               name="availability-tool"
+                               list="availability-tools-list"
+                               value="@toolSearchText"
+                               @oninput="OnToolSearchInput"
+                               placeholder="Escriba código, nombre o serial..." />
+
+                        <datalist id="availability-tools-list">
+                            @foreach (var tool in ScopedTools
+                                .OrderBy(tool => tool.InternalCode))
+                            {
+                                <option value="@FormatToolOption(tool)">
+                                </option>
+                            }
+                        </datalist>
+
+                        <small class="@GetToolSearchHintClass()">
+                            @GetToolSearchHint()
+                        </small>
+                    </label>
+
+                    <label class="availability-v24-form-field">
+
+                        <span>Sede</span>
+
+                        <input id="availability-branch"
+                               name="availability-branch"
+                               list="availability-branches-list"
+                               value="@branchSearchText"
+                               @oninput="OnBranchSearchInput"
+                               disabled="@(
+                                   !CanChangeAvailabilityLocation
+                                   ||
+                                   !AccessScope.IsAllBranchScope())"
+                               placeholder="Escriba código o nombre de sede..." />
+
+                        <datalist id="availability-branches-list">
+                            @foreach (var branch in branches
+                                .Where(branch =>
+                                    AccessScope.IsAllBranchScope()
+                                    ||
+                                    ScopedTools.Any(tool =>
+                                        string.Equals(
+                                            tool.BranchCode,
+                                            branch.Code,
+                                            StringComparison.OrdinalIgnoreCase)))
+                                .OrderBy(branch => branch.Code))
+                            {
+                                <option value="@FormatBranchOption(branch)">
+                                </option>
+                            }
+                        </datalist>
+
+                        <small class="@GetBranchSearchHintClass()">
+                            @(AccessScope.IsAllBranchScope()
+                                ? GetBranchSearchHint()
+                                : "La sede está restringida al alcance actual.")
+                        </small>
+                    </label>
+
+                    <label class="availability-v24-form-field">
+
+                        <span>Almacén, taller o ubicación</span>
+
+                        <input id="availability-location"
+                               name="availability-location"
+                               list="availability-locations-list"
+                               value="@locationSearchText"
+                               @oninput="OnLocationSearchInput"
+                               disabled="@(!CanChangeAvailabilityLocation)"
+                               placeholder="Escriba almacén, taller o ubicación..." />
+
+                        <datalist id="availability-locations-list">
+                            @foreach (var location in AvailableLocations
+                                .OrderBy(location => location.Code))
+                            {
+                                <option value="@FormatLocationOption(location)">
+                                </option>
+                            }
+                        </datalist>
+
+                        <small class="@GetLocationSearchHintClass()">
+                            @GetLocationSearchHint()
+                        </small>
+                    </label>
+
+                    <label class="availability-v24-form-field">
+
+                        <span>Estantería o ubicación exacta</span>
+
+                        <InputText id="availability-shelf"
+                                   class="availability-v24-control"
+                                   @bind-Value="form.ShelfLocation"
+                                   placeholder="Ejemplo: EST-A1, RACK-3, CAJÓN 2"
+                                   disabled="@(!CanChangeAvailabilityLocation)" />
+
+                        <small class="navi-search-hint ok">
+                            Punto exacto dentro de la ubicación seleccionada.
+                        </small>
+                    </label>
+
+                    <label class="availability-v24-form-field">
+
+                        <span>Estado operativo</span>
+
+                        <InputSelect id="availability-status"
+                                     class="availability-v24-control"
+                                     @bind-Value="form.OperationalStatus"
+                                     disabled="@(!CanChangeAvailabilityStatus)">
+
+                            <option value="Available">Disponible</option>
+                            <option value="Assigned">Asignada</option>
+                            <option value="Loaned">Prestada</option>
+                            <option value="InMaintenance">En mantenimiento</option>
+                            <option value="Damaged">Dañada</option>
+                            <option value="NotSuitable">No apta</option>
+                            <option value="PendingValidation">Pendiente validación</option>
+                            <option value="NotLocated">No localizada</option>
+                            <option value="PendingDisposal">Pendiente baja</option>
+                            <option value="Disposed">Dada de baja</option>
+                        </InputSelect>
+                    </label>
+
+                    <label class="availability-v24-form-field">
+
+                        <span>Observación</span>
+
+                        <InputTextArea id="availability-observation"
+                                       class="availability-v24-control"
+                                       @bind-Value="form.Observation"
+                                       rows="3"
+                                       placeholder="Motivo del cambio de ubicación o estado..." />
+                    </label>
+
+                </div>
+
+                @if (!CanChangeAvailabilityLocation ||
+                     !CanChangeAvailabilityStatus)
+                {
+                    <div class="availability-permission-note">
+
+                        @if (!CanChangeAvailabilityLocation)
+                        {
+                            <span>Ubicación bloqueada</span>
+                        }
+
+                        @if (!CanChangeAvailabilityStatus)
+                        {
+                            <span>Estado bloqueado</span>
+                        }
+                    </div>
+                }
+
+                <div class="availability-v24-form-actions">
+
+                    <button type="button"
+                            class="availability-v24-save"
+                            disabled="@(
+                                isSaving
+                                ||
+                                !CanSaveAvailability
+                                ||
+                                !form.ToolId.HasValue)"
+                            @onclick="SaveAsync"
+                            data-ntx-tone="affirmative">
+
+                        <svg viewBox="0 0 24 24"
+                             aria-hidden="true"
+                             focusable="false">
+
+                            <path d="M5 4H17L20 7V20H5Z"></path>
+                            <path d="M8 4V10H16V4"></path>
+                            <path d="M8 16H17"></path>
+                        </svg>
+
+                        <span>
+                            @(isSaving
+                                ? "Guardando..."
+                                : "Guardar cambios")
+                        </span>
+                    </button>
+
+                    <button type="button"
+                            class="availability-v24-clear"
+                            disabled="@isSaving"
+                            @onclick="ClearForm"
+                            data-ntx-tone="secondary">
+
+                        <svg viewBox="0 0 24 24"
+                             aria-hidden="true"
+                             focusable="false">
+
+                            <path d="M5 5L19 19"></path>
+                            <path d="M19 5L5 19"></path>
+                        </svg>
+
+                        <span>Limpiar</span>
+                    </button>
+                </div>
+            </aside>
+
+            <section class="availability-v24-table-card">
+
+                <header class="availability-v24-table-header">
+
+                    <div>
+                        <span>MAESTRO DE DISPONIBILIDAD</span>
+
+                        <h2>Herramientas por disponibilidad</h2>
+
+                        <p>
+                            Selecciona Gestionar para cargar la herramienta
+                            en el formulario operativo.
+                        </p>
+                    </div>
+
+                    <div class="availability-v24-result-count">
+
+                        <strong>@FilteredTools.Count()</strong>
+
+                        <small>resultados</small>
+                    </div>
+                </header>
+
+                @if (isLoading)
+                {
+                    <section class="availability-v24-loading"
+                             aria-live="polite">
+
+                        <svg viewBox="0 0 24 24"
+                             aria-hidden="true"
+                             focusable="false">
+
+                            <path d="M20 12a8 8 0 1 1-2.35-5.65"></path>
+                            <path d="M20 4V10H14"></path>
+                        </svg>
+
+                        <div>
+                            <strong>Cargando herramientas</strong>
+
+                            <span>
+                                Consultando disponibilidad y ubicación actual.
+                            </span>
+                        </div>
+                    </section>
+                }
+                else if (!FilteredTools.Any())
+                {
+                    <section class="availability-v24-empty">
+
+                        <svg viewBox="0 0 24 24"
+                             aria-hidden="true"
+                             focusable="false">
+
+                            <path d="M4 7H20V20H4Z"></path>
+                            <path d="M8 7V4H16V7"></path>
+                            <path d="M8 12H16"></path>
+                        </svg>
+
+                        <div>
+                            <strong>No hay herramientas para mostrar</strong>
+
+                            <span>
+                                Ajusta la búsqueda, sede o estado seleccionado.
+                            </span>
+                        </div>
+                    </section>
+                }
+                else
+                {
+                    <div class="availability-v24-table-scroll">
+
+                        <table class="availability-v24-table">
+
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Herramienta o activo</th>
+                                    <th>Sede</th>
+                                    <th>Ubicación</th>
+                                    <th>Estantería</th>
+                                    <th>Responsable</th>
+                                    <th>Estado</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                @foreach (var tool in FilteredTools)
+                                {
+                                    <tr class="@(
+                                        form.ToolId == tool.Id
+                                            ? "is-selected"
+                                            : string.Empty)">
+
+                                        <td class="availability-v24-code">
+                                            <strong>@tool.InternalCode</strong>
+                                        </td>
+
+                                        <td class="availability-v24-asset">
+                                            <strong>@tool.Name</strong>
+
+                                            <small>
+                                                Serial:
+                                                @Show(tool.SerialNumber)
+                                            </small>
+                                        </td>
+
+                                        <td>
+                                            <strong>
+                                                @Show(tool.BranchCode)
+                                            </strong>
+                                        </td>
+
+                                        <td>
+                                            @Show(tool.LocationName)
+                                        </td>
+
+                                        <td>
+                                            <span class="availability-shelf-pill">
+                                                @Show(tool.ShelfLocation)
+                                            </span>
+                                        </td>
+
+                                        <td>
+                                            @Show(tool.ResponsiblePersonName)
+                                        </td>
+
+                                        <td>
+                                            <span class="@GetStatusBadge(
+                                                tool.OperationalStatus)">
+
+                                                @GetStatusLabel(
+                                                    tool.OperationalStatus)
+                                            </span>
+                                        </td>
+
+                                        <td>
+                                            <button type="button"
+                                                    class="availability-v24-manage"
+                                                    @onclick="() => SelectTool(tool)"
+                                                    data-ntx-tone="operation">
+
+                                                <svg viewBox="0 0 24 24"
+                                                     aria-hidden="true"
+                                                     focusable="false">
+
+                                                    <path d="M12 3V21"></path>
+                                                    <path d="M3 12H21"></path>
+                                                    <circle cx="12"
+                                                            cy="12"
+                                                            r="7">
+                                                    </circle>
+                                                </svg>
+
+                                                <span>Gestionar</span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+        </section>
+    </section>
 </PermissionGuard>
-
-
 
 @code {
     private HttpClient Api => HttpClientFactory.CreateClient("NaviApi");

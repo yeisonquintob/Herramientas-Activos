@@ -30,7 +30,10 @@ public sealed class MobileLoanRequestDto
     public Guid Id { get; set; }
     public string LoanNumber { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
+    public Guid? BranchId { get; set; }
     public Guid? RequestedByPersonId { get; set; }
+    public string? RequestedByPersonName { get; set; }
+    public string? RequestedByResponsiblePersonName { get; set; }
     public DateTime? RequestedAt { get; set; }
     public DateTime? ApprovedAt { get; set; }
     public DateTime? DeliveredAt { get; set; }

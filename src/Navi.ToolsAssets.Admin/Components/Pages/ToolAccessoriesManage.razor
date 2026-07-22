@@ -9,20 +9,90 @@
 
 <PermissionGuard Permission="TechnicalLifeRecord.Edit" ModuleName="Accesorios">
 
+<div class="navi-life-record-subpage navi-life-record-subpage--accessories">
+
+
+
+@* NAVI LIFE RECORD SUBPAGE STANDARD V76 ACCESSORIES START *@
+
 <NaviPageHero
     Pill="ACTIVOS FIJOS"
     Title="Gestión de accesorios"
-    Description="Agrega, edita o desactiva accesorios asociados a la herramienta.">
+    Description="Agrega, edita o desactiva accesorios asociados a la herramienta." />
 
-    <button type="button" @onclick="GoBack" data-ntx-tone="primary" >
-        ← Volver a hoja de vida
-    </button>
+<NaviKpiToolbar
+    Class="navi-life-record-subpage-toolbar
+           navi-life-record-subpage-toolbar--accessories"
+    Refresh="LoadAsync"
+    IsRefreshing="isLoading"
+    RefreshTitle="Actualizar accesorios"
+    RefreshAriaLabel="Actualizar accesorios">
 
-    <button type="button" @onclick="LoadAsync" disabled="@isLoading" data-ntx-tone="primary" >
-        @(isLoading ? "Cargando..." : "Recargar")
-    </button>
+    <div class="navi-life-record-subpage-toolbar__body">
 
-</NaviPageHero>
+        <NaviKpiGrid
+            Columns="3"
+            Compact="true"
+            Dividers="true"
+            Class="navi-life-record-subpage-kpis">
+
+            <NaviKpiCard
+                Title="Código interno"
+                Description="Identificación del activo"
+                Value="@internalCode"
+                Tone="neutral"
+                Compact="true">
+
+                <IconContent>
+                    <NaviKpiIcon Name="inventory" />
+                </IconContent>
+
+            </NaviKpiCard>
+
+            <NaviKpiCard
+                Title="Activo"
+                Description="Hoja de vida técnica"
+                Value="@toolName"
+                Tone="soft"
+                Compact="true"
+                     Class="navi-life-record-kpi-asset">
+
+                <IconContent>
+                    <NaviKpiIcon Name="document" />
+                </IconContent>
+
+            </NaviKpiCard>
+
+            <NaviKpiCard
+                Title="Accesorios"
+                Description="Partes registradas"
+                Value="@accessories.Count.ToString()"
+                Tone="positive"
+                Compact="true">
+
+                <IconContent>
+                    <NaviKpiIcon Name="check" />
+                </IconContent>
+
+            </NaviKpiCard>
+
+        </NaviKpiGrid>
+
+        <a class="navi-life-record-subpage-back"
+           href="@($"/tools/{ToolId}/technical-life-record")"
+           aria-label="Volver a hoja de vida"
+           data-ntx-tone="secondary">
+
+            <span aria-hidden="true">←</span>
+            <span>Volver a hoja de vida</span>
+
+        </a>
+
+    </div>
+
+</NaviKpiToolbar>
+
+@* NAVI LIFE RECORD SUBPAGE STANDARD V76 ACCESSORIES END *@
 
 @if (!string.IsNullOrWhiteSpace(errorMessage))
 {
@@ -48,42 +118,42 @@
         <EditForm Model="formModel" OnValidSubmit="SaveAsync">
             <div class="edit-form-grid">
                 <div>
-                    <label>Nombre del accesorio</label>
-                    <InputText class="form-control" @bind-Value="formModel.Name" placeholder="Ej: CARGADOR" />
+                    <label for="navi-toolaccessoriesmanage-control-001">Nombre del accesorio</label>
+                    <InputText class="form-control" @bind-Value="formModel.Name" placeholder="Ej: CARGADOR" id="navi-toolaccessoriesmanage-control-001" />
                 </div>
 
                 <div>
-                    <label>Cantidad</label>
-                    <InputNumber class="form-control" @bind-Value="formModel.Quantity" />
+                    <label for="navi-toolaccessoriesmanage-control-002">Cantidad</label>
+                    <InputNumber class="form-control" @bind-Value="formModel.Quantity" id="navi-toolaccessoriesmanage-control-002" />
                 </div>
 
                 <div class="form-check-row">
-                    <InputCheckbox class="form-check-input" @bind-Value="formModel.RequiresMaintenance" />
-                    <label>Requiere mantenimiento</label>
+                    <InputCheckbox class="form-check-input" @bind-Value="formModel.RequiresMaintenance" name="navi-toolaccessoriesmanage-field-001" id="navi-toolaccessoriesmanage-control-003" />
+                    <label for="navi-toolaccessoriesmanage-control-003">Requiere mantenimiento</label>
                 </div>
 
                 <div class="form-check-row">
-                    <InputCheckbox class="form-check-input" @bind-Value="formModel.IsMeasurementEquipment" />
-                    <label>Equipo de medición</label>
+                    <InputCheckbox class="form-check-input" @bind-Value="formModel.IsMeasurementEquipment" name="navi-toolaccessoriesmanage-field-002" id="navi-toolaccessoriesmanage-control-004" />
+                    <label for="navi-toolaccessoriesmanage-control-004">Equipo de medición</label>
                 </div>
             </div>
 
             <div class="mt-3">
-                <label>Observación</label>
+                <label for="navi-toolaccessoriesmanage-control-005">Observación</label>
                 <InputTextArea class="form-control technical-observation"
                                @bind-Value="formModel.Observation"
-                               placeholder="Observación del accesorio..." />
+                               placeholder="Observación del accesorio..." id="navi-toolaccessoriesmanage-control-005" />
             </div>
 
             <div class="technical-edit-actions static-actions mt-3">
                 @if (editingAccessoryId.HasValue)
                 {
-                    <button type="button" class="btn btn-outline-secondary" @onclick="CancelEdit" data-ntx-tone="primary" >
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CancelEdit" data-ntx-tone="secondary" >
                         Cancelar edición
                     </button>
                 }
 
-                <button type="submit" class="btn btn-primary" disabled="@isSaving" data-ntx-tone="primary" >
+                <button type="submit" class="btn ntx-btn--operation" disabled="@isSaving" data-ntx-tone="affirmative" >
                     @(isSaving ? "Guardando..." : editingAccessoryId.HasValue ? "Actualizar accesorio" : "Crear accesorio")
                 </button>
             </div>
@@ -98,7 +168,7 @@
 
         @if (isLoading)
         {
-            <div class="alert alert-info mb-0">Cargando accesorios...</div>
+            <div class="alert alert-info mb-0" role="status" aria-busy="true">Cargando accesorios...</div>
         }
         else if (accessories.Count == 0)
         {
@@ -107,7 +177,8 @@
         else
         {
             <div class="table-responsive">
-                <table class="table table-sm table-bordered excel-table align-middle">
+                <div class="ntx-table-scroll">
+                    <table class="table table-sm table-bordered excel-table align-middle">
                     <thead>
                         <tr>
                             <th>Accesorio</th>
@@ -128,23 +199,28 @@
                                 <td>@BoolText(item.IsMeasurementEquipment)</td>
                                 <td>@Show(item.Observation)</td>
                                 <td>
-                                    <div class="d-flex gap-1 flex-wrap">
-                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => StartEdit(item)" data-ntx-tone="danger" >
+                                    <div class="d-flex gap-1 flex-wrap navi-life-record-paired-actions">
+<button class="btn btn-sm ntx-btn--operation" @onclick="() => StartEdit(item)" data-ntx-tone="operation" >
                                             Editar
                                         </button>
 
-                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(item)" data-ntx-tone="danger" >
+                                        <button class="btn btn-sm ntx-btn--danger" @onclick="() => DeleteAsync(item)" data-ntx-tone="danger" >
                                             Desactivar
                                         </button>
-                                    </div>
+</div>
                                 </td>
                             </tr>
                         }
                     </tbody>
                 </table>
+                </div>
             </div>
         }
     </section>
+</div>
+
+
+
 </div>
 
 </PermissionGuard>

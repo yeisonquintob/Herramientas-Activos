@@ -16,14 +16,14 @@
 <section class="mobile-page navi-mobile-maint-request-v1">
     @if (isLoading && !initialized)
     {
-        <div class="mobile-loading">Cargando solicitud de mantenimiento...</div>
+        <div class="mobile-loading" role="status" aria-busy="true">Cargando solicitud de mantenimiento...</div>
     }
     else if (!Auth.IsAuthenticated)
     {
         <div class="mobile-empty">
             <strong>Sesión requerida</strong>
             <span>Debes iniciar sesión para continuar.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="secondary" >Ir al login</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="ghost" >Ir al login</button>
         </div>
     }
     else if (!CanAccessModule)
@@ -54,45 +54,53 @@
             <div class="mobile-alert error">@errorMessage</div>
         }
 
-        <section class="mmnt-kpis mmnt-kpis-compact-v2">
-            <article>
+        <NaviMobileKpiOverflow PrimaryCount="3" OverflowCount="1" ButtonLabel="Mostrar indicador adicional">
+            <PrimaryContent>
+        <NaviMobileKpiGrid Class="mmnt-kpis mmnt-kpis-compact-v2">
+            <NaviMobileKpiCard>
                 <span>Locales</span>
                 <strong>@LocalVisibleRequests.Count()</strong>
                 <small>Local</small>
-            </article>
+            </NaviMobileKpiCard>
 
-            <article>
+            <NaviMobileKpiCard>
                 <span>Generadas</span>
                 <strong>@FilteredRegistered.Count()</strong>
                 <small>API</small>
-            </article>
+            </NaviMobileKpiCard>
 
-            <article>
+            <NaviMobileKpiCard>
                 <span>Pendientes</span>
                 <strong>@FilteredRegistered.Count(x => IsOpenStatus(x.Status))</strong>
                 <small>Abiertas</small>
-            </article>
+            </NaviMobileKpiCard>
+        </NaviMobileKpiGrid>
+            </PrimaryContent>
+            <OverflowContent>
+        <NaviMobileKpiGrid Class="mmnt-kpis mmnt-kpis-compact-v2">
 
-            <article>
+            <NaviMobileKpiCard>
                 <span>Permiso</span>
                 <strong>@PermissionMode</strong>
                 <small>Rol</small>
-            </article>
-        </section>
+            </NaviMobileKpiCard>
+        </NaviMobileKpiGrid>
+            </OverflowContent>
+        </NaviMobileKpiOverflow>
 
         <section class="mmnt-filter-card">
             <label>
                 <span>Buscar</span>
                 <input value="@searchText"
                        @oninput="OnSearchChanged"
-                       placeholder="Número, equipo, falla, solicitante, sede..." />
+                       placeholder="Número, equipo, falla, solicitante, sede..." name="navi-mobilemaintenancerequest-field-001" />
             </label>
 
             @if (UserCanSeeAllBranches())
             {
                 <label>
                     <span>Sede</span>
-                    <select value="@selectedBranchCode" @onchange="OnBranchFilterChanged">
+                    <select value="@selectedBranchCode" @onchange="OnBranchFilterChanged" name="navi-mobilemaintenancerequest-field-002">
                         <option value="">Todas las sedes</option>
                         @foreach (var branch in VisibleBranches)
                         {
@@ -105,7 +113,7 @@
             {
                 <label>
                     <span>Sede</span>
-                    <input value="@ScopeLabel" disabled />
+                    <input value="@ScopeLabel" disabled name="navi-mobilemaintenancerequest-field-003" />
                 </label>
             }
 
@@ -123,7 +131,7 @@
             <section class="mmnt-bottom-filter">
                 <label>
                     <span>Estado</span>
-                    <select value="@selectedBottomStatus" @onchange="OnBottomStatusChanged">
+                    <select value="@selectedBottomStatus" @onchange="OnBottomStatusChanged" name="navi-mobilemaintenancerequest-field-004">
                         <option value="">Todos los estados</option>
                         @foreach (var status in BottomStatusOptions)
                         {
@@ -158,16 +166,16 @@
                             <div class="mmnt-row-actions">
                                 @if (item.Status == LocalStatusDraft && CanCreateOrConfirmRequest)
                                 {
-                                    <button type="button" @onclick="() => LoadDraftForEdit(item.Id)" data-ntx-tone="primary" >Editar</button>
-                                    <button type="button" class="primary" @onclick="() => ConfirmStoredRequestAsync(item.Id)" data-ntx-tone="primary" >Confirmar</button>
+                                    <button type="button" @onclick="() => LoadDraftForEdit(item.Id)" data-ntx-tone="operation" >Editar</button>
+                                    <button type="button" class="primary" @onclick="() => ConfirmStoredRequestAsync(item.Id)" data-ntx-tone="affirmative" >Confirmar</button>
                                 }
                                 else if (item.Status == LocalStatusConfirmed && CanRegisterQuotation)
                                 {
-                                    <button type="button" class="warning" @onclick="() => StartQuotationAsync(item.Id)" data-ntx-tone="primary" >Realizar cotización</button>
+                                    <button type="button" class="warning" @onclick="() => StartQuotationAsync(item.Id)" data-ntx-tone="operation" >Realizar cotización</button>
                                 }
                                 else if (item.Status == LocalStatusQuoting && CanRegisterQuotation)
                                 {
-                                    <button type="button" class="warning" @onclick="() => ContinueQuotation(item.Id)" data-ntx-tone="danger" >Continuar cotización</button>
+                                    <button type="button" class="warning" @onclick="() => ContinueQuotation(item.Id)" data-ntx-tone="operation" >Continuar cotización</button>
                                 }
 
                                 <button type="button" class="danger" @onclick="() => DeleteLocalRequestAsync(item.Id)" data-ntx-tone="danger" >Eliminar</button>
@@ -190,7 +198,7 @@
                                 <div class="mmnt-row-actions">
                                     @if (CanApproveRequest && item.Status == "InReview")
                                     {
-                                        <button type="button" class="approve" @onclick="() => ApproveAsync(item)" data-ntx-tone="danger" >Aprobar</button>
+                                        <button type="button" class="approve" @onclick="() => ApproveAsync(item)" data-ntx-tone="affirmative" >Aprobar</button>
                                     }
 
                                     @if (CanRejectRequest && item.Status == "InReview")
@@ -200,17 +208,17 @@
 
                                     @if (CanApproveRequest && item.Status == "Approved")
                                     {
-                                        <button type="button" class="warning" @onclick="() => ScheduleAsync(item)" data-ntx-tone="positive" >Programar</button>
+                                        <button type="button" class="warning" @onclick="() => ScheduleAsync(item)" data-ntx-tone="ghost" >Programar</button>
                                     }
 
                                     @if (CanExecuteMaintenance && (item.Status == "Approved" || item.Status == "Scheduled"))
                                     {
-                                        <button type="button" class="primary" @onclick="() => StartExecutionAsync(item)" data-ntx-tone="positive" >Iniciar</button>
+                                        <button type="button" class="primary" @onclick="() => StartExecutionAsync(item)" data-ntx-tone="operation" >Iniciar</button>
                                     }
 
                                     @if ((CanApproveRequest || CanExecuteMaintenance) && (item.Status == "Approved" || item.Status == "Scheduled" || item.Status == "InExecution"))
                                     {
-                                        <button type="button" class="approve" @onclick="() => CloseAsync(item)" data-ntx-tone="primary" >Cerrar</button>
+                                        <button type="button" class="approve" @onclick="() => CloseAsync(item)" data-ntx-tone="affirmative" >Cerrar</button>
                                     }
                                 </div>
                             </article>
@@ -242,12 +250,12 @@
                 <div class="mmnt-form-grid">
                     <label>
                         <span>Nombre de la solicitud</span>
-                        <InputText @bind-Value="header.RequestName" disabled="@(!CanEditRequest)" />
+                        <InputText @bind-Value="header.RequestName" disabled="@(!CanEditRequest)" name="navi-mobilemaintenancerequest-field-005" />
                     </label>
 
                     <label>
                         <span>Sede</span>
-                        <InputSelect @bind-Value="header.BranchIdText" disabled="@(!CanEditRequest)">
+                        <InputSelect @bind-Value="header.BranchIdText" disabled="@(!CanEditRequest)" name="navi-mobilemaintenancerequest-field-006">
                             <option value="">Seleccione sede</option>
                             @foreach (var branch in VisibleBranches)
                             {
@@ -258,17 +266,17 @@
 
                     <label>
                         <span>Solicitante</span>
-                        <InputText @bind-Value="header.RequestedBy" disabled />
+                        <InputText @bind-Value="header.RequestedBy" disabled name="navi-mobilemaintenancerequest-field-007" />
                     </label>
 
                     <label>
                         <span>Responsable que aprueba</span>
-                        <InputText @bind-Value="header.Approver" disabled="@(!CanEditRequest)" />
+                        <InputText @bind-Value="header.Approver" disabled="@(!CanEditRequest)" name="navi-mobilemaintenancerequest-field-008" />
                     </label>
 
                     <label>
                         <span>Tipo mantenimiento</span>
-                        <InputSelect @bind-Value="header.RequestType" disabled="@(!CanEditRequest)">
+                        <InputSelect @bind-Value="header.RequestType" disabled="@(!CanEditRequest)" name="navi-mobilemaintenancerequest-field-009">
                             <option value="Correctivo">Correctivo</option>
                             <option value="Preventivo">Preventivo</option>
                             <option value="Calibración">Calibración</option>
@@ -279,7 +287,7 @@
 
                     <label>
                         <span>Prioridad</span>
-                        <InputSelect @bind-Value="header.Priority" disabled="@(!CanEditRequest)">
+                        <InputSelect @bind-Value="header.Priority" disabled="@(!CanEditRequest)" name="navi-mobilemaintenancerequest-field-010">
                             <option value="Baja">Baja</option>
                             <option value="Media">Media</option>
                             <option value="Alta">Alta</option>
@@ -289,18 +297,18 @@
 
                     <label>
                         <span>Fecha requerida</span>
-                        <InputDate @bind-Value="header.RequiredAt" disabled="@(!CanEditRequest)" />
+                        <InputDate @bind-Value="header.RequiredAt" disabled="@(!CanEditRequest)" name="navi-mobilemaintenancerequest-field-011" />
                     </label>
 
                     <label>
                         <span>Ubicación / área</span>
-                        <InputText @bind-Value="header.Location" disabled="@(!CanEditRequest)" />
+                        <InputText @bind-Value="header.Location" disabled="@(!CanEditRequest)" name="navi-mobilemaintenancerequest-field-012" />
                     </label>
                 </div>
 
                 <label class="mmnt-full">
                     <span>Descripción general de la necesidad</span>
-                    <InputTextArea @bind-Value="header.NeedDescription" disabled="@(!CanEditRequest)" />
+                    <InputTextArea @bind-Value="header.NeedDescription" disabled="@(!CanEditRequest)" name="navi-mobilemaintenancerequest-field-024" />
                 </label>
 
                 <div class="mmnt-subsection-title">
@@ -311,22 +319,22 @@
 <div class="mmnt-form-grid">
                     <label>
                         <span>Foto / evidencia</span>
-                        <InputFile OnChange="OnImageSelected" accept="image/*" disabled="@(!CanEditRequest)" />
+                        <InputFile OnChange="OnImageSelected" accept="image/*" disabled="@(!CanEditRequest)" name="navi-mobilemaintenancerequest-field-013" />
                     </label>
 
                     <label>
                         <span>Información técnica / serial</span>
-                        <InputText @bind-Value="lineForm.TechnicalOrSerial" disabled="@(!CanEditRequest)" />
+                        <InputText @bind-Value="lineForm.TechnicalOrSerial" disabled="@(!CanEditRequest)" name="navi-mobilemaintenancerequest-field-014" />
                     </label>
 
                     <label>
                         <span>Nombre herramienta / equipo</span>
-                        <InputText @bind-Value="lineForm.ToolName" disabled="@(!CanEditRequest)" />
+                        <InputText @bind-Value="lineForm.ToolName" disabled="@(!CanEditRequest)" name="navi-mobilemaintenancerequest-field-015" />
                     </label>
 
                     <label>
                         <span>Estado / criticidad</span>
-                        <InputSelect @bind-Value="lineForm.Criticality" disabled="@(!CanEditRequest)">
+                        <InputSelect @bind-Value="lineForm.Criticality" disabled="@(!CanEditRequest)" name="navi-mobilemaintenancerequest-field-016">
                             <option value="Normal">Normal</option>
                             <option value="Alta">Alta</option>
                             <option value="Crítica">Crítica</option>
@@ -341,16 +349,16 @@
 
                 <label class="mmnt-full">
                     <span>Detalles</span>
-                    <InputTextArea @bind-Value="lineForm.Details" disabled="@(!CanEditRequest)" />
+                    <InputTextArea @bind-Value="lineForm.Details" disabled="@(!CanEditRequest)" name="navi-mobilemaintenancerequest-field-025" />
                 </label>
 
                 <label class="mmnt-full">
                     <span>Novedad / falla / observación</span>
-                    <InputTextArea @bind-Value="lineForm.Novelty" disabled="@(!CanEditRequest)" />
+                    <InputTextArea @bind-Value="lineForm.Novelty" disabled="@(!CanEditRequest)" name="navi-mobilemaintenancerequest-field-026" />
                 </label>
 
                 <div class="mmnt-action-row">
-                    <button type="button" class="primary" @onclick="AddLine" disabled="@(!CanEditRequest)" data-ntx-tone="secondary" >
+                    <button type="button" class="primary" @onclick="AddLine" disabled="@(!CanEditRequest)" data-ntx-tone="refresh" >
                         @(editingLineId.HasValue ? "Actualizar" : "Agregar")
                     </button>
 
@@ -384,11 +392,11 @@
 
                                 <div class="mmnt-row-actions">
                                     <label>
-                                        <InputCheckbox @bind-Value="item.Selected" disabled="@(!CanEditRequest)" />
+                                        <InputCheckbox @bind-Value="item.Selected" disabled="@(!CanEditRequest)" name="navi-mobilemaintenancerequest-field-017" />
                                         Usar
                                     </label>
 
-                                    <button type="button" @onclick="() => EditLine(item.Id)" disabled="@(!CanEditRequest)" data-ntx-tone="danger" >Editar</button>
+                                    <button type="button" @onclick="() => EditLine(item.Id)" disabled="@(!CanEditRequest)" data-ntx-tone="operation" >Editar</button>
                                     <button type="button" class="danger" @onclick="() => RemoveLine(item.Id)" disabled="@(!CanEditRequest)" data-ntx-tone="danger" >Quitar</button>
                                 </div>
                             </article>
@@ -412,11 +420,11 @@
                 </div>
 
                 <div class="mmnt-action-row">
-                    <button type="button" @onclick="SaveDraftAsync" disabled="@(!CanSaveAsDraft)" data-ntx-tone="primary" >
+                    <button type="button" @onclick="SaveDraftAsync" disabled="@(!CanSaveAsDraft)" data-ntx-tone="affirmative" >
                         Guardar borrador
                     </button>
 
-                    <button type="button" class="primary" @onclick="ConfirmRequestAsync" disabled="@(!CanConfirmRequest)" data-ntx-tone="primary" >
+                    <button type="button" class="primary" @onclick="ConfirmRequestAsync" disabled="@(!CanConfirmRequest)" data-ntx-tone="affirmative" >
                         Confirmar solicitud
                     </button>
 
@@ -462,12 +470,12 @@
                 <div class="mmnt-form-grid">
                     <label>
                         <span>Proveedor</span>
-                        <InputText @bind-Value="quoteForm.Provider" disabled="@(!CanQuote)" />
+                        <InputText @bind-Value="quoteForm.Provider" disabled="@(!CanQuote)" name="navi-mobilemaintenancerequest-field-018" />
                     </label>
 
                     <label>
                         <span>Equipo cotizado</span>
-                        <InputSelect @bind-Value="quoteForm.LineIdText" disabled="@(!CanQuote)">
+                        <InputSelect @bind-Value="quoteForm.LineIdText" disabled="@(!CanQuote)" name="navi-mobilemaintenancerequest-field-019">
                             <option value="">Toda la solicitud / kit</option>
                             @foreach (var line in currentLines)
                             {
@@ -478,27 +486,27 @@
 
                     <label>
                         <span>Fecha cotización</span>
-                        <InputDate @bind-Value="quoteForm.QuotationDate" disabled="@(!CanQuote)" />
+                        <InputDate @bind-Value="quoteForm.QuotationDate" disabled="@(!CanQuote)" name="navi-mobilemaintenancerequest-field-020" />
                     </label>
 
                     <label>
                         <span>Tiempo entrega / reparación</span>
-                        <InputText @bind-Value="quoteForm.DeliveryTime" disabled="@(!CanQuote)" />
+                        <InputText @bind-Value="quoteForm.DeliveryTime" disabled="@(!CanQuote)" name="navi-mobilemaintenancerequest-field-021" />
                     </label>
 
                     <label>
                         <span>Precio antes de IVA</span>
-                        <InputNumber @bind-Value="quoteForm.PriceBeforeVat" disabled="@(!CanQuote)" />
+                        <InputNumber @bind-Value="quoteForm.PriceBeforeVat" disabled="@(!CanQuote)" name="navi-mobilemaintenancerequest-field-022" />
                     </label>
                 </div>
 
                 <label class="mmnt-full">
                     <span>Detalles adicionales de cotización</span>
-                    <InputTextArea @bind-Value="quoteForm.AdditionalDetails" disabled="@(!CanQuote)" />
+                    <InputTextArea @bind-Value="quoteForm.AdditionalDetails" disabled="@(!CanQuote)" name="navi-mobilemaintenancerequest-field-027" />
                 </label>
 
                 <div class="mmnt-action-row">
-                    <button type="button" class="primary" @onclick="AddQuotationAsync" disabled="@(!CanQuote)" data-ntx-tone="secondary" >
+                    <button type="button" class="primary" @onclick="AddQuotationAsync" disabled="@(!CanQuote)" data-ntx-tone="refresh" >
                         @(editingQuoteId.HasValue ? "Actualizar cotización" : "Agregar cotización")
                     </button>
 
@@ -527,11 +535,11 @@
 
                                 <div class="mmnt-row-actions">
                                     <label>
-                                        <InputCheckbox @bind-Value="quote.Selected" disabled="@(!CanQuote)" />
+                                        <InputCheckbox @bind-Value="quote.Selected" disabled="@(!CanQuote)" name="navi-mobilemaintenancerequest-field-023" />
                                         Usar
                                     </label>
 
-                                    <button type="button" @onclick="() => EditQuotation(quote.Id)" disabled="@(!CanQuote)" data-ntx-tone="danger" >Editar</button>
+                                    <button type="button" @onclick="() => EditQuotation(quote.Id)" disabled="@(!CanQuote)" data-ntx-tone="operation" >Editar</button>
                                     <button type="button" class="danger" @onclick="() => RemoveQuotationAsync(quote.Id)" disabled="@(!CanQuote)" data-ntx-tone="danger" >Quitar</button>
                                 </div>
                             </article>
@@ -549,22 +557,22 @@
                     <em>@SelectedQuotes.Count() cotización(es)</em>
                 </summary>
 
-                <div class="mmnt-summary-grid">
-                    <article>
+                <NaviMobileKpiGrid Columns="3" Class="mmnt-summary-grid">
+                    <NaviMobileKpiCard>
                         <span>Equipos seleccionados</span>
                         <strong>@SelectedLines.Count()</strong>
-                    </article>
+                    </NaviMobileKpiCard>
 
-                    <article>
+                    <NaviMobileKpiCard>
                         <span>Cotizaciones seleccionadas</span>
                         <strong>@SelectedQuotes.Count()</strong>
-                    </article>
+                    </NaviMobileKpiCard>
 
-                    <article>
+                    <NaviMobileKpiCard>
                         <span>Total antes de IVA</span>
                         <strong>@MoneyLabel(SelectedQuotes.Sum(x => x.PriceBeforeVat ?? 0))</strong>
-                    </article>
-                </div>
+                    </NaviMobileKpiCard>
+                </NaviMobileKpiGrid>
 
                 @if (!CanGenerateRequest)
                 {
@@ -573,7 +581,7 @@
                     </div>
                 }
 
-                <button type="button" class="mmnt-generate" @onclick="GenerateAsync" disabled="@(!CanGenerateRequest || isSaving)" data-ntx-tone="primary" >
+                <button type="button" class="mmnt-generate" @onclick="GenerateAsync" disabled="@(!CanGenerateRequest || isSaving)" data-ntx-tone="ghost" >
                     @(isSaving ? "Generando..." : "Generar solicitud de mantenimiento")
                 </button>
             </details>

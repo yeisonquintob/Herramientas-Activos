@@ -1,3 +1,4 @@
+@implements IDisposable
 @using System.Text.Json
 @using Microsoft.JSInterop
 @using Navi.ToolsAssets.Admin.Services.Auth
@@ -21,9 +22,15 @@ else if (!AuthSession.IsAuthenticated)
         <div class="permission-card">
             <span>SESIÓN REQUERIDA</span>
             <h3>Debes iniciar sesión</h3>
-            <p>Para acceder a este módulo primero debes ingresar al sistema.</p>
 
-            <button class="btn btn-primary" @onclick="@(() => Navigation.NavigateTo("/login", forceLoad: true))" data-ntx-tone="ghost" >
+            <p>
+                Para acceder a este módulo primero debes ingresar
+                al sistema.
+            </p>
+
+            <button class="btn ntx-btn--operation"
+                    data-ntx-tone="ghost"
+                    @onclick="GoToLogin">
                 Ir al login
             </button>
         </div>
@@ -35,16 +42,20 @@ else if (!HasAccess)
         <div class="permission-card denied">
             <span>ACCESO DENEGADO</span>
             <h3>No tienes permisos para acceder</h3>
+
             <p>
                 Tu rol actual no tiene permiso para ingresar al módulo
                 <strong>@ModuleName</strong>.
             </p>
 
             <div class="permission-detail">
-                Permiso requerido: <strong>@Permission</strong>
+                Permiso requerido:
+                <strong>@Permission</strong>
             </div>
 
-            <button class="btn btn-outline-secondary" @onclick="GoToAllowedStart" data-ntx-tone="primary" >
+            <button class="btn btn-outline-secondary"
+                    data-ntx-tone="operation"
+                    @onclick="GoToAllowedStart">
                 @NaviPermissionRouteService.GetStartLabel(AuthSession)
             </button>
         </div>
@@ -55,75 +66,137 @@ else
     @ChildContent
 }
 
-
-
 @code {
-    private const string StorageKey = "navi-auth-session";
+    private const string StorageKey =
+        "navi-auth-session";
+
+    private static readonly JsonSerializerOptions
+        SessionJsonOptions = new()
+        {
+            PropertyNameCaseInsensitive = true
+        };
 
     [Parameter]
-    public string Permission { get; set; } = string.Empty;
+    public string Permission { get; set; } =
+        string.Empty;
 
     [Parameter]
-    public string ModuleName { get; set; } = "módulo";
+    public string ModuleName { get; set; } =
+        "módulo";
 
     [Parameter]
     public RenderFragment? ChildContent { get; set; }
 
     private bool sessionChecked;
+    private bool disposed;
 
     private bool HasAccess =>
         AuthSession.IsAuthenticated &&
         AuthSession.HasPermission(Permission);
 
-    private void GoToAllowedStart()
+    protected override void OnInitialized()
     {
-        Navigation.NavigateTo(NaviPermissionRouteService.GetStartRoute(AuthSession), forceLoad: true);
+        AuthSession.OnChange += HandleAuthChanged;
+
+        /*
+         * Si la sesión ya se encuentra cargada en memoria,
+         * se muestra el contenido inmediatamente y no se vuelve
+         * a consultar localStorage.
+         */
+        sessionChecked =
+            AuthSession.IsAuthenticated;
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override async Task OnAfterRenderAsync(
+        bool firstRender)
     {
-        if (!firstRender)
+        if (!firstRender ||
+            sessionChecked ||
+            disposed)
         {
             return;
         }
 
         try
         {
-            if (!AuthSession.IsAuthenticated)
-            {
-                var json = await JS.InvokeAsync<string?>("localStorage.getItem", StorageKey);
+            using var timeout =
+                new CancellationTokenSource(
+                    TimeSpan.FromSeconds(1));
 
-                if (!string.IsNullOrWhiteSpace(json))
-                {
-                    var user = JsonSerializer.Deserialize<AuthSessionUser>(
-                        json,
-                        new JsonSerializerOptions
-                        {
-                            PropertyNameCaseInsensitive = true
-                        });
-
-                    if (user is not null && !string.IsNullOrWhiteSpace(user.UserName))
+            var json =
+                await JS.InvokeAsync<string?>(
+                    "localStorage.getItem",
+                    timeout.Token,
+                    new object?[]
                     {
-                        AuthSession.Login(user);
-                    }
+                        StorageKey
+                    });
+
+            if (!string.IsNullOrWhiteSpace(json))
+            {
+                var user =
+                    JsonSerializer.Deserialize<AuthSessionUser>(
+                        json,
+                        SessionJsonOptions);
+
+                if (user is not null &&
+                    !string.IsNullOrWhiteSpace(
+                        user.UserName))
+                {
+                    AuthSession.Login(user);
                 }
             }
         }
         catch
         {
-            try
-            {
-                await JS.InvokeVoidAsync("localStorage.removeItem", StorageKey);
-            }
-            catch
-            {
-                // Ignorar error JS.
-            }
+            /*
+             * Una demora temporal del navegador no debe
+             * mantener bloqueada la página.
+             */
         }
         finally
         {
             sessionChecked = true;
-            await InvokeAsync(StateHasChanged);
+
+            if (!disposed)
+            {
+                await InvokeAsync(
+                    StateHasChanged);
+            }
         }
+    }
+
+    private void GoToLogin()
+    {
+        Navigation.NavigateTo(
+            "/login",
+            forceLoad: true);
+    }
+
+    private void GoToAllowedStart()
+    {
+        Navigation.NavigateTo(
+            NaviPermissionRouteService.GetStartRoute(
+                AuthSession),
+            forceLoad: true);
+    }
+
+    private void HandleAuthChanged()
+    {
+        sessionChecked = true;
+
+        if (!disposed)
+        {
+            _ = InvokeAsync(
+                StateHasChanged);
+        }
+    }
+
+    public void Dispose()
+    {
+        disposed = true;
+
+        AuthSession.OnChange -=
+            HandleAuthChanged;
     }
 }

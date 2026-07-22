@@ -1,0 +1,59 @@
+@using System.Collections.Generic
+@using Microsoft.AspNetCore.Components
+
+<div @attributes="AdditionalAttributes"
+     class="@CssClass"
+     data-ntx-component="mobile-form-grid"
+     data-ntx-columns="@NormalizedColumns">
+    @ChildContent
+</div>
+
+@code {
+    [Parameter]
+    public int Columns { get; set; } = 1;
+
+    [Parameter]
+    public bool Compact { get; set; } = true;
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>?
+        AdditionalAttributes { get; set; }
+
+    private string NormalizedColumns =>
+        Columns switch
+        {
+            2 => "2",
+            _ => "1"
+        };
+
+    private string CssClass
+    {
+        get
+        {
+            var classes = new List<string>
+            {
+                "navi-mobile-form-grid",
+                $"navi-mobile-form-grid--{NormalizedColumns}"
+            };
+
+            if (Compact)
+            {
+                classes.Add(
+                    "navi-mobile-form-grid--compact");
+            }
+
+            if (!string.IsNullOrWhiteSpace(Class))
+            {
+                classes.Add(Class.Trim());
+            }
+
+            return string.Join(" ", classes);
+        }
+    }
+}

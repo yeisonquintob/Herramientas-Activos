@@ -10,36 +10,94 @@
 }
 else
 {
-    <div class="navi-layout-shell navi-admin-layout-v2">
-        <aside class="navi-sidebar-area">
+    <div class="navi-layout-shell navi-admin-layout-v4">
+        <input class="navi-sidebar-state"
+               type="checkbox"
+               id="navi-sidebar-state"
+               aria-label="Menú de navegación"
+               aria-controls="navi-admin-sidebar" />
+
+        <NaviAdminHeader
+            ToggleInputId="navi-sidebar-state" />
+
+        <label class="navi-admin-sidebar-backdrop"
+               for="navi-sidebar-state"
+               aria-label="Cerrar menú lateral">
+        </label>
+
+        <aside class="navi-sidebar-area"
+               id="navi-admin-sidebar"
+               aria-label="Navegación principal">
             <NavMenu />
         </aside>
 
         <main class="navi-main-area">
-            <article class="navi-content">
+            <article class="navi-content"
+                     id="navi-main-content">
                 @Body
             </article>
+
+            <footer class="navi-bottom-bar"
+                    aria-label="Información general del aplicativo">
+                <div class="navi-bottom-bar__content">
+                    <span class="navi-bottom-bar__item
+                                 navi-bottom-bar__item--brand">
+                        NAVI Herramientas y Activos
+                    </span>
+
+                    <span class="navi-bottom-bar__separator"
+                          aria-hidden="true">
+                        ·
+                    </span>
+
+                    <span class="navi-bottom-bar__item">
+                        Navitrans 40 años
+                    </span>
+
+                    <span class="navi-bottom-bar__separator"
+                          aria-hidden="true">
+                        ·
+                    </span>
+
+                    <span class="navi-bottom-bar__item">
+                        TI Soluciones
+                    </span>
+                </div>
+            </footer>
         </main>
     </div>
-
-    <footer class="navi-bottom-bar">
-        <span>Navitrans 40 años</span>
-        <span class="separator">·</span>
-        <span>Mockup diseñado por TI Soluciones</span>
-    </footer>
 }
 
 <RoutePermissionRedirector />
 
-<div id="blazor-error-ui">
+<div id="blazor-error-ui"
+     role="alert"
+     aria-live="assertive">
     Ha ocurrido un error inesperado.
-    <a href="" class="reload">Recargar</a>
-    <a class="dismiss">x</a>
+
+    <a href=""
+       class="reload">
+        Recargar
+    </a>
+
+    <a class="dismiss"
+       aria-label="Cerrar mensaje">
+        ×
+    </a>
 </div>
 
 @code {
-    private bool IsLoginPage =>
-        Navigation.ToBaseRelativePath(Navigation.Uri)
-            .Trim('/')
-            .Equals("login", StringComparison.OrdinalIgnoreCase);
+    private bool IsLoginPage
+    {
+        get
+        {
+            var path = new Uri(Navigation.Uri)
+                .AbsolutePath
+                .Trim('/');
+
+            return path.Equals(
+                "login",
+                StringComparison.OrdinalIgnoreCase);
+        }
+    }
 }

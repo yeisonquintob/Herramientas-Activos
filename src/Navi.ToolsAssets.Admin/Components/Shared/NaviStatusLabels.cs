@@ -4,111 +4,345 @@ public static class NaviStatusLabels
 {
     public static string ToSpanish(string? status)
     {
-        if (string.IsNullOrWhiteSpace(status))
+        var normalized = Normalize(status);
+
+        if (normalized.Length == 0)
         {
             return "Sin estado";
         }
 
-        return status.Trim() switch
+        return normalized switch
         {
-            "Available" => "Disponible",
-            "Disponible" => "Disponible",
+            "available" or
+            "disponible"
+                => "Disponible",
 
-            "Assigned" => "Asignada",
-            "AssignedToResponsible" => "Asignada",
-            "Asignado" => "Asignada",
-            "Asignada" => "Asignada",
+            "assigned" or
+            "assignedtoresponsible" or
+            "asignado" or
+            "asignada"
+                => "Asignada",
 
-            "Loaned" => "Prestada",
-            "Prestado" => "Prestada",
-            "Prestada" => "Prestada",
+            "loaned" or
+            "prestado" or
+            "prestada"
+                => "Prestada",
 
-            "InUse" => "En uso",
-            "En uso" => "En uso",
+            "inuse" or
+            "en uso"
+                => "En uso",
 
-            "InMaintenance" => "Mantenimiento",
-            "Maintenance" => "Mantenimiento",
-            "Mantenimiento" => "Mantenimiento",
-            "En mantenimiento" => "Mantenimiento",
+            "inmaintenance" or
+            "maintenance" or
+            "mantenimiento" or
+            "en mantenimiento"
+                => "Mantenimiento",
 
-            "Damaged" => "Dañada",
-            "Dañado" => "Dañada",
-            "Dañada" => "Dañada",
+            "damaged" or
+            "dañado" or
+            "dañada"
+                => "Dañada",
 
-            "NotSuitable" => "No apta",
-            "No apto" => "No apta",
-            "No apta" => "No apta",
+            "notsuitable" or
+            "no apto" or
+            "no apta"
+                => "No apta",
 
-            "PendingValidation" => "Pendiente validación",
-            "Pending" => "Pendiente validación",
-            "Pendiente" => "Pendiente validación",
-            "Pendiente validación" => "Pendiente validación",
+            "pendingvalidation" or
+            "pending" or
+            "pendiente" or
+            "pendiente validación" or
+            "pendiente de validación"
+                => "Pendiente de validación",
 
-            "NotReconciled" => "No conciliado",
-            "NoConciliado" => "No conciliado",
-            "PendingReconciliation" => "No conciliado",
-            "Inconsistent" => "No conciliado",
-            "No conciliado" => "No conciliado",
+            "notreconciled" or
+            "noconciliado" or
+            "pendingreconciliation" or
+            "inconsistent" or
+            "no conciliado"
+                => "No conciliado",
 
-            "NotLocated" => "No localizada",
-            "Lost" => "No localizada",
-            "No localizado" => "No localizada",
-            "No localizada" => "No localizada",
+            "notlocated" or
+            "lost" or
+            "no localizado" or
+            "no localizada"
+                => "No localizada",
 
-            "Disposed" => "Baja",
-            "Dada de baja" => "Baja",
-            "Baja" => "Baja",
+            "disposed" or
+            "dada de baja" or
+            "baja"
+                => "Baja",
 
-            "PendingDisposal" => "Pendiente baja",
-            "Pendiente baja" => "Pendiente baja",
+            "pendingdisposal" or
+            "pendiente baja" or
+            "pendiente de baja"
+                => "Pendiente de baja",
 
-            _ => status.Trim()
+            "validated" or
+            "validado" or
+            "validada"
+                => "Validado",
+
+            "synced" or
+            "synchronized" or
+            "sincronizado" or
+            "sincronizada"
+                => "Sincronizado",
+
+            "notsynced" or
+            "not synchronized" or
+            "no sincronizado" or
+            "no sincronizada"
+                => "No sincronizado",
+
+            "draft" or
+            "borrador"
+                => "Borrador",
+
+            "inreview" or
+            "en revisión"
+                => "En revisión",
+
+            "pendingapproval" or
+            "pendiente aprobación" or
+            "pendiente de aprobación"
+                => "Pendiente de aprobación",
+
+            "approved" or
+            "aprobado" or
+            "aprobada"
+                => "Aprobado",
+
+            "accepted" or
+            "aceptado" or
+            "aceptada"
+                => "Aceptado",
+
+            "confirmed" or
+            "confirmado" or
+            "confirmada"
+                => "Confirmado",
+
+            "rejected" or
+            "rechazado" or
+            "rechazada"
+                => "Rechazado",
+
+            "denied" or
+            "denegado" or
+            "denegada"
+                => "Denegado",
+
+            "canceled" or
+            "cancelled" or
+            "cancelado" or
+            "cancelada"
+                => "Cancelado",
+
+            "active" or
+            "activo" or
+            "activa"
+                => "Activo",
+
+            "inactive" or
+            "inactivo" or
+            "inactiva"
+                => "Inactivo",
+
+            "completed" or
+            "completado" or
+            "completada"
+                => "Completado",
+
+            "open" or
+            "abierto" or
+            "abierta"
+                => "Abierto",
+
+            "closed" or
+            "cerrado" or
+            "cerrada"
+                => "Cerrado",
+
+            "requested" or
+            "solicitado" or
+            "solicitada"
+                => "Solicitado",
+
+            "returned" or
+            "devuelto" or
+            "devuelta"
+                => "Devuelto",
+
+            "partial" or
+            "parcial"
+                => "Parcial",
+
+            "overdue" or
+            "vencido" or
+            "vencida"
+                => "Vencido",
+
+            "failed" or
+            "error" or
+            "fallido" or
+            "fallida"
+                => "Fallido",
+
+            _ => status!.Trim()
         };
     }
 
     public static string BadgeClass(string? status)
     {
-        if (string.IsNullOrWhiteSpace(status))
+        return Normalize(status) switch
         {
-            return "navi-status-badge navi-status-muted";
-        }
-
-        return status.Trim() switch
-        {
-            "Available" or "Disponible"
+            "available" or
+            "disponible"
                 => "navi-status-badge navi-status-available",
 
-            "Assigned" or "AssignedToResponsible" or "Asignado" or "Asignada"
+            "assigned" or
+            "assignedtoresponsible" or
+            "asignado" or
+            "asignada"
                 => "navi-status-badge navi-status-assigned",
 
-            "Loaned" or "Prestado" or "Prestada" or "InUse" or "En uso"
+            "loaned" or
+            "prestado" or
+            "prestada" or
+            "inuse" or
+            "en uso"
                 => "navi-status-badge navi-status-loaned",
 
-            "InMaintenance" or "Maintenance" or "Mantenimiento" or "En mantenimiento"
+            "inmaintenance" or
+            "maintenance" or
+            "mantenimiento" or
+            "en mantenimiento"
                 => "navi-status-badge navi-status-maintenance",
 
-            "Damaged" or "Dañado" or "Dañada"
+            "damaged" or
+            "dañado" or
+            "dañada"
                 => "navi-status-badge navi-status-damaged",
 
-            "NotSuitable" or "No apto" or "No apta"
+            "notsuitable" or
+            "no apto" or
+            "no apta"
                 => "navi-status-badge navi-status-not-suitable",
 
-            "PendingValidation" or "Pending" or "Pendiente" or "Pendiente validación"
+            "pendingvalidation" or
+            "pending" or
+            "pendiente" or
+            "pendiente validación" or
+            "pendiente de validación" or
+            "pendingdisposal" or
+            "pendiente baja" or
+            "pendiente de baja"
                 => "navi-status-badge navi-status-pending-validation",
 
-            "NotReconciled" or "NoConciliado" or "PendingReconciliation" or "Inconsistent" or "No conciliado"
+            "notreconciled" or
+            "noconciliado" or
+            "pendingreconciliation" or
+            "inconsistent" or
+            "no conciliado"
                 => "navi-status-badge navi-status-not-reconciled",
 
-            "NotLocated" or "Lost" or "No localizado" or "No localizada"
+            "notlocated" or
+            "lost" or
+            "no localizado" or
+            "no localizada"
                 => "navi-status-badge navi-status-not-located",
 
-            "Disposed" or "Dada de baja" or "Baja"
+            "disposed" or
+            "dada de baja" or
+            "baja"
                 => "navi-status-badge navi-status-disposed",
 
-            "PendingDisposal" or "Pendiente baja"
-                => "navi-status-badge navi-status-pending-validation",
+            "validated" or
+            "validado" or
+            "validada" or
+            "synced" or
+            "synchronized" or
+            "sincronizado" or
+            "sincronizada" or
+            "approved" or
+            "aprobado" or
+            "aprobada" or
+            "accepted" or
+            "aceptado" or
+            "aceptada" or
+            "confirmed" or
+            "confirmado" or
+            "confirmada" or
+            "active" or
+            "activo" or
+            "activa" or
+            "completed" or
+            "completado" or
+            "completada" or
+            "returned" or
+            "devuelto" or
+            "devuelta"
+                => "navi-status-badge navi-status-success",
+
+            "draft" or
+            "borrador" or
+            "open" or
+            "abierto" or
+            "abierta" or
+            "requested" or
+            "solicitado" or
+            "solicitada"
+                => "navi-status-badge navi-status-process",
+
+            "inreview" or
+            "en revisión" or
+            "pendingapproval" or
+            "pendiente aprobación" or
+            "pendiente de aprobación" or
+            "notsynced" or
+            "not synchronized" or
+            "no sincronizado" or
+            "no sincronizada" or
+            "partial" or
+            "parcial"
+                => "navi-status-badge navi-status-warning",
+
+            "rejected" or
+            "rechazado" or
+            "rechazada" or
+            "denied" or
+            "denegado" or
+            "denegada" or
+            "canceled" or
+            "cancelled" or
+            "cancelado" or
+            "cancelada" or
+            "overdue" or
+            "vencido" or
+            "vencida" or
+            "failed" or
+            "error" or
+            "fallido" or
+            "fallida"
+                => "navi-status-badge navi-status-danger",
+
+            "inactive" or
+            "inactivo" or
+            "inactiva" or
+            "closed" or
+            "cerrado" or
+            "cerrada"
+                => "navi-status-badge navi-status-inactive",
 
             _ => "navi-status-badge navi-status-muted"
         };
+    }
+
+    private static string Normalize(string? status)
+    {
+        return string.IsNullOrWhiteSpace(status)
+            ? string.Empty
+            : status.Trim().ToLowerInvariant();
     }
 }

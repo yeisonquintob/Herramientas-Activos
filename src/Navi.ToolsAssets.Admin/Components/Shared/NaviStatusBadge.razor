@@ -1,0 +1,116 @@
+@using System.Collections.Generic
+@using Microsoft.AspNetCore.Components
+
+<span @attributes="AdditionalAttributes"
+      class="@CssClass"
+      aria-label="@ResolvedLabel"
+      data-ntx-component="status-badge"
+      data-ntx-status="@Status">
+    @if (ShowDot)
+    {
+        <span class="navi-status-badge__dot"
+              aria-hidden="true"></span>
+    }
+
+    <span class="navi-status-badge__label">
+        @if (ChildContent is not null)
+        {
+            @ChildContent
+        }
+        else
+        {
+            @ResolvedLabel
+        }
+    </span>
+</span>
+
+@code {
+    /// <summary>
+    /// Estado técnico o texto de estado.
+    /// Ejemplo: Available, Assigned o PendingValidation.
+    /// </summary>
+    [Parameter]
+    public string? Status { get; set; }
+
+    /// <summary>
+    /// Texto visual opcional.
+    /// Cuando no se define, se traduce el estado al español.
+    /// </summary>
+    [Parameter]
+    public string? Label { get; set; }
+
+    /// <summary>
+    /// Tamaño normal, small/sm o large/lg.
+    /// </summary>
+    [Parameter]
+    public string Size { get; set; } = "normal";
+
+    /// <summary>
+    /// Muestra el indicador circular del estado.
+    /// </summary>
+    [Parameter]
+    public bool ShowDot { get; set; } = true;
+
+    /// <summary>
+    /// Clases adicionales para casos particulares.
+    /// </summary>
+    [Parameter]
+    public string? Class { get; set; }
+
+    /// <summary>
+    /// Permite reemplazar el texto interno sin alterar el tono.
+    /// </summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>?
+        AdditionalAttributes { get; set; }
+
+    private string ResolvedLabel =>
+        !string.IsNullOrWhiteSpace(Label)
+            ? Label.Trim()
+            : NaviStatusLabels.ToSpanish(Status);
+
+    private string CssClass
+    {
+        get
+        {
+            var classes = new List<string>
+            {
+                NaviStatusLabels.BadgeClass(Status)
+            };
+
+            var normalizedSize = NormalizeSize(Size);
+
+            if (normalizedSize is not "normal")
+            {
+                classes.Add(
+                    $"navi-status-badge--{normalizedSize}");
+            }
+
+            if (!ShowDot)
+            {
+                classes.Add(
+                    "navi-status-badge--without-dot");
+            }
+
+            if (!string.IsNullOrWhiteSpace(Class))
+            {
+                classes.Add(Class.Trim());
+            }
+
+            return string.Join(" ", classes);
+        }
+    }
+
+    private static string NormalizeSize(string? size)
+    {
+        return size?.Trim().ToLowerInvariant() switch
+        {
+            "small" or "sm" or "compact" => "sm",
+            "large" or "lg" => "lg",
+            _ => "normal"
+        };
+    }
+}

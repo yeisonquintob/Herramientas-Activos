@@ -1,0 +1,758 @@
+/*
+ * NAVI Admin Web — homologación visual basada en Inventario,
+ * Disponibilidad, Asignación e Historial de asignaciones.
+ * Esta capa es exclusivamente presentacional y se limita a las
+ * vistas que declaran clases de referencia o módulos concretos.
+ */
+
+html body .navi-admin-layout-v4 .navi-content:has(.navi-reference-toolbar),
+html body .navi-admin-layout-v4 .navi-content:has(> .navi-reference-floating-actions),
+html body .navi-admin-layout-v4 .reconciliation-page {
+    --ntx-color-surface: var(--navi-color-surface);
+    --ntx-color-surface-subtle: var(--navi-color-surface-soft);
+    --ntx-color-text: var(--navi-color-text);
+    --ntx-color-text-muted: var(--navi-color-muted);
+    --ntx-color-border: var(--navi-color-border);
+    --ntx-color-border-strong: var(--navi-color-border-strong);
+    --ntx-color-primary-700: var(--navi-action-affirmative);
+    --ntx-color-primary-800: var(--navi-action-affirmative-hover);
+    --ntx-color-secondary-100: var(--navi-action-operation-soft);
+    --ntx-color-secondary-600: var(--navi-action-operation);
+    --ntx-color-secondary-700: var(--navi-action-operation);
+    --ntx-color-secondary-800: var(--navi-action-operation-hover);
+    --ntx-color-success-700: var(--navi-action-affirmative);
+    --ntx-color-warning-100: var(--navi-action-warning-soft);
+    --ntx-color-warning-600: var(--navi-action-warning);
+    --ntx-color-warning-700: var(--navi-action-warning);
+    --ntx-color-warning-800: var(--navi-action-warning-hover);
+    --ntx-color-danger-600: var(--navi-action-danger);
+    --ntx-color-info-700: var(--navi-action-consult);
+}
+
+html body .navi-admin-layout-v4 .navi-reference-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto;
+    align-items: stretch;
+    gap: 10px;
+    min-width: 0;
+    margin: 0 0 10px;
+}
+
+html body .navi-admin-layout-v4 .navi-reference-toolbar > .navi-kpi-grid {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    margin: 0;
+}
+
+html body .navi-admin-layout-v4 .navi-reference-toolbar > .navi-reference-toolbar__actions {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+    width: auto;
+    margin: 0;
+}
+
+html body .navi-admin-layout-v4 .navi-reference-toolbar__actions .navi-page-actions-bar__actions {
+    flex-wrap: nowrap;
+}
+
+html body .navi-admin-layout-v4 .navi-reference-toolbar__actions [data-ntx-tone="refresh"] {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    inline-size: 44px;
+    block-size: 44px;
+    min-inline-size: 44px;
+    min-block-size: 44px;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--ntx-color-primary-700);
+    border-radius: 999px;
+    background: var(--ntx-color-primary-700);
+    color: transparent;
+    box-shadow: var(--ntx-shadow-sm);
+    white-space: nowrap;
+}
+
+html body .navi-admin-layout-v4 .navi-reference-toolbar__actions [data-ntx-tone="refresh"]::before {
+    content: "↻";
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: var(--navi-color-on-solid);
+    font-size: var(--navi-font-panel-title);
+    font-weight: 700;
+    line-height: var(--ntx-line-height-tight);
+}
+
+html body .navi-admin-layout-v4 .navi-reference-toolbar__actions [data-ntx-tone="refresh"]:hover {
+    background: var(--ntx-color-primary-800);
+    border-color: var(--ntx-color-primary-800);
+    box-shadow: var(--ntx-shadow);
+}
+
+html body .navi-admin-layout-v4 .navi-reference-toolbar--back-below {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+html body .navi-admin-layout-v4 .navi-reference-toolbar--back-below > .navi-kpi-grid {
+    grid-column: 1;
+    grid-row: 1;
+}
+
+html body .navi-admin-layout-v4 .navi-reference-toolbar--back-below > .navi-reference-toolbar__actions {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: end;
+}
+
+html body .navi-admin-layout-v4 .navi-reference-toolbar--back-below .navi-page-actions-bar__actions > a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 7px 14px;
+    border: 1px solid var(--ntx-color-border-strong);
+    border-radius: 7px;
+    color: var(--ntx-color-text);
+    text-decoration: none;
+}
+
+html body .navi-admin-layout-v4 .navi-reference-toolbar--life-record > .life-record-summary-shell {
+    display: contents;
+}
+
+html body .navi-admin-layout-v4 .navi-reference-toolbar--life-record .life-record-summary-kpis {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    margin: 0;
+}
+
+html body .navi-admin-layout-v4 .navi-reference-toolbar--life-record .life-record-summary-actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display: flex;
+    justify-content: flex-end;
+    margin: 0;
+}
+
+html body .navi-admin-layout-v4 .navi-reference-toolbar .navi-kpi-grid {
+    border: 1px solid var(--ntx-color-border);
+    border-radius: 18px;
+    background: var(--ntx-color-surface);
+    box-shadow: var(--ntx-shadow-xs);
+}
+
+html body .navi-admin-layout-v4 .navi-reference-toolbar .navi-kpi-card strong {
+    overflow-wrap: anywhere;
+}
+
+/* Acciones flotantes para páginas cuyo KPI depende de una carga condicional. */
+html body .navi-admin-layout-v4 .navi-content:has(> .navi-reference-floating-actions),
+html body .navi-admin-layout-v4 .reconciliation-page {
+    position: relative;
+}
+
+html body .navi-admin-layout-v4 .navi-reference-floating-actions {
+    position: absolute;
+    z-index: 3;
+    top: 0;
+    right: 0;
+    width: auto;
+    margin: 0;
+}
+
+html body .navi-admin-layout-v4 .navi-reference-floating-actions [data-ntx-tone="refresh"] {
+    inline-size: 44px;
+    block-size: 44px;
+    min-inline-size: 44px;
+    min-block-size: 44px;
+    padding: 0;
+    overflow: hidden;
+    border-radius: 999px;
+    color: transparent;
+}
+
+html body .navi-admin-layout-v4 .navi-reference-floating-actions [data-ntx-tone="refresh"]::before {
+    content: "↻";
+    color: var(--navi-color-on-solid);
+    font-size: var(--navi-font-panel-title);
+    line-height: var(--ntx-line-height-tight);
+}
+
+html body .navi-admin-layout-v4 :where(.pc-kpi-grid-standard, .rec-kpi-grid--reference-top) {
+    margin-top: 0;
+    padding-right: 56px;
+}
+
+/* Jerarquía común: KPI, filtros, estados y contenido. */
+html body .navi-admin-layout-v4 :where(
+    .life-page-filters,
+    .plans-page-filters,
+    .consult-page-filters,
+    .pc-page-filters,
+    .users-page-filters,
+    .reports-page-filters,
+    .rec-filters-card
+) {
+    border: 1px solid var(--ntx-color-border);
+    border-radius: 10px;
+    background: var(--ntx-color-surface);
+    box-shadow: var(--ntx-shadow-xs);
+}
+
+html body .navi-admin-layout-v4 :where(
+    .life-status-filters-modern,
+    .plans-status-filters-modern,
+    .consult-status-filters-modern,
+    .pc-status-filters-modern
+) {
+    margin-top: 10px;
+    padding: 7px 9px;
+    border: 1px solid var(--ntx-color-border);
+    border-radius: 999px;
+    background: var(--ntx-color-surface);
+    box-shadow: none;
+}
+
+html body .navi-admin-layout-v4 :where(
+    .life-status-filters-modern,
+    .plans-status-filters-modern,
+    .consult-status-filters-modern,
+    .pc-status-filters-modern
+) button {
+    min-height: 28px;
+    border-radius: 999px;
+    font-size: var(--navi-font-badge);
+    font-weight: 650;
+}
+
+/* Hoja de vida y módulos técnicos. */
+html body .navi-admin-layout-v4 .life-record-quick-actions {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 9px;
+    margin-bottom: 10px;
+}
+
+html body .navi-admin-layout-v4 .life-record-quick-actions > .quick-action-card {
+    display: grid;
+    align-content: start;
+    gap: 6px;
+    min-width: 0;
+    min-height: 126px;
+    padding: 12px;
+    border: 1px solid var(--ntx-color-border);
+    border-top: 3px solid var(--ntx-color-secondary-600);
+    border-radius: 9px;
+    background: var(--ntx-color-surface);
+    box-shadow: var(--ntx-shadow-sm);
+}
+
+html body .navi-admin-layout-v4 .life-record-quick-actions > .quick-action-card:nth-child(4) {
+    border-top-color: var(--ntx-color-warning-600);
+}
+
+html body .navi-admin-layout-v4 .life-record-quick-actions > .quick-action-card:nth-child(5) {
+    border-top-color: var(--ntx-color-success-700);
+}
+
+html body .navi-admin-layout-v4 .life-record-quick-actions > .quick-action-card:nth-child(6) {
+    border-top-color: var(--ntx-color-info-700);
+}
+
+html body .navi-admin-layout-v4 .life-record-quick-actions .life-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: end;
+    min-height: 34px;
+    margin-top: auto;
+    border-radius: 6px;
+    text-decoration: none;
+}
+
+html body .navi-admin-layout-v4 :where(
+    .life-record-section,
+    .accessories-manage-grid > section,
+    .documents-manage-grid > section,
+    .maintenance-schedule-grid > section,
+    .safe-practices-manage-grid > section,
+    .traceability-card
+) {
+    border: 1px solid var(--ntx-color-border);
+    border-radius: 9px;
+    background: var(--ntx-color-surface);
+    box-shadow: var(--ntx-shadow-sm);
+}
+
+html body .navi-admin-layout-v4 .life-record-section {
+    padding: 14px;
+}
+
+html body .navi-admin-layout-v4 .section-title {
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--ntx-color-border);
+}
+
+html body .navi-admin-layout-v4 .section-title > span {
+    display: inline-grid;
+    place-items: center;
+    inline-size: 26px;
+    block-size: 26px;
+    border-radius: 999px;
+    background: var(--ntx-color-secondary-100);
+    color: var(--ntx-color-secondary-800);
+    font-weight: 750;
+}
+
+html body .navi-admin-layout-v4 :where(.edit-form-grid, .excel-grid) {
+    gap: 12px;
+}
+
+html body .navi-admin-layout-v4 .technical-edit-actions {
+    position: sticky;
+    bottom: 8px;
+    z-index: 2;
+    padding: 10px;
+    border: 1px solid var(--ntx-color-border);
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--ntx-color-surface) 96%, transparent);
+    box-shadow: var(--ntx-shadow);
+}
+
+html body .navi-admin-layout-v4 .traceability-toolbar-v2 {
+    margin-bottom: 10px;
+    padding: 12px;
+    border: 1px solid var(--ntx-color-border);
+    border-radius: 10px;
+    background: var(--ntx-color-surface);
+}
+
+html body .navi-admin-layout-v4 .traceability-toolbar-v2 .traceability-counter {
+    display: none;
+}
+
+/* Solicitudes de compra y mantenimiento. */
+html body .navi-admin-layout-v4 .spc-shell {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    align-items: start;
+}
+
+html body .navi-admin-layout-v4 .spc-column {
+    display: grid;
+    gap: 12px;
+}
+
+html body .navi-admin-layout-v4 .spc-card {
+    border: 1px solid var(--ntx-color-border);
+    border-radius: 10px;
+    background: var(--ntx-color-surface);
+    box-shadow: var(--ntx-shadow-sm);
+}
+
+html body .navi-admin-layout-v4 .spc-column:first-child > .spc-card:first-child {
+    border-top: 3px solid var(--ntx-color-secondary-600);
+}
+
+html body .navi-admin-layout-v4 .spc-column:last-child > .spc-card:first-child {
+    border-top: 3px solid var(--ntx-color-success-700);
+}
+
+html body .navi-admin-layout-v4 .spc-registered {
+    margin-top: 14px;
+    border-top: 3px solid var(--ntx-color-info-700);
+}
+
+/* Consulta y resumen de costos. */
+html body .navi-admin-layout-v4 .consult-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+}
+
+html body .navi-admin-layout-v4 .consult-panel.summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    position: static;
+}
+
+html body .navi-admin-layout-v4 .consult-panel.summary > h3,
+html body .navi-admin-layout-v4 .consult-panel.summary > p {
+    grid-column: 1 / -1;
+    margin: 0;
+}
+
+html body .navi-admin-layout-v4 .cost-block {
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--ntx-color-border);
+    border-radius: 9px;
+    background: var(--ntx-color-surface-subtle);
+}
+
+html body .navi-admin-layout-v4 .cost-mini-grid {
+    border: 1px solid var(--ntx-color-border);
+    border-radius: 12px;
+    background: var(--ntx-color-surface);
+}
+
+html body .navi-admin-layout-v4 .consult-modal-backdrop,
+html body .navi-admin-layout-v4 .docs-modal-backdrop {
+    position: fixed;
+    z-index: 1200;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    overflow: auto;
+    background: var(--navi-color-backdrop);
+    backdrop-filter: blur(2px);
+}
+
+html body .navi-admin-layout-v4 .consult-modal,
+html body .navi-admin-layout-v4 .docs-modal {
+    width: min(1040px, 100%);
+    max-height: calc(100vh - 48px);
+    overflow: auto;
+    border: 1px solid var(--ntx-color-border);
+    border-radius: 12px;
+    background: var(--ntx-color-surface);
+    box-shadow: var(--ntx-shadow-lg);
+}
+
+html body .navi-admin-layout-v4 .consult-modal-header,
+html body .navi-admin-layout-v4 .docs-modal > header {
+    position: sticky;
+    z-index: 2;
+    top: 0;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--ntx-color-border);
+    background: var(--ntx-color-surface);
+}
+
+html body .navi-admin-layout-v4 .consult-modal-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    padding: 14px 16px;
+}
+
+html body .navi-admin-layout-v4 .consult-modal-section {
+    margin: 0 16px 12px;
+    padding: 12px;
+    border: 1px solid var(--ntx-color-border);
+    border-radius: 8px;
+    background: var(--ntx-color-surface-subtle);
+}
+
+/* Planes y cronograma. */
+html body .navi-admin-layout-v4 .plans-card {
+    border: 1px solid var(--ntx-color-border);
+    border-radius: 10px;
+    background: var(--ntx-color-surface);
+    box-shadow: var(--ntx-shadow-sm);
+}
+
+html body .navi-admin-layout-v4 .plans-table td:last-child {
+    min-width: 152px;
+}
+
+html body .navi-admin-layout-v4 .plans-table td:last-child :where(a, button) {
+    width: 100%;
+    min-height: 32px;
+    margin-top: 4px;
+    border-radius: 6px;
+}
+
+/* Tomas físicas. */
+html body .navi-admin-layout-v4 .tf-layout {
+    display: grid;
+    grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+}
+
+html body .navi-admin-layout-v4 :where(.tf-form-card, .tf-list-card, .pc-actions-card, .pc-card) {
+    border: 1px solid var(--ntx-color-border);
+    border-radius: 10px;
+    background: var(--ntx-color-surface);
+    box-shadow: var(--ntx-shadow-sm);
+}
+
+html body .navi-admin-layout-v4 .pc-actions-card {
+    margin-top: 10px;
+    border-left: 4px solid var(--ntx-color-secondary-600);
+}
+
+html body .navi-admin-layout-v4 .pc-actions {
+    gap: 7px;
+}
+
+html body .navi-admin-layout-v4 .pc-action-success,
+html body .navi-admin-layout-v4 .pc-actions [data-ntx-tone="operation"] {
+    border-color: var(--ntx-color-secondary-700);
+    background: var(--ntx-color-secondary-700);
+    color: var(--navi-color-on-solid);
+}
+
+html body .navi-admin-layout-v4 .pc-action-neutral,
+html body .navi-admin-layout-v4 .pc-actions [data-ntx-tone="affirmative"] {
+    border-color: var(--ntx-color-success-700);
+    background: var(--ntx-color-success-700);
+    color: var(--navi-color-on-solid);
+}
+
+html body .navi-admin-layout-v4 .pc-action-primary {
+    border-color: var(--ntx-color-warning-700);
+    background: var(--ntx-color-warning-100);
+    color: var(--ntx-color-warning-800);
+}
+
+html body .navi-admin-layout-v4 :where(.pc-action-danger, .rec-action.danger) {
+    border-color: var(--ntx-color-danger-600);
+    background: var(--ntx-color-danger-600);
+    color: var(--navi-color-on-solid);
+}
+
+/* Conciliación. */
+html body .navi-admin-layout-v4 .reconciliation-page {
+    display: grid;
+    gap: 10px;
+}
+
+html body .navi-admin-layout-v4 .reconciliation-page > * {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+html body .navi-admin-layout-v4 .rec-filter-grid {
+    gap: 10px;
+}
+
+html body .navi-admin-layout-v4 .rec-table th {
+    position: sticky;
+    z-index: 1;
+    top: 0;
+}
+
+html body .navi-admin-layout-v4 .rec-actions {
+    display: grid;
+    gap: 5px;
+    min-width: 150px;
+}
+
+html body .navi-admin-layout-v4 .rec-actions .rec-action {
+    width: 100%;
+    min-height: 31px;
+    border-radius: 6px;
+}
+
+html body .navi-admin-layout-v4 .rec-action.ok,
+html body .navi-admin-layout-v4 .rec-action.ok-fill {
+    border-color: var(--ntx-color-success-700);
+    background: var(--ntx-color-success-700);
+    color: var(--navi-color-on-solid);
+}
+
+html body .navi-admin-layout-v4 .rec-action.neutral {
+    border-color: var(--ntx-color-secondary-700);
+    background: var(--ntx-color-surface);
+    color: var(--ntx-color-secondary-800);
+}
+
+/* Documentos y reportes. */
+html body .navi-admin-layout-v4 .docs-workspace {
+    display: grid;
+    grid-template-columns: minmax(250px, 290px) minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+}
+
+html body .navi-admin-layout-v4 .reports-workspace {
+    display: grid;
+    grid-template-columns: minmax(230px, 270px) minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+}
+
+html body .navi-admin-layout-v4 :where(.docs-card, .reports-card) {
+    border: 1px solid var(--ntx-color-border);
+    border-radius: 10px;
+    background: var(--ntx-color-surface);
+    box-shadow: var(--ntx-shadow-sm);
+}
+
+html body .navi-admin-layout-v4 :where(.docs-category-list-standard, .reports-menu) button {
+    min-height: 48px;
+    border-radius: 7px;
+}
+
+html body .navi-admin-layout-v4 .docs-modal-body {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    padding: 16px;
+}
+
+/* Configuración, usuarios y roles. */
+html body .navi-admin-layout-v4 .settings-tech-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+html body .navi-admin-layout-v4 .settings-tech-card {
+    position: relative;
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    min-height: 178px;
+    padding: 13px;
+    overflow: hidden;
+    border: 1px solid var(--ntx-color-border);
+    border-top: 3px solid var(--ntx-color-secondary-600);
+    border-radius: 9px;
+    background: var(--ntx-color-surface);
+    box-shadow: var(--ntx-shadow-sm);
+}
+
+html body .navi-admin-layout-v4 .settings-tech-card > span {
+    color: var(--ntx-color-text-muted);
+    font-size: var(--navi-font-help);
+    font-weight: 750;
+    letter-spacing: 0.06em;
+}
+
+html body .navi-admin-layout-v4 .settings-tech-card > h3 {
+    margin: 5px 0;
+    color: var(--ntx-color-text);
+    font-size: var(--navi-font-card-title);
+}
+
+html body .navi-admin-layout-v4 .settings-tech-card > p {
+    margin-bottom: 12px;
+    color: var(--ntx-color-text-muted);
+}
+
+html body .navi-admin-layout-v4 .users-grid {
+    display: grid;
+    grid-template-columns: minmax(280px, 330px) minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+}
+
+html body .navi-admin-layout-v4 :where(.users-card, .rolesx-card) {
+    border: 1px solid var(--ntx-color-border);
+    border-radius: 10px;
+    background: var(--ntx-color-surface);
+    box-shadow: var(--ntx-shadow-sm);
+}
+
+html body .navi-admin-layout-v4 .users-table-wrap,
+html body .navi-admin-layout-v4 .rolesx-permission-scroll {
+    max-height: calc(100vh - 340px);
+    overflow: auto;
+}
+
+html body .navi-admin-layout-v4 .rolesx-workspace.rolesx-workspace-three {
+    display: grid;
+    grid-template-columns: minmax(270px, 310px) minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+}
+
+html body .navi-admin-layout-v4 .rolesx-workspace-three > .rolesx-left {
+    grid-column: 1;
+    grid-row: 1;
+}
+
+html body .navi-admin-layout-v4 .rolesx-workspace-three > .rolesx-main {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+}
+
+html body .navi-admin-layout-v4 .rolesx-workspace-three > .rolesx-right {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    min-width: 0;
+}
+
+html body .navi-admin-layout-v4 .rolesx-right .rolesx-role-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 9px;
+}
+
+@media (max-width: 1280px) {
+    html body .navi-admin-layout-v4 .life-record-quick-actions,
+    html body .navi-admin-layout-v4 .settings-tech-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    html body .navi-admin-layout-v4 .consult-modal-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 980px) {
+    html body .navi-admin-layout-v4 .navi-reference-toolbar,
+    html body .navi-admin-layout-v4 .spc-shell,
+    html body .navi-admin-layout-v4 .consult-panel.summary,
+    html body .navi-admin-layout-v4 .tf-layout,
+    html body .navi-admin-layout-v4 .docs-workspace,
+    html body .navi-admin-layout-v4 .reports-workspace,
+    html body .navi-admin-layout-v4 .users-grid,
+    html body .navi-admin-layout-v4 .rolesx-workspace.rolesx-workspace-three {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    html body .navi-admin-layout-v4 .navi-reference-toolbar > .navi-kpi-grid,
+    html body .navi-admin-layout-v4 .navi-reference-toolbar > .navi-reference-toolbar__actions,
+    html body .navi-admin-layout-v4 .rolesx-workspace-three > :where(.rolesx-left, .rolesx-main, .rolesx-right) {
+        grid-column: 1;
+    }
+
+    html body .navi-admin-layout-v4 .navi-reference-toolbar > .navi-reference-toolbar__actions {
+        grid-row: 2;
+        justify-self: end;
+    }
+
+    html body .navi-admin-layout-v4 .rolesx-workspace-three > .rolesx-left {
+        grid-row: 1;
+    }
+
+    html body .navi-admin-layout-v4 .rolesx-workspace-three > .rolesx-main {
+        grid-row: 2;
+    }
+
+    html body .navi-admin-layout-v4 .rolesx-workspace-three > .rolesx-right {
+        grid-row: 3;
+    }
+}
+
+@media (max-width: 700px) {
+    html body .navi-admin-layout-v4 .life-record-quick-actions,
+    html body .navi-admin-layout-v4 .settings-tech-grid,
+    html body .navi-admin-layout-v4 .rolesx-right .rolesx-role-list,
+    html body .navi-admin-layout-v4 .consult-modal-grid,
+    html body .navi-admin-layout-v4 .docs-modal-body {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    html body .navi-admin-layout-v4 .consult-modal-backdrop,
+    html body .navi-admin-layout-v4 .docs-modal-backdrop {
+        padding: 8px;
+    }
+
+    html body .navi-admin-layout-v4 .consult-modal,
+    html body .navi-admin-layout-v4 .docs-modal {
+        max-height: calc(100vh - 16px);
+        border-radius: 9px;
+    }
+}

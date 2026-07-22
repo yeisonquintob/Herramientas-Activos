@@ -1,8 +1,10 @@
 @page "/asset-assignment-history"
 @rendermode InteractiveServer
+
 @using System.Net.Http.Json
 @using Navi.ToolsAssets.Admin.Services.Auth
 @using Navi.ToolsAssets.Admin.Components.Shared
+
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager NavigationManager
 @inject NaviAccessScopeService AccessScope
@@ -10,202 +12,437 @@
 
 <PageTitle>Historial de asignaciones - NAVI</PageTitle>
 
-<PermissionGuard Permission="AssetAssignment.History" ModuleName="Historial de asignaciones">
+<PermissionGuard Permission="AssetAssignment.History"
+                 ModuleName="Historial de asignaciones">
 
-<NaviPageHero
-    Pill="ACTIVOS FIJOS"
-    Title="Historial de asignaciones"
-    Description="Consulta herramientas asignadas por usuario, sede, estado, fecha de entrega, fecha de regreso y detalle del movimiento.">
+    <section class="assignment-history-web-v26">
 
-    <button type="button" @onclick="LoadHistoryAsync" data-ntx-tone="primary" >
-        Actualizar
-    </button>
-
-</NaviPageHero>
+        <NaviPageHero
+            Pill="ACTIVOS FIJOS"
+            Title="Historial de asignaciones"
+            Description="Consulta la trazabilidad de responsables, sedes, estados, entregas, regresos y movimientos de herramientas y activos." />
 
 
-<section class="assignment-history-kpis assignment-history-kpi-grid">
-    <article class="assignment-history-kpi total">
-        <span>Movimientos</span>
-        <strong>@FilteredHistory.Count()</strong>
-        <small>Según filtros activos</small>
-    </article>
+<NaviKpiToolbar Class="assignment-history-v26-kpi-row"
+                Refresh="LoadHistoryAsync"
+                IsRefreshing="isLoading"
+                RefreshTitle="Actualizar historial"
+                RefreshAriaLabel="Actualizar historial">
+    <NaviKpiGrid Columns="5" Dividers="true" Class="assignment-history-v26-kpis">
+        <NaviKpiCard Title="Movimientos" Description="Según filtros activos" Tone="neutral">
+            <IconContent><NaviKpiIcon Name="document" /></IconContent>
+            <ValueContent>@FilteredHistory.Count()</ValueContent>
+        </NaviKpiCard>
+        <NaviKpiCard Title="En uso" Description="Asignadas o prestadas" Tone="soft">
+            <IconContent><NaviKpiIcon Name="transfer" /></IconContent>
+            <ValueContent>
+                @(FilteredHistory.Count(item =>
+                    string.Equals(item.CurrentStatus, "Assigned", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(item.CurrentStatus, "Loaned", StringComparison.OrdinalIgnoreCase)))
+            </ValueContent>
+        </NaviKpiCard>
+        <NaviKpiCard Title="Regresos" Description="Con fecha registrada" Tone="positive">
+            <IconContent><NaviKpiIcon Name="check" /></IconContent>
+            <ValueContent>@(FilteredHistory.Count(item => item.ReturnedAt.HasValue))</ValueContent>
+        </NaviKpiCard>
+        <NaviKpiCard Title="Sedes" Description="En el resultado actual" Tone="neutral">
+            <IconContent><NaviKpiIcon Name="location" /></IconContent>
+            <ValueContent>
+                @(FilteredHistory.Select(item => item.CurrentBranchCode ?? string.Empty)
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .Distinct(StringComparer.OrdinalIgnoreCase).Count())
+            </ValueContent>
+        </NaviKpiCard>
+        <NaviKpiCard Title="Responsables" Description="Usuarios visibles" Tone="neutral">
+            <IconContent><NaviKpiIcon Name="users" /></IconContent>
+            <ValueContent>
+                @(FilteredHistory.Select(item => item.CurrentResponsibleName ?? string.Empty)
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .Distinct(StringComparer.OrdinalIgnoreCase).Count())
+            </ValueContent>
+        </NaviKpiCard>
+    </NaviKpiGrid>
+</NaviKpiToolbar>
 
-    <article class="assignment-history-kpi neutral">
-        <span>Asignadas / prestadas</span>
-        <strong>@FilteredHistory.Count(x => string.Equals(x.CurrentStatus, "Assigned", StringComparison.OrdinalIgnoreCase) || string.Equals(x.CurrentStatus, "Loaned", StringComparison.OrdinalIgnoreCase))</strong>
-        <small>Con responsable</small>
-    </article>
+        <section class="assignment-history-v26-filter-card"
+                 aria-label="Filtros del historial">
 
-    <article class="assignment-history-kpi warning">
-        <span>Regresos</span>
-        <strong>@FilteredHistory.Count(x => x.ReturnedAt.HasValue)</strong>
-        <small>Con fecha de regreso</small>
-    </article>
+            <label class="assignment-history-v26-field
+                          assignment-history-v26-search">
 
-    <article class="assignment-history-kpi success">
-        <span>Sedes</span>
-        <strong>@FilteredHistory.Select(x => x.CurrentBranchCode ?? string.Empty).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Count()</strong>
-        <small>En resultado filtrado</small>
-    </article>
+                <span>Buscar movimiento</span>
 
-    <article class="assignment-history-kpi danger">
-        <span>Usuarios</span>
-        <strong>@FilteredHistory.Select(x => x.CurrentResponsibleName ?? string.Empty).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Count()</strong>
-        <small>Responsables visibles</small>
-    </article>
-</section>
+                <div>
+                    <svg viewBox="0 0 24 24"
+                         aria-hidden="true"
+                         focusable="false">
 
-<section class="assignment-history-status-filters assignment-history-status-filters-modern" aria-label="Estados del historial">
-    <button type="button"
-            class="assignment-history-status-filter-chip assignment-history-status-all @(selectedStatuses.Count == 0 ? "active" : "")"
-            @onclick="ClearStatusFilter" data-ntx-tone="primary" >
-        Todos
-        <span>@AssignmentHistoryBaseFiltered.Count()</span>
-    </button>
+                        <circle cx="10.5"
+                                cy="10.5"
+                                r="6.5">
+                        </circle>
 
-    @foreach (var status in StatusOptions)
-    {
-        var selected = selectedStatuses.Contains(status.Value);
+                        <path d="M15.5 15.5L21 21"></path>
+                    </svg>
 
-        <button type="button"
-                class="@GetAssignmentHistoryStatusChipClass(status.Value, selected)"
-                @onclick="() => ToggleStatus(status.Value)" data-ntx-tone="primary" >
-            @status.Text
-            <span>@AssignmentHistoryBaseFiltered.Count(x => string.Equals(x.CurrentStatus, status.Value, StringComparison.OrdinalIgnoreCase))</span>
-        </button>
-    }
-</section>
+                    <input id="assignment-history-search"
+                           name="assignment-history-search"
+                           type="search"
+                           autocomplete="off"
+                           placeholder="Código, herramienta, serial, detalle, responsable, sede o ubicación..."
+                           @bind="search"
+                           @bind:event="oninput" />
+                </div>
+            </label>
 
-<section class="assignment-history-page-filters" aria-label="Filtros del historial de asignaciones">
-    <input class="form-control form-control-sm"
-           placeholder="Buscar código, herramienta, serial, detalle, usuario, sede o ubicación..."
-           @bind="search"
-           @bind:event="oninput" />
+            <label class="assignment-history-v26-field">
 
-    <input class="form-control form-control-sm"
-           list="assignment-history-responsibles-list"
-           value="@selectedResponsibleSearchText"
-           @oninput="OnResponsibleFilterInput"
-           placeholder="Todos los usuarios" />
+                <span>Responsable</span>
 
-    <datalist id="assignment-history-responsibles-list">
-        <option value="Todos los usuarios"></option>
-        @foreach (var responsible in VisibleResponsibles)
-        {
-            <option value="@FormatResponsibleHistoryOption(responsible)"></option>
-            <option value="@responsible.FullName"></option>
-        }
-    </datalist>
+                <input id="assignment-history-responsible"
+                       name="assignment-history-responsible"
+                       list="assignment-history-responsibles-list"
+                       value="@selectedResponsibleSearchText"
+                       @oninput="OnResponsibleFilterInput"
+                       placeholder="Todos los usuarios" />
 
-    @if (AccessScope.IsAllBranchScope() || AccessScope.IsAdminRole())
-    {
-        <select class="form-select form-select-sm" @bind="selectedBranchCode">
-            <option value="">Todas las sedes</option>
-            @foreach (var branch in BranchOptions)
-            {
-                <option value="@branch">@branch</option>
-            }
-        </select>
-    }
-    else
-    {
-        <input class="form-control form-control-sm" value="@ScopeLabel" disabled />
-    }
+                <datalist id="assignment-history-responsibles-list">
 
-    <div class="assignment-history-filter-actions">
-        <button type="button" class="btn btn-primary btn-sm" @onclick="LoadHistoryAsync" data-ntx-tone="secondary" >
-            Filtrar
-        </button>
+                    <option value="Todos los usuarios">
+                    </option>
 
-        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="ClearFilters" data-ntx-tone="secondary" >
-            Limpiar
-        </button>
-    </div>
-</section>
+                    @foreach (var responsible in VisibleResponsibles)
+                    {
+                        <option value="@FormatResponsibleHistoryOption(
+                            responsible)">
+                        </option>
 
-<section class="history-card history-card-v2">
-    <div class="history-table-header history-table-header-v2">
-        <div>
-            <h3>Resultado del historial</h3>
-            <p>Se muestran las asignaciones y regresos encontrados según usuario, sede, estado y texto de búsqueda.</p>
-        </div>
+                        <option value="@responsible.FullName">
+                        </option>
+                    }
+                </datalist>
+            </label>
 
-        <div class="history-summary-pill-v2">
-            @FilteredHistory.Count() de @VisibleHistory.Count()
-        </div>
-    </div>
+            <label class="assignment-history-v26-field">
 
-    @if (isLoading)
-    {
-        <p>Cargando historial...</p>
-    }
-    else if (!FilteredHistory.Any())
-    {
-        <div class="alert alert-info">No hay movimientos para mostrar con los filtros actuales.</div>
-    }
-    else
-    {
-        <table class="table table-hover align-middle history-table">
-            <thead>
-                <tr>
-                    <th>Código</th>
-                    <th>Herramienta / Activo</th>
-                    <th>Usuario actual</th>
-                    <th>Sede / ubicación</th>
-                    <th>Estado</th>
-                    <th>Fecha entrega</th>
-                    <th>Fecha regreso</th>
-                    <th>Detalle</th>
-                </tr>
-            </thead>
+                <span>Sede</span>
 
-            <tbody>
-                @foreach (var item in FilteredHistory)
+                @if (AccessScope.IsAllBranchScope() ||
+                     AccessScope.IsAdminRole())
                 {
-                    <tr>
-                        <td><strong>@item.ToolInternalCode</strong></td>
+                    <select id="assignment-history-branch"
+                            name="assignment-history-branch"
+                            @bind="selectedBranchCode">
 
-                        <td>
-                            <div>@item.ToolName</div>
-                            <small class="text-muted">@Show(item.ToolSerialNumber)</small>
-                        </td>
+                        <option value="">
+                            Todas las sedes
+                        </option>
 
-                        <td>@Show(item.CurrentResponsibleName)</td>
-
-                        <td>
-                            <div>@Show(item.CurrentBranchCode)</div>
-                            <small class="text-muted">@Show(item.CurrentLocationName)</small>
-                        </td>
-
-                        <td>
-                            <span class="@GetStatusBadge(item.CurrentStatus ?? string.Empty)">
-                                @GetStatusLabel(item.CurrentStatus ?? string.Empty)
-                            </span>
-                        </td>
-
-                        <td>@ShowDate(item.AssignedAt)</td>
-
-                        <td>@ShowDate(item.ReturnedAt)</td>
-
-                        <td>
-                            <div>@Show(item.Detail)</div>
-
-                            @if (!string.IsNullOrWhiteSpace(item.ReturnDetail))
-                            {
-                                <small class="text-muted">Regreso: @item.ReturnDetail</small>
-                            }
-                        </td>
-                    </tr>
+                        @foreach (var branch in BranchOptions)
+                        {
+                            <option value="@branch">
+                                @branch
+                            </option>
+                        }
+                    </select>
                 }
-            </tbody>
-        </table>
-    }
-</section>
+                else
+                {
+                    <input id="assignment-history-branch"
+                           name="assignment-history-branch"
+                           value="@ScopeLabel"
+                           disabled />
+                }
+            </label>
 
+            <div class="assignment-history-v26-filter-actions">
+
+                <button type="button"
+                        class="assignment-history-v26-filter-button"
+                        disabled="@isLoading"
+                        @onclick="LoadHistoryAsync" data-ntx-tone="operation">
+
+                    <svg viewBox="0 0 24 24"
+                         aria-hidden="true"
+                         focusable="false">
+
+                        <path d="M4 5H20L14 12V19L10 21V12Z"></path>
+                    </svg>
+
+                    <span>Filtrar</span>
+                </button>
+
+                <button type="button"
+                        class="assignment-history-v26-clear-button"
+                        disabled="@isLoading"
+                        @onclick="ClearFilters" data-ntx-tone="secondary">
+
+                    <svg viewBox="0 0 24 24"
+                         aria-hidden="true"
+                         focusable="false">
+
+                        <path d="M5 5L19 19"></path>
+                        <path d="M19 5L5 19"></path>
+                    </svg>
+
+                    <span>Limpiar</span>
+                </button>
+            </div>
+        </section>
+
+        <section class="assignment-history-v26-status-card"
+                 aria-label="Estados del historial">
+
+            <header>
+
+                <div>
+                    <strong>Estado operativo</strong>
+
+                    <small>
+                        Selecciona uno o varios estados para limitar el resultado.
+                    </small>
+                </div>
+
+                <span>
+                    @AssignmentHistoryBaseFiltered.Count() registros
+                </span>
+            </header>
+
+            <div class="assignment-history-v26-status-list">
+
+                <button type="button"
+                        class="assignment-history-status-filter-chip assignment-history-status-all @(selectedStatuses.Count == 0 ? "active" : string.Empty)"
+                        @onclick="ClearStatusFilter" data-ntx-tone="ghost">
+
+                    <i aria-hidden="true"></i>
+
+                    <span>Todos</span>
+
+                    <strong>
+                        @AssignmentHistoryBaseFiltered.Count()
+                    </strong>
+                </button>
+
+                @foreach (var status in StatusOptions)
+                {
+                    var selected =
+                        selectedStatuses.Contains(
+                            status.Value);
+
+                    <button type="button"
+                            class="@(GetAssignmentHistoryStatusChipClass(
+                                status.Value,
+                                selected))"
+                            @onclick="() => ToggleStatus(status.Value)" data-ntx-tone="expand">
+
+                        <i aria-hidden="true"></i>
+
+                        <span>@status.Text</span>
+
+                        <strong>
+                            @(AssignmentHistoryBaseFiltered.Count(item =>
+                                string.Equals(
+                                    item.CurrentStatus,
+                                    status.Value,
+                                    StringComparison.OrdinalIgnoreCase)))
+                        </strong>
+                    </button>
+                }
+
+            </div>
+        </section>
+
+        <section class="assignment-history-v26-result-card">
+
+            <header class="assignment-history-v26-result-header">
+
+                <div>
+                    <span>TRAZABILIDAD DE ACTIVOS</span>
+
+                    <h2>Resultado del historial</h2>
+
+                    <p>
+                        Asignaciones y regresos encontrados según responsable,
+                        sede, estado y texto de búsqueda.
+                    </p>
+                </div>
+
+                <div class="assignment-history-v26-result-count">
+
+                    <strong>@FilteredHistory.Count()</strong>
+
+                    <small>
+                        de @VisibleHistory.Count()
+                    </small>
+                </div>
+            </header>
+
+            <section class="assignment-history-v26-filter-summary"
+                     aria-label="Resumen de filtros">
+
+                <span>
+                    <b>Alcance:</b>
+                    @ScopeLabel
+                </span>
+
+                <span>
+                    <b>Responsable:</b>
+                    @SelectedResponsibleLabel
+                </span>
+
+                <span>
+                    <b>Estado:</b>
+                    @SelectedStatusLabel
+                </span>
+            </section>
+
+            @if (isLoading)
+            {
+                <section class="assignment-history-v26-loading"
+                         aria-live="polite">
+
+                    <svg viewBox="0 0 24 24"
+                         aria-hidden="true"
+                         focusable="false">
+
+                        <path d="M20 12a8 8 0 1 1-2.35-5.65"></path>
+                        <path d="M20 4V10H14"></path>
+                    </svg>
+
+                    <div>
+                        <strong>Cargando historial</strong>
+
+                        <span>
+                            Consultando movimientos de asignación y regreso.
+                        </span>
+                    </div>
+                </section>
+            }
+            else if (!FilteredHistory.Any())
+            {
+                <section class="assignment-history-v26-empty">
+
+                    <svg viewBox="0 0 24 24"
+                         aria-hidden="true"
+                         focusable="false">
+
+                        <path d="M5 4H19V20H5Z"></path>
+                        <path d="M8 9H16"></path>
+                        <path d="M8 13H13"></path>
+                    </svg>
+
+                    <div>
+                        <strong>Sin movimientos para mostrar</strong>
+
+                        <span>
+                            Ajusta el responsable, sede, estado o búsqueda.
+                        </span>
+                    </div>
+                </section>
+            }
+            else
+            {
+                <div class="assignment-history-v26-table-wrap">
+
+                    <table class="assignment-history-v26-table">
+
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Herramienta o activo</th>
+                                <th>Responsable actual</th>
+                                <th>Sede y ubicación</th>
+                                <th>Estado</th>
+                                <th>Entrega</th>
+                                <th>Regreso</th>
+                                <th>Detalle</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var item in FilteredHistory)
+                            {
+                                <tr>
+
+                                    <td class="assignment-history-v26-code">
+
+                                        <strong>
+                                            @Show(item.ToolInternalCode)
+                                        </strong>
+                                    </td>
+
+                                    <td class="assignment-history-v26-tool">
+
+                                        <strong>
+                                            @Show(item.ToolName)
+                                        </strong>
+
+                                        <small>
+                                            Serial:
+                                            @Show(item.ToolSerialNumber)
+                                        </small>
+                                    </td>
+
+                                    <td>
+                                        @Show(item.CurrentResponsibleName)
+                                    </td>
+
+                                    <td class="assignment-history-v26-location">
+
+                                        <strong>
+                                            @Show(item.CurrentBranchCode)
+                                        </strong>
+
+                                        <small>
+                                            @Show(item.CurrentLocationName)
+                                        </small>
+                                    </td>
+
+                                    <td>
+                                        <span class="@(GetStatusBadge(
+                                            item.CurrentStatus
+                                            ??
+                                            string.Empty))">
+
+                                            @(GetStatusLabel(
+                                                item.CurrentStatus
+                                                ??
+                                                string.Empty))
+                                        </span>
+                                    </td>
+
+                                    <td class="assignment-history-v26-date">
+                                        @ShowDate(item.AssignedAt)
+                                    </td>
+
+                                    <td class="assignment-history-v26-date">
+                                        @ShowDate(item.ReturnedAt)
+                                    </td>
+
+                                    <td class="assignment-history-v26-detail">
+
+                                        <span>
+                                            @Show(item.Detail)
+                                        </span>
+
+                                        @if (!string.IsNullOrWhiteSpace(
+                                                item.ReturnDetail))
+                                        {
+                                            <small>
+                                                <b>Regreso:</b>
+                                                @item.ReturnDetail
+                                            </small>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    </section>
 </PermissionGuard>
-
-
 
 @code {
     [SupplyParameterFromQuery(Name = "responsiblePersonId")]

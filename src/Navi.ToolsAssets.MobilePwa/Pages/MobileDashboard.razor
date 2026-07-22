@@ -9,16 +9,26 @@
 <PageTitle>Dashboard móvil - NAVI Herramientas y AF</PageTitle>
 
 <section class="mobile-page mobile-page-compact navi-mobile-dashboard-v6">
+
+<NaviMobileAppBanner
+    Class="mobile-dashboard-header-publisher"
+    Pill="INICIO"
+    Title="Dashboard móvil"
+    Description="Resumen ejecutivo de herramientas y activos."
+    HomeUrl="/"
+    ShowHomeButton="false"
+    ShowBackButton="false" />
+
     @if (isLoading)
     {
-        <div class="mobile-loading">Cargando dashboard móvil...</div>
+        <div class="mobile-loading" role="status" aria-busy="true">Cargando dashboard móvil...</div>
     }
     else if (!Auth.IsAuthenticated)
     {
         <div class="mobile-empty">
             <strong>Sesión requerida</strong>
             <span>Debes iniciar sesión para consultar el dashboard.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="secondary" >Ir al login</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="ghost" >Ir al login</button>
         </div>
     }
     else if (!CanViewDashboard)
@@ -26,380 +36,626 @@
         <div class="mobile-empty">
             <strong>Sin permiso</strong>
             <span>Tu usuario no tiene permiso para visualizar el dashboard móvil.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoHome" data-ntx-tone="warning" >Volver al inicio</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoHome" data-ntx-tone="secondary" >Volver al inicio</button>
         </div>
     }
     else if (!string.IsNullOrWhiteSpace(errorMessage))
     {
         <div class="mobile-alert error">@errorMessage</div>
 
-        <button class="mdash-refresh-full" type="button" @onclick="LoadDashboardAsync" data-ntx-tone="warning" >
+        <button class="mdash-refresh-full" type="button" @onclick="LoadDashboardAsync" data-ntx-tone="refresh" >
             Reintentar
         </button>
     }
     else if (dashboard is not null)
     {
-        <section class="mdash-board">
-            <NaviMobileAppBanner Class="navi-mobile-dashboard-app-banner navi-mobile-app-banner--module mdash-hero"
-                                 Pill="PRINCIPAL · DASHBOARD"
-                                 Title="Dashboard móvil"
-                                 Description="@DashboardHeroDescription"
-                                 HomeUrl="/"
-                                 ShowHomeButton="true"
-                                 ShowBackButton="false" />
+        <section class="mdash-board navi-mobile-dashboard-v22">
 
 
+<NaviMobileKpiOverflow PrimaryCount="3"
+                       OverflowCount="3"
+                       Class="navi-mobile-dashboard-kpi-overflow-home"
+                       ButtonLabel="Mostrar indicadores adicionales">
+    <PrimaryContent>
+        <NaviMobileKpiGrid
+            Columns="3"
+            Dividers="true"
+            Class="navi-mobile-home-kpis-one-line">
+            <NaviMobileKpiCard Title="Inventario" Description="Activos visibles" Value="@FormatDashboardNumber(DashboardTotalTools)" IconKey="inventory" Tone="neutral" />
+            <NaviMobileKpiCard Title="En uso" Description="Asignadas o prestadas" Value="@FormatDashboardNumber(GetDashboardInUseTotal())" IconKey="transfer" Tone="soft" />
+            <NaviMobileKpiCard Title="Disponibles" Description="Para asignación" Value="@FormatDashboardNumber(DashboardAvailableTools)" IconKey="check" Tone="positive" />
+        </NaviMobileKpiGrid>
+    </PrimaryContent>
+    <OverflowContent>
+        <NaviMobileKpiGrid
+            Columns="3"
+            Dividers="true"
+            Class="navi-mobile-home-kpis-one-line">
+            <NaviMobileKpiCard Title="Mantenimiento" Description="Proceso técnico" Value="@FormatDashboardNumber(DashboardInMaintenanceTools)" IconKey="wrench" Tone="warning" />
+            <NaviMobileKpiCard Title="Alertas" Description="Requieren atención" Value="@FormatDashboardNumber(GetDashboardAlertTotal())" IconKey="alert" Tone="danger" />
+            <NaviMobileKpiCard Title="Cobertura" Description="Hojas completas" Value="@GetDashboardLifeCompletionPercentLabel()" IconKey="document" Tone="positive" />
+        </NaviMobileKpiGrid>
+    </OverflowContent>
+</NaviMobileKpiOverflow>
 
+            <section class="md22-context">
+                <span aria-hidden="true"></span>
 
-            <section class="navi-mobile-dashboard-filter-panel">
+                <div>
+                    <strong>@GetDashboardScopeTitle()</strong>
+                    <small>@GetDashboardScopeDescription()</small>
+                </div>
+
+                <time>
+                    @FormatDateTime(dashboard.GeneratedAt)
+                </time>
+            </section>
+
+            <section class="md22-filter-card">
                 <label>
                     <span>Sede</span>
-                    <input @bind="filterBranchCode"
-                           @bind:event="oninput"
-                           placeholder="Todas / AGU..." />
+
+                    <select @bind="filterBranchCode" name="navi-mobiledashboard-field-001">
+                        <option value="">Todas las sedes</option>
+
+                        @foreach (var branch in DashboardBranchFilterOptions)
+                        {
+                            <option value="@branch.Code">
+                                @GetDashboardBranchOptionLabel(branch)
+                            </option>
+                        }
+                    </select>
                 </label>
 
                 <label>
-                    <span>Estado</span>
-                    <select @bind="filterOperationalStatus">
-                        <option value="">Todos</option>
+                    <span>Estado operativo</span>
+
+                    <select @bind="filterOperationalStatus" name="navi-mobiledashboard-field-002">
+                        <option value="">Todos los estados</option>
+
                         @foreach (var item in dashboardStatusFilters)
                         {
-                            <option value="@item.Value">@item.Text</option>
+                            <option value="@item.Value">
+                                @item.Text
+                            </option>
                         }
                     </select>
                 </label>
 
                 <label class="wide">
                     <span>Buscar</span>
-                    <input @bind="filterText"
-                           @bind:event="oninput"
-                           placeholder="Código, nombre, serial..." />
+
+                    <div class="md22-search">
+                        <svg viewBox="0 0 24 24"
+                             aria-hidden="true">
+                            <circle cx="10.5"
+                                    cy="10.5"
+                                    r="6.5" />
+
+                            <path d="M15.5 15.5L21 21" />
+                        </svg>
+
+                        <input @bind="filterText"
+                               @bind:event="oninput"
+                               placeholder="Código, serial, activo o responsable..." name="navi-mobiledashboard-field-003" />
+                    </div>
                 </label>
 
-                <div>
-                    <button type="button" @onclick="ApplyDashboardFiltersAsync" disabled="@isRefreshing" data-ntx-tone="secondary" >Filtrar</button>
-                    <button type="button" class="secondary" @onclick="ClearDashboardFiltersAsync" disabled="@isRefreshing" data-ntx-tone="secondary" >Limpiar</button>
+                <div class="md22-filter-actions">
+                    <button type="button"
+                            class="primary"
+                            disabled="@isRefreshing"
+                            @onclick="ApplyDashboardFiltersAsync" data-ntx-tone="operation">
+                        Filtrar
+                    </button>
+
+                    <button type="button"
+                            class="secondary"
+                            disabled="@isRefreshing"
+                            @onclick="ClearDashboardFiltersAsync" data-ntx-tone="secondary">
+                        Limpiar
+                    </button>
                 </div>
             </section>
 
-            <section class="mdash-kpis">
-                <article class="primary">
-                    <span>Total activos</span>
-                    <strong>@DashboardTotalTools</strong>
-                    <small>@ScopeLabel</small>
-                </article>
-
-                <article class="tone-positive">
-                    <span>Disponibles</span>
-                    <strong>@DashboardAvailableTools</strong>
-                    <small>Operación</small>
-                </article>
-
-                <article class="tone-warning">
-                    <span>Asignados</span>
-                    <strong>@DashboardAssignedTools</strong>
-                    <small>Custodia</small>
-                </article>
-
-                <article class="tone-secondary">
-                    <span>Responsables</span>
-                    <strong>@DashboardActiveResponsibles</strong>
-                    <small>Activos</small>
-                </article>
-
-                <article class="tone-danger">
-                    <span>Dañadas</span>
-                    <strong>@DashboardDamagedTools</strong>
-                    <small>Novedades</small>
-                </article>
-
-                <article class="primary">
-                    <span>Avance</span>
-                    <strong>@GetAdvancePercent()%</strong>
-                    <small>Hoja de vida</small>
-                </article>
-            </section>
-
-            <section class="mdash-card mdash-summary-card">
-                <div class="mdash-section-head">
+            <section class="md22-card md22-branch-card">
+                <header class="md22-card-header">
                     <div>
-                        <h2>Resumen ejecutivo</h2>
-                        <p>Indicadores principales del tablero operativo.</p>
-                    </div>
-                    <span>@FormatDateTime(dashboard.GeneratedAt)</span>
-                </div>
-
-                <div class="mdash-info-grid">
-                    <div><span>Herramientas</span><strong>@DashboardToolsOnly</strong></div>
-                    <div><span>Activos fijos</span><strong>@DashboardFixedAssets</strong></div>
-                    <div><span>Especializadas</span><strong>@DashboardSpecializedTools</strong></div>
-                    <div><span>Sin código AF</span><strong>@DashboardToolsWithoutFixedAssetCode</strong></div>
-                    <div><span>Con hoja de vida</span><strong>@dashboard.Summary.WithLifeRecord</strong></div>
-                    <div><span>Sin hoja de vida</span><strong>@dashboard.Summary.WithoutLifeRecord</strong></div>
-                    <div><span>Sedes activas</span><strong>@DashboardActiveBranches</strong></div>
-                    <div><span>Requieren mtto.</span><strong>@DashboardRequiresMaintenance</strong></div>
-                </div>
-            </section>
-
-            <section class="mdash-card">
-                <h2>Estado operativo</h2>
-
-                <div class="mdash-state-list">
-                    <div><span>Disponibles</span><strong>@DashboardAvailableTools</strong></div>
-                    <div><span>Asignadas</span><strong>@DashboardAssignedTools</strong></div>
-                    <div><span>Prestadas</span><strong>@DashboardLoanedTools</strong></div>
-                    <div><span>Mantenimiento</span><strong>@DashboardInMaintenanceTools</strong></div>
-                    <div><span>Dañadas</span><strong>@DashboardDamagedTools</strong></div>
-                    <div><span>No localizadas</span><strong>@DashboardNotLocatedTools</strong></div>
-                    <div><span>Pendientes validación</span><strong>@DashboardPendingValidationTools</strong></div>
-                    <div><span>Desactivadas / baja</span><strong>@DashboardDisposedTools</strong></div>
-                </div>
-            </section>
-
-            <section class="mdash-card mdash-donut-card">
-                <h2>Distribución general</h2>
-
-                <div class="mdash-donut-grid">
-                    <div class="mdash-mini-donut-card">
-                        <div class="mdash-donut md" style="@GetToolsVsAssetsDonut()">
-                            <div>
-                                <strong>@GetToolsVsAssetsTotal()</strong>
-                                <span>Total</span>
-                            </div>
-                        </div>
-                        <h3>Herramientas vs AF</h3>
-                        <div class="mdash-legend compact">
-                            <div><i class="primary"></i><span>Herramientas</span><strong>@DashboardToolsOnly</strong></div>
-                            <div><i class="neutral"></i><span>Activos fijos</span><strong>@DashboardFixedAssets</strong></div>
-                            <div><i class="tone-warning"></i><span>Sin código</span><strong>@DashboardToolsWithoutFixedAssetCode</strong></div>
-                        </div>
-                    </div>
-
-                    <div class="mdash-mini-donut-card">
-                        <div class="mdash-donut md" style="@GetStatusDonut()">
-                            <div>
-                                <strong>@GetStatusDonutTotal()</strong>
-                                <span>Total</span>
-                            </div>
-                        </div>
-                        <h3>Estados</h3>
-                        <div class="mdash-legend compact">
-                            <div><i class="primary"></i><span>Asignadas</span><strong>@DashboardAssignedTools</strong></div>
-                            <div><i class="neutral"></i><span>Disponibles</span><strong>@DashboardAvailableTools</strong></div>
-                            <div><i class="tone-danger"></i><span>Mtto.</span><strong>@DashboardInMaintenanceTools</strong></div>
-                        </div>
-                    </div>
-
-                    <div class="mdash-mini-donut-card">
-                        <div class="mdash-donut md" style="@GetLifeRecordDonut()">
-                            <div>
-                                <strong>@GetLifeRecordDonutTotal()</strong>
-                                <span>Total</span>
-                            </div>
-                        </div>
-                        <h3>Hoja de vida</h3>
-                        <div class="mdash-legend compact">
-                            <div><i class="primary"></i><span>Con hoja</span><strong>@dashboard.Summary.WithLifeRecord</strong></div>
-                            <div><i class="neutral"></i><span>Sin hoja</span><strong>@dashboard.Summary.WithoutLifeRecord</strong></div>
-                            <div><i class="tone-warning"></i><span>Incompletas</span><strong>@dashboard.LifeRecordCoverage.MissingTechnicalData</strong></div>
-                        </div>
-                    </div>
-
-                    <div class="mdash-mini-donut-card">
-                        <div class="mdash-donut md" style="@GetMaintenanceDonut()">
-                            <div>
-                                <strong>@GetMaintenanceDonutTotal()</strong>
-                                <span>Total</span>
-                            </div>
-                        </div>
-                        <h3>Mantenimientos</h3>
-                        <div class="mdash-legend compact">
-                            <div><i class="primary"></i><span>Este mes</span><strong>@dashboard.MaintenanceSummary.ThisMonth</strong></div>
-                            <div><i class="neutral"></i><span>Hoy</span><strong>@dashboard.MaintenanceSummary.Today</strong></div>
-                            <div><i class="tone-warning"></i><span>Pendientes</span><strong>@DashboardRequiresMaintenance</strong></div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <section class="mdash-card">
-                <div class="mdash-section-head">
-                    <div>
+                        <span>INVENTARIO POR SEDE</span>
                         <h2>Herramientas por sede</h2>
-                        <p>Distribución proporcional por sede.</p>
+                        <p>Total, en uso y disponibles en el alcance actual.</p>
                     </div>
 
-                    <span>Máx. @GetMaxBranch()</span>
-                </div>
+                    <strong>@DashboardToolsByBranch.Count sedes</strong>
+                </header>
 
-                <div class="mdash-branch-bars-list">
-                    @foreach (var item in DashboardToolsByBranch.Take(10))
-                    {
-                        <div>
-                            <span>@item.BranchCode</span>
-                            <div><strong style="@GetBranchLinearBarStyle(item.Total)"></strong></div>
-                            <em>@item.Total</em>
-                        </div>
-                    }
-                </div>
-            </section>
-
-            <section class="mdash-card">
-                <div class="mdash-section-head">
-                    <div>
-                        <h2>Resumen por sede / responsable</h2>
-                        <p>Asignaciones, validaciones, pendientes y diferencias.</p>
-                    </div>
-
-                    <span>@DashboardToolsByBranch.Count sedes</span>
-                </div>
-
-                <div class="mdash-branch-summary-list">
-                    @foreach (var item in DashboardToolsByBranch.Take(7))
-                    {
-                        var assigned = GetBranchAssigned(item.Total);
-                        var valid = GetBranchValidated(item.Total);
-                        var pending = GetBranchPending(item.Total);
-                        var difference = GetBranchDifferences(item.Total);
-                        var percent = GetBranchAdvance(item.Total);
-
-                        <article>
-                            <div class="mdash-branch-title">
-                                <strong>@item.BranchName</strong>
-                                <span>@item.BranchCode · Responsable sede</span>
-                            </div>
-
-                            <div class="mdash-branch-metrics">
-                                <div><small>Asignadas</small><b>@assigned</b></div>
-                                <div><small>Validadas</small><b>@valid</b></div>
-                                <div><small>Pendientes</small><b class="pending">@pending</b></div>
-                                <div><small>Diferencias</small><b class="difference">@difference</b></div>
-                            </div>
-
-                            <div class="mdash-progress-row">
-                                <div class="mdash-progress">
-                                    <span style="@GetProgressStyle(percent)"></span>
-                                </div>
-                                <small>@percent%</small>
-                            </div>
-                        </article>
-                    }
-                </div>
-            </section>
-
-            <section class="mdash-card mdash-day">
-                <h2>Mantenimientos por día</h2>
-
-                <div class="mdash-day-metrics">
-                    <div><strong>@dashboard.MaintenanceSummary.ThisMonth</strong><span>Por mes</span></div>
-                    <div><strong>@dashboard.MaintenanceSummary.Today</strong><span>Por día</span></div>
-                    <div><strong>@DashboardRequiresMaintenance</strong><span>Pendientes</span></div>
-                </div>
-
-                <div class="mdash-physical-row">
-                    <div>
-                        <h2>Toma física</h2>
-                        <p>Acciones rápidas para control y cierre.</p>
-                    </div>
-
-                    <div class="mdash-actions">
-                        <a href="/mobile/physical-counts">Volver</a>
-                        <a href="/mobile/physical-counts">Participantes</a>
-                        <a href="/mobile/physical-counts">Activar toma</a>
-                        <a href="/mobile/reconciliation">Cerrar toma</a>
-                    </div>
-                </div>
-            </section>
-
-            <section class="mdash-card">
-                <div class="mdash-section-head">
-                    <div>
-                        <h2>Últimos activos visibles</h2>
-                        <p>Activos y herramientas visibles para la sesión actual.</p>
-                    </div>
-
-                    @if (CanViewInventory)
-                    {
-                        <a class="mdash-link-pill" href="/all-tools">Ver inventario</a>
-                    }
-                </div>
-
-                @if (!VisibleTools.Any())
+                @if (!DashboardToolsByBranch.Any())
                 {
-                    <div class="mobile-empty compact">No hay activos visibles para esta sesión.</div>
+                    <div class="md22-empty">
+                        No hay sedes para los filtros seleccionados.
+                    </div>
                 }
                 else
                 {
-                    <div class="mobile-assigned-assets-list">
-                        @foreach (var tool in VisibleTools.Take(6))
-                        {
-                            <article class="mobile-assigned-card">
-                                <div class="mobile-assigned-card-head">
-                                    <div>
-                                        <span>@tool.InternalCode</span>
-                                        <strong>@tool.Name</strong>
+                    <div class="md22-chart-scroll">
+                        <div class="md22-branch-chart">
+                            @foreach (var item in DashboardToolsByBranch)
+                            {
+                                <article class="md22-branch-column">
+                                    <div class="md22-branch-bars">
+                                        <span class="total"
+                                              style="@GetDashboardBranchBarStyle(item.Total)">
+                                            <b>@item.Total</b>
+                                        </span>
+
+                                        <span class="use"
+                                              style="@GetDashboardBranchBarStyle(GetDashboardBranchInUse(item))">
+                                            <b>@GetDashboardBranchInUse(item)</b>
+                                        </span>
+
+                                        <span class="available"
+                                              style="@GetDashboardBranchBarStyle(GetDashboardBranchAvailable(item))">
+                                            <b>@GetDashboardBranchAvailable(item)</b>
+                                        </span>
                                     </div>
 
-                                    <em class="@GetToolStateClass(tool)">
-                                        @GetStatusLabel(tool.OperationalStatus)
-                                    </em>
+                                    <strong>@item.BranchCode</strong>
+                                    <small>@item.BranchName</small>
+                                </article>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="md22-chart-legend">
+                        <span><i class="total"></i>Total</span>
+                        <span><i class="use"></i>En uso</span>
+                        <span><i class="available"></i>Disponibles</span>
+                    </div>
+                }
+            </section>
+
+            <section class="md22-ring-grid">
+                <article class="md22-card md22-ring-card">
+                    <header class="md22-card-header compact">
+                        <div>
+                            <span>OPERACIÓN</span>
+                            <h2>Estado operativo</h2>
+                            <p>Distribución del inventario.</p>
+                        </div>
+                    </header>
+
+                    <div class="md22-ring-layout">
+                        <div class="md22-ring"
+                             role="img"
+                             aria-label="Distribución por estado operativo">
+
+                            <svg viewBox="0 0 100 100"
+                                 aria-hidden="true">
+
+                                <circle class="track"
+                                        cx="50"
+                                        cy="50"
+                                        r="42"
+                                        pathLength="100">
+                                </circle>
+
+                                <circle class="segment use"
+                                        cx="50"
+                                        cy="50"
+                                        r="42"
+                                        pathLength="100"
+                                        style="@GetDashboardRingSegmentStyle(GetDashboardInUseTotal(), DashboardTotalTools, 0)">
+                                </circle>
+
+                                <circle class="segment available"
+                                        cx="50"
+                                        cy="50"
+                                        r="42"
+                                        pathLength="100"
+                                        style="@GetDashboardRingSegmentStyle(DashboardAvailableTools, DashboardTotalTools, GetDashboardInUseTotal())">
+                                </circle>
+
+                                <circle class="segment maintenance"
+                                        cx="50"
+                                        cy="50"
+                                        r="42"
+                                        pathLength="100"
+                                        style="@GetDashboardRingSegmentStyle(DashboardInMaintenanceTools, DashboardTotalTools, GetDashboardInUseTotal() + DashboardAvailableTools)">
+                                </circle>
+
+                                <circle class="segment risk"
+                                        cx="50"
+                                        cy="50"
+                                        r="42"
+                                        pathLength="100"
+                                        style="@GetDashboardRingSegmentStyle(GetDashboardAlertTotal(), DashboardTotalTools, GetDashboardInUseTotal() + DashboardAvailableTools + DashboardInMaintenanceTools)">
+                                </circle>
+                            </svg>
+
+                            <div>
+                                <strong>@FormatDashboardNumber(DashboardTotalTools)</strong>
+                                <span>activos</span>
+                            </div>
+                        </div>
+
+                        <div class="md22-ring-legend">
+                            <div>
+                                <i class="use"></i>
+                                <span>En uso</span>
+                                <strong>@GetDashboardInUseTotal()</strong>
+                            </div>
+
+                            <div>
+                                <i class="available"></i>
+                                <span>Disponibles</span>
+                                <strong>@DashboardAvailableTools</strong>
+                            </div>
+
+                            <div>
+                                <i class="maintenance"></i>
+                                <span>Mantenimiento</span>
+                                <strong>@DashboardInMaintenanceTools</strong>
+                            </div>
+
+                            <div>
+                                <i class="risk"></i>
+                                <span>Alertas</span>
+                                <strong>@GetDashboardAlertTotal()</strong>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="md22-card md22-ring-card">
+                    <header class="md22-card-header compact">
+                        <div>
+                            <span>IDENTIFICACIÓN</span>
+                            <h2>Código de activo fijo</h2>
+                            <p>Cobertura de identificación.</p>
+                        </div>
+                    </header>
+
+                    <div class="md22-ring-layout">
+                        <div class="md22-ring"
+                             role="img"
+                             aria-label="Activos con y sin código de activo fijo">
+
+                            <svg viewBox="0 0 100 100"
+                                 aria-hidden="true">
+
+                                <circle class="track"
+                                        cx="50"
+                                        cy="50"
+                                        r="42"
+                                        pathLength="100">
+                                </circle>
+
+                                <circle class="segment identified"
+                                        cx="50"
+                                        cy="50"
+                                        r="42"
+                                        pathLength="100"
+                                        style="@GetDashboardRingSegmentStyle(DashboardFixedAssets, DashboardTotalTools, 0)">
+                                </circle>
+
+                                <circle class="segment unidentified"
+                                        cx="50"
+                                        cy="50"
+                                        r="42"
+                                        pathLength="100"
+                                        style="@GetDashboardRingSegmentStyle(DashboardToolsWithoutFixedAssetCode, DashboardTotalTools, DashboardFixedAssets)">
+                                </circle>
+                            </svg>
+
+                            <div>
+                                <strong>@GetDashboardFixedAssetPercentLabel()</strong>
+                                <span>identificados</span>
+                            </div>
+                        </div>
+
+                        <div class="md22-ring-legend">
+                            <div>
+                                <i class="identified"></i>
+                                <span>Con código</span>
+                                <strong>@DashboardFixedAssets</strong>
+                            </div>
+
+                            <div>
+                                <i class="unidentified"></i>
+                                <span>Sin código</span>
+                                <strong>@DashboardToolsWithoutFixedAssetCode</strong>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="md22-card md22-ring-card">
+                    <header class="md22-card-header compact">
+                        <div>
+                            <span>DOCUMENTACIÓN</span>
+                            <h2>Hojas de vida</h2>
+                            <p>Completas versus incompletas.</p>
+                        </div>
+                    </header>
+
+                    <div class="md22-ring-layout">
+                        <div class="md22-ring"
+                             role="img"
+                             aria-label="Hojas de vida completas e incompletas">
+
+                            <svg viewBox="0 0 100 100"
+                                 aria-hidden="true">
+
+                                <circle class="track"
+                                        cx="50"
+                                        cy="50"
+                                        r="42"
+                                        pathLength="100">
+                                </circle>
+
+                                <circle class="segment complete"
+                                        cx="50"
+                                        cy="50"
+                                        r="42"
+                                        pathLength="100"
+                                        style="@GetDashboardRingSegmentStyle(GetDashboardCompleteLifeRecords(), DashboardTotalTools, 0)">
+                                </circle>
+
+                                <circle class="segment incomplete"
+                                        cx="50"
+                                        cy="50"
+                                        r="42"
+                                        pathLength="100"
+                                        style="@GetDashboardRingSegmentStyle(GetDashboardIncompleteLifeRecords(), DashboardTotalTools, GetDashboardCompleteLifeRecords())">
+                                </circle>
+                            </svg>
+
+                            <div>
+                                <strong>@GetDashboardLifeCompletionPercentLabel()</strong>
+                                <span>completas</span>
+                            </div>
+                        </div>
+
+                        <div class="md22-ring-legend">
+                            <div>
+                                <i class="complete"></i>
+                                <span>Completas</span>
+
+                                <strong>
+                                    @GetDashboardCompleteLifeRecords()
+                                    <small>@GetDashboardPercentLabel(GetDashboardCompleteLifeRecords(), DashboardTotalTools)</small>
+                                </strong>
+                            </div>
+
+                            <div>
+                                <i class="incomplete"></i>
+                                <span>Incompletas</span>
+
+                                <strong>
+                                    @GetDashboardIncompleteLifeRecords()
+                                    <small>@GetDashboardPercentLabel(GetDashboardIncompleteLifeRecords(), DashboardTotalTools)</small>
+                                </strong>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            </section>
+
+            <section class="md22-card">
+                <header class="md22-card-header">
+                    <div>
+                        <span>CONTROL POR SEDE</span>
+                        <h2>Resumen por sede</h2>
+                        <p>Inventario y estado operativo por sede.</p>
+                    </div>
+
+                    <strong>@DashboardToolsByBranch.Count sedes</strong>
+                </header>
+
+                <div class="md22-branch-summary">
+                    @foreach (var item in DashboardToolsByBranch)
+                    {
+                        <article>
+                            <header>
+                                <strong>@GetDashboardBranchDisplayName(item)</strong>
+
+                                <span>
+                                    @GetDashboardBranchPercentLabel(item)
+                                </span>
+                            </header>
+
+                            <div class="md22-branch-summary-metrics">
+                                <div>
+                                    <small>Total</small>
+                                    <b>@item.Total</b>
                                 </div>
 
-                                <div class="mobile-assigned-grid">
-                                    <div><span>Sede</span><strong>@Display(tool.BranchCode)</strong></div>
-                                    <div><span>Ubicación</span><strong>@Display(tool.LocationName)</strong></div>
-                                    <div><span>Responsable</span><strong>@Display(tool.ResponsiblePersonName)</strong></div>
-                                    <div><span>Físico</span><strong>@Display(tool.PhysicalStatus)</strong></div>
+                                <div>
+                                    <small>En uso</small>
+                                    <b>@GetDashboardBranchInUse(item)</b>
                                 </div>
 
-                                <div class="mobile-assigned-actions">
-                                    <a href="@GetDetailUrl(tool.Id)">Detalle</a>
-                                    <a href="@GetLifeRecordUrl(tool.Id)">Hoja de vida</a>
+                                <div>
+                                    <small>Disponibles</small>
+                                    <b>@GetDashboardBranchAvailable(item)</b>
+                                </div>
+
+                                <div>
+                                    <small>Mtto.</small>
+                                    <b>@GetDashboardBranchMaintenance(item)</b>
+                                </div>
+
+                                <div>
+                                    <small>Alertas</small>
+                                    <b class="risk">@GetDashboardBranchAlerts(item)</b>
+                                </div>
+                            </div>
+
+                            <div class="md22-progress-row">
+                                <div>
+                                    <span style="@GetDashboardBranchProgressStyle(item)"></span>
+                                </div>
+
+                                <small>
+                                    @GetDashboardBranchInUse(item) de @item.Total en uso
+                                </small>
+                            </div>
+                        </article>
+                    }
+                </div>
+            </section>
+
+            <section class="md22-card md22-maintenance-card">
+                <header class="md22-card-header">
+                    <div>
+                        <span>MANTENIMIENTO</span>
+                        <h2>Seguimiento técnico</h2>
+                        <p>Actividad y necesidades registradas.</p>
+                    </div>
+                </header>
+
+                <div class="md22-maintenance-metrics">
+                    <article>
+                        <span>Hoy</span>
+                        <strong>@dashboard.MaintenanceSummary.Today</strong>
+                    </article>
+
+                    <article>
+                        <span>Este mes</span>
+                        <strong>@dashboard.MaintenanceSummary.ThisMonth</strong>
+                    </article>
+
+                    <article>
+                        <span>Requieren atención</span>
+                        <strong>@DashboardRequiresMaintenance</strong>
+                    </article>
+                </div>
+
+                <div class="md22-maintenance-progress">
+                    <span>
+                        Inventario en mantenimiento
+                    </span>
+
+                    <strong>
+                        @GetDashboardPercentLabel(
+                            DashboardInMaintenanceTools,
+                            DashboardTotalTools)
+                    </strong>
+
+                    <div>
+                        <b style="@GetDashboardMaintenanceProgressStyle()"></b>
+                    </div>
+                </div>
+            </section>
+
+            <section class="md22-card md22-physical-card">
+                <header class="md22-card-header">
+                    <div>
+                        <span>CONTROL FÍSICO</span>
+                        <h2>Toma física</h2>
+                        <p>Consulta las campañas y la conciliación.</p>
+                    </div>
+                </header>
+
+                <div class="md22-physical-actions">
+                    <a href="/mobile/physical-counts">
+                        <svg viewBox="0 0 24 24"
+                             aria-hidden="true">
+                            <path d="M7 4H17V7H20V21H4V7H7Z" />
+                            <path d="M7 4V8H17V4" />
+                            <path d="M8 13L10.5 15.5L16 10" />
+                        </svg>
+
+                        <span>Ver tomas</span>
+                    </a>
+
+                    <a href="/mobile/physical-counts">
+                        <svg viewBox="0 0 24 24"
+                             aria-hidden="true">
+                            <circle cx="9" cy="9" r="3" />
+                            <circle cx="17" cy="10" r="2.5" />
+                            <path d="M3.5 20C4 16.5 6 15 9 15C12 15 14 16.5 14.5 20" />
+                            <path d="M14 16C15 15.2 16 15 17.2 15C19.3 15 20.5 16.5 20.8 19" />
+                        </svg>
+
+                        <span>Participantes</span>
+                    </a>
+
+                    <a href="/mobile/reconciliation">
+                        <svg viewBox="0 0 24 24"
+                             aria-hidden="true">
+                            <path d="M5 7H19" />
+                            <path d="M8 4L5 7L8 10" />
+                            <path d="M19 17H5" />
+                            <path d="M16 14L19 17L16 20" />
+                            <path d="M12 9V15" />
+                        </svg>
+
+                        <span>Conciliación</span>
+                    </a>
+                </div>
+            </section>
+
+            <section class="md22-card md22-activity-card">
+                <header class="md22-card-header">
+                    <div>
+                        <span>TRAZABILIDAD</span>
+                        <h2>Actividad reciente</h2>
+                        <p>Últimos movimientos visibles.</p>
+                    </div>
+
+                    <strong>
+                        @dashboard.RecentActivity.Count eventos
+                    </strong>
+                </header>
+
+                @if (!dashboard.RecentActivity.Any())
+                {
+                    <div class="md22-empty">
+                        No hay actividad reciente disponible.
+                    </div>
+                }
+                else
+                {
+                    <div class="md22-activity-list">
+                        @foreach (var item in dashboard.RecentActivity
+                            .OrderByDescending(x => x.RegisteredAt)
+                            .Take(8))
+                        {
+                            <article>
+                                <span class="md22-activity-icon"
+                                      aria-hidden="true">
+
+                                    <svg viewBox="0 0 24 24">
+                                        <circle cx="12"
+                                                cy="12"
+                                                r="8" />
+
+                                        <path d="M12 8V12L15 14" />
+                                    </svg>
+                                </span>
+
+                                <div>
+                                    <header>
+                                        <strong>@item.Title</strong>
+
+                                        <time>
+                                            @FormatDateTime(item.RegisteredAt)
+                                        </time>
+                                    </header>
+
+                                    <p>@Display(item.Description)</p>
+
+                                    <small>
+                                        @Display(item.ToolInternalCode)
+                                        ·
+                                        @Display(item.User)
+                                    </small>
                                 </div>
                             </article>
                         }
                     </div>
                 }
-            </section>
-
-            <section class="mdash-card mdash-history">
-                <div class="mdash-section-head">
-                    <div>
-                        <h2>Histórico de procesos</h2>
-                        <p>Últimos movimientos, validaciones y eventos registrados.</p>
-                    </div>
-
-                    <span>@dashboard.RecentActivity.Count eventos</span>
-                </div>
-
-                <div class="mdash-history-list">
-                    @if (dashboard.RecentActivity.Any())
-                    {
-                        @foreach (var item in dashboard.RecentActivity.OrderByDescending(x => x.RegisteredAt).Take(8))
-                        {
-                            <article>
-                                <div class="mdash-history-icon">@GetActivityIcon(item.EventType)</div>
-                                <div>
-                                    <strong>@item.Title</strong>
-                                    <p>@Display(item.Description)</p>
-                                    <small>@Display(item.ToolInternalCode) · @FormatDateTime(item.RegisteredAt) · @Display(item.User)</small>
-                                </div>
-                            </article>
-                        }
-                    }
-                    else
-                    {
-                        <article>
-                            <div class="mdash-history-icon">📊</div>
-                            <div>
-                                <strong>Dashboard ejecutivo actualizado</strong>
-                                <p>Se consolidaron indicadores, gráficos de porcentaje, barras por sede y resumen operativo.</p>
-                                <small>NAVI · Desarrollo visual</small>
-                            </div>
-                        </article>
-                    }
-                </div>
             </section>
         </section>
     }
@@ -410,6 +666,8 @@
 
     private bool CanViewDashboard => Auth.HasPermission("Dashboard.View");
     private bool isRefreshing;
+
+    private bool showDashboardSecondaryKpis;
     private string? errorMessage;
     private string? filterBranchCode;
     private string? filterOperationalStatus;
@@ -429,6 +687,7 @@
         ("Disposed", "Dada de baja")
     };
     private List<MobileToolDto> tools = new();
+    private List<DashboardBranchOption> dashboardBranches = new();
 
     private bool CanViewInventory => Auth.HasPermission("Tools.View");
 
@@ -440,50 +699,225 @@
             .ThenBy(x => x.InternalCode)
             .ThenBy(x => x.SerialNumber)
             .ToList();
-
-    private List<MobileBranchItem> DashboardToolsByBranch =>
-        DashboardFilteredTools
-            .GroupBy(x => new
+    private List<MobileBranchItem>
+        DashboardToolsByBranch
+    {
+        get
+        {
+            /*
+             * Cuando el inventario detallado ya llegó,
+             * se mantiene el cálculo completo existente.
+             */
+            if (tools.Count > 0)
             {
-                Code = string.IsNullOrWhiteSpace(x.BranchCode) ? "-" : x.BranchCode!,
-                Name = string.IsNullOrWhiteSpace(x.BranchName) ? (string.IsNullOrWhiteSpace(x.BranchCode) ? "-" : x.BranchCode!) : x.BranchName!
-            })
-            .Select(x => new MobileBranchItem
+                return DashboardFilteredTools
+                    .GroupBy(tool => new
+                    {
+                        Code = string.IsNullOrWhiteSpace(
+                            tool.BranchCode)
+                                ? "-"
+                                : tool.BranchCode.Trim(),
+
+                        Name = string.IsNullOrWhiteSpace(
+                            tool.BranchName)
+                                ? (
+                                    string.IsNullOrWhiteSpace(
+                                        tool.BranchCode)
+                                        ? "-"
+                                        : tool.BranchCode.Trim())
+                                : tool.BranchName.Trim()
+                    })
+                    .Select(group =>
+                        new MobileBranchItem
+                        {
+                            BranchCode =
+                                group.Key.Code,
+
+                            BranchName =
+                                group.Key.Name,
+
+                            Total =
+                                group.Count()
+                        })
+                    .OrderByDescending(item =>
+                        item.Total)
+                    .ThenBy(item =>
+                        item.BranchCode)
+                    .ToList();
+            }
+
+            /*
+             * Durante el primer render se utiliza la
+             * agrupación que ya viene en el Dashboard.
+             */
+            IEnumerable<MobileBranchItem> source =
+                dashboard?.ToolsByBranch
+                ??
+                Enumerable.Empty<MobileBranchItem>();
+
+            if (!string.IsNullOrWhiteSpace(
+                    filterBranchCode))
             {
-                BranchCode = x.Key.Code,
-                BranchName = x.Key.Name,
-                Total = x.Count()
-            })
-            .OrderByDescending(x => x.Total)
-            .ThenBy(x => x.BranchCode)
-            .ToList();
+                source = source.Where(item =>
+                    ContainsText(
+                        item.BranchCode,
+                        filterBranchCode)
+                    ||
+                    ContainsText(
+                        item.BranchName,
+                        filterBranchCode));
+            }
 
-    private int DashboardTotalTools => DashboardFilteredTools.Count;
-    private int DashboardAvailableTools => CountDashboardStatus("Available");
-    private int DashboardAssignedTools => CountDashboardStatus("Assigned");
-    private int DashboardLoanedTools => CountDashboardStatus("Loaned");
-    private int DashboardInMaintenanceTools => CountDashboardStatus("InMaintenance");
-    private int DashboardDamagedTools => CountDashboardStatus("Damaged");
-    private int DashboardNotLocatedTools => CountDashboardStatus("NotLocated");
-    private int DashboardPendingValidationTools => CountDashboardStatus("PendingValidation");
-    private int DashboardDisposedTools => CountDashboardStatus("Disposed");
+            return source
+                .OrderByDescending(item =>
+                    item.Total)
+                .ThenBy(item =>
+                    item.BranchCode)
+                .ToList();
+        }
+    }
+    private bool HasDashboardToolDetails =>
+        tools.Count > 0;
 
-    private int DashboardFixedAssets => DashboardFilteredTools.Count(x => !string.IsNullOrWhiteSpace(x.FixedAssetCode));
-    private int DashboardToolsWithoutFixedAssetCode => DashboardFilteredTools.Count(x => string.IsNullOrWhiteSpace(x.FixedAssetCode));
-    private int DashboardToolsOnly => DashboardFilteredTools.Count(x => string.IsNullOrWhiteSpace(x.FixedAssetCode));
-    private int DashboardSpecializedTools => DashboardFilteredTools.Count(x => x.IsSpecialized);
-    private int DashboardRequiresMaintenance => DashboardFilteredTools.Count(x => x.RequiresMaintenance);
-    private int DashboardActiveBranches => DashboardFilteredTools
-        .Select(x => Normalize(x.BranchCode ?? x.BranchName))
-        .Where(x => !string.IsNullOrWhiteSpace(x))
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .Count();
+    private int DashboardTotalTools =>
+        HasDashboardToolDetails
+            ? DashboardFilteredTools.Count
+            : dashboard?.Summary.TotalTools
+              ??
+              0;
 
-    private int DashboardActiveResponsibles => DashboardFilteredTools
-        .Select(x => x.ResponsiblePersonId?.ToString() ?? Normalize(x.ResponsiblePersonName))
-        .Where(x => !string.IsNullOrWhiteSpace(x))
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .Count();
+    private int DashboardAvailableTools =>
+        HasDashboardToolDetails
+            ? CountDashboardStatus("Available")
+            : dashboard?.Summary.AvailableTools
+              ??
+              0;
+
+    private int DashboardAssignedTools =>
+        HasDashboardToolDetails
+            ? CountDashboardStatus("Assigned")
+            : dashboard?.Summary.AssignedTools
+              ??
+              0;
+
+    private int DashboardLoanedTools =>
+        HasDashboardToolDetails
+            ? CountDashboardStatus("Loaned")
+            : dashboard?.Summary.LoanedTools
+              ??
+              0;
+
+    private int DashboardInMaintenanceTools =>
+        HasDashboardToolDetails
+            ? CountDashboardStatus("InMaintenance")
+            : dashboard?.Summary.InMaintenanceTools
+              ??
+              0;
+
+    private int DashboardDamagedTools =>
+        HasDashboardToolDetails
+            ? CountDashboardStatus("Damaged")
+            : dashboard?.Summary.DamagedTools
+              ??
+              0;
+
+    private int DashboardNotLocatedTools =>
+        HasDashboardToolDetails
+            ? CountDashboardStatus("NotLocated")
+            : dashboard?.Summary.NotLocatedTools
+              ??
+              0;
+
+    private int DashboardPendingValidationTools =>
+        HasDashboardToolDetails
+            ? CountDashboardStatus("PendingValidation")
+            : dashboard?.Summary.PendingValidationTools
+              ??
+              0;
+
+    private int DashboardDisposedTools =>
+        HasDashboardToolDetails
+            ? CountDashboardStatus("Disposed")
+            : dashboard?.Summary.DisposedTools
+              ??
+              0;
+
+    private int DashboardFixedAssets =>
+        HasDashboardToolDetails
+            ? DashboardFilteredTools.Count(tool =>
+                !string.IsNullOrWhiteSpace(
+                    tool.FixedAssetCode))
+            : dashboard?.Summary.FixedAssets
+              ??
+              0;
+
+    private int DashboardToolsWithoutFixedAssetCode =>
+        HasDashboardToolDetails
+            ? DashboardFilteredTools.Count(tool =>
+                string.IsNullOrWhiteSpace(
+                    tool.FixedAssetCode))
+            : dashboard?.Summary.ToolsWithoutFixedAssetCode
+              ??
+              0;
+
+    private int DashboardToolsOnly =>
+        HasDashboardToolDetails
+            ? DashboardFilteredTools.Count(tool =>
+                string.IsNullOrWhiteSpace(
+                    tool.FixedAssetCode))
+            : dashboard?.Summary.ToolsOnly
+              ??
+              0;
+
+    private int DashboardSpecializedTools =>
+        HasDashboardToolDetails
+            ? DashboardFilteredTools.Count(tool =>
+                tool.IsSpecialized)
+            : dashboard?.Summary.SpecializedTools
+              ??
+              0;
+
+    private int DashboardRequiresMaintenance =>
+        HasDashboardToolDetails
+            ? DashboardFilteredTools.Count(tool =>
+                tool.RequiresMaintenance)
+            : dashboard?.Summary.RequiresMaintenance
+              ??
+              0;
+
+    private int DashboardActiveBranches =>
+        HasDashboardToolDetails
+            ? DashboardFilteredTools
+                .Select(tool =>
+                    Normalize(
+                        tool.BranchCode
+                        ??
+                        tool.BranchName))
+                .Where(value =>
+                    !string.IsNullOrWhiteSpace(value))
+                .Distinct(
+                    StringComparer.OrdinalIgnoreCase)
+                .Count()
+            : dashboard?.Summary.ActiveBranches
+              ??
+              DashboardToolsByBranch.Count;
+
+    private int DashboardActiveResponsibles =>
+        HasDashboardToolDetails
+            ? DashboardFilteredTools
+                .Select(tool =>
+                    tool.ResponsiblePersonId?.ToString()
+                    ??
+                    Normalize(
+                        tool.ResponsiblePersonName))
+                .Where(value =>
+                    !string.IsNullOrWhiteSpace(value))
+                .Distinct(
+                    StringComparer.OrdinalIgnoreCase)
+                .Count()
+            : dashboard?.Summary.ActiveResponsibles
+              ??
+              0;
 
     private bool MatchesDashboardToolFilters(MobileToolDto tool)
     {
@@ -584,26 +1018,136 @@
 
     private async Task LoadDashboardAsync()
     {
+        /*
+         * FASE 1:
+         * Se consulta solamente el Dashboard ejecutivo.
+         * Esta respuesta ya incluye KPI, sedes, estados,
+         * mantenimiento, documentación y actividad.
+         */
         try
         {
             isRefreshing = true;
             errorMessage = null;
 
-            dashboard = await Api.GetDashboardAsync(forceRefresh: true, branchCode: filterBranchCode, operationalStatus: filterOperationalStatus, q: filterText);
-            tools = await Api.GetToolsAsync(forceRefresh: true);
+            dashboard =
+                await Api.GetDashboardAsync(
+                    forceRefresh: false,
+                    branchCode: filterBranchCode,
+                    operationalStatus:
+                        filterOperationalStatus,
+                    q: filterText);
+
+            BuildDashboardBranchOptionsFromSummary();
+
+            /*
+             * Se libera inmediatamente el primer render.
+             */
+            isLoading = false;
+            isRefreshing = false;
+
+            await InvokeAsync(
+                StateHasChanged);
         }
         catch (Exception ex)
         {
-            errorMessage = $"No se pudo cargar el dashboard móvil. Valida que la API esté activa en http://localhost:5218. Detalle: {ex.Message}";
-        }
-        finally
-        {
+            errorMessage =
+                "No se pudo cargar el dashboard móvil. "
+                + "Valida que la API esté activa en "
+                + "http://localhost:5218. Detalle: "
+                + ex.Message;
+
             isLoading = false;
             isRefreshing = false;
+            return;
+        }
+
+        /*
+         * FASE 2:
+         * El inventario detallado carga después.
+         * No bloquea KPI, filtros ni gráficas iniciales.
+         */
+        await LoadDashboardToolDetailsAsync();
+    }
+
+    private async Task LoadDashboardToolDetailsAsync()
+    {
+        try
+        {
+            tools =
+                await Api.GetToolsAsync(
+                    forceRefresh: false);
+
+            await InvokeAsync(
+                StateHasChanged);
+        }
+        catch
+        {
+            /*
+             * La vista ejecutiva permanece disponible
+             * aunque falle la carga complementaria.
+             */
         }
     }
 
+    private void BuildDashboardBranchOptionsFromSummary()
+    {
+        if (dashboard is null)
+        {
+            return;
+        }
 
+        dashboardBranches =
+            dashboard.ToolsByBranch
+                .Where(branch =>
+                    !string.IsNullOrWhiteSpace(
+                        branch.BranchCode)
+                    ||
+                    !string.IsNullOrWhiteSpace(
+                        branch.BranchName))
+                .GroupBy(
+                    branch =>
+                        Normalize(
+                            branch.BranchCode
+                            ??
+                            branch.BranchName),
+                    StringComparer.OrdinalIgnoreCase)
+                .Select(group =>
+                {
+                    var branch =
+                        group.First();
+
+                    return new DashboardBranchOption
+                    {
+                        Code =
+                            string.IsNullOrWhiteSpace(
+                                branch.BranchCode)
+                                ? branch.BranchName
+                                : branch.BranchCode,
+
+                        Name =
+                            string.IsNullOrWhiteSpace(
+                                branch.BranchName)
+                                ? branch.BranchCode
+                                : branch.BranchName,
+
+                        IsActive = true
+                    };
+                })
+                .OrderBy(branch =>
+                    branch.Code)
+                .ToList();
+    }
+
+    private void ToggleDashboardSecondaryKpis()
+    {
+        showDashboardSecondaryKpis =
+            !showDashboardSecondaryKpis;
+    }
+
+    private void CloseDashboardSecondaryKpis()
+    {
+        showDashboardSecondaryKpis = false;
+    }
 
 
     // NAVI DASHBOARD MOBILE PAGE FILTERS START
@@ -730,56 +1274,56 @@
     {
         if (dashboard is null)
         {
-            return "background: #FFFFFF;";
+            return "background: var(--navi-color-surface);";
         }
 
         return BuildDonut(
-            new DashboardSegment(DashboardToolsOnly, "#354550"),
-            new DashboardSegment(DashboardFixedAssets, "#C3CAC8"),
-            new DashboardSegment(DashboardToolsWithoutFixedAssetCode, "#FFB301"));
+            new DashboardSegment(DashboardToolsOnly, "var(--navi-color-institutional)"),
+            new DashboardSegment(DashboardFixedAssets, "var(--navi-color-border)"),
+            new DashboardSegment(DashboardToolsWithoutFixedAssetCode, "var(--navi-action-warning)"));
     }
 
     private string GetStatusDonut()
     {
         if (dashboard is null)
         {
-            return "background: #FFFFFF;";
+            return "background: var(--navi-color-surface);";
         }
 
         return BuildDonut(
-            new DashboardSegment(DashboardAssignedTools, "#354550"),
-            new DashboardSegment(DashboardAvailableTools, "#C3CAC8"),
-            new DashboardSegment(DashboardPendingValidationTools, "#FFB301"),
-            new DashboardSegment(DashboardInMaintenanceTools, "#EE2E2F"),
-            new DashboardSegment(GetOtherStatusTools(), "#354550"));
+            new DashboardSegment(DashboardAssignedTools, "var(--navi-color-institutional)"),
+            new DashboardSegment(DashboardAvailableTools, "var(--navi-color-border)"),
+            new DashboardSegment(DashboardPendingValidationTools, "var(--navi-action-warning)"),
+            new DashboardSegment(DashboardInMaintenanceTools, "var(--navi-action-danger)"),
+            new DashboardSegment(GetOtherStatusTools(), "var(--navi-color-institutional)"));
     }
 
     private string GetLifeRecordDonut()
     {
         if (dashboard is null)
         {
-            return "background: #FFFFFF;";
+            return "background: var(--navi-color-surface);";
         }
 
         return BuildDonut(
-            new DashboardSegment(dashboard.Summary.WithLifeRecord, "#354550"),
-            new DashboardSegment(dashboard.Summary.WithoutLifeRecord, "#C3CAC8"),
-            new DashboardSegment(dashboard.LifeRecordCoverage.MissingTechnicalData, "#FFB301"),
-            new DashboardSegment(DashboardFixedAssets, "#EE2E2F"),
-            new DashboardSegment(GetOtherLifeRecords(), "#354550"));
+            new DashboardSegment(dashboard.Summary.WithLifeRecord, "var(--navi-color-institutional)"),
+            new DashboardSegment(dashboard.Summary.WithoutLifeRecord, "var(--navi-color-border)"),
+            new DashboardSegment(dashboard.LifeRecordCoverage.MissingTechnicalData, "var(--navi-action-warning)"),
+            new DashboardSegment(DashboardFixedAssets, "var(--navi-action-danger)"),
+            new DashboardSegment(GetOtherLifeRecords(), "var(--navi-color-institutional)"));
     }
 
     private string GetMaintenanceDonut()
     {
         if (dashboard is null)
         {
-            return "background: #FFFFFF;";
+            return "background: var(--navi-color-surface);";
         }
 
         return BuildDonut(
-            new DashboardSegment(dashboard.MaintenanceSummary.ThisMonth, "#354550"),
-            new DashboardSegment(dashboard.MaintenanceSummary.Today, "#C3CAC8"),
-            new DashboardSegment(DashboardRequiresMaintenance, "#FFB301"));
+            new DashboardSegment(dashboard.MaintenanceSummary.ThisMonth, "var(--navi-color-institutional)"),
+            new DashboardSegment(dashboard.MaintenanceSummary.Today, "var(--navi-color-border)"),
+            new DashboardSegment(DashboardRequiresMaintenance, "var(--navi-action-warning)"));
     }
 
     private static string BuildDonut(params DashboardSegment[] segments)
@@ -788,7 +1332,7 @@
 
         if (total <= 0)
         {
-            return "background: #FFFFFF;";
+            return "background: var(--navi-color-surface);";
         }
 
         var parts = new List<string>();
@@ -801,7 +1345,7 @@
             current = next;
         }
 
-        return "background: #FFFFFF;";
+        return "background: var(--navi-color-surface);";
     }
 
     private string GetBranchLinearBarStyle(int value)
@@ -988,6 +1532,556 @@
     {
         Navigation.NavigateTo("/login", replace: true);
     }
+
+
+    // NAVI MOBILE DASHBOARD V22 HELPERS START
+
+    private List<DashboardBranchOption>
+        DashboardBranchFilterOptions =>
+            GetScopedDashboardBranches()
+                .OrderBy(branch => branch.Code)
+                .ThenBy(branch => branch.Name)
+                .ToList();
+
+    private List<MobileBranchItem>
+        BuildDashboardBranches()
+    {
+        var scopedBranches =
+            GetScopedDashboardBranches();
+
+        var result = scopedBranches
+            .Select(branch => new MobileBranchItem
+            {
+                BranchCode = branch.Code,
+                BranchName = branch.Name,
+                Total = DashboardFilteredTools.Count(tool =>
+                    IsDashboardToolFromBranch(
+                        tool,
+                        branch.Code,
+                        branch.Name))
+            })
+            .ToList();
+
+        var knownCodes = result
+            .Select(item => Normalize(item.BranchCode))
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var fallbackBranches = DashboardFilteredTools
+            .Where(tool =>
+                !knownCodes.Contains(
+                    Normalize(tool.BranchCode)))
+            .GroupBy(tool => new
+            {
+                Code = string.IsNullOrWhiteSpace(
+                    tool.BranchCode)
+                        ? "-"
+                        : tool.BranchCode.Trim(),
+
+                Name = string.IsNullOrWhiteSpace(
+                    tool.BranchName)
+                        ? (
+                            string.IsNullOrWhiteSpace(
+                                tool.BranchCode)
+                                ? "-"
+                                : tool.BranchCode.Trim())
+                        : tool.BranchName.Trim()
+            })
+            .Select(group => new MobileBranchItem
+            {
+                BranchCode = group.Key.Code,
+                BranchName = group.Key.Name,
+                Total = group.Count()
+            });
+
+        result.AddRange(fallbackBranches);
+
+        return result
+            .OrderBy(item => item.BranchCode)
+            .ThenBy(item => item.BranchName)
+            .ToList();
+    }
+
+    private List<DashboardBranchOption>
+        GetScopedDashboardBranches()
+    {
+        IEnumerable<DashboardBranchOption> source =
+            dashboardBranches
+                .Where(branch => branch.IsActive);
+
+        var user = Auth.CurrentUser;
+
+        if (!UserCanSeeAllBranches() &&
+            user is not null)
+        {
+            source = source.Where(branch =>
+                SameNormalized(
+                    branch.Code,
+                    user.BranchCode)
+                ||
+                SameNormalized(
+                    branch.Name,
+                    user.BranchName)
+                ||
+                SameNormalized(
+                    branch.Code,
+                    user.BranchName)
+                ||
+                SameNormalized(
+                    branch.Name,
+                    user.BranchCode));
+        }
+
+        if (!string.IsNullOrWhiteSpace(
+                filterBranchCode))
+        {
+            source = source.Where(branch =>
+                SameNormalized(
+                    branch.Code,
+                    filterBranchCode)
+                ||
+                SameNormalized(
+                    branch.Name,
+                    filterBranchCode));
+        }
+
+        var result = source.ToList();
+
+        if (result.Count > 0)
+        {
+            return result;
+        }
+
+        return FilterByOperationalScope(tools)
+            .GroupBy(tool => new
+            {
+                Code = string.IsNullOrWhiteSpace(
+                    tool.BranchCode)
+                        ? "-"
+                        : tool.BranchCode.Trim(),
+
+                Name = string.IsNullOrWhiteSpace(
+                    tool.BranchName)
+                        ? (
+                            string.IsNullOrWhiteSpace(
+                                tool.BranchCode)
+                                ? "-"
+                                : tool.BranchCode.Trim())
+                        : tool.BranchName.Trim()
+            })
+            .Select(group =>
+                new DashboardBranchOption
+                {
+                    Code = group.Key.Code,
+                    Name = group.Key.Name,
+                    IsActive = true
+                })
+            .OrderBy(branch => branch.Code)
+            .ToList();
+    }
+
+    private static bool IsDashboardToolFromBranch(
+        MobileToolDto tool,
+        string? branchCode,
+        string? branchName)
+    {
+        return
+            SameNormalized(
+                tool.BranchCode,
+                branchCode)
+            ||
+            SameNormalized(
+                tool.BranchName,
+                branchName)
+            ||
+            SameNormalized(
+                tool.BranchCode,
+                branchName)
+            ||
+            SameNormalized(
+                tool.BranchName,
+                branchCode);
+    }
+
+    private List<MobileToolDto>
+        GetDashboardBranchTools(
+            MobileBranchItem branch)
+    {
+        return DashboardFilteredTools
+            .Where(tool =>
+                IsDashboardToolFromBranch(
+                    tool,
+                    branch.BranchCode,
+                    branch.BranchName))
+            .ToList();
+    }
+
+    private int GetDashboardBranchInUse(
+        MobileBranchItem branch)
+    {
+        return GetDashboardBranchTools(branch)
+            .Count(tool =>
+                SameNormalized(
+                    tool.OperationalStatus,
+                    "Assigned")
+                ||
+                SameNormalized(
+                    tool.OperationalStatus,
+                    "Loaned"));
+    }
+
+    private int GetDashboardBranchAvailable(
+        MobileBranchItem branch)
+    {
+        return GetDashboardBranchTools(branch)
+            .Count(tool =>
+                SameNormalized(
+                    tool.OperationalStatus,
+                    "Available"));
+    }
+
+    private int GetDashboardBranchMaintenance(
+        MobileBranchItem branch)
+    {
+        return GetDashboardBranchTools(branch)
+            .Count(tool =>
+                SameNormalized(
+                    tool.OperationalStatus,
+                    "InMaintenance"));
+    }
+
+    private int GetDashboardBranchAlerts(
+        MobileBranchItem branch)
+    {
+        return GetDashboardBranchTools(branch)
+            .Count(tool =>
+                SameNormalized(
+                    tool.OperationalStatus,
+                    "PendingValidation")
+                ||
+                SameNormalized(
+                    tool.OperationalStatus,
+                    "Damaged")
+                ||
+                SameNormalized(
+                    tool.OperationalStatus,
+                    "NotLocated"));
+    }
+
+    private string GetDashboardBranchDisplayName(
+        MobileBranchItem branch)
+    {
+        var name = string.IsNullOrWhiteSpace(
+                branch.BranchName)
+            ? branch.BranchCode
+            : branch.BranchName.Trim();
+
+        var code = string.IsNullOrWhiteSpace(
+                branch.BranchCode)
+            ? "-"
+            : branch.BranchCode.Trim();
+
+        if (string.Equals(
+            name,
+            code,
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return name;
+        }
+
+        return name + " - " + code;
+    }
+
+    private static string
+        GetDashboardBranchOptionLabel(
+            DashboardBranchOption branch)
+    {
+        if (string.Equals(
+            branch.Name,
+            branch.Code,
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return branch.Name;
+        }
+
+        return branch.Name + " - " + branch.Code;
+    }
+
+    private int GetDashboardInUseTotal()
+    {
+        return Math.Max(
+            0,
+            DashboardAssignedTools
+            + DashboardLoanedTools);
+    }
+
+    private int GetDashboardAlertTotal()
+    {
+        return Math.Max(
+            0,
+            DashboardPendingValidationTools
+            + DashboardDamagedTools
+            + DashboardNotLocatedTools);
+    }
+
+    private int GetDashboardCompleteLifeRecords()
+    {
+        if (dashboard is null)
+        {
+            return 0;
+        }
+
+        var withLifeRecord = Math.Clamp(
+            dashboard.Summary.WithLifeRecord,
+            0,
+            DashboardTotalTools);
+
+        var missingTechnicalData = Math.Clamp(
+            dashboard.LifeRecordCoverage
+                .MissingTechnicalData,
+            0,
+            DashboardTotalTools);
+
+        return Math.Clamp(
+            withLifeRecord - missingTechnicalData,
+            0,
+            DashboardTotalTools);
+    }
+
+    private int GetDashboardIncompleteLifeRecords()
+    {
+        return Math.Max(
+            0,
+            DashboardTotalTools
+            - GetDashboardCompleteLifeRecords());
+    }
+
+    private string
+        GetDashboardLifeCompletionPercentLabel()
+    {
+        return GetDashboardPercentLabel(
+            GetDashboardCompleteLifeRecords(),
+            DashboardTotalTools);
+    }
+
+    private string
+        GetDashboardFixedAssetPercentLabel()
+    {
+        return GetDashboardPercentLabel(
+            DashboardFixedAssets,
+            DashboardTotalTools);
+    }
+
+    private static string GetDashboardPercentLabel(
+        int value,
+        int total)
+    {
+        if (value <= 0 || total <= 0)
+        {
+            return "0%";
+        }
+
+        var percentage = Math.Round(
+            (decimal)value / total * 100,
+            1);
+
+        return percentage.ToString(
+            "0.#",
+            System.Globalization
+                .CultureInfo
+                .InvariantCulture)
+            + "%";
+    }
+
+    private static string
+        GetDashboardRingSegmentStyle(
+            int value,
+            int total,
+            int previousValue)
+    {
+        if (value <= 0 || total <= 0)
+        {
+            return
+                "stroke-dasharray:0 100;"
+                + "stroke-dashoffset:0;";
+        }
+
+        var percentage = Math.Clamp(
+            Math.Round(
+                (decimal)value / total * 100,
+                2),
+            0,
+            100);
+
+        var previousPercentage = Math.Clamp(
+            Math.Round(
+                (decimal)previousValue / total * 100,
+                2),
+            0,
+            100);
+
+        var remaining = Math.Max(
+            0,
+            100 - percentage);
+
+        var percentageText = percentage.ToString(
+            "0.##",
+            System.Globalization
+                .CultureInfo
+                .InvariantCulture);
+
+        var remainingText = remaining.ToString(
+            "0.##",
+            System.Globalization
+                .CultureInfo
+                .InvariantCulture);
+
+        var offsetText = (-previousPercentage).ToString(
+            "0.##",
+            System.Globalization
+                .CultureInfo
+                .InvariantCulture);
+
+        return
+            "stroke-dasharray:"
+            + percentageText
+            + " "
+            + remainingText
+            + ";stroke-dashoffset:"
+            + offsetText
+            + ";";
+    }
+
+    private string
+        GetDashboardBranchBarStyle(
+            int value)
+    {
+        var max = Math.Max(
+            1,
+            DashboardToolsByBranch
+                .DefaultIfEmpty()
+                .Max(item => item?.Total ?? 0));
+
+        var percentage = value <= 0
+            ? 0
+            : Math.Max(
+                4,
+                (int)Math.Round(
+                    (decimal)value / max * 100));
+
+        return
+            "height:"
+            + percentage.ToString(
+                System.Globalization
+                    .CultureInfo
+                    .InvariantCulture)
+            + "%;";
+    }
+
+    private string
+        GetDashboardBranchPercentLabel(
+            MobileBranchItem branch)
+    {
+        return GetDashboardPercentLabel(
+            GetDashboardBranchInUse(branch),
+            branch.Total);
+    }
+
+    private string
+        GetDashboardBranchProgressStyle(
+            MobileBranchItem branch)
+    {
+        var total = Math.Max(
+            1,
+            branch.Total);
+
+        var percentage = Math.Clamp(
+            (int)Math.Round(
+                (decimal)GetDashboardBranchInUse(branch)
+                / total
+                * 100),
+            0,
+            100);
+
+        return
+            "width:"
+            + percentage.ToString(
+                System.Globalization
+                    .CultureInfo
+                    .InvariantCulture)
+            + "%;";
+    }
+
+    private string
+        GetDashboardMaintenanceProgressStyle()
+    {
+        if (DashboardTotalTools <= 0)
+        {
+            return "width:0%;";
+        }
+
+        var percentage = Math.Clamp(
+            (int)Math.Round(
+                (decimal)DashboardInMaintenanceTools
+                / DashboardTotalTools
+                * 100),
+            0,
+            100);
+
+        return
+            "width:"
+            + percentage.ToString(
+                System.Globalization
+                    .CultureInfo
+                    .InvariantCulture)
+            + "%;";
+    }
+
+    private string GetDashboardScopeTitle()
+    {
+        var count =
+            DashboardToolsByBranch.Count;
+
+        return count == 1
+            ? "1 sede en el resultado"
+            : count.ToString(
+                System.Globalization
+                    .CultureInfo
+                    .InvariantCulture)
+              + " sedes en el resultado";
+    }
+
+    private string GetDashboardScopeDescription()
+    {
+        return UserCanSeeAllBranches()
+            ? "Registros visibles en todas las sedes autorizadas."
+            : "Registros limitados a la sede asignada al usuario.";
+    }
+
+    private static string FormatDashboardNumber(
+        int value)
+    {
+        return Math.Max(0, value).ToString(
+            "N0",
+            System.Globalization
+                .CultureInfo
+                .GetCultureInfo("es-CO"));
+    }
+
+    private sealed class DashboardBranchOption
+    {
+        public Guid Id { get; set; }
+
+        public string Code { get; set; } =
+            string.Empty;
+
+        public string Name { get; set; } =
+            string.Empty;
+
+        public bool IsActive { get; set; }
+    }
+
+    // NAVI MOBILE DASHBOARD V22 HELPERS END
 
     private sealed record DashboardSegment(int Value, string Color);
 }

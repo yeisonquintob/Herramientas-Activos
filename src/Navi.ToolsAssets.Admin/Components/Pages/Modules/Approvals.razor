@@ -13,16 +13,16 @@
     Pill="FLUJO DE TRABAJO"
     Title="Aprobaciones de compra Herramientas y AF"
     Description="Solicitudes enviadas a revisión para aprobar, rechazar o preparar envío a Dynamics 365.">
-    <NaviActionButton OnClick="LoadAsync" Disabled="@isLoading" Tone="secondary" >Actualizar</NaviActionButton>
+    <NaviActionButton OnClick="LoadAsync" Disabled="@isLoading" Tone="refresh" >Actualizar</NaviActionButton>
 </NaviPageHero>
 
-<section class="navi-kpi-grid approvals-summary-kpis">
+<NaviKpiGrid Class="navi-kpi-grid approvals-summary-kpis">
     <NaviKpiCard
         Title="Pendientes visibles"
         Value="@PendingRequests.Count().ToString()"
         Description="Solicitudes filtradas para aprobación"
         Tone="warning" />
-</section>
+</NaviKpiGrid>
 
 @if (!string.IsNullOrWhiteSpace(successMessage))
 {
@@ -44,12 +44,12 @@
         <input class="form-control approvals-search"
                placeholder="Buscar solicitud, activo o preparador..."
                @bind="searchText"
-               @bind:event="oninput" />
+               @bind:event="oninput" name="navi-approvals-field-001" />
     </div>
 
     @if (isLoading)
     {
-        <div class="loading-box">Cargando aprobaciones...</div>
+        <div class="loading-box" role="status" aria-busy="true">Cargando aprobaciones...</div>
     }
     else if (!PendingRequests.Any())
     {
@@ -57,7 +57,8 @@
     }
     else
     {
-        <table class="approvals-table">
+        <div class="ntx-table-scroll">
+            <table class="approvals-table">
             <thead>
                 <tr>
                     <th>Solicitud</th>
@@ -88,11 +89,11 @@
                         </td>
                         <td>
                             <div class="row-actions">
-                                <button class="btn btn-sm btn-success" @onclick="() => ApproveAsync(item.Id)" data-ntx-tone="danger" >
+                                <button class="btn btn-sm ntx-btn--affirmative" @onclick="() => ApproveAsync(item.Id)" data-ntx-tone="affirmative" >
                                     Aprobar
                                 </button>
 
-                                <button class="btn btn-sm btn-outline-danger" @onclick="() => RejectAsync(item.Id)" data-ntx-tone="danger" >
+                                <button class="btn btn-sm ntx-btn--danger" @onclick="() => RejectAsync(item.Id)" data-ntx-tone="danger" >
                                     Rechazar
                                 </button>
                             </div>
@@ -101,6 +102,7 @@
                 }
             </tbody>
         </table>
+        </div>
     }
 </section>
 

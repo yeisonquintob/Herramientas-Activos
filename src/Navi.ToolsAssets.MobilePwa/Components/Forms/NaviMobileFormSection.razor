@@ -1,0 +1,116 @@
+@using System.Collections.Generic
+@using Microsoft.AspNetCore.Components
+
+<section @attributes="AdditionalAttributes"
+         class="@CssClass"
+         data-ntx-component="mobile-form-section">
+    @if (HasHeader)
+    {
+        <header class="navi-mobile-form-section__header">
+            <div class="navi-mobile-form-section__heading">
+                @if (!string.IsNullOrWhiteSpace(Title))
+                {
+                    <h2 class="navi-mobile-form-section__title">
+                        @Title
+                    </h2>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(Description))
+                {
+                    <p class="navi-mobile-form-section__description">
+                        @Description
+                    </p>
+                }
+            </div>
+
+            @if (HeaderActions is not null)
+            {
+                <div class="navi-mobile-form-section__header-actions">
+                    @HeaderActions
+                </div>
+            }
+        </header>
+    }
+
+    <div class="navi-mobile-form-section__body">
+        @ChildContent
+    </div>
+
+    @if (FooterContent is not null)
+    {
+        <footer class="navi-mobile-form-section__footer">
+            @FooterContent
+        </footer>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public string? Description { get; set; }
+
+    [Parameter]
+    public bool Compact { get; set; } = true;
+
+    [Parameter]
+    public bool Flush { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? HeaderActions { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? FooterContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>?
+        AdditionalAttributes { get; set; }
+
+    private bool HasHeader =>
+        !string.IsNullOrWhiteSpace(Title) ||
+        !string.IsNullOrWhiteSpace(Description) ||
+        HeaderActions is not null;
+
+    private string CssClass
+    {
+        get
+        {
+            var classes = new List<string>
+            {
+                "navi-mobile-form-section"
+            };
+
+            if (Compact)
+            {
+                classes.Add(
+                    "navi-mobile-form-section--compact");
+            }
+
+            if (Flush)
+            {
+                classes.Add(
+                    "navi-mobile-form-section--flush");
+            }
+
+            if (!HasHeader)
+            {
+                classes.Add(
+                    "navi-mobile-form-section--without-header");
+            }
+
+            if (!string.IsNullOrWhiteSpace(Class))
+            {
+                classes.Add(Class.Trim());
+            }
+
+            return string.Join(" ", classes);
+        }
+    }
+}

@@ -11,14 +11,14 @@
 <section class="mobile-page navi-mobile-plans-v1">
     @if (isLoading && !initialized)
     {
-        <div class="mobile-loading">Cargando planes de mantenimiento...</div>
+        <div class="mobile-loading" role="status" aria-busy="true">Cargando planes de mantenimiento...</div>
     }
     else if (!Auth.IsAuthenticated)
     {
         <div class="mobile-empty">
             <strong>Sesión requerida</strong>
             <span>Debes iniciar sesión para consultar planes de mantenimiento.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="secondary" >Ir al login</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="ghost" >Ir al login</button>
         </div>
     }
     else if (!CanAccessModule)
@@ -49,48 +49,56 @@
             <div class="mobile-alert error">@errorMessage</div>
         }
 
-        <section class="mplan-kpis mplan-kpis-compact-v2">
-            <article>
+        <NaviMobileKpiOverflow PrimaryCount="3" OverflowCount="3" ButtonLabel="Mostrar indicadores adicionales">
+            <PrimaryContent>
+        <NaviMobileKpiGrid Class="mplan-kpis mplan-kpis-compact-v2">
+            <NaviMobileKpiCard>
                 <span>Total activos</span>
                 <strong>@FilteredPlans.Count()</strong>
                 <small>Total</small>
-            </article>
+            </NaviMobileKpiCard>
 
-            <article class="success">
+            <NaviMobileKpiCard Class="success">
                 <span>Al día</span>
                 <strong>@FilteredPlans.Count(x => IsStatus(x, "OnTime"))</strong>
                 <small>OK</small>
-            </article>
+            </NaviMobileKpiCard>
 
-            <article class="warning">
+            <NaviMobileKpiCard Class="warning">
                 <span>Por vencer</span>
                 <strong>@FilteredPlans.Count(x => IsStatus(x, "DueSoon"))</strong>
                 <small>30 días</small>
-            </article>
+            </NaviMobileKpiCard>
+        </NaviMobileKpiGrid>
+            </PrimaryContent>
+            <OverflowContent>
+        <NaviMobileKpiGrid Class="mplan-kpis mplan-kpis-compact-v2">
 
-            <article class="danger">
+            <NaviMobileKpiCard Class="danger">
                 <span>Vencidos</span>
                 <strong>@FilteredPlans.Count(x => IsStatus(x, "Overdue"))</strong>
                 <small>Atención</small>
-            </article>
+            </NaviMobileKpiCard>
 
-            <article class="primary">
+            <NaviMobileKpiCard Class="primary">
                 <span>Solicitudes</span>
                 <strong>@FilteredPlans.Sum(x => x.PendingRequests)</strong>
                 <small>Pend.</small>
-            </article>
+            </NaviMobileKpiCard>
 
-            <article class="info">
+            <NaviMobileKpiCard Class="info">
                 <span>Completados</span>
                 <strong>@FilteredPlans.Sum(x => x.CompletedMaintenances)</strong>
                 <small>Cerrados</small>
-            </article>
-        </section>
+            </NaviMobileKpiCard>
+        </NaviMobileKpiGrid>
+            </OverflowContent>
+        </NaviMobileKpiOverflow>
 
         <section class="mplan-filter-card">
             <label>
                 <span>Estado</span>
-                <select @bind="selectedStatus">
+                <select @bind="selectedStatus" name="navi-mobilemaintenanceplans-field-001">
                     <option value="">Todos los estados</option>
                     <option value="OnTime">Al día</option>
                     <option value="DueSoon">Por vencer</option>
@@ -100,7 +108,7 @@
 
             <label>
                 <span>Sede</span>
-                <select @bind="selectedBranchCode">
+                <select @bind="selectedBranchCode" name="navi-mobilemaintenanceplans-field-002">
                     <option value="">Todas las sedes</option>
                     @foreach (var branch in branches.OrderBy(x => x.Code))
                     {
@@ -113,7 +121,7 @@
                 <span>Buscar</span>
                 <input @bind="searchText"
                        @bind:event="oninput"
-                       placeholder="Código, activo, sede, responsable, proveedor..." />
+                       placeholder="Código, activo, sede, responsable, proveedor..." name="navi-mobilemaintenanceplans-field-003" />
             </label>
 
             <div class="mplan-filter-actions">
@@ -132,7 +140,7 @@
 
             @if (isLoading)
             {
-                <div class="mobile-empty compact">Cargando planes...</div>
+                <div class="mobile-empty compact" role="status" aria-busy="true">Cargando planes...</div>
             }
             else if (!FilteredPlans.Any())
             {
@@ -194,7 +202,7 @@
                             </section>
 
                             <div class="mplan-actions">
-                                <button type="button" class="view" @onclick="() => OpenDetails(item)" data-ntx-tone="secondary" >
+                                <button type="button" class="view" @onclick="() => OpenDetails(item)" data-ntx-tone="consult" >
                                     Ver
                                 </button>
 
@@ -207,7 +215,7 @@
 
                                 @if (CanRequestMaintenance)
                                 {
-                                    <button type="button" class="success" @onclick="GoToMaintenanceRequest" data-ntx-tone="primary" >
+                                    <button type="button" class="success" @onclick="GoToMaintenanceRequest" data-ntx-tone="operation" >
                                         Solicitar
                                     </button>
                                 }
@@ -229,7 +237,7 @@
                             <p>@Display(selectedPlan.Name)</p>
                         </div>
 
-                        <button type="button" @onclick="CloseDetails" data-ntx-tone="secondary" >Cerrar</button>
+                        <button type="button" @onclick="CloseDetails" data-ntx-tone="ghost" >Cerrar</button>
                     </header>
 
                     <section class="mplan-modal-grid">
@@ -251,35 +259,35 @@
 
                         @if (CanOpenMaintenanceSchedule)
                         {
-                            <button type="button" class="primary" @onclick="() => GoToSchedule(selectedPlan.ToolAssetId)" data-ntx-tone="primary" >
+                            <button type="button" class="primary" @onclick="() => GoToSchedule(selectedPlan.ToolAssetId)" data-ntx-tone="ghost" >
                                 Cronograma
                             </button>
                         }
 
                         @if (CanRequestMaintenance)
                         {
-                            <button type="button" class="success" @onclick="GoToMaintenanceRequest" data-ntx-tone="primary" >
+                            <button type="button" class="success" @onclick="GoToMaintenanceRequest" data-ntx-tone="operation" >
                                 Solicitar mtto.
                             </button>
                         }
 
                         @if (CanCreatePlan)
                         {
-                            <button type="button" class="primary" @onclick="() => GoToSchedule(selectedPlan.ToolAssetId)" data-ntx-tone="primary" >
+                            <button type="button" class="primary" @onclick="() => GoToSchedule(selectedPlan.ToolAssetId)" data-ntx-tone="operation" >
                                 Crear plan
                             </button>
                         }
 
                         @if (CanEditPlan)
                         {
-                            <button type="button" class="warning" @onclick="() => GoToSchedule(selectedPlan.ToolAssetId)" data-ntx-tone="danger" >
+                            <button type="button" class="warning" @onclick="() => GoToSchedule(selectedPlan.ToolAssetId)" data-ntx-tone="operation" >
                                 Editar plan
                             </button>
                         }
 
                         @if (CanDeletePlan)
                         {
-                            <button type="button" class="danger" @onclick="() => GoToSchedule(selectedPlan.ToolAssetId)" data-ntx-tone="secondary" >
+                            <button type="button" class="danger" @onclick="() => GoToSchedule(selectedPlan.ToolAssetId)" data-ntx-tone="operation" >
                                 Gestionar baja
                             </button>
                         }
@@ -556,7 +564,7 @@
 
         if (total <= 0)
         {
-            return "background: #FFFFFF;";
+            return "background: var(--navi-color-surface);";
         }
 
         var onTime = visible.Count(x => IsStatus(x, "OnTime"));
@@ -565,7 +573,7 @@
         var onTimeEnd = PercentEnd(onTime, total, 0);
         var dueSoonEnd = PercentEnd(dueSoon, total, onTimeEnd);
 
-        return "background: #FFFFFF;";
+        return "background: var(--navi-color-surface);";
     }
 
     private static decimal PercentEnd(int value, int total, decimal start)

@@ -23,23 +23,23 @@
             <DataAnnotationsValidator />
 
             <div class="mb-3">
-                <label class="form-label">Código</label>
-                <InputText class="form-control" @bind-Value="formModel.Code" disabled="@(!CanManageSettings)" />
+                <label class="form-label" for="navi-settingscatalogcrud-control-001">Código</label>
+                <InputText class="form-control" @bind-Value="formModel.Code" disabled="@(!CanManageSettings)" id="navi-settingscatalogcrud-control-001" />
             </div>
 
             <div class="mb-3">
-                <label class="form-label">Nombre</label>
-                <InputText class="form-control" @bind-Value="formModel.Name" disabled="@(!CanManageSettings)" />
+                <label class="form-label" for="navi-settingscatalogcrud-control-002">Nombre</label>
+                <InputText class="form-control" @bind-Value="formModel.Name" disabled="@(!CanManageSettings)" id="navi-settingscatalogcrud-control-002" />
             </div>
 
             <div class="mb-3">
-                <label class="form-label">Descripción</label>
-                <InputTextArea class="form-control" @bind-Value="formModel.Description" rows="3" disabled="@(!CanManageSettings)" />
+                <label class="form-label" for="navi-settingscatalogcrud-control-003">Descripción</label>
+                <InputTextArea class="form-control" @bind-Value="formModel.Description" rows="3" disabled="@(!CanManageSettings)" id="navi-settingscatalogcrud-control-003" />
             </div>
 
             <div class="form-check mb-3">
-                <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive" disabled="@(!CanManageSettings)" />
-                <label class="form-check-label">Activo</label>
+                <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive" disabled="@(!CanManageSettings)" name="navi-settingscatalogcrud-field-001" id="navi-settingscatalogcrud-control-004" />
+                <label class="form-check-label" for="navi-settingscatalogcrud-control-004">Activo</label>
             </div>
 
             @if (!string.IsNullOrWhiteSpace(message))
@@ -50,7 +50,7 @@
             <div class="settings-crud-actions">
                 @if (CanManageSettings)
                 {
-                    <button class="btn btn-primary" type="submit" data-ntx-tone="primary" >Guardar</button>
+                    <button class="btn ntx-btn--operation" type="submit" data-ntx-tone="affirmative" >Guardar</button>
                 }
                 else
                 {
@@ -64,12 +64,12 @@
     <div class="settings-crud-table">
         <div class="settings-table-header">
             <h2>@Title registrados</h2>
-            <button class="btn btn-sm btn-outline-primary" @onclick="LoadAsync" data-ntx-tone="secondary" >Actualizar</button>
+            <button class="btn btn-sm ntx-btn--operation" @onclick="LoadAsync" data-ntx-tone="refresh" >Actualizar</button>
         </div>
 
         @if (isLoading)
         {
-            <p>Cargando...</p>
+            <p role="status" aria-busy="true">Cargando...</p>
         }
         else if (items.Count == 0)
         {
@@ -81,7 +81,8 @@
         }
         else
         {
-            <table class="table table-hover align-middle">
+            <div class="ntx-table-scroll">
+                <table class="table table-hover align-middle">
                 <thead>
                     <tr>
                         <th>Código</th>
@@ -101,24 +102,25 @@
                                 <span class="settings-description-cell">@item.Description</span>
                             </td>
                             <td>
-                                <span class="badge @(item.IsActive ? "bg-success" : "bg-secondary")">
+                                <span class="badge @(item.IsActive ? "navi-bg-affirmative" : "bg-secondary")">
                                     @(item.IsActive ? "Activo" : "Inactivo")
                                 </span>
                             </td>
                             <td class="text-end">
                                 @if (CanManageSettings)
                                     {
-                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(item)" data-ntx-tone="danger" >Editar</button>
+                                        <button class="btn btn-sm ntx-btn--operation" @onclick="() => Edit(item)" data-ntx-tone="operation" >Editar</button>
                                     }
                                 @if (CanManageSettings)
                                     {
-                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(item.Id)" data-ntx-tone="danger" >Eliminar</button>
+                                        <button class="btn btn-sm ntx-btn--danger" @onclick="() => DeleteAsync(item.Id)" data-ntx-tone="danger" >Eliminar</button>
                                     }
                             </td>
                         </tr>
                     }
                 </tbody>
             </table>
+            </div>
         }
     </div>
 </section>

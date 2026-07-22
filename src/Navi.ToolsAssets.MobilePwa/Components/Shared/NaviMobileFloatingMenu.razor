@@ -1,89 +1,506 @@
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Routing
+@using Navi.ToolsAssets.MobilePwa.Models
+@using Microsoft.JSInterop
 
-@implements IDisposable
+@implements IAsyncDisposable
 
 @inject MobileAuthSessionService Auth
+@inject NaviMobileApiClient Api
+@inject NaviMobilePageHeaderState HeaderState
+@inject NaviMobileNotificationState NotificationState
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
-@if (CanShowMenu && MenuGroups.Any())
+@if (CanShowHeader)
 {
-    <button type="button"
-            class="navi-mobile-floating-menu-trigger navi-mobile-floating-menu-trigger-aligned-v4 @(isOpen ? "is-open" : "")"
-            aria-label="Abrir menú operativo"
-            aria-expanded="@isOpen"
-            @onclick="ToggleMenu" data-ntx-tone="ghost" >
-        <span></span>
-        <span></span>
-        <span></span>
-    </button>
+    <div id="@HeaderRootId"
+         class="navi-mobile-shell-header-host">
 
-    @if (isOpen)
-    {
-        <div class="navi-mobile-floating-menu-backdrop"
-             aria-hidden="true"
-             @onclick="CloseMenu"></div>
+        <header class="navi-mobile-shell-header"
+                aria-label="Encabezado principal del aplicativo móvil">
 
-        <aside class="navi-mobile-floating-menu-panel navi-mobile-floating-menu-panel-v3"
-               role="dialog"
-               aria-modal="true"
-               aria-label="Menú operativo">
-            <div class="navi-mobile-floating-menu-head">
-                <div class="navi-mobile-floating-menu-head-copy">
-                    <span>MENÚ OPERATIVO</span>
-                    <strong>@Display(Auth.CurrentUser?.DisplayName)</strong>
-                    <small>@Display(Auth.CurrentUser?.BranchName)</small>
+            <div class="@HeaderBarCssClass">
+                <button type="button"
+                        class="navi-mobile-shell-header__menu-button"
+                        aria-label="Abrir menú de navegación"
+                        aria-expanded="@isMenuOpen"
+                        aria-controls="navi-mobile-shell-menu"
+                        title="Menú"
+                        data-navi-mobile-shell-control
+                        @onclick="ToggleMenu" data-ntx-tone="expand">
+
+                    <span class="navi-mobile-shell-header__hamburger"
+                          aria-hidden="true">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </span>
+                </button>
+
+                <div class="@PageContextCssClass">
+                    @if (HeaderState.ShowBackButton)
+                    {
+                        <button type="button"
+                                class="navi-mobile-shell-header__back"
+                                aria-label="Regresar"
+                                title="Regresar"
+                                data-navi-mobile-shell-control
+                                @onclick="GoBackAsync" data-ntx-tone="secondary">
+
+                            <svg viewBox="0 0 24 24"
+                                 aria-hidden="true"
+                                 focusable="false">
+                                <path d="M14.5 5 7.5 12l7 7"></path>
+                            </svg>
+                        </button>
+                    }
+
+                    <div class="navi-mobile-shell-header__page-copy">
+                        <h1>@PageTitle</h1>
+                        <p>@PageDescription</p>
+                    </div>
                 </div>
 
+                @* NAVI GLOBAL MOBILE REFRESH START *@
                 <button type="button"
-                        class="navi-mobile-floating-menu-close"
-                        aria-label="Cerrar menú operativo"
-                        @onclick="CloseMenu" data-ntx-tone="ghost" >
-                    ×
+                        class="@RefreshButtonCssClass"
+                        title="Actualizar"
+                        aria-label="Actualizar pantalla"
+                        aria-busy="@(isRefreshingPage ? "true" : "false")"
+                        disabled="@isRefreshingPage"
+                        data-navi-mobile-shell-control
+                        @onclick="RefreshCurrentPageAsync" data-ntx-tone="refresh">
+
+                    <svg viewBox="0 0 24 24"
+                         aria-hidden="true"
+                         focusable="false">
+
+                        <path class="navi-mobile-shell-refresh__orbit"
+                              d="M20 12a8 8 0 1 1-2.34-5.66">
+                        </path>
+
+                        <path class="navi-mobile-shell-refresh__arrow"
+                              d="M20 4v6h-6">
+                        </path>
+                    </svg>
+                </button>
+                @* NAVI GLOBAL MOBILE REFRESH END *@
+
+                @if (CanViewApprovalNotifications)
+                {
+                    <button type="button"
+                            class="navi-mobile-notification__trigger"
+                            aria-label="@NotificationButtonLabel"
+                            aria-expanded="@isNotificationMenuOpen"
+                            aria-controls="navi-mobile-notification-panel"
+                            title="@NotificationButtonLabel"
+                            data-navi-mobile-shell-control
+                            @onclick="ToggleNotificationMenuAsync" data-ntx-tone="expand">
+
+                        <svg viewBox="0 0 24 24"
+                             aria-hidden="true"
+                             focusable="false">
+                            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path>
+                            <path d="M10 21h4"></path>
+                        </svg>
+
+                        @if (PendingNotificationCount > 0)
+                        {
+                            <span class="navi-mobile-notification__badge">
+                                @NotificationCountText
+                            </span>
+                        }
+                    </button>
+                }
+
+                <button type="button"
+                        id="navi-mobile-shell-user-trigger"
+                        class="navi-mobile-shell-header__user-button"
+                        aria-label="Abrir menú de @DisplayName"
+                        aria-haspopup="menu"
+                        aria-expanded="@isUserMenuOpen"
+                        aria-controls="navi-mobile-shell-user-menu"
+                        title="@DisplayName"
+                        data-navi-mobile-shell-control
+                        data-ntx-tone="expand"
+                        @onclick="ToggleUserMenu">
+
+                    <span class="navi-mobile-shell-header__user-avatar"
+                          aria-hidden="true">
+                        @GetInitials()
+                    </span>
                 </button>
             </div>
+        </header>
 
-            <div class="navi-mobile-floating-menu-list">
-                @foreach (var group in MenuGroups)
-                {
-                    <section class="navi-mobile-floating-menu-group">
-                        <div class="navi-mobile-floating-menu-group-title">@group.Title</div>
+        @if (isMenuOpen || isUserMenuOpen || isNotificationMenuOpen)
+        {
+            <button type="button"
+                    class="navi-mobile-shell-overlay"
+                    aria-label="Cerrar panel abierto"
+                    @onclick="CloseMenus" data-ntx-tone="ghost">
+            </button>
+        }
 
-                        <div class="navi-mobile-floating-menu-group-items">
-                            @foreach (var item in group.Items)
+        @if (isMenuOpen)
+        {
+            <aside id="navi-mobile-shell-menu"
+                   class="navi-mobile-shell-menu"
+                   role="dialog"
+                   aria-modal="true"
+                   aria-label="Menú principal"
+                   data-navi-mobile-shell-popup>
+
+                <header class="navi-mobile-shell-menu__header">
+                    <div>
+                        <span>NAVEGACIÓN</span>
+                        <strong>Menú principal</strong>
+                        <small>
+                            @DisplayOr(
+                                Auth.CurrentUser?.BranchName,
+                                "Todas las sedes")
+                        </small>
+                    </div>
+
+                    <button type="button"
+                            class="navi-mobile-shell-menu__close"
+                            aria-label="Cerrar menú"
+                            title="Cerrar"
+                            @onclick="CloseMenus" data-ntx-tone="ghost">
+
+                        <svg viewBox="0 0 24 24"
+                             aria-hidden="true"
+                             focusable="false">
+                            <path d="M6 6l12 12"></path>
+                            <path d="M18 6 6 18"></path>
+                        </svg>
+                    </button>
+                </header>
+
+                <div class="navi-mobile-shell-menu__content">
+                    @foreach (var group in MenuGroups)
+                    {
+                        <section class="navi-mobile-shell-menu__group">
+                            <h2>@group.Title</h2>
+
+                            <div class="navi-mobile-shell-menu__items">
+                                @foreach (var item in group.Items)
+                                {
+                                    var active =
+                                        IsActive(item.Url);
+
+                                    <button type="button"
+                                            class="@GetItemClass(active)"
+                                            aria-current="@(active ? "page" : null)"
+                                            @onclick="() => NavigateTo(item.Url)" data-ntx-tone="ghost">
+
+                                        <span class="navi-mobile-shell-menu__icon"
+                                              aria-hidden="true">
+                                            @GetMenuSymbol(item.IconKey)
+                                        </span>
+
+                                        <span class="navi-mobile-shell-menu__item-copy">
+                                            <strong>@item.Title</strong>
+                                            <small>@item.Description</small>
+                                        </span>
+                                    </button>
+                                }
+                            </div>
+                        </section>
+                    }
+                </div>
+            </aside>
+        }
+
+
+        @if (isNotificationMenuOpen)
+        {
+            <section id="navi-mobile-notification-panel"
+                     class="navi-mobile-notification__panel"
+                     role="dialog"
+                     aria-label="Solicitudes pendientes de asignación"
+                     data-navi-mobile-shell-popup>
+
+                <header class="navi-mobile-notification__header">
+                    <div>
+                        <span>APROBACIONES</span>
+                        <h2>Solicitudes pendientes</h2>
+                    </div>
+
+                    <strong>
+                        @PendingNotificationCount
+                    </strong>
+                </header>
+
+                <div class="navi-mobile-notification__body">
+                    @if (isLoadingNotifications &&
+                         pendingLoanRequests.Count == 0)
+                    {
+                        <div class="navi-mobile-notification__state">
+                            <span aria-hidden="true">·</span>
+
+                            <div>
+                                <strong>Actualizando</strong>
+                                <small>
+                                    Consultando solicitudes pendientes.
+                                </small>
+                            </div>
+                        </div>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(
+                                 notificationError))
+                    {
+                        <div class="navi-mobile-notification__state
+                                    is-error">
+                            <span aria-hidden="true">!</span>
+
+                            <div>
+                                <strong>
+                                    No fue posible actualizar
+                                </strong>
+
+                                <small>
+                                    @notificationError
+                                </small>
+                            </div>
+                        </div>
+                    }
+                    else if (pendingLoanRequests.Count == 0)
+                    {
+                        <div class="navi-mobile-notification__state
+                                    is-empty">
+                            <span aria-hidden="true">✓</span>
+
+                            <div>
+                                <strong>
+                                    Sin solicitudes pendientes
+                                </strong>
+
+                                <small>
+                                    No tienes asignaciones por aprobar.
+                                </small>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="navi-mobile-notification__list">
+                            @foreach (var request in
+                                pendingLoanRequests.Take(6))
                             {
-                                var active = IsActive(item.Url);
+                                <article class="navi-mobile-notification__item">
+                                    <div class="navi-mobile-notification__item-top">
+                                        <strong>
+                                            @request.LoanNumber
+                                        </strong>
 
-                                <button type="button"
-                                        class="@GetItemClass(item.IconKey, active)"
-                                        data-navi-floating-menu-item="white"
-                                        @onclick="() => NavigateTo(item.Url)" data-ntx-tone="ghost" >
-                                    <span class="@GetIconClass(item.IconKey)">@GetMenuSymbol(item.IconKey)</span>
+                                        <span>
+                                            @FormatNotificationDate(
+                                                request.RequestedAt
+                                                ?? request.CreatedAt)
+                                        </span>
+                                    </div>
 
-                                    <span class="navi-mobile-floating-menu-text">
-                                        <strong>@item.Title</strong>
-                                        <small>@item.Description</small>
-                                    </span>
-                                </button>
+                                    <h3>
+                                        @GetNotificationRequester(
+                                            request)
+                                    </h3>
+
+                                    <p>
+                                        @GetNotificationToolSummary(
+                                            request)
+                                    </p>
+
+                                    @if (request.ExpectedReturnAt.HasValue)
+                                    {
+                                        <small>
+                                            Regreso:
+                                            @FormatNotificationDate(
+                                                request.ExpectedReturnAt.Value)
+                                        </small>
+                                    }
+                                </article>
                             }
                         </div>
-                    </section>
-                }
-            </div>
-        </aside>
-    }
+                    }
+                </div>
+
+                <footer class="navi-mobile-notification__footer">
+                    <button type="button"
+                            @onclick="OpenPendingRequests" data-ntx-tone="ghost">
+                        Ir a solicitudes pendientes
+                    </button>
+                </footer>
+            </section>
+        }
+
+        @if (isUserMenuOpen)
+        {
+            <section id="navi-mobile-shell-user-menu"
+                     class="navi-mobile-shell-user-menu"
+                     role="menu"
+                     aria-labelledby="navi-mobile-shell-user-trigger"
+                     data-navi-mobile-shell-popup>
+
+                <header class="navi-mobile-shell-user-menu__profile">
+                    <span class="navi-mobile-shell-user-menu__avatar"
+                          aria-hidden="true">
+                        @GetInitials()
+                    </span>
+
+                    <span class="navi-mobile-shell-user-menu__identity">
+                        <strong>@DisplayName</strong>
+
+                        @if (!string.IsNullOrWhiteSpace(UserName))
+                        {
+                            <small>@UserName</small>
+                        }
+                    </span>
+                </header>
+
+                <div class="navi-mobile-shell-user-menu__details">
+                    <div class="navi-mobile-shell-user-menu__detail
+                            navi-mobile-shell-user-menu__detail--profile">
+                        <span>
+                            Perfil
+                        </span>
+                        <strong>@RoleName</strong>
+                    </div>
+
+                    <div class="navi-mobile-shell-user-menu__detail
+                            navi-mobile-shell-user-menu__detail--branch">
+                        <span>
+                            Sede
+                        </span>
+                        <strong>@UserMenuBranchName</strong>
+                    </div>
+                </div>
+
+                <div class="navi-mobile-shell-user-menu__actions">
+                    <button type="button"
+                            class="navi-mobile-shell-user-menu__logout"
+                            role="menuitem"
+                            aria-label="Cerrar sesión"
+                            title="Cerrar sesión"
+                            data-ntx-tone="ghost"
+                            @onclick="LogoutAsync">
+
+                        <svg viewBox="0 0 24 24"
+                             aria-hidden="true"
+                             focusable="false">
+                            <path d="M10 7 5 12l5 5"></path>
+                            <path d="M5 12h11"></path>
+                            <path d="M14 5h4a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-4"></path>
+                        </svg>
+
+                        <span>
+                            Cerrar sesión
+                        </span>
+                    </button>
+                </div>
+            </section>
+        }
+    </div>
 }
 
-
-
-<!-- NAVI FLOATING MENU FORCE WHITE FINAL START -->
-
-<!-- NAVI FLOATING MENU FORCE WHITE FINAL END -->
-
 @code {
-    private bool isOpen;
+    private const string HeaderRootId =
+        "navi-mobile-shell-header-root";
 
-    private bool CanShowMenu
+    private readonly CancellationTokenSource
+        notificationCancellation = new();
+
+    private readonly SemaphoreSlim
+        notificationRefreshLock = new(1, 1);
+
+    private bool isMenuOpen;
+    private bool isUserMenuOpen;
+    private bool isNotificationMenuOpen;
+    private bool isRefreshingPage;
+    private bool isLoadingNotifications;
+    private bool notificationsInitialized;
+    private bool jsRegistered;
+    private bool isDisposed;
+
+    private string? notificationError;
+
+    private Task? notificationRefreshLoopTask;
+
+    private List<MobileLoanRequestDto>
+        pendingLoanRequests = new();
+
+    private DotNetObjectReference<NaviMobileFloatingMenu>?
+        dotNetReference;
+
+    private bool CanViewApprovalNotifications =>
+        Auth.IsAuthenticated &&
+        Auth.HasPermission(
+            "AssetAssignment.Approve");
+
+    private string UserMenuBranchName =>
+        CanSeeAllBranches
+            ? "TODAS"
+            : BranchName;
+
+    private bool CanSeeAllBranches
+    {
+        get
+        {
+            var branchCode =
+                Auth.CurrentUser?.BranchCode;
+
+            var roleCode =
+                Auth.CurrentUser?.RoleCode;
+
+            return string.IsNullOrWhiteSpace(
+                       branchCode) ||
+                   branchCode.Equals(
+                       "TODAS",
+                       StringComparison.OrdinalIgnoreCase) ||
+                   branchCode.Equals(
+                       "ALL",
+                       StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(
+                       roleCode,
+                       "ADMIN",
+                       StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(
+                       roleCode,
+                       "SUPERADMIN",
+                       StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private int PendingNotificationCount =>
+        pendingLoanRequests.Count;
+
+    private string NotificationCountText =>
+        PendingNotificationCount > 99
+            ? "99+"
+            : PendingNotificationCount.ToString();
+
+    private string NotificationButtonLabel =>
+        PendingNotificationCount == 0
+            ? "No hay solicitudes pendientes"
+            : PendingNotificationCount == 1
+                ? "Hay una solicitud pendiente"
+                : $"Hay {PendingNotificationCount} solicitudes pendientes";
+
+    private string RefreshButtonCssClass =>
+        isRefreshingPage
+            ? "navi-mobile-shell-refresh is-loading"
+            : "navi-mobile-shell-refresh";
+
+    private string HeaderBarCssClass =>
+        CanViewApprovalNotifications
+            ? "navi-mobile-shell-header__bar has-refresh has-notifications"
+            : "navi-mobile-shell-header__bar has-refresh";
+    /*
+     * El encabezado estándar se muestra en todas
+     * las vistas autenticadas, excepto login y logout.
+     */
+    private bool CanShowHeader
     {
         get
         {
@@ -94,266 +511,1178 @@
 
             var path = GetCurrentPath();
 
-            return !string.Equals(path, "login", StringComparison.OrdinalIgnoreCase) &&
-                   !string.Equals(path, "logout", StringComparison.OrdinalIgnoreCase);
+            return
+                !path.Equals(
+                    "login",
+                    StringComparison.OrdinalIgnoreCase)
+                &&
+                !path.Equals(
+                    "logout",
+                    StringComparison.OrdinalIgnoreCase);
         }
     }
 
-    private List<FloatingMenuGroup> MenuGroups
+private string PageContextCssClass =>
+        HeaderState.ShowBackButton
+            ? "navi-mobile-shell-header__page-context has-back"
+            : "navi-mobile-shell-header__page-context";
+
+    private string PageTitle =>
+        string.IsNullOrWhiteSpace(HeaderState.Title)
+            ? GetFallbackPresentation().Title
+            : HeaderState.Title;
+
+    private string PageDescription =>
+        string.IsNullOrWhiteSpace(HeaderState.Description)
+            ? GetFallbackPresentation().Description
+            : HeaderState.Description;
+
+    private string DisplayName =>
+        DisplayOr(
+            Auth.CurrentUser?.DisplayName,
+            DisplayOr(
+                Auth.CurrentUser?.UserName,
+                "Usuario NAVI"));
+
+    private string UserName =>
+        Auth.CurrentUser?.UserName?.Trim()
+        ?? string.Empty;
+
+    private string RoleName =>
+        DisplayOr(
+            Auth.CurrentUser?.RoleName,
+            DisplayOr(
+                Auth.CurrentUser?.RoleCode,
+                "Usuario"));
+
+    private string BranchName =>
+        DisplayOr(
+            Auth.CurrentUser?.BranchName,
+            DisplayOr(
+                Auth.CurrentUser?.BranchCode,
+                "Todas"));
+
+    private bool CanViewOwnTools =>
+        Auth.HasAnyPermission(
+            "Mobile.Tools.View",
+            "Tools.View");
+
+    private bool CanReportDamage =>
+        Auth.HasAnyPermission(
+            "Mobile.Damage.Report",
+            "Damages.Create");
+
+    private List<MobileMenuGroup> MenuGroups
     {
         get
         {
-            var groups = new List<FloatingMenuGroup>();
+            var groups =
+                new List<MobileMenuGroup>();
 
-            AddGroup(groups, "PRINCIPAL", BuildPrincipalGroup());
-            AddGroup(groups, "ACTIVOS FIJOS", BuildAssetsGroup());
-            AddGroup(groups, "OPERACIONES", BuildOperationsGroup());
-            AddGroup(groups, "CONTROL", BuildControlGroup());
-            AddGroup(groups, "CONFIGURACIÓN", BuildAdministrationGroup());
+            AddGroup(
+                groups,
+                "PRINCIPAL",
+                BuildPrincipalGroup());
+
+            AddGroup(
+                groups,
+                "ACTIVOS FIJOS",
+                BuildAssetsGroup());
+
+            AddGroup(
+                groups,
+                "OPERACIONES",
+                BuildOperationsGroup());
+
+            AddGroup(
+                groups,
+                "CONTROL",
+                BuildControlGroup());
+
+            AddGroup(
+                groups,
+                "CONFIGURACIÓN",
+                BuildAdministrationGroup());
 
             return groups;
         }
     }
-
     protected override void OnInitialized()
     {
-        Navigation.LocationChanged += OnLocationChanged;
+        Auth.OnChange += OnAuthChanged;
+
+        Navigation.LocationChanged +=
+            OnLocationChanged;
+
+        HeaderState.OnChange +=
+            OnHeaderStateChanged;
+
+        NotificationState.OnRefreshRequested +=
+            OnNotificationRefreshRequested;
+
+        ApplyRouteFallback();
+    }
+
+    /*
+     * El componente restaura directamente la sesión.
+     * Así el encabezado vuelve a mostrarse después de
+     * actualizar la página desde el botón global.
+     */
+    protected override async Task OnInitializedAsync()
+    {
+        await Auth.InitializeAsync();
+
+        ApplyRouteFallback();
+    }
+
+    protected override async Task OnAfterRenderAsync(
+        bool firstRender)
+    {
+        if (!CanShowHeader)
+        {
+            return;
+        }
+
+        if (!jsRegistered)
+        {
+            dotNetReference ??=
+                DotNetObjectReference.Create(this);
+
+            try
+            {
+                jsRegistered =
+                    await JS.InvokeAsync<bool>(
+                        "naviMobileShellHeader.register",
+                        dotNetReference,
+                        HeaderRootId);
+            }
+            catch
+            {
+                jsRegistered = false;
+            }
+        }
+
+        if (!notificationsInitialized)
+        {
+            notificationsInitialized = true;
+
+            await RefreshLoanNotificationsAsync();
+
+            notificationRefreshLoopTask =
+                RunNotificationRefreshLoopAsync(
+                    notificationCancellation.Token);
+        }
     }
 
     private void ToggleMenu()
     {
-        isOpen = !isOpen;
+        isUserMenuOpen = false;
+        isNotificationMenuOpen = false;
+        isMenuOpen = !isMenuOpen;
     }
 
-    private void CloseMenu()
+    private void ToggleUserMenu()
     {
-        isOpen = false;
+        isMenuOpen = false;
+        isNotificationMenuOpen = false;
+        isUserMenuOpen = !isUserMenuOpen;
+    }
+
+    private void CloseMenus()
+    {
+        isMenuOpen = false;
+        isUserMenuOpen = false;
+        isNotificationMenuOpen = false;
+    }
+
+    [JSInvokable]
+    public Task CloseShellMenus()
+    {
+        if (!isMenuOpen &&
+            !isUserMenuOpen)
+        {
+            return Task.CompletedTask;
+        }
+
+        CloseMenus();
+
+        return InvokeAsync(StateHasChanged);
     }
 
     private void NavigateTo(string url)
     {
-        isOpen = false;
-        Navigation.NavigateTo(url);
+        CloseMenus();
+
+        Navigation.NavigateTo(
+            string.IsNullOrWhiteSpace(url)
+                ? "/"
+                : url);
     }
 
-    private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
+    private async Task RefreshCurrentPageAsync()
     {
-        if (isOpen)
+        if (isRefreshingPage)
         {
-            isOpen = false;
-            _ = InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        CloseMenus();
+
+        isRefreshingPage = true;
+
+        await InvokeAsync(
+            StateHasChanged);
+
+        try
+        {
+            await Task.Delay(120);
+
+            Navigation.NavigateTo(
+                Navigation.Uri,
+                forceLoad: true);
+        }
+        catch
+        {
+            isRefreshingPage = false;
+
+            await InvokeAsync(
+                StateHasChanged);
         }
     }
 
-    private List<FloatingMenuItem> BuildPrincipalGroup()
+    private async Task ToggleNotificationMenuAsync()
     {
-        var items = new List<FloatingMenuItem>();
+        isMenuOpen = false;
+        isUserMenuOpen = false;
+
+        var opening =
+            !isNotificationMenuOpen;
+
+        isNotificationMenuOpen = opening;
+
+        if (opening)
+        {
+            await RefreshLoanNotificationsAsync();
+        }
+    }
+
+    private void OpenPendingRequests()
+    {
+        CloseMenus();
+
+        Navigation.NavigateTo(
+            "/mobile/assignment#solicitudes-pendientes");
+    }
+
+    private async Task RefreshLoanNotificationsAsync()
+    {
+        if (isDisposed)
+        {
+            return;
+        }
+
+        if (!CanViewApprovalNotifications)
+        {
+            pendingLoanRequests = new();
+            notificationError = null;
+            isNotificationMenuOpen = false;
+
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        var acquired =
+            await notificationRefreshLock.WaitAsync(0);
+
+        if (!acquired)
+        {
+            return;
+        }
+
+        try
+        {
+            isLoadingNotifications = true;
+            notificationError = null;
+
+            await InvokeAsync(StateHasChanged);
+
+            var loans =
+                await Api.GetLoanRequestsAsync();
+
+            Guid? currentBranchId = null;
+
+            if (!CanSeeAllBranches)
+            {
+                var branches =
+                    await Api.GetBranchesAsync();
+
+                var branchCode =
+                    Auth.CurrentUser?.BranchCode;
+
+                currentBranchId = branches
+                    .FirstOrDefault(x =>
+                        !string.IsNullOrWhiteSpace(
+                            branchCode) &&
+                        x.Code.Equals(
+                            branchCode,
+                            StringComparison.OrdinalIgnoreCase))
+                    ?.Id;
+            }
+
+            pendingLoanRequests = loans
+                .Where(x =>
+                    IsPendingLoanStatus(x.Status))
+                .Where(x =>
+                    x.Items.Any(item =>
+                        !item.Returned))
+                .Where(x =>
+                    CanSeeAllBranches ||
+                    (
+                        currentBranchId.HasValue &&
+                        x.BranchId.HasValue &&
+                        x.BranchId.Value ==
+                            currentBranchId.Value
+                    ))
+                .OrderByDescending(x =>
+                    x.RequestedAt ??
+                    x.CreatedAt)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            notificationError =
+                string.IsNullOrWhiteSpace(ex.Message)
+                    ? "No se pudieron cargar las solicitudes."
+                    : ex.Message;
+        }
+        finally
+        {
+            isLoadingNotifications = false;
+            notificationRefreshLock.Release();
+
+            if (!isDisposed)
+            {
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+
+    private async Task RunNotificationRefreshLoopAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var timer =
+                new PeriodicTimer(
+                    TimeSpan.FromSeconds(20));
+
+            while (await timer.WaitForNextTickAsync(
+                       cancellationToken))
+            {
+                await RefreshLoanNotificationsAsync();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private static bool IsPendingLoanStatus(
+        string? status)
+    {
+        return status is not null &&
+               (
+                   status.Equals(
+                       "Draft",
+                       StringComparison.OrdinalIgnoreCase) ||
+                   status.Equals(
+                       "Requested",
+                       StringComparison.OrdinalIgnoreCase) ||
+                   status.Equals(
+                       "PendingApproval",
+                       StringComparison.OrdinalIgnoreCase)
+               );
+    }
+
+    private static string GetNotificationRequester(
+        MobileLoanRequestDto request)
+    {
+        if (!string.IsNullOrWhiteSpace(
+                request.RequestedByResponsiblePersonName))
+        {
+            return request
+                .RequestedByResponsiblePersonName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(
+                request.RequestedByPersonName))
+        {
+            return request.RequestedByPersonName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(
+                request.CreatedBy))
+        {
+            return request.CreatedBy;
+        }
+
+        return "Solicitante sin identificar";
+    }
+
+    private static string GetNotificationToolSummary(
+        MobileLoanRequestDto request)
+    {
+        var activeItems = request.Items
+            .Where(x => !x.Returned)
+            .ToList();
+
+        var first =
+            activeItems.FirstOrDefault();
+
+        if (first is null)
+        {
+            return "Solicitud sin activos asociados";
+        }
+
+        var code =
+            string.IsNullOrWhiteSpace(
+                first.ToolInternalCode)
+                ? "Activo"
+                : first.ToolInternalCode;
+
+        var name =
+            string.IsNullOrWhiteSpace(
+                first.ToolName)
+                ? string.Empty
+                : $" · {first.ToolName}";
+
+        var remaining =
+            activeItems.Count > 1
+                ? $" · +{activeItems.Count - 1} más"
+                : string.Empty;
+
+        return $"{code}{name}{remaining}";
+    }
+
+    private static string FormatNotificationDate(
+        DateTime value)
+    {
+        return value
+            .ToLocalTime()
+            .ToString("dd/MM/yyyy HH:mm");
+    }
+
+    private void OnNotificationRefreshRequested()
+    {
+        _ = InvokeAsync(
+            RefreshLoanNotificationsAsync);
+    }
+
+    private async Task LogoutAsync()
+    {
+        CloseMenus();
+
+        await Auth.LogoutAsync();
+
+        Navigation.NavigateTo(
+            "/login",
+            forceLoad: true);
+    }
+
+    private async Task GoBackAsync()
+    {
+        CloseMenus();
+
+        if (!string.IsNullOrWhiteSpace(
+                HeaderState.BackUrl))
+        {
+            Navigation.NavigateTo(
+                HeaderState.BackUrl);
+
+            return;
+        }
+
+        if (HeaderState
+            .UseBrowserHistoryWhenNoBackUrl)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync(
+                    "history.back");
+
+                return;
+            }
+            catch
+            {
+            }
+        }
+
+        Navigation.NavigateTo(
+            string.IsNullOrWhiteSpace(
+                HeaderState.BackFallbackUrl)
+                ? "/"
+                : HeaderState.BackFallbackUrl);
+    }
+
+    private List<MobileMenuItem>
+        BuildPrincipalGroup()
+    {
+        var items =
+            new List<MobileMenuItem>
+            {
+                new(
+                    "home",
+                    "Inicio",
+                    "/",
+                    "Página principal")
+            };
 
         if (HasPermission("Dashboard.View"))
         {
-            items.Add(new FloatingMenuItem("dashboard", "Dashboard", "/mobile/dashboard", "Indicadores"));
+            items.Add(
+                new(
+                    "dashboard",
+                    "Dashboard",
+                    "/mobile/dashboard",
+                    "Indicadores"));
         }
-
-        return items;
+return items;
     }
 
-    private List<FloatingMenuItem> BuildAssetsGroup()
+    private List<MobileMenuItem>
+        BuildAssetsGroup()
     {
-        var items = new List<FloatingMenuItem>();
+        var items =
+            new List<MobileMenuItem>();
 
         if (HasPermission("Tools.View"))
         {
-            items.Add(new FloatingMenuItem("inventory", "Inventario de Herramientas y AF", "/all-tools", "Activos"));
+            items.Add(
+                new(
+                    "inventory",
+                    "Inventario de Herramientas y AF",
+                    "/all-tools",
+                    "Inventario"));
         }
 
-        if (HasAny("AssetAvailability.View", "AssetAvailability.Edit", "AssetAvailability.Status.Change"))
+        if (HasAny(
+                "AssetAvailability.View",
+                "AssetAvailability.Edit",
+                "AssetAvailability.Status.Change"))
         {
-            items.Add(new FloatingMenuItem("location", "Disponible y Ubicación", "/mobile/availability", "Ubicación"));
+            items.Add(
+                new(
+                    "location",
+                    "Disponible y Ubicación",
+                    "/mobile/availability",
+                    "Sede y ubicación"));
         }
 
-        if (HasAny("AssetAssignment.View", "AssetAssignment.Request", "Mobile.Loans.Request", "AssetAssignment.Assign", "AssetAssignment.Return", "AssetAssignment.Approve", "AssetAssignment.Deny", "AssetAssignment.History"))
+        if (HasAny(
+                "AssetAssignment.View",
+                "AssetAssignment.Request",
+                "Mobile.Loans.Request",
+                "AssetAssignment.Assign",
+                "AssetAssignment.Return",
+                "AssetAssignment.Approve",
+                "AssetAssignment.Deny",
+                "AssetAssignment.History"))
         {
-            items.Add(new FloatingMenuItem("assign", "Asignar Herramientas y AF", "/mobile/assignment", "Préstamos"));
+            items.Add(
+                new(
+                    "assign",
+                    "Asignar Herramientas y AF",
+                    "/mobile/assignment",
+                    "Préstamos"));
         }
 
-        if (HasPermission("AssetAssignment.History"))
+        if (HasPermission(
+                "AssetAssignment.History"))
         {
-            items.Add(new FloatingMenuItem("history", "Historial de asignaciones", "/mobile/history", "Movimientos"));
+            items.Add(
+                new(
+                    "history",
+                    "Historial de asignaciones",
+                    "/mobile/history",
+                    "Movimientos"));
         }
 
-        if (HasAny("TechnicalLifeRecord.View", "ToolDetail.LifeRecord.Open"))
+        if (HasAny(
+                "TechnicalLifeRecord.View",
+                "ToolDetail.LifeRecord.Open"))
         {
-            items.Add(new FloatingMenuItem("life", "Hoja de Vida de Herramientas", "/mobile/life-records", "Técnica"));
+            items.Add(
+                new(
+                    "life",
+                    "Hoja de Vida de Herramientas",
+                    "/mobile/life-records",
+                    "Información técnica"));
+        }
+
+        if (CanReportDamage)
+        {
+            items.Add(
+                new(
+                    "damage",
+                    "Reportar novedad",
+                    "/report-damage",
+                    "Daño o falla"));
         }
 
         return items;
     }
 
-    private List<FloatingMenuItem> BuildOperationsGroup()
+    private List<MobileMenuItem>
+        BuildOperationsGroup()
     {
-        var items = new List<FloatingMenuItem>();
+        var items =
+            new List<MobileMenuItem>();
 
-        if (HasAny("Purchases.View", "Purchases.Request", "Purchases.Quote", "Purchases.Generate", "Purchases.Approve", "Purchases.Reject"))
+        if (HasAny(
+                "Purchases.View",
+                "Purchases.Request",
+                "Purchases.Quote",
+                "Purchases.Generate",
+                "Purchases.Approve",
+                "Purchases.Reject"))
         {
-            items.Add(new FloatingMenuItem("purchase", "Solicitar Compra Herr. y AF", "/mobile/purchases", "Solicitud"));
+            items.Add(
+                new(
+                    "purchase",
+                    "Solicitar Compra Herr. y AF",
+                    "/mobile/purchases",
+                    "Solicitud de compra"));
         }
 
-        if (HasAny("Maintenance.View", "Maintenance.Request", "Maintenance.Quote", "Maintenance.Generate", "Maintenance.Execute", "Maintenance.Close", "Maintenance.Reject"))
+        if (HasAny(
+                "Maintenance.View",
+                "Maintenance.Request",
+                "Maintenance.Quote",
+                "Maintenance.Generate",
+                "Maintenance.Execute",
+                "Maintenance.Close",
+                "Maintenance.Reject"))
         {
-            items.Add(new FloatingMenuItem("maintenance", "Solicitar Mantenimiento", "/mobile/maintenance-request", "Servicio"));
+            items.Add(
+                new(
+                    "maintenance",
+                    "Solicitar Mantenimiento",
+                    "/mobile/maintenance-request",
+                    "Servicio técnico"));
         }
 
-        if (HasAny("Purchases.View", "Maintenance.View"))
+        if (HasAny(
+                "Purchases.View",
+                "Maintenance.View"))
         {
-            items.Add(new FloatingMenuItem("consult", "Consulta Compras y Mtto.", "/mobile/maintenance", "Consulta"));
+            items.Add(
+                new(
+                    "consult",
+                    "Consulta Compras y Mtto.",
+                    "/mobile/maintenance",
+                    "Consulta general"));
         }
 
-        if (HasAny("MaintenancePlans.View", "MaintenancePlans.Create", "MaintenancePlans.Edit", "MaintenancePlans.Delete"))
+        if (HasAny(
+                "MaintenancePlans.View",
+                "MaintenancePlans.Create",
+                "MaintenancePlans.Edit",
+                "MaintenancePlans.Delete"))
         {
-            items.Add(new FloatingMenuItem("calendar", "Planes de Mantenimiento", "/mobile/maintenance-plans", "Planes"));
+            items.Add(
+                new(
+                    "calendar",
+                    "Planes de Mantenimiento",
+                    "/mobile/maintenance-plans",
+                    "Programación"));
         }
 
         return items;
     }
 
-    private List<FloatingMenuItem> BuildControlGroup()
+    private List<MobileMenuItem>
+        BuildControlGroup()
     {
-        var items = new List<FloatingMenuItem>();
+        var items =
+            new List<MobileMenuItem>();
 
-        if (HasAny("PhysicalCounts.View", "PhysicalCounts.Create", "PhysicalCounts.Start", "PhysicalCounts.Close", "PhysicalCounts.Report", "PhysicalCounts.Evidence.Upload"))
+        if (HasAny(
+                "PhysicalCounts.View",
+                "PhysicalCounts.Create",
+                "PhysicalCounts.Start",
+                "PhysicalCounts.Close",
+                "PhysicalCounts.Report",
+                "PhysicalCounts.Evidence.Upload"))
         {
-            items.Add(new FloatingMenuItem("physical", "Tomas Físicas", "/mobile/physical-counts", "Conteos"));
+            items.Add(
+                new(
+                    "physical",
+                    "Tomas Físicas",
+                    "/mobile/physical-counts",
+                    "Conteos"));
         }
 
-        if (HasAny("Reconciliation.View", "Reconciliation.Clarify", "Reconciliation.ApproveCreation", "Reconciliation.Manage"))
+        if (HasAny(
+                "Reconciliation.View",
+                "Reconciliation.Clarify",
+                "Reconciliation.ApproveCreation",
+                "Reconciliation.Manage"))
         {
-            items.Add(new FloatingMenuItem("reconcile", "Conciliación", "/mobile/reconciliation", "Validación"));
+            items.Add(
+                new(
+                    "reconcile",
+                    "Conciliación",
+                    "/mobile/reconciliation",
+                    "Validación"));
         }
 
-        if (HasAny("Documents.View", "Documents.Upload", "Documents.Download", "Documents.Delete"))
+        if (HasAny(
+                "Documents.View",
+                "Documents.Upload",
+                "Documents.Download",
+                "Documents.Delete"))
         {
-            items.Add(new FloatingMenuItem("document", "Documentos", "/mobile/documents", "Evidencias"));
+            items.Add(
+                new(
+                    "document",
+                    "Documentos",
+                    "/mobile/documents",
+                    "Evidencias"));
         }
 
-        if (HasAny("Reports.View", "Reports.Export"))
+        if (HasAny(
+                "Reports.View",
+                "Reports.Export"))
         {
-            items.Add(new FloatingMenuItem("reports", "Reportes", "/mobile/reports", "Indicadores"));
+            items.Add(
+                new(
+                    "reports",
+                    "Reportes",
+                    "/mobile/reports",
+                    "Indicadores"));
         }
 
         return items;
     }
 
-    private List<FloatingMenuItem> BuildAdministrationGroup()
+    private List<MobileMenuItem>
+        BuildAdministrationGroup()
     {
-        var items = new List<FloatingMenuItem>();
+        var items =
+            new List<MobileMenuItem>();
 
-        if (HasAny("Mobile.Access", "Settings.View", "Settings.Manage", "Security.Users", "Security.Roles"))
+        if (HasAny(
+                "Mobile.Access",
+                "Settings.View",
+                "Settings.Manage",
+                "Security.Users",
+                "Security.Roles"))
         {
-            items.Add(new FloatingMenuItem("settings", "Configuración", "/mobile/settings", "Parámetros"));
+            items.Add(
+                new(
+                    "settings",
+                    "Configuración",
+                    "/mobile/settings",
+                    "Parámetros"));
         }
 
         return items;
     }
 
-    private static void AddGroup(List<FloatingMenuGroup> groups, string title, List<FloatingMenuItem> items)
+    private static void AddGroup(
+        List<MobileMenuGroup> groups,
+        string title,
+        List<MobileMenuItem> items)
     {
         if (items.Count > 0)
         {
-            groups.Add(new FloatingMenuGroup(title, items));
+            groups.Add(
+                new(
+                    title,
+                    items));
         }
     }
 
     private bool IsActive(string url)
     {
-        var current = "/" + GetCurrentPath();
-        var target = "/" + (url ?? "/").Trim('/');
+        var current =
+            "/" + GetCurrentPath();
+
+        var target =
+            "/" + (url ?? "/").Trim('/');
 
         if (target == "/")
         {
-            return current == "/" || string.IsNullOrWhiteSpace(current.Trim('/'));
+            return current == "/" ||
+                   string.IsNullOrWhiteSpace(
+                       current.Trim('/'));
         }
 
-        return current.Equals(target, StringComparison.OrdinalIgnoreCase) ||
-               current.StartsWith(target + "/", StringComparison.OrdinalIgnoreCase);
+        return current.Equals(
+                   target,
+                   StringComparison.OrdinalIgnoreCase) ||
+               current.StartsWith(
+                   target + "/",
+                   StringComparison.OrdinalIgnoreCase);
     }
 
     private string GetCurrentPath()
     {
-        return Navigation.ToBaseRelativePath(Navigation.Uri)
+        return Navigation
+            .ToBaseRelativePath(
+                Navigation.Uri)
             .Split('?', '#')[0]
             .Trim('/')
             .ToLowerInvariant();
     }
 
-    private string GetItemClass(string iconKey, bool active)
+    private string GetItemClass(bool active)
     {
-        var classes = new List<string> { "navi-mobile-floating-menu-item", $"item-{iconKey}" };
-
-        if (active)
-        {
-            classes.Add("active");
-        }
-
-        return string.Join(" ", classes);
+        return active
+            ? "navi-mobile-shell-menu__item active"
+            : "navi-mobile-shell-menu__item";
     }
 
-    private string GetIconClass(string iconKey)
-    {
-        return $"navi-mobile-floating-menu-icon icon-{iconKey}";
-    }
-
-    private bool HasPermission(string permission)
+    private bool HasPermission(
+        string permission)
     {
         return Auth.HasPermission(permission);
     }
 
-    private bool HasAny(params string[] permissions)
+    private bool HasAny(
+        params string[] permissions)
     {
-        return Auth.HasAnyPermission(permissions);
+        return Auth.HasAnyPermission(
+            permissions);
     }
 
-    private static string Display(string? value)
-    {
-        return string.IsNullOrWhiteSpace(value)
-            ? "NAVI"
-            : value;
-    }
-
-    private static string GetMenuSymbol(string iconKey)
+    private static string GetMenuSymbol(
+        string iconKey)
     {
         return iconKey switch
         {
-            "dashboard" => "📊",
-            "inventory" => "🧰",
-            "location" => "📍",
-            "assign" => "🔁",
-            "history" => "🕘",
-            "life" => "📋",
-            "purchase" => "🛒",
-            "maintenance" => "🛠",
-            "consult" => "🔎",
-            "calendar" => "🗓",
-            "physical" => "📦",
-            "reconcile" => "⚖",
-            "document" => "📄",
-            "reports" => "📈",
+            "home" => "⌂",
+            "dashboard" => "▦",
+            "mytools" => "◫",
+            "inventory" => "▤",
+            "location" => "⌖",
+            "assign" => "↔",
+            "history" => "◷",
+            "life" => "▥",
+            "damage" => "!",
+            "purchase" => "＋",
+            "maintenance" => "⌁",
+            "consult" => "⌕",
+            "calendar" => "□",
+            "physical" => "◉",
+            "reconcile" => "≋",
+            "document" => "▱",
+            "reports" => "▦",
             "settings" => "⚙",
             _ => "•"
         };
     }
 
-    public void Dispose()
+    private string GetInitials()
     {
-        Navigation.LocationChanged -= OnLocationChanged;
+        var value =
+            DisplayName.Split(
+                ' ',
+                StringSplitOptions.RemoveEmptyEntries);
+
+        if (value.Length == 0)
+        {
+            return "N";
+        }
+
+        if (value.Length == 1)
+        {
+            return value[0]
+                .Substring(
+                    0,
+                    Math.Min(
+                        2,
+                        value[0].Length))
+                .ToUpperInvariant();
+        }
+
+        return string.Concat(
+                value[0][0],
+                value[^1][0])
+            .ToUpperInvariant();
     }
 
-    private sealed record FloatingMenuGroup(
-        string Title,
-        List<FloatingMenuItem> Items);
+    private void OnAuthChanged()
+    {
+        if (isDisposed)
+        {
+            return;
+        }
 
-    private sealed record FloatingMenuItem(
+        _ = InvokeAsync(
+            StateHasChanged);
+    }
+
+    private void OnHeaderStateChanged()
+    {
+        _ = InvokeAsync(
+            StateHasChanged);
+    }
+
+    private void OnLocationChanged(
+        object? sender,
+        LocationChangedEventArgs args)
+    {
+        CloseMenus();
+        ApplyRouteFallback();
+
+        _ = InvokeAsync(
+            async () =>
+            {
+                await RefreshLoanNotificationsAsync();
+                StateHasChanged();
+            });
+    }
+
+    private void ApplyRouteFallback()
+    {
+        var presentation =
+            GetFallbackPresentation();
+
+        HeaderState.Reset(
+            presentation.Title,
+            presentation.Description);
+    }
+
+    private PagePresentation
+        GetFallbackPresentation()
+    {
+        var path = GetCurrentPath();
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return new(
+                "Inicio",
+                "Accesos principales de NAVI.");
+        }
+
+        if (path == "mobile/dashboard")
+        {
+            return new(
+                "Dashboard",
+                "Indicadores de herramientas y activos.");
+        }
+
+        if (path == "my-tools")
+        {
+            return new(
+                "Mis activos asignados",
+                "Activos relacionados con tu usuario.");
+        }
+
+        if (path == "all-tools")
+        {
+            return new(
+                "Inventario de Herramientas y AF",
+                "Consulta general del inventario.");
+        }
+
+        if (path == "mobile/availability")
+        {
+            return new(
+                "Disponible y Ubicación",
+                "Gestión de disponibilidad y ubicación.");
+        }
+
+        if (path == "mobile/assignment")
+        {
+            return new(
+                "Asignación y préstamos",
+                "Solicitudes, entregas y devoluciones.");
+        }
+
+        if (path == "mobile/history")
+        {
+            return new(
+                "Historial de asignaciones",
+                "Movimientos y préstamos registrados.");
+        }
+
+        if (path == "mobile/life-records")
+        {
+            return new(
+                "Hojas de vida",
+                "Información técnica de los activos.");
+        }
+
+        if (path == "mobile/purchases")
+        {
+            return new(
+                "Solicitud de compra",
+                "Compras de herramientas y activos.");
+        }
+
+        if (path == "mobile/maintenance-request")
+        {
+            return new(
+                "Solicitud de mantenimiento",
+                "Gestión de servicios técnicos.");
+        }
+
+        if (path == "mobile/maintenance")
+        {
+            return new(
+                "Consulta Compras y Mtto.",
+                "Consulta de procesos operativos.");
+        }
+
+        if (path == "mobile/maintenance-plans")
+        {
+            return new(
+                "Planes de mantenimiento",
+                "Programación y seguimiento.");
+        }
+
+        if (path.StartsWith(
+                "mobile/physical-counts",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return new(
+                "Tomas físicas",
+                "Conteo y validación de activos.");
+        }
+
+        if (path == "mobile/reconciliation")
+        {
+            return new(
+                "Conciliación",
+                "Validación de diferencias.");
+        }
+
+        if (path == "mobile/documents")
+        {
+            return new(
+                "Documentos",
+                "Gestión documental y evidencias.");
+        }
+
+        if (path == "mobile/reports")
+        {
+            return new(
+                "Reportes",
+                "Indicadores ejecutivos y operativos.");
+        }
+
+        if (path == "mobile/settings")
+        {
+            return new(
+                "Configuración",
+                "Información y parámetros personales.");
+        }
+
+        if (path.StartsWith(
+                "report-damage",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return new(
+                "Reportar novedad",
+                "Daño, falla o condición insegura.");
+        }
+
+        if (path.StartsWith(
+                "tools/",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            if (path.Contains(
+                    "life-record",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return new(
+                    "Hoja de vida",
+                    "Información técnica del activo.");
+            }
+
+            return new(
+                "Detalle del activo",
+                "Información general y operativa.");
+        }
+
+        return new(
+            "NAVI Herramientas y Activos",
+            "Gestión móvil de herramientas y activos.");
+    }
+
+    private static string DisplayOr(
+        string? value,
+        string fallback)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? fallback
+            : value.Trim();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (isDisposed)
+        {
+            return;
+        }
+
+        isDisposed = true;
+
+        Auth.OnChange -= OnAuthChanged;
+
+        Navigation.LocationChanged -=
+            OnLocationChanged;
+
+        HeaderState.OnChange -=
+            OnHeaderStateChanged;
+
+        NotificationState.OnRefreshRequested -=
+            OnNotificationRefreshRequested;
+
+        notificationCancellation.Cancel();
+
+        if (notificationRefreshLoopTask is not null)
+        {
+            try
+            {
+                await notificationRefreshLoopTask;
+            }
+            catch
+            {
+            }
+        }
+
+        if (jsRegistered)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync(
+                    "naviMobileShellHeader.unregister",
+                    HeaderRootId);
+            }
+            catch
+            {
+            }
+        }
+
+        dotNetReference?.Dispose();
+        notificationRefreshLock.Dispose();
+        notificationCancellation.Dispose();
+    }
+
+    private sealed record MobileMenuGroup(
+        string Title,
+        List<MobileMenuItem> Items);
+
+    private sealed record MobileMenuItem(
         string IconKey,
         string Title,
         string Url,
+        string Description);
+
+    private sealed record PagePresentation(
+        string Title,
         string Description);
 }

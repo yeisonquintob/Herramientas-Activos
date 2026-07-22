@@ -11,20 +11,90 @@
 
 <PageTitle>Documentos - NAVI Herramientas</PageTitle>
 
+<div class="navi-life-record-subpage navi-life-record-subpage--documents">
+
+
+
+@* NAVI LIFE RECORD SUBPAGE STANDARD V76 DOCUMENTS START *@
+
 <NaviPageHero
     Pill="ACTIVOS FIJOS"
     Title="Gestión de documentos"
-    Description="Carga fichas técnicas, fotografías, evidencias y documentos asociados a la herramienta.">
+    Description="Carga fichas técnicas, fotografías, evidencias y documentos asociados a la herramienta." />
 
-    <button type="button" @onclick="GoBack" data-ntx-tone="primary" >
-        ← Volver a hoja de vida
-    </button>
+<NaviKpiToolbar
+    Class="navi-life-record-subpage-toolbar
+           navi-life-record-subpage-toolbar--documents"
+    Refresh="LoadAsync"
+    IsRefreshing="isLoading"
+    RefreshTitle="Actualizar documentos"
+    RefreshAriaLabel="Actualizar documentos">
 
-    <button type="button" @onclick="LoadAsync" disabled="@isLoading" data-ntx-tone="primary" >
-        @(isLoading ? "Cargando..." : "Recargar")
-    </button>
+    <div class="navi-life-record-subpage-toolbar__body">
 
-</NaviPageHero>
+        <NaviKpiGrid
+            Columns="3"
+            Compact="true"
+            Dividers="true"
+            Class="navi-life-record-subpage-kpis">
+
+            <NaviKpiCard
+                Title="Código interno"
+                Description="Identificación del activo"
+                Value="@internalCode"
+                Tone="neutral"
+                Compact="true">
+
+                <IconContent>
+                    <NaviKpiIcon Name="inventory" />
+                </IconContent>
+
+            </NaviKpiCard>
+
+            <NaviKpiCard
+                Title="Activo"
+                Description="Hoja de vida técnica"
+                Value="@toolName"
+                Tone="soft"
+                Compact="true"
+                     Class="navi-life-record-kpi-asset">
+
+                <IconContent>
+                    <NaviKpiIcon Name="document" />
+                </IconContent>
+
+            </NaviKpiCard>
+
+            <NaviKpiCard
+                Title="Documentos"
+                Description="Soportes asociados"
+                Value="@documents.Count.ToString()"
+                Tone="positive"
+                Compact="true">
+
+                <IconContent>
+                    <NaviKpiIcon Name="document" />
+                </IconContent>
+
+            </NaviKpiCard>
+
+        </NaviKpiGrid>
+
+        <a class="navi-life-record-subpage-back"
+           href="@($"/tools/{ToolId}/technical-life-record")"
+           aria-label="Volver a hoja de vida"
+           data-ntx-tone="secondary">
+
+            <span aria-hidden="true">←</span>
+            <span>Volver a hoja de vida</span>
+
+        </a>
+
+    </div>
+
+</NaviKpiToolbar>
+
+@* NAVI LIFE RECORD SUBPAGE STANDARD V76 DOCUMENTS END *@
 
 @if (!string.IsNullOrWhiteSpace(errorMessage))
 {
@@ -49,8 +119,8 @@
 
         <div class="edit-form-grid">
             <div>
-                <label>Tipo de documento</label>
-                <InputSelect class="form-select" @bind-Value="formModel.DocumentType">
+                <label for="navi-tooldocumentsmanage-control-001">Tipo de documento</label>
+                <InputSelect class="form-select" @bind-Value="formModel.DocumentType" id="navi-tooldocumentsmanage-control-001">
                     <option value="TechnicalDocument">Ficha técnica / Documento técnico</option>
                     <option value="PhotographicRecord">Registro fotográfico</option>
                     <option value="MaintenanceEvidence">Evidencia de mantenimiento</option>
@@ -59,16 +129,16 @@
             </div>
 
             <div>
-                <label>Archivo</label>
-                <InputFile class="form-control" OnChange="OnFileSelected" />
+                <label for="navi-tooldocumentsmanage-control-002">Archivo</label>
+                <InputFile class="form-control" OnChange="OnFileSelected" id="navi-tooldocumentsmanage-control-002" />
             </div>
         </div>
 
         <div class="mt-3">
-            <label>Descripción</label>
+            <label for="navi-tooldocumentsmanage-control-003">Descripción</label>
             <InputTextArea class="form-control technical-observation"
                            @bind-Value="formModel.Description"
-                           placeholder="Ej: Ficha técnica del equipo, evidencia de mantenimiento, foto del estado actual..." />
+                           placeholder="Ej: Ficha técnica del equipo, evidencia de mantenimiento, foto del estado actual..." id="navi-tooldocumentsmanage-control-003" />
         </div>
 
         @if (selectedFile is not null)
@@ -80,7 +150,7 @@
         }
 
         <div class="technical-edit-actions static-actions mt-3">
-            <button type="button" class="btn btn-primary" @onclick="UploadAsync" disabled="@isSaving" data-ntx-tone="primary" >
+            <button type="button" class="btn ntx-btn--operation" @onclick="UploadAsync" disabled="@isSaving" data-ntx-tone="affirmative" >
                 @(isSaving ? "Cargando..." : "Cargar documento")
             </button>
         </div>
@@ -98,7 +168,7 @@
 
         @if (isLoading)
         {
-            <div class="alert alert-info mb-0">Cargando documentos...</div>
+            <div class="alert alert-info mb-0" role="status" aria-busy="true">Cargando documentos...</div>
         }
         else if (documents.Count == 0)
         {
@@ -132,13 +202,13 @@
                             </div>
 
                             <div class="d-flex gap-1 flex-wrap mt-2">
-                                <a class="btn btn-sm btn-outline-primary"
+                                <a class="btn btn-sm ntx-btn--operation"
                                    href="@BuildDownloadUrl(item.DownloadUrl)"
-                                   target="_blank" data-ntx-tone="danger" >
+                                   target="_blank" data-ntx-tone="operation" >
                                     Descargar
                                 </a>
 
-                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(item)" data-ntx-tone="danger" >
+                                <button class="btn btn-sm ntx-btn--danger" @onclick="() => DeleteAsync(item)" data-ntx-tone="danger" >
                                     Desactivar
                                 </button>
                             </div>
@@ -148,6 +218,9 @@
             </div>
         }
     </section>
+</div>
+
+
 </div>
 
 @code {

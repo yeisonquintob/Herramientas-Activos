@@ -8,41 +8,59 @@
 
 <PageTitle>Roles y permisos - NAVI</PageTitle>
 
-<NaviPageHero
-    Pill="SEGURIDAD"
-    Title="Roles y permisos"
-    Description="Define qué puede ver, crear, editar, aprobar, rechazar, reportar, exportar o administrar cada rol del sistema NAVI.">
+<section class="rolesx-page-standard">
+    @* NAVI V181 - STANDARD HEADER, KPI AND NATURAL CARD WORKSPACE *@
 
-    <a href="/settings">
-        Volver a Configuración
-    </a>
+    <NaviPageHero
+        Pill="SEGURIDAD"
+        Title="Roles y permisos"
+        Description="Define qué puede ver, crear, editar, aprobar, rechazar, reportar, exportar o administrar cada rol del sistema NAVI." />
 
-</NaviPageHero>
+    <div class="rolesx-standard-kpi-row">
+        <NaviKpiGrid
+            Columns="4"
+            Compact="true"
+            Dividers="true"
+            Class="rolesx-kpis rolesx-kpis--standard">
 
-<section class="rolesx-kpis">
-    <article>
-        <span>Permisos definidos</span>
-        <strong>@AllPermissions.Count</strong>
-        <small>Matriz funcional</small>
-    </article>
+            <NaviKpiCard
+                Title="Permisos definidos"
+                Value="@AllPermissions.Count.ToString()"
+                Description="Matriz funcional"
+                Tone="neutral"
+                Compact="true" />
 
-    <article class="success">
-        <span>Plantillas</span>
-        <strong>@roleTemplates.Count</strong>
-        <small>Perfiles rápidos</small>
-    </article>
+            <NaviKpiCard
+                Title="Plantillas"
+                Value="@roleTemplates.Count.ToString()"
+                Description="Perfiles rápidos"
+                Tone="soft"
+                Compact="true" />
 
-    <article class="warning">
-        <span>Seleccionados</span>
-        <strong>@selectedPermissions.Count</strong>
-        <small>Rol actual</small>
-    </article>
+            <NaviKpiCard
+                Title="Seleccionados"
+                Value="@selectedPermissions.Count.ToString()"
+                Description="Rol actual"
+                Tone="warning"
+                Compact="true" />
 
-    <article class="primary">
-        <span>Modo</span>
-        <strong>@(CanManageRoles ? "Edición" : "Consulta")</strong>
-        <small>@(CanManageRoles ? "Puede modificar" : "Solo lectura")</small>
-    </article>
+            <NaviKpiCard
+                Title="Modo"
+                Value="@(CanManageRoles ? "Edición" : "Consulta")"
+                Description="@(CanManageRoles ? "Puede modificar" : "Solo lectura")"
+                Tone="neutral"
+                Compact="true" />
+
+        </NaviKpiGrid>
+
+        <NaviActionButton
+            Href="/settings"
+            Tone="secondary"
+            Size="small"
+            Class="rolesx-standard-back">
+            Volver a Configuración
+        </NaviActionButton>
+    </div>
 </section>
 
 @if (!string.IsNullOrWhiteSpace(message))
@@ -50,8 +68,12 @@
     <div class="@messageClass rolesx-message">@message</div>
 }
 
-<section class="rolesx-workspace rolesx-workspace-three">
-    <aside class="rolesx-card rolesx-left">
+<section class="rolesx-workspace rolesx-workspace-v181"
+         data-navi-layout="roles-natural-standard">
+
+    <div class="rolesx-management-grid">
+
+<aside class="rolesx-card rolesx-left">
         <div class="rolesx-card-title">
             <div>
                 <h3>@(editingId is null ? "Crear rol" : "Editar rol")</h3>
@@ -64,49 +86,55 @@
 
             <div class="rolesx-form-grid">
                 <div>
-                    <label>Código del rol</label>
+                    <label for="navi-settingsroles-control-001">Código del rol</label>
                     <InputText class="form-control"
                                @bind-Value="formModel.Code"
                                placeholder="TECNICO, HERRAMIENT, COORD_TALLER"
-                               disabled="@(!CanManageRoles)" />
+                               disabled="@(!CanManageRoles)" id="navi-settingsroles-control-001" />
                 </div>
 
                 <div>
-                    <label>Nombre</label>
+                    <label for="navi-settingsroles-control-002">Nombre</label>
                     <InputText class="form-control"
                                @bind-Value="formModel.Name"
                                placeholder="Técnico, Herramientero, Coordinador"
-                               disabled="@(!CanManageRoles)" />
+                               disabled="@(!CanManageRoles)" id="navi-settingsroles-control-002" />
                 </div>
 
                 <div class="span-2">
-                    <label>Descripción</label>
+                    <label for="navi-settingsroles-control-004">Descripción</label>
                     <InputTextArea class="form-control"
                                    @bind-Value="formModel.Description"
                                    rows="3"
                                    placeholder="Describe el alcance del rol dentro del proceso."
-                                   disabled="@(!CanManageRoles)" />
+                                   disabled="@(!CanManageRoles)" name="navi-settingsroles-field-005" id="navi-settingsroles-control-004" />
                 </div>
 
-                <div class="rolesx-check-row span-2">
-                    <InputCheckbox class="form-check-input"
-                                   @bind-Value="formModel.IsActive"
-                                   disabled="@(!CanManageRoles)" />
-                    <label>Rol activo</label>
+                <div class="rolesx-check-row rolesx-check-row--final span-2">
+                    <input type="checkbox"
+                           class="rolesx-role-active-checkbox-final"
+                           @bind="formModel.IsActive"
+                           disabled="@(!CanManageRoles)"
+                           name="navi-settingsroles-field-001"
+                           id="navi-settingsroles-control-003" />
+
+                    <label for="navi-settingsroles-control-003">
+                        Rol activo
+                    </label>
                 </div>
             </div>
 
             <div class="rolesx-actions">
                 @if (CanManageRoles)
                 {
-                    <button type="submit" data-ntx-tone="primary" >Guardar matriz del rol</button>
+                    <button type="submit" data-ntx-tone="affirmative" >Guardar matriz del rol</button>
                 }
                 else
                 {
                     <span class="rolesx-denied">Solo consulta</span>
                 }
 
-                <button type="button" class="secondary" @onclick="ClearForm" data-ntx-tone="primary" >Limpiar</button>
+                <button type="button" class="secondary" @onclick="ClearForm" data-ntx-tone="secondary" >Limpiar</button>
             </div>
         </EditForm>
 
@@ -125,7 +153,7 @@
                 <button type="button"
                         class="@GetTemplateClass(template.Code)"
                         @onclick="() => SelectProfile(template.Code)"
-                        disabled="@(!CanManageRoles)" data-ntx-tone="secondary" >
+                        disabled="@(!CanManageRoles)" data-ntx-tone="ghost" >
                     <span>@template.Icon</span>
 
                     <div>
@@ -156,27 +184,27 @@
             </div>
         </div>
 
-        <div class="rolesx-summary-grid">
-            <div>
+        <NaviKpiGrid Class="rolesx-summary-grid">
+            <NaviKpiCard>
                 <span>Ver</span>
                 <strong>@CountByKind("View")</strong>
-            </div>
+            </NaviKpiCard>
 
-            <div>
+            <NaviKpiCard>
                 <span>Crear</span>
                 <strong>@CountByKind("Create", "Request")</strong>
-            </div>
+            </NaviKpiCard>
 
-            <div>
+            <NaviKpiCard>
                 <span>Editar</span>
                 <strong>@CountByKind("Edit", "Manage", "Execute", "Assign", "Return")</strong>
-            </div>
+            </NaviKpiCard>
 
-            <div>
+            <NaviKpiCard>
                 <span>Aprobar</span>
                 <strong>@CountByKind("Approve", "Close")</strong>
-            </div>
-        </div>
+            </NaviKpiCard>
+        </NaviKpiGrid>
 
         <div class="rolesx-separator"></div>
 
@@ -200,124 +228,66 @@
 
         <div class="rolesx-separator"></div>
 
-        <div class="rolesx-card-title compact">
+        <div class="rolesx-card-title compact rolesx-selected-title">
             <div>
                 <h3>Permisos seleccionados</h3>
                 <p>@selectedPermissions.Count permiso(s) en el rol actual.</p>
             </div>
+
+            <button type="button"
+                    class="rolesx-selected-toggle"
+                    aria-controls="roles-selected-permissions"
+                    aria-expanded="@showSelectedPermissions"
+                    @onclick="() => showSelectedPermissions = !showSelectedPermissions"
+                    data-ntx-tone="@(showSelectedPermissions ? "operation" : "secondary")">
+                @(showSelectedPermissions ? "Ocultar" : "Mostrar")
+            </button>
         </div>
 
-        <div class="rolesx-selected-list">
-            @if (selectedPermissions.Count == 0)
-            {
-                <div class="rolesx-empty small">Sin permisos seleccionados.</div>
-            }
-            else
-            {
-                @foreach (var permission in selectedPermissions.OrderBy(x => x))
+        @if (showSelectedPermissions)
+        {
+            <div id="roles-selected-permissions"
+                 class="rolesx-selected-list">
+
+                @if (selectedPermissions.Count == 0)
                 {
-                    <span>@permission</span>
+                    <div class="rolesx-empty small">
+                        Sin permisos seleccionados.
+                    </div>
                 }
-            }
-        </div>
+                else
+                {
+                    @foreach (var permission in selectedPermissions.OrderBy(GetPermissionDisplayName))
+                    {
+                        <span class="rolesx-selected-permission"
+                              title="@permission">
+                            @GetPermissionDisplayName(permission)
+                        </span>
+                    }
+                }
+            </div>
+        }
         </section>
 
     </aside>
 
-    <main class="rolesx-main">
-        <article class="rolesx-card">
-            <div class="rolesx-card-title">
-                <div>
-                    <h3>Matriz de acción por módulo</h3>
-                    <p>Permisos separados por ver, crear, editar, aprobar, rechazar, reportar, exportar y administrar.</p>
-                </div>
-
-                <div class="rolesx-tools">
-                    <input class="form-control"
-                           placeholder="Buscar permiso, módulo o acción..."
-                           @bind="permissionSearch"
-                           @bind:event="oninput" />
-
-                    <div class="rolesx-tool-actions">
-                        <button type="button" class="soft" @onclick="ExpandAllPermissionGroups" data-ntx-tone="secondary" >Mostrar todo</button>
-                        <button type="button" class="soft" @onclick="CollapseAllPermissionGroups" data-ntx-tone="danger" >Ocultar todo</button>
-                        <button type="button" @onclick="SelectAdminProfile" disabled="@(!CanManageRoles)" data-ntx-tone="danger" >Todo</button>
-                        <button type="button" class="danger-light" @onclick="ClearPermissions" disabled="@(!CanManageRoles)" data-ntx-tone="danger" >Quitar</button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="rolesx-legend">
-                <span><b class="view"></b> Ver / consultar</span>
-                <span><b class="create"></b> Crear / solicitar</span>
-                <span><b class="edit"></b> Editar / gestionar</span>
-                <span><b class="approve"></b> Aprobar / cerrar</span>
-                <span><b class="danger"></b> Eliminar / rechazar</span>
-                <span><b class="mobile"></b> Móvil / técnico</span>
-            </div>
-
-            <div class="rolesx-matrix">
-                @foreach (var group in FilteredPermissionGroups)
-                {
-                    <section class="@(IsGroupCollapsed(group) ? "rolesx-permission-group collapsed" : "rolesx-permission-group")">
-                        <header>
-                            <div>
-                                <span>@group.Area</span>
-                                <strong>@group.Title</strong>
-                                <small>@group.Permissions.Count permiso(s)</small>
-                            </div>
-
-                            <button type="button"
-                                    class="rolesx-collapse-btn"
-                                    @onclick="() => TogglePermissionGroup(group)" data-ntx-tone="secondary" >
-                                @(IsGroupCollapsed(group) ? "Ver" : "Ocultar")
-                            </button>
-                        </header>
-
-                        @if (!IsGroupCollapsed(group))
-                        {
-                            <div class="rolesx-permission-list">
-                                @foreach (var permission in group.Permissions)
-                                {
-                                    <label class="@GetPermissionClass(permission)">
-                                        <input type="checkbox"
-                                               checked="@IsPermissionSelected(permission.Code)"
-                                               disabled="@(!CanManageRoles)"
-                                               @onchange="args => TogglePermission(permission.Code, args.Value)" />
-
-                                        <span>
-                                            <strong>@permission.Name</strong>
-                                            <small>@permission.Code</small>
-                                        </span>
-
-                                        <em>@permission.Scope</em>
-                                    </label>
-                                }
-                            </div>
-                        }
-                    </section>
-                }
-            </div>
-        </article>
-</main>
-
-    <aside class="rolesx-card rolesx-right rolesx-registered-panel">
+<aside class="rolesx-card rolesx-right rolesx-registered-panel">
         <div class="rolesx-card-title rolesx-registered-title">
             <div>
                 <h3>Roles registrados</h3>
-                <p>Perfiles guardados y permisos activos.</p>
+                <p>Perfiles guardados y estado actual.</p>
             </div>
 
-            <button class="rolesx-light-btn" type="button" @onclick="LoadAsync" data-ntx-tone="secondary" >
+            <button class="rolesx-light-btn rolesx-refresh-btn" type="button" @onclick="LoadAsync" data-ntx-tone="refresh" >
                 Actualizar
             </button>
         </div>
 
         <div class="rolesx-registered-filter">
             <input class="form-control form-control-sm"
-                   placeholder="Buscar rol, nombre, perfil, permiso o estado..."
+                   placeholder="Buscar rol, nombre, perfil o estado..."
                    @bind="registeredRoleSearchText"
-                   @bind:event="oninput" />
+                   @bind:event="oninput" name="navi-settingsroles-field-004" />
 
             @if (!string.IsNullOrWhiteSpace(registeredRoleSearchText))
             {
@@ -329,7 +299,7 @@
 
         @if (isLoading)
         {
-            <div class="rolesx-empty">Cargando roles...</div>
+            <div class="rolesx-empty" role="status" aria-busy="true">Cargando roles...</div>
         }
         else if (!FilteredRegisteredRoles.Any())
         {
@@ -364,10 +334,8 @@
                             </div>
                         </div>
 
-                        <p>@GetRolePermissionPreview(role)</p>
-
                         <div class="rolesx-role-card-actions">
-                            <button type="button" @onclick="() => Edit(role)" disabled="@(!CanManageRoles)" data-ntx-tone="danger" >
+                            <button type="button" @onclick="() => Edit(role)" disabled="@(!CanManageRoles)" data-ntx-tone="operation" >
                                 Editar
                             </button>
 
@@ -380,6 +348,98 @@
             </div>
         }
     </aside>
+
+    </div>
+
+<main class="rolesx-main">
+        <article class="rolesx-card">
+            <div class="rolesx-card-title">
+                <div>
+                    <h3>Matriz de acción por módulo</h3>
+                    <p>Permisos separados por ver, crear, editar, aprobar, rechazar, reportar, exportar y administrar.</p>
+                </div>
+
+                <div class="rolesx-tools">
+                    <input class="form-control"
+                           placeholder="Buscar permiso, módulo o acción..."
+                           @bind="permissionSearch"
+                           @bind:event="oninput" name="navi-settingsroles-field-002" />
+
+                    <div class="rolesx-tool-actions">
+                        <button type="button" class="soft" aria-controls="roles-permission-groups" @onclick="ExpandAllPermissionGroups" data-ntx-tone="secondary" >Mostrar todo</button>
+                        <button type="button" class="soft" aria-controls="roles-permission-groups" @onclick="CollapseAllPermissionGroups" data-ntx-tone="operation" >Ocultar todo</button>
+                        <button type="button" @onclick="SelectAdminProfile" disabled="@(!CanManageRoles)" data-ntx-tone="affirmative" >Todo</button>
+                        <button type="button" class="danger-light" @onclick="ClearPermissions" disabled="@(!CanManageRoles)" data-ntx-tone="danger" >Quitar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rolesx-legend">
+                <span><b class="view"></b> Ver / consultar</span>
+                <span><b class="create"></b> Crear / solicitar</span>
+                <span><b class="edit"></b> Editar / gestionar</span>
+                <span><b class="approve"></b> Aprobar / cerrar</span>
+                <span><b class="danger"></b> Eliminar / rechazar</span>
+                <span><b class="mobile"></b> Móvil / técnico</span>
+            </div>
+
+            <div id="roles-permission-groups" class="rolesx-matrix rolesx-matrix--compact" data-navi-density="compact">
+                @* NAVI V182 - COMPACT PERMISSION MATRIX *@
+                @foreach (var group in FilteredPermissionGroups)
+                {
+                    <section class="@(IsGroupCollapsed(group) ? "rolesx-permission-group collapsed" : "rolesx-permission-group")">
+                        <header>
+                            <div>
+                                <span>@group.Area</span>
+                                <strong>@group.Title</strong>
+                                <small>@group.Permissions.Count permiso(s)</small>
+                            </div>
+
+                            <button type="button"
+                                    class="@(
+                                        IsGroupCollapsed(group)
+                                            ? "rolesx-collapse-btn rolesx-collapse-btn--view"
+                                            : "rolesx-collapse-btn rolesx-collapse-btn--hide"
+                                    )"
+                                    aria-expanded="@(!IsGroupCollapsed(group))"
+                                    aria-controls="@($"roles-permission-{Uri.EscapeDataString(GetGroupKey(group))}")"
+                                    @onclick="() => TogglePermissionGroup(group)"
+                                    data-ntx-tone="@(
+                                        IsGroupCollapsed(group)
+                                            ? "secondary"
+                                            : "operation"
+                                    )" >
+                                @(IsGroupCollapsed(group) ? "Ver" : "Ocultar")
+                            </button>
+                        </header>
+
+                        @if (!IsGroupCollapsed(group))
+                        {
+                            <div id="@($"roles-permission-{Uri.EscapeDataString(GetGroupKey(group))}")" class="rolesx-permission-list">
+                                @foreach (var permission in group.Permissions)
+                                {
+                                    <label class="@GetPermissionClass(permission)">
+                                        <input type="checkbox"
+                                               checked="@IsPermissionSelected(permission.Code)"
+                                               disabled="@(!CanManageRoles)"
+                                               @onchange="args => TogglePermission(permission.Code, args.Value)" name="navi-settingsroles-field-003" />
+
+                                        <span>
+                                            <strong>@permission.Name</strong>
+                                            <small>@permission.Code</small>
+                                        </span>
+
+                                        <em>@permission.Scope</em>
+                                    </label>
+                                }
+                            </div>
+                        }
+                    </section>
+                }
+            </div>
+        </article>
+</main>
+
 </section>
 
 
@@ -387,6 +447,7 @@
 @code {
 
     private string registeredRoleSearchText = string.Empty;
+    private bool showSelectedPermissions = true;
 
     private IEnumerable<RoleDto> FilteredRegisteredRoles =>
         roles
@@ -406,7 +467,7 @@
                ContainsRoleText(role.Name, term) ||
                ContainsRoleText(role.Description, term) ||
                ContainsRoleText(GetRoleProfileName(role), term) ||
-               ContainsRoleText(GetRolePermissionPreview(role), term) ||
+               
                ContainsRoleText(role.IsActive ? "Activo" : "Inactivo", term);
     }
 
@@ -805,6 +866,25 @@
         return roleTemplates.FirstOrDefault(x =>
             string.Equals(x.RoleCode, code, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase))?.Code ?? string.Empty;
+    }
+
+    private string GetPermissionDisplayName(string permissionCode)
+    {
+        if (string.IsNullOrWhiteSpace(permissionCode))
+        {
+            return "Permiso sin identificar";
+        }
+
+        var permission = permissionGroups
+            .SelectMany(group => group.Permissions)
+            .FirstOrDefault(item =>
+                string.Equals(
+                    item.Code,
+                    permissionCode,
+                    StringComparison.OrdinalIgnoreCase
+                ));
+
+        return permission?.Name ?? "Permiso no catalogado";
     }
 
     private string GetRoleProfileName(RoleDto role)

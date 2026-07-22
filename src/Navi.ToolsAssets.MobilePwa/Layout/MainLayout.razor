@@ -2,23 +2,38 @@
 @inject MobileAuthSessionService Auth
 @inject NavigationManager Navigation
 
-<div class="mobile-shell navi-mobile-standard-shell">
-    <main class="mobile-main">
+<div class="@LayoutCssClass">
+    <a class="navi-mobile-skip-link"
+       href="#navi-mobile-main-content">
+        Ir al contenido principal
+    </a>
+
+    <NaviMobileFloatingMenu />
+
+    <main class="mobile-main"
+          id="navi-mobile-main-content"
+          tabindex="-1">
         @if (!isReady)
         {
             <section class="mobile-page">
-                <NaviMobileEmptyState Pill="SESIÓN"
-                                      Title="Validando permisos"
-                                      Description="Estamos verificando tu acceso móvil." />
+                <NaviMobileEmptyState
+                    Pill="SESIÓN"
+                    Title="Validando permisos"
+                    Description="Estamos verificando tu acceso móvil." />
             </section>
         }
         else if (IsRouteDenied)
         {
             <section class="mobile-page">
-                <NaviMobileEmptyState Pill="SEGURIDAD"
-                                      Title="Acceso restringido"
-                                      Description="No tienes permiso para visualizar esta pantalla en la app móvil.">
-                    <NaviMobileActionButton Tone="primary" OnClick="GoHome" Block="true">
+                <NaviMobileEmptyState
+                    Pill="SEGURIDAD"
+                    Title="Acceso restringido"
+                    Description="No tienes permiso para visualizar esta pantalla en la aplicación móvil.">
+
+                    <NaviMobileActionButton
+                        Tone="secondary"
+                        OnClick="GoHome"
+                        Block="true">
                         Volver al inicio
                     </NaviMobileActionButton>
                 </NaviMobileEmptyState>
@@ -29,17 +44,50 @@
             @Body
         }
     </main>
-
-    @if (isReady && Auth.IsAuthenticated)
-    {
-        <NaviMobileFloatingMenu />
-    }
-
-    <NavMenu />
 </div>
 
 @code {
     private bool isReady;
+
+    // NAVI MOBILE LAYOUT VISUAL STATE START
+
+    private string LayoutCssClass =>
+        ShowGlobalHeader
+            ? "mobile-shell navi-mobile-standard-shell navi-mobile-layout--with-header"
+            : "mobile-shell navi-mobile-standard-shell navi-mobile-layout--without-header";
+
+    private bool ShowGlobalHeader
+    {
+        get
+        {
+            if (!isReady ||
+                !Auth.IsAuthenticated ||
+                !Auth.CanAccessMobile())
+            {
+                return false;
+            }
+
+            var path = GetLayoutPath();
+
+            return !path.Equals(
+                       "login",
+                       StringComparison.OrdinalIgnoreCase) &&
+                   !path.Equals(
+                       "logout",
+                       StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private string GetLayoutPath()
+    {
+        return Navigation
+            .ToBaseRelativePath(Navigation.Uri)
+            .Split('?', '#')[0]
+            .Trim('/')
+            .ToLowerInvariant();
+    }
+
+    // NAVI MOBILE LAYOUT VISUAL STATE END
 
     protected override async Task OnParametersSetAsync()
     {

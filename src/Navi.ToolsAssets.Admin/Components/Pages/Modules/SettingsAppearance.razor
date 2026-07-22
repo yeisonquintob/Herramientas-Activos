@@ -1,0 +1,427 @@
+@page "/settings/appearance"
+@rendermode InteractiveServer
+
+@using Navi.ToolsAssets.Admin.Components.Shared
+@using Navi.ToolsAssets.Admin.Services.Auth
+
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<PageTitle>Apariencia y accesibilidad - NAVI</PageTitle>
+
+<PermissionGuard Permission="Settings.View"
+                 ModuleName="Apariencia y accesibilidad">
+    <NaviPageHero Pill="SISTEMA"
+                  Title="Apariencia y accesibilidad"
+                  Description="Configura el tamaño del texto y el tema visual del aplicativo.">
+        <NaviActionButton Tone="secondary"
+                          Class="appearance-back"
+                          OnClick="GoBack">
+            Volver a configuración
+        </NaviActionButton>
+    </NaviPageHero>
+
+    @if (!isReady)
+    {
+        <section class="appearance-loading"
+                 role="status"
+                 aria-live="polite"
+                 aria-busy="true">
+            Cargando preferencias visuales...
+        </section>
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(message))
+        {
+            <div class="@MessageClass"
+                 role="@MessageRole"
+                 aria-live="@MessageLiveRegion">
+                @message
+            </div>
+        }
+
+        <section class="appearance-grid">
+            <article class="appearance-card">
+                <header>
+                    <span>TIPOGRAFÍA</span>
+                    <h2>Tamaño del texto</h2>
+                    <p>Modifica títulos, textos, botones, formularios, tablas y KPI.</p>
+                </header>
+
+                <div class="appearance-options"
+                     role="group"
+                     aria-label="Tamaño del texto">
+                    @foreach (var option in FontOptions)
+                    {
+                        <button type="button"
+                                class="@GetOptionClass(preferences.FontScale, option.Code)"
+                                data-ntx-tone="ghost"
+                                data-font-sample="@option.Code"
+                                aria-pressed="@IsSelected(preferences.FontScale, option.Code)"
+                                disabled="@isApplying"
+                                @onclick="() => SetFontAsync(option.Code)">
+                            <strong>@option.Name</strong>
+                            <span class="appearance-font-sample">Aa</span>
+                            <small>@option.Description</small>
+                        </button>
+                    }
+                </div>
+            </article>
+
+            <article class="appearance-card">
+                <header>
+                    <span>COLORES</span>
+                    <h2>Tema visual</h2>
+                    <p>Modifica superficies, botones, estados y colores para gráficas.</p>
+                </header>
+
+                <div class="appearance-options"
+                     role="group"
+                     aria-label="Tema visual">
+                    @foreach (var option in ThemeOptions)
+                    {
+                        <button type="button"
+                                class="@GetOptionClass(preferences.ColorTheme, option.Code)"
+                                data-ntx-tone="ghost"
+                                aria-pressed="@IsSelected(preferences.ColorTheme, option.Code)"
+                                disabled="@isApplying"
+                                @onclick="() => SetThemeAsync(option.Code)">
+                            <span class="theme-preview"
+                                  data-preview="@option.Code"
+                                  aria-hidden="true">
+                                <i></i><i></i><i></i><i></i>
+                            </span>
+                            <strong>@option.Name</strong>
+                            <small>@option.Description</small>
+                        </button>
+                    }
+                </div>
+            </article>
+        </section>
+
+        @* NAVI LOGIN APPEARANCE START *@
+        <LoginAppearanceSettings />
+        @* NAVI LOGIN APPEARANCE END *@
+
+        <section class="appearance-preview">
+            <header class="preview-header">
+                <div>
+                    <span>VISTA PREVIA</span>
+                    <h2>Estándar visual NAVI</h2>
+                    <p>Patrón oficial para KPI web: separadores, iconos centrados, Volver opcional y Actualizar.</p>
+                </div>
+
+                <NaviActionButton Tone="secondary"
+                                  Class="appearance-reset"
+                                  Disabled="isApplying"
+                                  OnClick="ResetAsync">
+                    Restablecer
+                </NaviActionButton>
+            </header>
+
+            <div class="appearance-web-preview">
+                @* NAVI APPEARANCE KPI CANONICAL STANDARD V71 START *@
+
+<div class="appearance-kpi-standard-row"
+     data-navi-kpi-standard="web">
+
+    <NaviKpiToolbar
+        Class="appearance-kpi-standard-toolbar"
+        Refresh="RefreshPreviewAsync"
+        RefreshTitle="Actualizar vista previa"
+        RefreshAriaLabel="Actualizar indicadores de vista previa">
+
+        <NaviKpiGrid
+            Columns="6"
+            Compact="true"
+            Dividers="true"
+            Class="appearance-kpi-standard-grid">
+
+            <NaviKpiCard
+                Title="Inventario"
+                Description="Activos visibles"
+                Value="183"
+                Tone="neutral">
+
+                <IconContent>
+                    <NaviKpiIcon Name="inventory" />
+                </IconContent>
+
+            </NaviKpiCard>
+
+            <NaviKpiCard
+                Title="Disponibles"
+                Description="Para asignación"
+                Value="4"
+                Tone="positive">
+
+                <IconContent>
+                    <NaviKpiIcon Name="check" />
+                </IconContent>
+
+            </NaviKpiCard>
+
+            <NaviKpiCard
+                Title="En uso"
+                Description="Asignadas"
+                Value="163"
+                Tone="soft">
+
+                <IconContent>
+                    <NaviKpiIcon Name="transfer" />
+                </IconContent>
+
+            </NaviKpiCard>
+
+            <NaviKpiCard
+                Title="Mantenimiento"
+                Description="Proceso técnico"
+                Value="5"
+                Tone="warning">
+
+                <IconContent>
+                    <NaviKpiIcon Name="wrench" />
+                </IconContent>
+
+            </NaviKpiCard>
+
+            <NaviKpiCard
+                Title="Por validar"
+                Description="Pendientes"
+                Value="1"
+                Tone="warning">
+
+                <IconContent>
+                    <NaviKpiIcon Name="clock" />
+                </IconContent>
+
+            </NaviKpiCard>
+
+            <NaviKpiCard
+                Title="Alertas"
+                Description="Requieren atención"
+                Value="15"
+                Tone="danger">
+
+                <IconContent>
+                    <NaviKpiIcon Name="alert" />
+                </IconContent>
+
+            </NaviKpiCard>
+
+        </NaviKpiGrid>
+
+    </NaviKpiToolbar>
+
+    <NaviActionButton
+        Tone="secondary"
+        Size="small"
+        Class="appearance-kpi-standard-back"
+        OnClick="GoBack"
+        aria-label="Volver a configuración">
+
+        <StartContent>
+
+            <svg viewBox="0 0 24 24"
+                 aria-hidden="true"
+                 focusable="false">
+
+                <path d="M19 12H5"></path>
+                <path d="M11 6L5 12L11 18"></path>
+
+            </svg>
+
+        </StartContent>
+
+        <ChildContent>
+            Volver
+        </ChildContent>
+
+    </NaviActionButton>
+
+</div>
+
+@* NAVI APPEARANCE KPI CANONICAL STANDARD V71 END *@
+
+                <div class="appearance-web-preview__body">
+                    <article class="preview-content">
+                        <h3>Inventario de Herramientas y AF</h3>
+                        <p>Consulta general de herramientas y activos.</p>
+                        <label for="preview-search">Buscar activo</label>
+                        <input id="preview-search"
+                               name="preview-search"
+                               value="AGU-CEL-HER-AGU"
+                               readonly />
+                    </article>
+
+                    <article class="preview-actions">
+                        <h3>Acciones</h3>
+                        <div class="action-grid">
+                            <NaviActionButton Tone="affirmative">Guardar</NaviActionButton>
+                            <NaviActionButton Tone="operation">Editar</NaviActionButton>
+                            <NaviActionButton Tone="consult">Consultar</NaviActionButton>
+                            <NaviActionButton Tone="warning">Regresar</NaviActionButton>
+                            <NaviActionButton Tone="danger">Rechazar</NaviActionButton>
+                            <NaviActionButton Tone="secondary">Volver</NaviActionButton>
+                            <NaviActionButton Tone="refresh">Actualizar</NaviActionButton>
+                            <NaviActionButton Tone="expand">Ocultar</NaviActionButton>
+                        </div>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <footer class="appearance-current">
+            <strong>Texto: @GetFontName()</strong>
+            <strong>Tema: @GetThemeName()</strong>
+            <span>Se conserva al actualizar el navegador.</span>
+        </footer>
+    }
+</PermissionGuard>
+
+@code {
+    private bool isReady;
+    private bool isApplying;
+    private bool messageIsError;
+    private string? message;
+    private UiPreferences preferences = new();
+
+    private string MessageClass =>
+        messageIsError
+            ? "appearance-message appearance-message--error"
+            : "appearance-message appearance-message--success";
+
+    private string MessageRole => messageIsError ? "alert" : "status";
+    private string MessageLiveRegion => messageIsError ? "assertive" : "polite";
+
+    private static IReadOnlyList<VisualOption> FontOptions { get; } =
+        new List<VisualOption>
+        {
+            new("compact", "Compacto", "Mayor densidad visual."),
+            new("normal", "Normal", "Base recomendada de 12 px."),
+            new("large", "Grande", "Lectura ampliada."),
+            new("extra-large", "Muy grande", "Mayor accesibilidad.")
+        };
+
+    private static IReadOnlyList<VisualOption> ThemeOptions { get; } =
+        new List<VisualOption>
+        {
+            new("normal", "Normal corporativo", "Paleta institucional NAVI."),
+            new("cold", "Colores fríos", "Grises y azules neutros."),
+            new("warm", "Colores cálidos", "Tonos tierra controlados."),
+            new("dark", "Colores oscuros", "Superficies oscuras.")
+        };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        try
+        {
+            preferences = await JS.InvokeAsync<UiPreferences>(
+                "naviUiPreferences.get");
+        }
+        catch
+        {
+            preferences = new UiPreferences();
+        }
+        finally
+        {
+            isReady = true;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private Task SetFontAsync(string value) =>
+        ApplyAsync(
+            "naviUiPreferences.setFontScale",
+            value,
+            $"Tamaño actualizado a {GetName(FontOptions, value)}.");
+
+    private Task SetThemeAsync(string value) =>
+        ApplyAsync(
+            "naviUiPreferences.setColorTheme",
+            value,
+            $"Tema actualizado a {GetName(ThemeOptions, value)}.");
+
+    private async Task ApplyAsync(string method, string value, string successMessage)
+    {
+        try
+        {
+            isApplying = true;
+            messageIsError = false;
+            message = null;
+            preferences = await JS.InvokeAsync<UiPreferences>(method, value);
+            message = successMessage;
+        }
+        catch (Exception ex)
+        {
+            messageIsError = true;
+            message = $"No se pudo aplicar la preferencia. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isApplying = false;
+        }
+    }
+
+    private async Task ResetAsync()
+    {
+        try
+        {
+            isApplying = true;
+            messageIsError = false;
+            message = null;
+            preferences = await JS.InvokeAsync<UiPreferences>(
+                "naviUiPreferences.reset");
+            message = "Apariencia restablecida.";
+        }
+        catch (Exception ex)
+        {
+            messageIsError = true;
+            message = $"No se pudo restablecer. Detalle: {ex.Message}";
+        }
+        finally
+        {
+            isApplying = false;
+        }
+    }
+
+    private Task RefreshPreviewAsync()
+    {
+        messageIsError = false;
+        message = "Vista previa actualizada.";
+        return Task.CompletedTask;
+    }
+
+    private static bool IsSelected(string? current, string? value) =>
+        string.Equals(current, value, StringComparison.OrdinalIgnoreCase);
+
+    private static string GetOptionClass(string? current, string value) =>
+        IsSelected(current, value)
+            ? "appearance-option selected"
+            : "appearance-option";
+
+    private string GetFontName() => GetName(FontOptions, preferences.FontScale);
+    private string GetThemeName() => GetName(ThemeOptions, preferences.ColorTheme);
+
+    private static string GetName(
+        IReadOnlyList<VisualOption> source,
+        string? code) =>
+        source.FirstOrDefault(option => IsSelected(option.Code, code))?.Name
+        ?? "Normal";
+
+    private void GoBack() => Navigation.NavigateTo("/settings");
+
+    private sealed class UiPreferences
+    {
+        public string FontScale { get; set; } = "normal";
+        public string ColorTheme { get; set; } = "normal";
+    }
+
+    private sealed record VisualOption(
+        string Code,
+        string Name,
+        string Description);
+}

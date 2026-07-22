@@ -19,14 +19,14 @@
 <section class="mobile-page navi-mobile-consult-v1">
     @if (isLoading && !initialized)
     {
-        <div class="mobile-loading">Cargando consulta...</div>
+        <div class="mobile-loading" role="status" aria-busy="true">Cargando consulta...</div>
     }
     else if (!Auth.IsAuthenticated)
     {
         <div class="mobile-empty">
             <strong>Sesión requerida</strong>
             <span>Debes iniciar sesión para consultar compras y mantenimientos.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="secondary" >Ir al login</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="ghost" >Ir al login</button>
         </div>
     }
     else if (!CanAccessModule)
@@ -57,79 +57,87 @@
             <div class="mobile-alert error">@errorMessage</div>
         }
 
-        <section class="mcon-kpis mcon-kpis-compact-v2">
-            <article>
+        <NaviMobileKpiOverflow PrimaryCount="3" OverflowCount="4" ButtonLabel="Mostrar indicadores adicionales">
+            <PrimaryContent>
+        <NaviMobileKpiGrid Class="mcon-kpis mcon-kpis-compact-v2">
+            <NaviMobileKpiCard>
                 <span>Total</span>
                 <strong>@FilteredItems.Count()</strong>
                 <small>Total</small>
-            </article>
+            </NaviMobileKpiCard>
 
-            <article>
+            <NaviMobileKpiCard>
                 <span>Compras</span>
                 <strong>@FilteredPurchases.Count()</strong>
                 <small>Compras</small>
-            </article>
+            </NaviMobileKpiCard>
 
-            <article>
+            <NaviMobileKpiCard>
                 <span>Mtto.</span>
                 <strong>@FilteredMaintenances.Count()</strong>
                 <small>Mtto.</small>
-            </article>
+            </NaviMobileKpiCard>
+        </NaviMobileKpiGrid>
+            </PrimaryContent>
+            <OverflowContent>
+        <NaviMobileKpiGrid Class="mcon-kpis mcon-kpis-compact-v2">
 
-            <article>
+            <NaviMobileKpiCard>
                 <span>En revisión</span>
                 <strong>@FilteredItems.Count(x => IsStatus(x, "InReview"))</strong>
                 <small>Por aprobar</small>
-            </article>
+            </NaviMobileKpiCard>
 
-            <article>
+            <NaviMobileKpiCard>
                 <span>Con costo</span>
                 <strong>@CostedItemsCount</strong>
                 <small>Con costo</small>
-            </article>
+            </NaviMobileKpiCard>
 
-            <article>
+            <NaviMobileKpiCard>
                 <span>Rechazadas</span>
                 <strong>@FilteredItems.Count(x => IsRejectedOrCanceled(x.Status))</strong>
                 <small>No costo</small>
-            </article>
+            </NaviMobileKpiCard>
 
-            <article>
+            <NaviMobileKpiCard>
                 <span>Costo</span>
                 <strong>@FormatMoney(TotalEstimatedCost)</strong>
                 <small>Estimado</small>
-            </article>
-        </section>
+            </NaviMobileKpiCard>
+        </NaviMobileKpiGrid>
+            </OverflowContent>
+        </NaviMobileKpiOverflow>
 
         <section class="mcon-card mcon-cost-summary-fixed">
             <header class="mcon-cost-summary-title">
                 <h2>Resumen de costos</h2>
             </header>
 
-<section class="mcon-cost-grid">
-                <article>
+<NaviMobileKpiGrid Class="mcon-cost-grid">
+                <NaviMobileKpiCard>
                     <span>Compras</span>
                     <strong>@FormatMoney(PurchaseCost)</strong>
                     <small>Promedio: @FormatMoney(PurchaseAverage)</small>
                     <small>Mayor: @FormatMoney(PurchaseMax)</small>
                     <small>Proveedores: @PurchaseProviders</small>
-                </article>
+                </NaviMobileKpiCard>
 
-                <article>
+                <NaviMobileKpiCard>
                     <span>Mantenimiento</span>
                     <strong>@FormatMoney(MaintenanceCost)</strong>
                     <small>Promedio: @FormatMoney(MaintenanceAverage)</small>
                     <small>Mayor: @FormatMoney(MaintenanceMax)</small>
                     <small>Proveedores: @MaintenanceProviders</small>
-                </article>
-            </section>
+                </NaviMobileKpiCard>
+            </NaviMobileKpiGrid>
         </section>
 
 
         <section class="mcon-filter-card">
             <label>
                 <span>Tipo</span>
-                <select @bind="typeFilter">
+                <select @bind="typeFilter" name="navi-mobilepurchasesmaintenanceconsultation-field-001">
                     <option value="all">Compra y mantenimiento</option>
                     <option value="purchase">Solo compras</option>
                     <option value="maintenance">Solo mantenimiento</option>
@@ -138,7 +146,7 @@
 
             <label>
                 <span>Estado</span>
-                <select @bind="statusFilter">
+                <select @bind="statusFilter" name="navi-mobilepurchasesmaintenanceconsultation-field-002">
                     <option value="all">Todos los estados</option>
                     <option value="Draft">Borrador</option>
                     <option value="InReview">En revisión</option>
@@ -153,7 +161,7 @@
 
             <label>
                 <span>Sede</span>
-                <select @bind="selectedBranchCode">
+                <select @bind="selectedBranchCode" name="navi-mobilepurchasesmaintenanceconsultation-field-003">
                     <option value="">Todas las sedes</option>
                     @foreach (var branch in branches.OrderBy(x => x.Code))
                     {
@@ -166,7 +174,7 @@
                 <span>Buscar</span>
                 <input @bind="searchText"
                        @bind:event="oninput"
-                       placeholder="Solicitud, activo, proveedor, técnico, sede..." />
+                       placeholder="Solicitud, activo, proveedor, técnico, sede..." name="navi-mobilepurchasesmaintenanceconsultation-field-004" />
             </label>
 
             <div class="mcon-filter-actions">
@@ -235,7 +243,7 @@
                             <p>@ShortText(selectedItem.AssetName, 80)</p>
                         </div>
 
-                        <button type="button" @onclick="CloseDetails" data-ntx-tone="secondary" >Cerrar</button>
+                        <button type="button" @onclick="CloseDetails" data-ntx-tone="ghost" >Cerrar</button>
                     </header>
 
                     <section class="mcon-modal-grid">

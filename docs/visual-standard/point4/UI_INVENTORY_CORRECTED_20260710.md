@@ -7,14 +7,14 @@ Fecha: 2026-07-11
 - Razor: 119 (82 Admin, 37 Mobile).
 - Archivos enrutados: 92 (67 Admin, 25 Mobile).
 - Directivas `@page`: 108.
-- Controles de formulario: 491 (240 HTML y 251 Blazor `Input*`).
+- Controles de formulario: 492 (241 HTML y 251 Blazor `Input*`).
 - Elementos de acción auditados: 545.
 - Acciones sin clasificación canónica: 0.
 
 ## Deuda visual
 
 - Archivos con `<style>`: 0; bloques: 0.
-- CSS personalizado, incluidos bloques `<style>`: 1,530,677 caracteres.
+- CSS personalizado, incluidos bloques `<style>`: 1,540,975 caracteres.
 - Colores no autorizados: 0 apariciones.
 - Colores nombrados en declaraciones: 0.
 - Gradientes: 0.

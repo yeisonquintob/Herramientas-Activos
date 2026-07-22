@@ -1,5 +1,7 @@
 @using Navi.ToolsAssets.Admin.Services.Auth
 @using Navi.ToolsAssets.Admin.Components.Shared
+@using System.Net.Http.Headers
+@using Microsoft.AspNetCore.Components.Forms
 @page "/tools/{ToolId:guid}/technical-life-record"
 @rendermode InteractiveServer
 @inject IHttpClientFactory HttpClientFactory
@@ -20,51 +22,134 @@
 }
 else if (isLoading && record is null)
 {
-    <div class="alert alert-info">
+    <div class="alert alert-info" role="status" aria-busy="true">
         Cargando hoja de vida técnica...
     </div>
 }
 else if (record is not null)
 {
+    <section class="navi-reference-toolbar navi-reference-toolbar--life-record">
         <NaviPageHero
+        Class="navi-reference-toolbar__actions"
         Pill="ACTIVOS FIJOS"
         Title="@record.Summary.Name"
         Description="Formato técnico del activo fijo con datos generales, accesorios, documentos, mantenimiento, evidencias, prácticas seguras y trazabilidad.">
 
-        <button type="button" @onclick="LoadAsync" disabled="@isLoading" data-ntx-tone="secondary" >
-            @(isLoading ? "Actualizando..." : "Actualizar")
-        </button>
-
     </NaviPageHero>
 
-    <section class="life-record-summary-shell">
-        <section class="life-record-kpis navi-final-kpi-row life-record-summary-kpis">
-            <article>
-                <span>Código interno</span>
-                <strong>@record.Summary.InternalCode</strong>
-                <small>Activo fijo</small>
-            </article>
+    @* NAVI TECHNICAL LIFE RECORD SUMMARY WEB V39 START *@
 
-            <article>
-                <span>Estado operativo</span>
-                <strong>@GetStatusLabel(record.Summary.OperationalStatus)</strong>
-                <small>Control actual</small>
-            </article>
+    <section class="life-record-v39-kpi-toolbar">
 
-            <article>
-                <span>Clasificación</span>
-                <strong>@(record.Summary.IsSpecialized ? "Especializada" : "No especializada")</strong>
-                <small>Tipo de activo</small>
-            </article>
-        </section>
+        <NaviKpiGrid
+            Columns="3"
+            Compact="true"
+            Dividers="true"
+            Class="life-record-v39-kpis">
 
-        <aside class="life-record-summary-actions">
-            <button class="btn-life-back" type="button" @onclick="GoBack" data-ntx-tone="secondary" >
-                Volver a hojas de vida
+            <NaviKpiCard
+                Title="Código interno"
+                Description="Activo fijo"
+                Tone="neutral">
+
+                <IconContent>
+                    <NaviKpiIcon Name="inventory" />
+                </IconContent>
+
+                <ValueContent>
+                    @record.Summary.InternalCode
+                </ValueContent>
+
+            </NaviKpiCard>
+
+            <NaviKpiCard
+                Title="Estado operativo"
+                Description="Control actual"
+                Tone="warning">
+
+                <IconContent>
+                    <NaviKpiIcon Name="transfer" />
+                </IconContent>
+
+                <ValueContent>
+                    @GetStatusLabel(
+                        record.Summary.OperationalStatus)
+                </ValueContent>
+
+            </NaviKpiCard>
+
+            <NaviKpiCard
+                Title="Clasificación"
+                Description="Tipo de activo"
+                Tone="soft">
+
+                <IconContent>
+                    <NaviKpiIcon Name="document" />
+                </IconContent>
+
+                <ValueContent>
+                    @(record.Summary.IsSpecialized
+                        ? "Especializada"
+                        : "No especializada")
+                </ValueContent>
+
+            </NaviKpiCard>
+
+        </NaviKpiGrid>
+
+        <div class="life-record-v39-toolbar-actions">
+
+            <button
+                type="button"
+                class="life-record-v39-back"
+                @onclick="GoBack"
+                data-ntx-tone="secondary">
+
+                <svg
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    focusable="false">
+
+                    <path d="M19 12H5"></path>
+                    <path d="M11 6L5 12L11 18"></path>
+
+                </svg>
+
+                <span>@BackButtonText</span>
+
             </button>
-        </aside>
+
+            <button
+                type="button"
+                class="life-record-v39-refresh"
+                title="Actualizar hoja de vida"
+                aria-label="Actualizar hoja de vida"
+                aria-busy="@(isLoading ? "true" : "false")"
+                disabled="@isLoading"
+                @onclick="LoadAsync"
+                data-ntx-icon-only="true"
+                data-ntx-tone="refresh">
+
+                <svg
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    focusable="false">
+
+                    <path d="M20 12A8 8 0 1 1 17.7 6.3"></path>
+                    <path d="M20 4V11H13"></path>
+
+                </svg>
+
+            </button>
+
+        </div>
+
     </section>
-<section class="life-record-quick-actions">
+
+    </section>
+
+@* NAVI TECHNICAL LIFE RECORD SUMMARY WEB V39 END *@
+<section class="life-record-quick-actions life-record-quick-actions-v37">
     <div class="quick-action-card">
         <span>Datos técnicos</span>
         <strong>Información base</strong>
@@ -119,7 +204,7 @@ else if (record is not null)
             <span>Exportar</span>
             <strong>PDF / Excel</strong>
             <div class="d-flex gap-1 flex-wrap">
-                <button class="life-action life-action-neutral" @onclick="PrintLifeRecord" data-ntx-tone="ghost" >
+                <button class="life-action life-action-neutral" @onclick="PrintLifeRecord" data-ntx-tone="consult" >
                     PDF
                 </button>
 
@@ -139,6 +224,167 @@ else if (record is not null)
             <small>Requiere TechnicalLifeRecord.Export.</small>
         </div>
     }
+
+    @* NAVI TECHNICAL LIFE RECORD PREVIEW WEB V39 START *@
+
+    <div class="quick-action-card life-record-preview-card-v39">
+
+        <header class="life-record-preview-header-v39 life-record-preview-header-v40">
+
+            <div class="life-record-preview-title-v40">
+
+                <span>Vista del activo</span>
+
+                <small>Última imagen</small>
+
+            </div>
+
+            @if (CanUploadLifeImage)
+            {
+                <label
+                    class="@(
+                        isUploadingLifeImage
+                            ? "life-record-upload-image-v40 loading"
+                            : "life-record-upload-image-v40")"
+                    title="Subir imagen del activo">
+
+                    <svg
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                        focusable="false">
+
+                        <path d="M12 16V4"></path>
+                        <path d="M7 9L12 4L17 9"></path>
+                        <path d="M5 20H19"></path>
+
+                    </svg>
+
+                    <span>
+                        @(isUploadingLifeImage
+                            ? "..."
+                            : "Subir")
+                    </span>
+
+                    <InputFile
+                        id="life-record-image-upload"
+                        name="life-record-image-upload"
+                        class="life-record-upload-input-v40"
+                        OnChange="OnLifeImageSelected"
+                        accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                        disabled="@isUploadingLifeImage" />
+
+                </label>
+            }
+
+        </header>
+
+        @if (
+            record.Documents.PhotoRecords
+                .Where(document =>
+                    !string.IsNullOrWhiteSpace(
+                        document.DownloadUrl)
+                    &&
+                    (
+                        (
+                            !string.IsNullOrWhiteSpace(
+                                document.ContentType)
+                            &&
+                            document.ContentType.StartsWith(
+                                "image/",
+                                StringComparison.OrdinalIgnoreCase)
+                        )
+                        ||
+                        (
+                            document.FileName
+                            ?? string.Empty
+                        ).EndsWith(
+                            ".jpg",
+                            StringComparison.OrdinalIgnoreCase)
+                        ||
+                        (
+                            document.FileName
+                            ?? string.Empty
+                        ).EndsWith(
+                            ".jpeg",
+                            StringComparison.OrdinalIgnoreCase)
+                        ||
+                        (
+                            document.FileName
+                            ?? string.Empty
+                        ).EndsWith(
+                            ".png",
+                            StringComparison.OrdinalIgnoreCase)
+                    ))
+                .OrderByDescending(
+                    document => document.UploadedAt)
+                .FirstOrDefault()
+            is { } latestImage)
+        {
+            <div
+                class="life-record-preview-frame-v39"
+                title="@latestImage.FileName">
+
+                <img
+                    src="@BuildApiUrl(
+                        latestImage.DownloadUrl!)"
+                    alt="@($"Vista de {record.Summary.Name}")"
+                    loading="eager" />
+
+            </div>
+        }
+        else
+        {
+            <div class="life-record-preview-frame-v39">
+
+                <div class="life-record-preview-empty-v39">
+
+                    <svg
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                        focusable="false">
+
+                        <rect
+                            x="3"
+                            y="5"
+                            width="18"
+                            height="14"
+                            rx="2">
+                        </rect>
+
+                        <circle
+                            cx="9"
+                            cy="10"
+                            r="2">
+                        </circle>
+
+                        <path d="M4 17L9 13L13 16L16 13L20 17"></path>
+
+                    </svg>
+
+                    <span>Sin imagen registrada</span>
+
+                </div>
+
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(lifeImageMessage))
+        {
+            <small
+                class="@(
+                    lifeImageMessageIsError
+                        ? "life-record-image-message-v39 error"
+                        : "life-record-image-message-v39 success")">
+
+                @lifeImageMessage
+
+            </small>
+        }
+
+    </div>
+
+@* NAVI TECHNICAL LIFE RECORD PREVIEW WEB V39 END *@
+
 </section>
 <section class="@GetMaintenanceAlertClass()">
     <div>
@@ -175,22 +421,22 @@ else if (record is not null)
             </div>
 
             <div class="excel-grid two-columns">
-                <div><label>Código interno</label><strong>@Show(record.EquipmentInformation.InternalCode)</strong></div>
-                <div><label>Nombre</label><strong>@Show(record.EquipmentInformation.Name)</strong></div>
-                <div><label>Marca</label><strong>@Show(record.EquipmentInformation.Brand)</strong></div>
-                <div><label>Modelo</label><strong>@Show(record.EquipmentInformation.Model)</strong></div>
-                <div><label>Serial</label><strong>@Show(record.EquipmentInformation.SerialNumber)</strong></div>
-                <div><label>Activo fijo</label><strong>@Show(record.EquipmentInformation.FixedAssetCode)</strong></div>
-                <div><label>Código Fenix365</label><strong>@Show(record.EquipmentInformation.FenixCode)</strong></div>
-                <div><label>Fecha adquisición</label><strong>@DateText(record.EquipmentInformation.AcquisitionDate)</strong></div>
-                <div><label>Zona</label><strong>@Show(record.EquipmentInformation.ZoneCode) - @Show(record.EquipmentInformation.ZoneName)</strong></div>
-                <div><label>Sede</label><strong>@Show(record.EquipmentInformation.BranchCode) - @Show(record.EquipmentInformation.BranchName)</strong></div>
-                <div><label>Ubicación</label><strong>@Show(record.EquipmentInformation.LocationCode) - @Show(record.EquipmentInformation.LocationName)</strong></div>
-                <div><label>Responsable</label><strong>@Show(record.EquipmentInformation.ResponsibleName)</strong></div>
-                <div><label>Tipo</label><strong>@Show(record.EquipmentInformation.ToolTypeName)</strong></div>
-                <div><label>Categoría</label><strong>@Show(record.EquipmentInformation.ToolCategoryName)</strong></div>
-                <div><label>Unidad</label><strong>@Show(record.EquipmentInformation.UnitOfMeasure)</strong></div>
-                <div><label>Cantidad</label><strong>@record.EquipmentInformation.Quantity</strong></div>
+                <div><span class="navi-data-label">Código interno</span><strong>@Show(record.EquipmentInformation.InternalCode)</strong></div>
+                <div><span class="navi-data-label">Nombre</span><strong>@Show(record.EquipmentInformation.Name)</strong></div>
+                <div><span class="navi-data-label">Marca</span><strong>@Show(record.EquipmentInformation.Brand)</strong></div>
+                <div><span class="navi-data-label">Modelo</span><strong>@Show(record.EquipmentInformation.Model)</strong></div>
+                <div><span class="navi-data-label">Serial</span><strong>@Show(record.EquipmentInformation.SerialNumber)</strong></div>
+                <div><span class="navi-data-label">Activo fijo</span><strong>@Show(record.EquipmentInformation.FixedAssetCode)</strong></div>
+                <div><span class="navi-data-label">Código Fenix365</span><strong>@Show(record.EquipmentInformation.FenixCode)</strong></div>
+                <div><span class="navi-data-label">Fecha adquisición</span><strong>@DateText(record.EquipmentInformation.AcquisitionDate)</strong></div>
+                <div><span class="navi-data-label">Zona</span><strong>@Show(record.EquipmentInformation.ZoneCode) - @Show(record.EquipmentInformation.ZoneName)</strong></div>
+                <div><span class="navi-data-label">Sede</span><strong>@Show(record.EquipmentInformation.BranchCode) - @Show(record.EquipmentInformation.BranchName)</strong></div>
+                <div><span class="navi-data-label">Ubicación</span><strong>@Show(record.EquipmentInformation.LocationCode) - @Show(record.EquipmentInformation.LocationName)</strong></div>
+                <div><span class="navi-data-label">Responsable</span><strong>@Show(record.EquipmentInformation.ResponsibleName)</strong></div>
+                <div><span class="navi-data-label">Tipo</span><strong>@Show(record.EquipmentInformation.ToolTypeName)</strong></div>
+                <div><span class="navi-data-label">Categoría</span><strong>@Show(record.EquipmentInformation.ToolCategoryName)</strong></div>
+                <div><span class="navi-data-label">Unidad</span><strong>@Show(record.EquipmentInformation.UnitOfMeasure)</strong></div>
+                <div><span class="navi-data-label">Cantidad</span><strong>@record.EquipmentInformation.Quantity</strong></div>
             </div>
         </section>
 
@@ -201,15 +447,15 @@ else if (record is not null)
             </div>
 
             <div class="excel-grid two-columns">
-                <div><label>Voltaje</label><strong>@Show(record.TechnicalSpecifications.Voltage)</strong></div>
-                <div><label>Capacidad de carga</label><strong>@Show(record.TechnicalSpecifications.LoadCapacity)</strong></div>
-                <div><label>Proveedor</label><strong>@Show(record.TechnicalSpecifications.Provider)</strong></div>
-                <div><label>Requiere mantenimiento</label><strong>@BoolText(record.TechnicalSpecifications.RequiresMaintenance)</strong></div>
-                <div><label>Requiere preoperacional</label><strong>@BoolText(record.TechnicalSpecifications.RequiresPreOperationalCheck)</strong></div>
-                <div><label>Requiere certificación</label><strong>@BoolText(record.TechnicalSpecifications.RequiresCertification)</strong></div>
-                <div><label>Vence certificación</label><strong>@DateText(record.TechnicalSpecifications.CertificationExpirationDate)</strong></div>
-                <div><label>Garantía</label><strong>@BoolText(record.Warranty.HasWarranty)</strong></div>
-                <div><label>Tipo garantía</label><strong>@Show(record.Warranty.WarrantyType)</strong></div>
+                <div><span class="navi-data-label">Voltaje</span><strong>@Show(record.TechnicalSpecifications.Voltage)</strong></div>
+                <div><span class="navi-data-label">Capacidad de carga</span><strong>@Show(record.TechnicalSpecifications.LoadCapacity)</strong></div>
+                <div><span class="navi-data-label">Proveedor</span><strong>@Show(record.TechnicalSpecifications.Provider)</strong></div>
+                <div><span class="navi-data-label">Requiere mantenimiento</span><strong>@BoolText(record.TechnicalSpecifications.RequiresMaintenance)</strong></div>
+                <div><span class="navi-data-label">Requiere preoperacional</span><strong>@BoolText(record.TechnicalSpecifications.RequiresPreOperationalCheck)</strong></div>
+                <div><span class="navi-data-label">Requiere certificación</span><strong>@BoolText(record.TechnicalSpecifications.RequiresCertification)</strong></div>
+                <div><span class="navi-data-label">Vence certificación</span><strong>@DateText(record.TechnicalSpecifications.CertificationExpirationDate)</strong></div>
+                <div><span class="navi-data-label">Garantía</span><strong>@BoolText(record.Warranty.HasWarranty)</strong></div>
+                <div><span class="navi-data-label">Tipo garantía</span><strong>@Show(record.Warranty.WarrantyType)</strong></div>
             </div>
         </section>
     </div>
@@ -222,12 +468,12 @@ else if (record is not null)
             </div>
 
             <div class="excel-grid two-columns">
-                <div><label>Fecha inicial vida útil</label><strong>@DateText(record.UsefulLife.StartDate)</strong></div>
-                <div><label>Fecha final vida útil</label><strong>@DateText(record.UsefulLife.EndDate)</strong></div>
-                <div><label>Vida útil meses</label><strong>@NumberText(record.UsefulLife.UsefulLifeMonths)</strong></div>
-                <div><label>Vida útil días</label><strong>@NumberText(record.UsefulLife.UsefulLifeDays)</strong></div>
-                <div><label>Días transcurridos</label><strong>@NumberText(record.UsefulLife.ElapsedDays)</strong></div>
-                <div><label>Días restantes</label><strong>@NumberText(record.UsefulLife.RemainingDays)</strong></div>
+                <div><span class="navi-data-label">Fecha inicial vida útil</span><strong>@DateText(record.UsefulLife.StartDate)</strong></div>
+                <div><span class="navi-data-label">Fecha final vida útil</span><strong>@DateText(record.UsefulLife.EndDate)</strong></div>
+                <div><span class="navi-data-label">Vida útil meses</span><strong>@NumberText(record.UsefulLife.UsefulLifeMonths)</strong></div>
+                <div><span class="navi-data-label">Vida útil días</span><strong>@NumberText(record.UsefulLife.UsefulLifeDays)</strong></div>
+                <div><span class="navi-data-label">Días transcurridos</span><strong>@NumberText(record.UsefulLife.ElapsedDays)</strong></div>
+                <div><span class="navi-data-label">Días restantes</span><strong>@NumberText(record.UsefulLife.RemainingDays)</strong></div>
             </div>
 
             <div class="life-progress mt-3">
@@ -248,12 +494,12 @@ else if (record is not null)
             </div>
 
             <div class="excel-grid two-columns">
-                <div><label>Último mantenimiento</label><strong>@DateText(record.MaintenancePlan.LastMaintenanceDate)</strong></div>
-                <div><label>Próximo mantenimiento</label><strong>@DateText(record.MaintenancePlan.NextMaintenanceDate)</strong></div>
-                <div><label>Periodicidad meses</label><strong>@NumberText(record.MaintenancePlan.MaintenancePeriodMonths)</strong></div>
-                <div><label>Total mantenimientos</label><strong>@record.MaintenancePlan.TotalMaintenanceRecords</strong></div>
-                <div><label>Completados</label><strong>@record.MaintenancePlan.CompletedMaintenanceRecords</strong></div>
-                <div><label>Pendientes</label><strong>@record.MaintenancePlan.PendingMaintenanceRecords</strong></div>
+                <div><span class="navi-data-label">Último mantenimiento</span><strong>@DateText(record.MaintenancePlan.LastMaintenanceDate)</strong></div>
+                <div><span class="navi-data-label">Próximo mantenimiento</span><strong>@DateText(record.MaintenancePlan.NextMaintenanceDate)</strong></div>
+                <div><span class="navi-data-label">Periodicidad meses</span><strong>@NumberText(record.MaintenancePlan.MaintenancePeriodMonths)</strong></div>
+                <div><span class="navi-data-label">Total mantenimientos</span><strong>@record.MaintenancePlan.TotalMaintenanceRecords</strong></div>
+                <div><span class="navi-data-label">Completados</span><strong>@record.MaintenancePlan.CompletedMaintenanceRecords</strong></div>
+                <div><span class="navi-data-label">Pendientes</span><strong>@record.MaintenancePlan.PendingMaintenanceRecords</strong></div>
             </div>
         </section>
     </div>
@@ -277,7 +523,8 @@ else if (record is not null)
         else
         {
             <div class="table-responsive">
-                <table class="table table-sm table-bordered excel-table">
+                <div class="ntx-table-scroll">
+                    <table class="table table-sm table-bordered excel-table">
                     <thead>
                         <tr>
                             <th>Accesorio</th>
@@ -300,6 +547,7 @@ else if (record is not null)
                         }
                     </tbody>
                 </table>
+                </div>
             </div>
         }
     </section>
@@ -373,7 +621,8 @@ else if (record is not null)
         else
         {
             <div class="table-responsive">
-                <table class="table table-sm table-bordered excel-table">
+                <div class="ntx-table-scroll">
+                    <table class="table table-sm table-bordered excel-table">
                     <thead>
                         <tr>
                             <th>Número</th>
@@ -407,7 +656,7 @@ else if (record is not null)
                                     {
                                         <a class="life-action life-action-primary"
                                            href="@BuildApiUrl(item.EvidenceDownloadUrl)"
-                                           target="_blank" data-ntx-tone="primary" >
+                                           target="_blank" data-ntx-tone="operation" >
                                             Descargar
                                         </a>
                                     }
@@ -423,6 +672,7 @@ else if (record is not null)
                         }
                     </tbody>
                 </table>
+                </div>
             </div>
         }
     </section>
@@ -473,7 +723,8 @@ else if (record is not null)
         else
         {
             <div class="table-responsive">
-                <table class="table table-sm table-bordered excel-table">
+                <div class="ntx-table-scroll">
+                    <table class="table table-sm table-bordered excel-table">
                     <thead>
                         <tr>
                             <th>Fecha</th>
@@ -498,12 +749,165 @@ else if (record is not null)
                         }
                     </tbody>
                 </table>
+                </div>
             </div>
         }
     </section>
 }
 
 @code {
+
+    // NAVI TECHNICAL LIFE RECORD IMAGE UPLOAD V39 START
+
+    private const long MaxLifeImageSize =
+        10 * 1024 * 1024;
+
+    private bool isUploadingLifeImage;
+
+    private bool lifeImageMessageIsError;
+
+    private string? lifeImageMessage;
+
+    private bool CanUploadLifeImage =>
+        AuthSession.HasPermission(
+            "TechnicalLifeRecord.Edit")
+        &&
+        AuthSession.HasPermission(
+            "Documents.Upload");
+
+    private async Task OnLifeImageSelected(
+        InputFileChangeEventArgs args)
+    {
+        lifeImageMessage = null;
+        lifeImageMessageIsError = false;
+
+        if (!CanUploadLifeImage)
+        {
+            lifeImageMessageIsError = true;
+            lifeImageMessage =
+                "No tienes permiso para subir imágenes.";
+
+            return;
+        }
+
+        var file = args.File;
+
+        var extension =
+            Path.GetExtension(file.Name)
+                .ToLowerInvariant();
+
+        var allowedExtensions = new[]
+        {
+            ".jpg",
+            ".jpeg",
+            ".png"
+        };
+
+        if (!allowedExtensions.Contains(extension))
+        {
+            lifeImageMessageIsError = true;
+            lifeImageMessage =
+                "Solo se permiten imágenes JPG, JPEG o PNG.";
+
+            return;
+        }
+
+        if (file.Size > MaxLifeImageSize)
+        {
+            lifeImageMessageIsError = true;
+            lifeImageMessage =
+                "La imagen supera el tamaño máximo de 10 MB.";
+
+            return;
+        }
+
+        try
+        {
+            isUploadingLifeImage = true;
+
+            var client =
+                HttpClientFactory.CreateClient(
+                    "NaviApi");
+
+            using var form =
+                new MultipartFormDataContent();
+
+            await using var fileStream =
+                file.OpenReadStream(
+                    MaxLifeImageSize);
+
+            using var fileContent =
+                new StreamContent(fileStream);
+
+            fileContent.Headers.ContentType =
+                new MediaTypeHeaderValue(
+                    string.IsNullOrWhiteSpace(
+                        file.ContentType)
+                        ? "application/octet-stream"
+                        : file.ContentType);
+
+            form.Add(
+                fileContent,
+                "file",
+                file.Name);
+
+            form.Add(
+                new StringContent(
+                    "PhotographicRecord"),
+                "documentType");
+
+            form.Add(
+                new StringContent(
+                    "Imagen principal de la hoja de vida técnica."),
+                "description");
+
+            form.Add(
+                new StringContent(
+                    AuthSession.UserName
+                    ?? "navi"),
+                "uploadedBy");
+
+            using var response =
+                await client.PostAsync(
+                    $"api/tools/{ToolId}/documents",
+                    form);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail =
+                    await response.Content
+                        .ReadAsStringAsync();
+
+                lifeImageMessageIsError = true;
+                lifeImageMessage =
+                    $"No se pudo subir la imagen. "
+                    + $"Código {(int)response.StatusCode}. "
+                    + detail;
+
+                return;
+            }
+
+            await LoadAsync();
+
+            lifeImageMessageIsError = false;
+            lifeImageMessage =
+                "Imagen actualizada correctamente.";
+        }
+        catch (Exception ex)
+        {
+            lifeImageMessageIsError = true;
+            lifeImageMessage =
+                $"No se pudo subir la imagen: {ex.Message}";
+        }
+        finally
+        {
+            isUploadingLifeImage = false;
+        }
+    }
+
+    // NAVI TECHNICAL LIFE RECORD IMAGE UPLOAD V39 END
+
+
 
     private bool CanExportLifeRecord =>
         AuthSession.HasPermission("TechnicalLifeRecord.Export");

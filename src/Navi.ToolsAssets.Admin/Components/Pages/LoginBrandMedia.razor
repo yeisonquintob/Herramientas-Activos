@@ -1,0 +1,105 @@
+@using System.Net.Http.Json
+
+@inject IHttpClientFactory HttpClientFactory
+
+@if (!string.IsNullOrWhiteSpace(imageUrl))
+{
+    <div class="navi-login-brand-media">
+        <img src="@imageUrl"
+             alt=""
+             draggable="false" />
+
+        <div class="navi-login-brand-media__shade">
+        </div>
+
+        <div class="navi-login-brand-media__caption">
+            <span>NAVI</span>
+            <strong>Herramientas y Activos</strong>
+            <small>
+                Gestión, control y trazabilidad.
+            </small>
+        </div>
+    </div>
+}
+
+@code {
+    private string? imageUrl;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var api =
+                HttpClientFactory.CreateClient(
+                    "NaviApi");
+
+            var configuration =
+                await api.GetFromJsonAsync<
+                    LoginAppearanceDto>(
+                        "api/login-appearance");
+
+            imageUrl =
+                BuildImageUrl(
+                    api,
+                    configuration);
+        }
+        catch
+        {
+            /*
+             * El login debe continuar disponible aunque la API,
+             * MinIO o la imagen no estén disponibles.
+             */
+            imageUrl = null;
+        }
+    }
+
+    private static string? BuildImageUrl(
+        HttpClient api,
+        LoginAppearanceDto? configuration)
+    {
+        if (
+            configuration is null
+            ||
+            !configuration.HasImage
+            ||
+            string.IsNullOrWhiteSpace(
+                configuration.ImageUrl)
+            ||
+            api.BaseAddress is null
+        )
+        {
+            return null;
+        }
+
+        var relativeUrl =
+            configuration.ImageUrl
+                .TrimStart('/');
+
+        var absoluteUri =
+            new Uri(
+                api.BaseAddress,
+                relativeUrl);
+
+        var version =
+            string.IsNullOrWhiteSpace(
+                configuration.Version)
+                ? DateTime.UtcNow
+                    .Ticks
+                    .ToString()
+                : configuration.Version;
+
+        return absoluteUri
+            + "?v="
+            + Uri.EscapeDataString(
+                version);
+    }
+
+    private sealed class LoginAppearanceDto
+    {
+        public bool HasImage { get; set; }
+
+        public string? ImageUrl { get; set; }
+
+        public string? Version { get; set; }
+    }
+}

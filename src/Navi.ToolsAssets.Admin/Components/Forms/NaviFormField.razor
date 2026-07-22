@@ -1,0 +1,129 @@
+@using System.Collections.Generic
+@using Microsoft.AspNetCore.Components
+
+<div @attributes="AdditionalAttributes"
+     class="@CssClass"
+     data-ntx-component="form-field"
+     data-ntx-required="@(Required ? "true" : null)"
+     data-ntx-invalid="@(Invalid ? "true" : null)">
+    @if (!string.IsNullOrWhiteSpace(Label))
+    {
+        <label class="navi-form-field__label"
+               for="@FieldId">
+            <span>@Label</span>
+
+            @if (Required)
+            {
+                <span class="navi-form-field__required"
+                      aria-hidden="true">
+                    *
+                </span>
+            }
+        </label>
+    }
+
+    <div class="navi-form-field__control">
+        @ChildContent
+    </div>
+
+    @if (ValidationContent is not null)
+    {
+        <div class="navi-form-field__validation">
+            @ValidationContent
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(ErrorText))
+    {
+        <div class="navi-form-field__validation"
+             role="alert">
+            @ErrorText
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(HelpText))
+    {
+        <small class="navi-form-field__help">
+            @HelpText
+        </small>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string? Label { get; set; }
+
+    [Parameter]
+    public string? FieldId { get; set; }
+
+    [Parameter]
+    public string? HelpText { get; set; }
+
+    [Parameter]
+    public string? ErrorText { get; set; }
+
+    [Parameter]
+    public bool Required { get; set; }
+
+    [Parameter]
+    public bool Invalid { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public bool FullWidth { get; set; }
+
+    [Parameter]
+    public bool Compact { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? ValidationContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>?
+        AdditionalAttributes { get; set; }
+
+    private string CssClass
+    {
+        get
+        {
+            var classes = new List<string>
+            {
+                "navi-form-field"
+            };
+
+            if (FullWidth)
+            {
+                classes.Add("navi-form-field--full");
+            }
+
+            if (Compact)
+            {
+                classes.Add("navi-form-field--compact");
+            }
+
+            if (Invalid)
+            {
+                classes.Add("is-invalid");
+            }
+
+            if (Disabled)
+            {
+                classes.Add("is-disabled");
+            }
+
+            if (!string.IsNullOrWhiteSpace(Class))
+            {
+                classes.Add(Class.Trim());
+            }
+
+            return string.Join(" ", classes);
+        }
+    }
+}

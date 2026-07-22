@@ -10,356 +10,794 @@
 @inject NaviMobileApiClient Api
 @inject MobileAuthSessionService Auth
 @inject NavigationManager Navigation
+@inject Microsoft.JSInterop.IJSRuntime JS
 
 <PageTitle>Disponible y ubicación - NAVI Herramientas y AF</PageTitle>
 
-<section class="mobile-page mobile-availability-page mobile-availability-web-sync">
+<section class="mobile-page mobile-availability-v24">
+
+    @*
+        Este componente no dibuja un segundo encabezado.
+        Publica el título y la descripción en el encabezado
+        estándar global del MainLayout.
+    *@
+    <NaviMobileAppBanner
+        Class="mobile-availability-v24-header-publisher"
+        Pill="ACTIVOS FIJOS"
+        Title="Disponible y Ubicación"
+        Description="@BannerDescription"
+        HomeUrl="/"
+        ShowHomeButton="false"
+        ShowBackButton="false" />
+
     @if (isLoading)
     {
-        <div class="mobile-loading">Cargando disponible y ubicación...</div>
+        <section class="mobile-availability-v24-loading"
+                 aria-live="polite">
+
+            <span aria-hidden="true">
+                <svg viewBox="0 0 24 24"
+                     focusable="false">
+
+                    <path d="M20 12a8 8 0 1 1-2.35-5.65"></path>
+                    <path d="M20 4v6h-6"></path>
+                </svg>
+            </span>
+
+            <div>
+                <strong>Cargando disponible y ubicación</strong>
+
+                <small>
+                    Consultando herramientas, sedes y ubicaciones visibles.
+                </small>
+            </div>
+        </section>
     }
     else if (!Auth.IsAuthenticated)
     {
-        <div class="mobile-empty">
+        <section class="mobile-availability-v24-empty">
+
+            <svg viewBox="0 0 24 24"
+                 aria-hidden="true"
+                 focusable="false">
+
+                <path d="M7 11V8A5 5 0 0 1 17 8V11"></path>
+
+                <rect x="5"
+                      y="11"
+                      width="14"
+                      height="10"
+                      rx="2">
+                </rect>
+            </svg>
+
             <strong>Sesión requerida</strong>
-            <span>Debes iniciar sesión para consultar disponibilidad y ubicación.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="secondary" >Ir al login</button>
-        </div>
+
+            <span>
+                Debes iniciar sesión para consultar disponibilidad
+                y ubicación.
+            </span>
+
+            <button type="button"
+                    class="mobile-availability-v24-secondary"
+                    @onclick="GoLogin" data-ntx-tone="consult">
+
+                Ir al login
+            </button>
+        </section>
     }
     else if (!CanViewAvailability)
     {
-        <div class="mobile-empty">
+        <section class="mobile-availability-v24-empty">
+
+            <svg viewBox="0 0 24 24"
+                 aria-hidden="true"
+                 focusable="false">
+
+                <circle cx="12"
+                        cy="12"
+                        r="9">
+                </circle>
+
+                <path d="M8 8L16 16"></path>
+            </svg>
+
             <strong>Sin permiso</strong>
-            <span>Tu usuario no tiene permiso para consultar Disponible y ubicación.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoHome" data-ntx-tone="secondary" >Volver al inicio</button>
-        </div>
+
+            <span>
+                Tu usuario no tiene permiso para consultar
+                Disponible y Ubicación.
+            </span>
+
+            <button type="button"
+                    class="mobile-availability-v24-secondary"
+                    @onclick="GoHome" data-ntx-tone="secondary">
+
+                Volver al inicio
+            </button>
+        </section>
     }
     else
     {
-        <NaviMobileAppBanner Class="navi-mobile-availability-app-banner navi-mobile-app-banner--module"
-                             Pill="ACTIVOS FIJOS · UBICACIÓN"
-                             Title="Disponible y ubicación"
-                             Description="@BannerDescription"
-                             HomeUrl="/"
-                             ShowHomeButton="true"
-                             ShowBackButton="false" />
-
         @if (!string.IsNullOrWhiteSpace(message))
         {
-            <div class="@messageClass">@message</div>
+            <section class="@($"{messageClass} mobile-availability-v24-message")"
+                     role="alert">
+
+                <span>@message</span>
+            </section>
         }
 
-        <section class="mobile-av-summary mobile-av-summary-web-sync">
-            <article class="total">
-                <strong>@FilteredTools.Count()</strong>
-                <span>Total herramientas</span>
-                <small>Visibles por alcance</small>
-            </article>
 
-            <article class="available">
-                <strong>@FilteredTools.Count(IsAvailable)</strong>
-                <span>Disponibles</span>
-                <small>Listas para uso</small>
-            </article>
+<NaviMobileKpiOverflow
+    PrimaryCount="3"
+    OverflowCount="2"
+    Class="navi-mobile-kpi-standard-overflow navi-mobile-availability-kpi-standard"
+    ButtonLabel="Mostrar indicadores adicionales">
 
-            <article class="assigned">
-                <strong>@FilteredTools.Count(IsAssignedOrLoaned)</strong>
-                <span>Asignadas / prestadas</span>
-                <small>Con responsable</small>
-            </article>
+    <PrimaryContent>
 
-            <article class="maintenance">
-                <strong>@FilteredTools.Count(IsInMaintenance)</strong>
-                <span>En mantenimiento</span>
-                <small>Fuera de operación</small>
-            </article>
+        <NaviMobileKpiGrid
+            Columns="3"
+            Compact="true"
+            Dividers="true"
+            Class="navi-mobile-kpi-standard-grid">
 
-            <article class="notlocated">
-                <strong>@FilteredTools.Count(IsWithoutLocation)</strong>
-                <span>Sin ubicación</span>
-                <small>Requieren revisión</small>
-            </article>
-        </section>
+            <NaviMobileKpiCard
+                Title="Inventario"
+                Description="Activos visibles"
+                IconKey="inventory"
+                Tone="neutral">
 
-        <section class="mobile-av-status-filters" aria-label="Estados de disponibilidad">
-            <button type="button"
-                    class="@GetAvailabilityStatusFilterChipClass(string.Empty)"
-                    @onclick="@(() => SelectAvailabilityStatus(string.Empty))" data-ntx-tone="secondary" >
-                Todos
-                <span>@AvailabilityBaseFilteredTools.Count()</span>
-            </button>
+                <ValueContent>
+                    @FilteredTools.Count()
+                </ValueContent>
 
-            @foreach (var option in AvailabilityStatusFilterOptions)
-            {
-                <button type="button"
-                        class="@GetAvailabilityStatusFilterChipClass(option.Value)"
-                        @onclick="@(() => SelectAvailabilityStatus(option.Value))" data-ntx-tone="secondary" >
-                    @option.Label
-                    <span>@option.Count</span>
-                </button>
-            }
-        </section>
+            </NaviMobileKpiCard>
 
-        <section class="mobile-av-filter-card mobile-av-filter-card-web-sync" aria-label="Filtros de disponibilidad y ubicación">
-            <input @bind="search"
-                   @bind:event="oninput"
-                   placeholder="Buscar por código, nombre, serial, sede, ubicación o responsable..." />
+            <NaviMobileKpiCard
+                Title="Disponibles"
+                Description="Listas para uso"
+                IconKey="check"
+                Tone="positive">
 
-            <div>
-                <div class="mobile-av-scope-note">
-                    @if (UserCanSeeAllBranches())
-                    {
-                        <span>Alcance: todas las sedes</span>
-                    }
-                    else
-                    {
-                        <span>Alcance: @Display(Auth.CurrentUser?.BranchCode ?? Auth.CurrentUser?.BranchName)</span>
-                    }
+                <ValueContent>
+                    @FilteredTools.Count(IsAvailable)
+                </ValueContent>
+
+            </NaviMobileKpiCard>
+
+            <NaviMobileKpiCard
+                Title="En uso"
+                Description="Asignadas"
+                IconKey="transfer"
+                Tone="soft">
+
+                <ValueContent>
+                    @FilteredTools.Count(IsAssignedOrLoaned)
+                </ValueContent>
+
+            </NaviMobileKpiCard>
+
+        </NaviMobileKpiGrid>
+
+    </PrimaryContent>
+
+    <OverflowContent>
+
+        <NaviMobileKpiGrid
+            Columns="2"
+            Compact="true"
+            Dividers="true"
+            Class="navi-mobile-kpi-standard-grid navi-mobile-availability-kpi-overflow-grid">
+
+            <NaviMobileKpiCard
+                Title="Mantenimiento"
+                Description="Fuera de operación"
+                IconKey="wrench"
+                Tone="warning">
+
+                <ValueContent>
+                    @FilteredTools.Count(IsInMaintenance)
+                </ValueContent>
+
+            </NaviMobileKpiCard>
+
+            <NaviMobileKpiCard
+                Title="Sin ubicación"
+                Description="Requieren revisión"
+                IconKey="location"
+                Tone="danger">
+
+                <ValueContent>
+                    @FilteredTools.Count(IsWithoutLocation)
+                </ValueContent>
+
+            </NaviMobileKpiCard>
+
+        </NaviMobileKpiGrid>
+
+    </OverflowContent>
+
+</NaviMobileKpiOverflow>
+
+        <section class="mobile-availability-v24-filter-card"
+                 aria-label="Filtros de disponible y ubicación">
+
+            <label class="mobile-availability-v24-field mobile-availability-v25-search-field">
+
+                <span>Buscar activo</span>
+
+                <div class="mobile-availability-v24-search-control">
+
+                    <svg viewBox="0 0 24 24"
+                         aria-hidden="true"
+                         focusable="false">
+
+                        <circle cx="10.5"
+                                cy="10.5"
+                                r="6.5">
+                        </circle>
+
+                        <path d="M15.5 15.5L21 21"></path>
+                    </svg>
+
+                    <input id="mobile-availability-search"
+                           name="mobile-availability-search"
+                           @bind="search"
+                           @bind:event="oninput"
+                           placeholder="Código, nombre, serial, ubicación o responsable..." />
                 </div>
+            </label>
 
-                <input list="mobileAvailabilityBranchFilterOptions"
-                       @bind="selectedBranchCode"
-                       @bind:event="oninput"
-                       disabled="@(!UserCanSeeAllBranches())"
-                       placeholder="@BranchFilterPlaceholder" />
+            <div class="mobile-availability-v25-filter-row">
 
-                <datalist id="mobileAvailabilityBranchFilterOptions">
-                    @foreach (var branch in branches.OrderBy(x => x.Code))
-                    {
-                        @if (!string.IsNullOrWhiteSpace(branch.Code))
+                <label class="mobile-availability-v24-field">
+
+                    <span>Sede</span>
+
+                    <input id="mobile-availability-branch-filter"
+                           name="mobile-availability-branch-filter"
+                           list="mobileAvailabilityBranchFilterOptions"
+                           @bind="selectedBranchCode"
+                           @bind:event="oninput"
+                           disabled="@(!UserCanSeeAllBranches())"
+                           placeholder="@BranchFilterPlaceholder" />
+
+                    <datalist id="mobileAvailabilityBranchFilterOptions">
+                        @foreach (var branch in branches.OrderBy(x => x.Code))
                         {
-                            <option value="@branch.Code">@($"{branch.Code} - {branch.Name}")</option>
-                        }
+                            @if (!string.IsNullOrWhiteSpace(branch.Code))
+                            {
+                                <option value="@branch.Code">
+                                    @($"{branch.Code} - {branch.Name}")
+                                </option>
+                            }
 
-                        @if (!string.IsNullOrWhiteSpace(branch.Name) &&
-                             !SameNormalized(branch.Name, branch.Code))
+                            @if (!string.IsNullOrWhiteSpace(branch.Name) &&
+                                 !SameNormalized(branch.Name, branch.Code))
+                            {
+                                <option value="@branch.Name">
+                                    @($"{branch.Code} - {branch.Name}")
+                                </option>
+                            }
+                        }
+                    </datalist>
+
+                    <small>
+                        @(UserCanSeeAllBranches()
+                            ? "Sedes autorizadas."
+                            : $"Sede asignada: {Display(Auth.CurrentUser?.BranchCode ?? Auth.CurrentUser?.BranchName)}")
+                    </small>
+                </label>
+
+                <label class="mobile-availability-v24-field">
+
+                    <span>Estado</span>
+
+                    <select id="mobile-availability-status-filter"
+                            name="mobile-availability-status-filter"
+                            @bind="selectedStatus">
+
+                        <option value="">
+                            @($"Todos ({AvailabilityBaseFilteredTools.Count()})")
+                        </option>
+
+                        @foreach (var option in AvailabilityStatusFilterOptions)
                         {
-                            <option value="@branch.Name">@($"{branch.Code} - {branch.Name}")</option>
+                            <option value="@option.Value">
+                                @($"{option.Label} ({option.Count})")
+                            </option>
                         }
-                    }
-                </datalist>
+                    </select>
 
-                <button type="button" @onclick="ClearFilters" data-ntx-tone="primary" >Limpiar filtros</button>
+                    <small>
+                        Estado operativo del activo.
+                    </small>
+                </label>
+
             </div>
+
+            <button type="button"
+                    class="mobile-availability-v24-clear-filter"
+                    disabled="@(
+                        string.IsNullOrWhiteSpace(search)
+                        &&
+                        string.IsNullOrWhiteSpace(selectedStatus)
+                        &&
+                        (
+                            !UserCanSeeAllBranches()
+                            ||
+                            string.IsNullOrWhiteSpace(selectedBranchCode)
+                        ))"
+                    @onclick="ClearFilters" data-ntx-tone="secondary">
+
+                <svg viewBox="0 0 24 24"
+                     aria-hidden="true"
+                     focusable="false">
+
+                    <path d="M5 5L19 19"></path>
+                    <path d="M19 5L5 19"></path>
+                </svg>
+
+                <span>Limpiar filtros</span>
+            </button>
         </section>
 
         @if (CanSaveAvailability)
         {
-            <section class="mobile-av-form-card mobile-av-management-card">
-                <div class="mobile-av-form-head">
-                    <div>
+            <section id="mobile-availability-management"
+                     class="mobile-availability-v24-management mobile-availability-v25-management @(showManagement ? "is-open" : "is-closed")">
+
+                <header class="mobile-availability-v24-management-header mobile-availability-v25-management-header">
+
+                    <div class="mobile-availability-v25-management-title">
+
+                        <span>GESTIÓN OPERATIVA</span>
+
                         <strong>Gestionar ubicación</strong>
-                        <span>Selecciona una herramienta para modificar sede, ubicación o estado.</span>
-                    </div>
 
-                    <button type="button" @onclick="ClearForm" disabled="@isSaving" data-ntx-tone="secondary" >Limpiar</button>
-                </div>
-
-                @if (SelectedAvailabilityTool is not null)
-                {
-                    <div class="mobile-av-selected">
-                        <span>@Display(SelectedAvailabilityTool.InternalCode)</span>
-                        <strong>@Display(SelectedAvailabilityTool.Name)</strong>
-                        <small>@Display(SelectedAvailabilityTool.BranchCode) · @Display(SelectedAvailabilityTool.LocationName)</small>
-                    </div>
-                }
-
-                <div class="mobile-av-fields mobile-av-fields-web-sync">
-                    <label>
-                        <span>Herramienta / activo</span>
-                        <input list="mobileAvailabilityToolsList"
-                               value="@toolSearchText"
-                               @oninput="OnToolSearchInput"
-                               placeholder="Escriba código, nombre o serial..." />
-
-                        <datalist id="mobileAvailabilityToolsList">
-                            @foreach (var tool in ScopedTools.OrderBy(x => x.InternalCode))
-                            {
-                                <option value="@FormatToolOption(tool)"></option>
-                            }
-                        </datalist>
-
-                        <small class="@GetToolSearchHintClass()">@GetToolSearchHint()</small>
-                    </label>
-
-                    <label>
-                        <span>Sede</span>
-                        <input list="mobileAvailabilityBranchesList"
-                               value="@branchSearchText"
-                               @oninput="OnBranchSearchInput"
-                               disabled="@(!CanChangeAvailabilityLocation || !UserCanSeeAllBranches())"
-                               placeholder="Escriba código o nombre de sede..." />
-
-                        <datalist id="mobileAvailabilityBranchesList">
-                            @foreach (var branch in branches.OrderBy(x => x.Code))
-                            {
-                                <option value="@FormatBranchOption(branch)"></option>
-                            }
-                        </datalist>
-
-                        <small class="@GetBranchSearchHintClass()">@GetBranchSearchHint()</small>
-                    </label>
-
-                    <label>
-                        <span>Almacén / taller / ubicación</span>
-                        <input list="mobileAvailabilityLocationsList"
-                               value="@locationSearchText"
-                               @oninput="OnLocationSearchInput"
-                               disabled="@(!CanChangeAvailabilityLocation)"
-                               placeholder="Escriba almacén, taller o ubicación..." />
-
-                        <datalist id="mobileAvailabilityLocationsList">
-                            @foreach (var location in AvailableLocations.OrderBy(x => x.Code))
-                            {
-                                <option value="@FormatLocationOption(location)"></option>
-                            }
-                        </datalist>
-
-                        <small class="@GetLocationSearchHintClass()">@GetLocationSearchHint()</small>
-                    </label>
-
-                    <label>
-                        <span>Estado operativo</span>
-                        <select @bind="form.OperationalStatus"
-                                disabled="@(!CanChangeAvailabilityStatus)">
-                            <option value="Available">Disponible</option>
-                            <option value="Assigned">Asignada</option>
-                            <option value="Loaned">Prestada</option>
-                            <option value="InMaintenance">En mantenimiento</option>
-                            <option value="Damaged">Dañada</option>
-                            <option value="NotSuitable">No apta</option>
-                            <option value="PendingValidation">Pendiente validación</option>
-                            <option value="NotLocated">No localizada</option>
-                            <option value="PendingDisposal">Pendiente baja</option>
-                            <option value="Disposed">Dada de baja</option>
-                        </select>
-
-                        <small class="mobile-av-search-hint ok">
-                            @(CanChangeAvailabilityStatus ? "Puedes cambiar el estado operativo." : "Estado bloqueado por permisos.")
+                        <small>
+                            Selecciona una herramienta y actualiza únicamente
+                            los campos autorizados para tu usuario.
                         </small>
-                    </label>
+                    </div>
 
-                    <label class="mobile-av-field-full">
-                        <span>Observación</span>
-                        <textarea rows="2"
-                                  @bind="form.Observation"
-                                  placeholder="Motivo del cambio de ubicación o estado..."></textarea>
-                    </label>
-                </div>
+                    <button type="button"
+                            class="mobile-availability-v25-management-toggle"
+                            aria-expanded="@showManagement"
+                            aria-controls="mobile-availability-management-body"
+                            @onclick="ToggleManagement"
+                            data-ntx-tone="expand">
 
-                @if (!CanChangeAvailabilityLocation || !CanChangeAvailabilityStatus)
+                        <svg class="@(showManagement ? "is-open" : string.Empty)"
+                             viewBox="0 0 24 24"
+                             aria-hidden="true"
+                             focusable="false">
+
+                            <path d="M6 9L12 15L18 9"></path>
+                        </svg>
+
+                        <span>
+                            @(showManagement ? "Ocultar" : "Mostrar")
+                        </span>
+                    </button>
+                </header>
+
+                @if (showManagement)
                 {
-                    <div class="mobile-av-permission-note">
-                        @if (!CanChangeAvailabilityLocation)
+                    <div id="mobile-availability-management-body"
+                         class="mobile-availability-v25-management-body">
+
+                        @if (SelectedAvailabilityTool is not null)
                         {
-                            <span>Ubicación bloqueada</span>
+                            <section class="mobile-availability-v24-selected">
+
+                                <div>
+                                    <span>Activo seleccionado</span>
+
+                                    <strong>
+                                        @Display(SelectedAvailabilityTool.InternalCode)
+                                        ·
+                                        @Display(SelectedAvailabilityTool.Name)
+                                    </strong>
+
+                                    <small>
+                                        @Display(SelectedAvailabilityTool.BranchCode)
+                                        ·
+                                        @Display(SelectedAvailabilityTool.LocationName)
+                                    </small>
+                                </div>
+
+                                <b class="@GetStatusClass(
+                                    SelectedAvailabilityTool.OperationalStatus)">
+
+                                    @StatusLabel(
+                                        SelectedAvailabilityTool.OperationalStatus)
+                                </b>
+                            </section>
                         }
 
-                        @if (!CanChangeAvailabilityStatus)
+                        <div class="mobile-availability-v24-form">
+
+                            <label class="mobile-availability-v24-field">
+
+                                <span>Herramienta o activo</span>
+
+                                <input id="mobile-availability-tool"
+                                       name="mobile-availability-tool"
+                                       list="mobileAvailabilityToolsList"
+                                       value="@toolSearchText"
+                                       @oninput="OnToolSearchInput"
+                                       placeholder="Código, nombre o serial..." />
+
+                                <datalist id="mobileAvailabilityToolsList">
+                                    @foreach (var tool in ScopedTools
+                                        .OrderBy(x => x.InternalCode))
+                                    {
+                                        <option value="@FormatToolOption(tool)">
+                                        </option>
+                                    }
+                                </datalist>
+
+                                <small class="@GetToolSearchHintClass()">
+                                    @GetToolSearchHint()
+                                </small>
+                            </label>
+
+                            <label class="mobile-availability-v24-field">
+
+                                <span>Sede</span>
+
+                                <input id="mobile-availability-branch"
+                                       name="mobile-availability-branch"
+                                       list="mobileAvailabilityBranchesList"
+                                       value="@branchSearchText"
+                                       @oninput="OnBranchSearchInput"
+                                       disabled="@(
+                                           !CanChangeAvailabilityLocation
+                                           ||
+                                           !UserCanSeeAllBranches())"
+                                       placeholder="Código o nombre de sede..." />
+
+                                <datalist id="mobileAvailabilityBranchesList">
+                                    @foreach (var branch in branches
+                                        .OrderBy(x => x.Code))
+                                    {
+                                        <option value="@FormatBranchOption(branch)">
+                                        </option>
+                                    }
+                                </datalist>
+
+                                <small class="@GetBranchSearchHintClass()">
+                                    @(UserCanSeeAllBranches()
+                                        ? GetBranchSearchHint()
+                                        : "La sede está restringida al alcance de tu usuario.")
+                                </small>
+                            </label>
+
+                            <label class="mobile-availability-v24-field">
+
+                                <span>Almacén, taller o ubicación</span>
+
+                                <input id="mobile-availability-location"
+                                       name="mobile-availability-location"
+                                       list="mobileAvailabilityLocationsList"
+                                       value="@locationSearchText"
+                                       @oninput="OnLocationSearchInput"
+                                       disabled="@(!CanChangeAvailabilityLocation)"
+                                       placeholder="Almacén, taller o ubicación..." />
+
+                                <datalist id="mobileAvailabilityLocationsList">
+                                    @foreach (var location in AvailableLocations
+                                        .OrderBy(x => x.Code))
+                                    {
+                                        <option value="@FormatLocationOption(location)">
+                                        </option>
+                                    }
+                                </datalist>
+
+                                <small class="@GetLocationSearchHintClass()">
+                                    @GetLocationSearchHint()
+                                </small>
+                            </label>
+
+                            <label class="mobile-availability-v24-field">
+
+                                <span>Estado operativo</span>
+
+                                <select id="mobile-availability-operational-status"
+                                        name="mobile-availability-operational-status"
+                                        @bind="form.OperationalStatus"
+                                        disabled="@(!CanChangeAvailabilityStatus)">
+
+                                    <option value="Available">Disponible</option>
+                                    <option value="Assigned">Asignada</option>
+                                    <option value="Loaned">Prestada</option>
+                                    <option value="InMaintenance">En mantenimiento</option>
+                                    <option value="Damaged">Dañada</option>
+                                    <option value="NotSuitable">No apta</option>
+                                    <option value="PendingValidation">Pendiente validación</option>
+                                    <option value="NotLocated">No localizada</option>
+                                    <option value="PendingDisposal">Pendiente baja</option>
+                                    <option value="Disposed">Dada de baja</option>
+                                </select>
+
+                                <small>
+                                    @(CanChangeAvailabilityStatus
+                                        ? "Puedes cambiar el estado operativo."
+                                        : "Estado bloqueado por permisos.")
+                                </small>
+                            </label>
+
+                            <label class="mobile-availability-v24-field">
+
+                                <span>Observación</span>
+
+                                <textarea id="mobile-availability-observation"
+                                          name="mobile-availability-observation"
+                                          rows="3"
+                                          @bind="form.Observation"
+                                          placeholder="Motivo del cambio de ubicación o estado...">
+                                </textarea>
+                            </label>
+
+                        </div>
+
+                        @if (!CanChangeAvailabilityLocation ||
+                             !CanChangeAvailabilityStatus)
                         {
-                            <span>Estado bloqueado</span>
+                            <div class="mobile-availability-v24-permissions">
+
+                                @if (!CanChangeAvailabilityLocation)
+                                {
+                                    <span>Ubicación bloqueada</span>
+                                }
+
+                                @if (!CanChangeAvailabilityStatus)
+                                {
+                                    <span>Estado bloqueado</span>
+                                }
+                            </div>
                         }
+
+                        <div class="mobile-availability-v24-form-actions">
+
+                            <button type="button"
+                                    class="mobile-availability-v24-save"
+                                    disabled="@(
+                                        isSaving
+                                        ||
+                                        !CanSaveAvailability
+                                        ||
+                                        !form.ToolId.HasValue)"
+                                    @onclick="SaveAsync"
+                                    data-ntx-tone="affirmative">
+
+                                <svg viewBox="0 0 24 24"
+                                     aria-hidden="true"
+                                     focusable="false">
+
+                                    <path d="M5 4H17L20 7V20H5Z"></path>
+                                    <path d="M8 4V10H16V4"></path>
+                                    <path d="M8 16H17"></path>
+                                </svg>
+
+                                <span>
+                                    @(isSaving
+                                        ? "Guardando..."
+                                        : "Guardar cambios")
+                                </span>
+                            </button>
+
+                            <button type="button"
+                                    class="mobile-availability-v24-secondary"
+                                    disabled="@isSaving"
+                                    @onclick="ClearForm" data-ntx-tone="secondary">
+
+                                <svg viewBox="0 0 24 24"
+                                     aria-hidden="true"
+                                     focusable="false">
+
+                                    <path d="M5 5L19 19"></path>
+                                    <path d="M19 5L5 19"></path>
+                                </svg>
+
+                                <span>Limpiar</span>
+                            </button>
+                        </div>
+
                     </div>
                 }
-
-                <div class="mobile-av-form-actions">
-                    <button type="button"
-                            class="primary"
-                            @onclick="SaveAsync"
-                            disabled="@(isSaving || !CanSaveAvailability || !form.ToolId.HasValue)" data-ntx-tone="primary" >
-                        @(isSaving ? "Guardando..." : "Guardar cambios")
-                    </button>
-
-                    <button type="button" @onclick="ClearForm" disabled="@isSaving" data-ntx-tone="secondary" >
-                        Limpiar
-                    </button>
-                </div>
             </section>
         }
 
-        <section class="mobile-av-list-card">
-            <div class="mobile-av-list-head">
-                <div>
-                    <strong>Herramientas por disponibilidad</strong>
-                    <span>Selecciona una herramienta para gestionar su ubicación.</span>
-                </div>
+        <section class="mobile-availability-v24-results-header">
 
-                <small>@FilteredTools.Count() visibles</small>
+            <div>
+                <span>MAESTRO DE DISPONIBILIDAD</span>
+
+                <strong>Herramientas por disponibilidad</strong>
+
+                <small>
+                    Selecciona Gestionar para cargar el formulario.
+                </small>
             </div>
 
-            @if (!FilteredTools.Any())
-            {
-                <section class="mobile-empty mobile-av-empty">
-                    <strong>Sin activos</strong>
-                    <span>No se encontraron herramientas con los filtros aplicados.</span>
-                </section>
-            }
-            else
-            {
-                <section class="mobile-av-list">
-                    @foreach (var tool in FilteredTools)
-                    {
-                        <article class="mobile-av-card">
-                            <div class="mobile-av-card-head">
-                                <div>
-                                    <span>@Display(tool.InternalCode)</span>
-                                    <strong>@Display(tool.Name)</strong>
-                                    <small>@Display(tool.SerialNumber)</small>
-                                </div>
-
-                                <b class="@GetStatusClass(tool.OperationalStatus)">
-                                    @StatusLabel(tool.OperationalStatus)
-                                </b>
-                            </div>
-
-                            <div class="mobile-av-card-grid">
-                                <div>
-                                    <span>Sede</span>
-                                    <strong>@Display(tool.BranchCode)</strong>
-                                </div>
-
-                                <div>
-                                    <span>Ubicación</span>
-                                    <strong>@Display(tool.LocationName)</strong>
-                                </div>
-
-                                <div>
-                                    <span>Responsable</span>
-                                    <strong>@Display(tool.ResponsiblePersonName)</strong>
-                                </div>
-
-                                <div>
-                                    <span>Físico</span>
-                                    <strong>@Display(tool.PhysicalStatus)</strong>
-                                </div>
-                            </div>
-
-                            <div class="mobile-av-card-actions mobile-av-manage-only-actions">
-                                @if (CanSaveAvailability)
-                                {
-                                    <button type="button"
-                                            class="mobile-av-action-manage"
-                                            disabled="@isSaving"
-                                            @onclick="() => SelectTool(tool)" data-ntx-tone="secondary" >
-                                        Gestionar
-                                    </button>
-                                }
-                                else
-                                {
-                                    <span class="mobile-av-readonly-note">Solo consulta</span>
-                                }
-                            </div>
-                        </article>
-                    }
-                </section>
-            }
+            <b>@FilteredTools.Count()</b>
         </section>
+
+        @if (!FilteredTools.Any())
+        {
+            <section class="mobile-availability-v24-empty">
+
+                <svg viewBox="0 0 24 24"
+                     aria-hidden="true"
+                     focusable="false">
+
+                    <path d="M4 7H20V20H4Z"></path>
+                    <path d="M8 7V4H16V7"></path>
+                    <path d="M8 12H16"></path>
+                </svg>
+
+                <strong>Sin activos</strong>
+
+                <span>
+                    No se encontraron herramientas con los filtros aplicados.
+                </span>
+
+                <button type="button"
+                        class="mobile-availability-v24-secondary"
+                        @onclick="ClearFilters" data-ntx-tone="secondary">
+
+                    Limpiar filtros
+                </button>
+            </section>
+        }
+        else
+        {
+            <section class="mobile-availability-v24-list">
+
+                @foreach (var tool in FilteredTools)
+                {
+                    <article class="mobile-availability-v24-card">
+
+                        <header>
+                            <div>
+                                <span>
+                                    @Display(tool.InternalCode)
+                                </span>
+
+                                <strong>
+                                    @Display(tool.Name)
+                                </strong>
+
+                                <small>
+                                    Serial:
+                                    @Display(tool.SerialNumber)
+                                </small>
+                            </div>
+
+                            <b class="@GetStatusClass(
+                                tool.OperationalStatus)">
+
+                                @StatusLabel(
+                                    tool.OperationalStatus)
+                            </b>
+                        </header>
+
+                        <section class="mobile-availability-v24-card-grid">
+
+                            <div>
+                                <svg viewBox="0 0 24 24"
+                                     aria-hidden="true"
+                                     focusable="false">
+
+                                    <path d="M12 21S18 15.5 18 10A6 6 0 1 0 6 10C6 15.5 12 21 12 21Z"></path>
+
+                                    <circle cx="12"
+                                            cy="10"
+                                            r="2">
+                                    </circle>
+                                </svg>
+
+                                <span>
+                                    <small>Sede</small>
+
+                                    <strong>
+                                        @Display(tool.BranchCode)
+                                    </strong>
+                                </span>
+                            </div>
+
+                            <div>
+                                <svg viewBox="0 0 24 24"
+                                     aria-hidden="true"
+                                     focusable="false">
+
+                                    <path d="M4 7H20V20H4Z"></path>
+                                    <path d="M8 7V4H16V7"></path>
+                                </svg>
+
+                                <span>
+                                    <small>Ubicación</small>
+
+                                    <strong>
+                                        @Display(tool.LocationName)
+                                    </strong>
+                                </span>
+                            </div>
+
+                        </section>
+
+                        <section class="mobile-availability-v24-card-meta">
+
+                            <div>
+                                <span>Responsable</span>
+
+                                <strong>
+                                    @Display(tool.ResponsiblePersonName)
+                                </strong>
+                            </div>
+
+                            <div>
+                                <span>Estado físico</span>
+
+                                <strong>
+                                    @Display(tool.PhysicalStatus)
+                                </strong>
+                            </div>
+
+                        </section>
+
+                        <footer>
+                            @if (CanSaveAvailability)
+                            {
+                                <button type="button"
+                                        class="mobile-availability-v24-manage"
+                                        disabled="@isSaving"
+                                        @onclick="() => ManageToolAsync(tool)"
+                                        data-ntx-tone="operation">
+
+                                    <svg viewBox="0 0 24 24"
+                                         aria-hidden="true"
+                                         focusable="false">
+
+                                        <path d="M12 3V21"></path>
+                                        <path d="M3 12H21"></path>
+
+                                        <circle cx="12"
+                                                cy="12"
+                                                r="7">
+                                        </circle>
+                                    </svg>
+
+                                    <span>Gestionar</span>
+                                </button>
+                            }
+                            else
+                            {
+                                <span class="mobile-availability-v24-readonly">
+                                    Solo consulta
+                                </span>
+                            }
+                        </footer>
+
+                    </article>
+                }
+
+            </section>
+        }
     }
+
 </section>
 
 @code {
     private bool isLoading = true;
     private bool isSaving;
+    private bool showManagement = false;
+
+    private bool showSecondaryKpis;
 
     private string? message;
     private string messageClass = "mobile-alert";
@@ -472,6 +910,8 @@
 
     private async Task LoadAsync()
     {
+        showManagement = false;
+
         try
         {
             isLoading = true;
@@ -513,6 +953,48 @@
         {
             isLoading = false;
         }
+    }
+
+    // NAVI MOBILE AVAILABILITY MANAGEMENT V25 START
+
+    private void ToggleManagement()
+    {
+        showManagement = !showManagement;
+    }
+
+    private async Task ManageToolAsync(
+        MobileAvailabilityToolDto tool)
+    {
+        SelectTool(tool);
+
+        showManagement = true;
+
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
+
+        try
+        {
+            await JS.InvokeVoidAsync(
+                "naviMobileAvailabilityV25.scrollToManagement");
+        }
+        catch
+        {
+            // El formulario permanece abierto aunque el navegador
+            // no permita ejecutar el desplazamiento animado.
+        }
+    }
+
+    // NAVI MOBILE AVAILABILITY MANAGEMENT V25 END
+
+    private void ToggleSecondaryKpis()
+    {
+        showSecondaryKpis =
+            !showSecondaryKpis;
+    }
+
+    private void CloseSecondaryKpis()
+    {
+        showSecondaryKpis = false;
     }
 
     private void ClearFilters()
@@ -738,6 +1220,8 @@
         branchSearchText = string.Empty;
         locationSearchText = string.Empty;
         message = null;
+
+        showManagement = false;
     }
 
     private void SyncFormTexts()

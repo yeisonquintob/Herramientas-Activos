@@ -2,65 +2,130 @@
 @inject MobileAuthSessionService Auth
 @inject NavigationManager Navigation
 
-@if (isReady && Auth.IsAuthenticated && Auth.CanAccessMobile())
+@if (isReady &&
+     Auth.IsAuthenticated &&
+     Auth.CanAccessMobile())
 {
-    <nav class="mobile-bottom-nav">
-        <NavLink href="/" Match="NavLinkMatch.All">
-            <span>INI</span>
-            <strong>Inicio</strong>
+    <nav class="mobile-bottom-nav"
+         aria-label="Navegación principal del aplicativo">
+        <NavLink class="mobile-bottom-nav__item"
+                 href="/"
+                 Match="NavLinkMatch.All">
+            <span class="mobile-bottom-nav__icon"
+                  aria-hidden="true">
+                INI
+            </span>
+
+            <strong class="mobile-bottom-nav__label">
+                Inicio
+            </strong>
         </NavLink>
 
         @if (CanViewOwnTools)
         {
-            <NavLink href="/my-tools">
-                <span>MIS</span>
-                <strong>Mis AF</strong>
+            <NavLink class="mobile-bottom-nav__item"
+                     href="/my-tools">
+                <span class="mobile-bottom-nav__icon"
+                      aria-hidden="true">
+                    MIS
+                </span>
+
+                <strong class="mobile-bottom-nav__label">
+                    Mis AF
+                </strong>
             </NavLink>
         }
 
         @if (CanViewInventory)
         {
-            <NavLink href="/all-tools">
-                <span>INV</span>
-                <strong>Inventario</strong>
+            <NavLink class="mobile-bottom-nav__item"
+                     href="/all-tools">
+                <span class="mobile-bottom-nav__icon"
+                      aria-hidden="true">
+                    INV
+                </span>
+
+                <strong class="mobile-bottom-nav__label">
+                    Inventario
+                </strong>
             </NavLink>
         }
 
         @if (CanViewAvailability)
         {
-            <NavLink href="/mobile/availability">
-                <span>UBI</span>
-                <strong>Ubicación</strong>
+            <NavLink class="mobile-bottom-nav__item"
+                     href="/mobile/availability">
+                <span class="mobile-bottom-nav__icon"
+                      aria-hidden="true">
+                    UBI
+                </span>
+
+                <strong class="mobile-bottom-nav__label">
+                    Ubicación
+                </strong>
             </NavLink>
         }
 
         @if (CanUseAssignmentModule)
         {
-            <NavLink href="/mobile/assignment">
-                <span>PRE</span>
-                <strong>Préstamos</strong>
+            <NavLink class="mobile-bottom-nav__item"
+                     href="/mobile/assignment">
+                <span class="mobile-bottom-nav__icon"
+                      aria-hidden="true">
+                    PRE
+                </span>
+
+                <strong class="mobile-bottom-nav__label">
+                    Préstamos
+                </strong>
             </NavLink>
         }
 
         @if (CanViewLifeRecord)
         {
-            <NavLink href="/mobile/life-records">
-                <span>HV</span>
-                <strong>Hoja vida</strong>
+            <NavLink class="mobile-bottom-nav__item"
+                     href="/mobile/life-records">
+                <span class="mobile-bottom-nav__icon"
+                      aria-hidden="true">
+                    HV
+                </span>
+
+                <strong class="mobile-bottom-nav__label">
+                    Hoja de vida
+                </strong>
             </NavLink>
         }
 
         @if (CanReportDamage)
         {
-            <NavLink href="/report-damage">
-                <span>NOV</span>
-                <strong>Novedad</strong>
+            <NavLink class="mobile-bottom-nav__item"
+                     href="/report-damage">
+                <span class="mobile-bottom-nav__icon"
+                      aria-hidden="true">
+                    NOV
+                </span>
+
+                <strong class="mobile-bottom-nav__label">
+                    Novedad
+                </strong>
             </NavLink>
         }
 
-        <button type="button" @onclick="LogoutAsync" data-ntx-tone="secondary" >
-            <span>SAL</span>
-            <strong>Salir</strong>
+        <button type="button"
+                class="mobile-bottom-nav__item
+                       mobile-bottom-nav__item--logout"
+                aria-label="Cerrar sesión"
+                title="Cerrar sesión"
+                data-ntx-tone="ghost"
+                @onclick="LogoutAsync">
+            <span class="mobile-bottom-nav__icon"
+                  aria-hidden="true">
+                SAL
+            </span>
+
+            <strong class="mobile-bottom-nav__label">
+                Salir
+            </strong>
         </button>
     </nav>
 }
@@ -68,32 +133,56 @@
 @code {
     private bool isReady;
 
-    private bool CanViewOwnTools => Auth.HasAnyPermission("Mobile.Tools.View", "Tools.View");
-    private bool CanViewInventory => Auth.HasPermission("Tools.View");
-    private bool CanViewAvailability => Auth.HasAnyPermission("AssetAvailability.View", "AssetAvailability.Edit", "AssetAvailability.Status.Change");
-    private bool CanViewLifeRecord => Auth.HasAnyPermission("TechnicalLifeRecord.View", "ToolDetail.LifeRecord.Open");
-    private bool CanReportDamage => Auth.HasAnyPermission("Mobile.Damage.Report", "Damages.Create");
+    private bool CanViewOwnTools =>
+        Auth.HasAnyPermission(
+            "Mobile.Tools.View",
+            "Tools.View");
 
-    private bool CanUseAssignmentModule => Auth.HasAnyPermission(
-        "AssetAssignment.View",
-        "AssetAssignment.Request",
-        "Mobile.Loans.Request",
-        "AssetAssignment.Assign",
-        "AssetAssignment.Return",
-        "AssetAssignment.Approve",
-        "AssetAssignment.Deny",
-        "AssetAssignment.History");
+    private bool CanViewInventory =>
+        Auth.HasPermission("Tools.View");
+
+    private bool CanViewAvailability =>
+        Auth.HasAnyPermission(
+            "AssetAvailability.View",
+            "AssetAvailability.Edit",
+            "AssetAvailability.Status.Change");
+
+    private bool CanViewLifeRecord =>
+        Auth.HasAnyPermission(
+            "TechnicalLifeRecord.View",
+            "ToolDetail.LifeRecord.Open");
+
+    private bool CanReportDamage =>
+        Auth.HasAnyPermission(
+            "Mobile.Damage.Report",
+            "Damages.Create");
+
+    private bool CanUseAssignmentModule =>
+        Auth.HasAnyPermission(
+            "AssetAssignment.View",
+            "AssetAssignment.Request",
+            "Mobile.Loans.Request",
+            "AssetAssignment.Assign",
+            "AssetAssignment.Return",
+            "AssetAssignment.Approve",
+            "AssetAssignment.Deny",
+            "AssetAssignment.History");
 
     protected override async Task OnInitializedAsync()
     {
         await Auth.InitializeAsync();
+
         isReady = true;
+
         StateHasChanged();
     }
 
     private async Task LogoutAsync()
     {
         await Auth.LogoutAsync();
-        Navigation.NavigateTo("/login", forceLoad: true);
+
+        Navigation.NavigateTo(
+            "/login",
+            forceLoad: true);
     }
 }

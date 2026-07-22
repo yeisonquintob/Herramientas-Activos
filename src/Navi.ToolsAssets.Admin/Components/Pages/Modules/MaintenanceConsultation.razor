@@ -1,5 +1,6 @@
 @page "/maintenance"
 @rendermode InteractiveServer
+@implements IDisposable
 @using System.Globalization
 @using System.Net
 @using System.Net.Http.Json
@@ -26,400 +27,1080 @@
 }
 else
 {
+    @* NAVI CONSULTA COMPRAS MTTO VISUAL V134 START *@
+    <section class="assignment-history-web-v26 consult-history-layout-v137">
+    
     <NaviPageHero
         Pill="OPERACIONES"
         Title="Consulta Compras y Mtto."
-        Description="Consulta solicitudes y cotizaciones de compra y mantenimiento. La generación final y la cotización se realizan desde la solicitud; esta vista es de consulta, seguimiento y cierre.">
-
-        <button type="button" @onclick="RefreshAsync" disabled="@isLoading" data-ntx-tone="secondary" >
-            @(isLoading ? "Actualizando..." : "Actualizar")
-        </button>
-
-    </NaviPageHero>
-
+        Description="Consulta solicitudes y cotizaciones de compra y mantenimiento. La generación final y la cotización se realizan desde la solicitud; esta vista es de consulta, seguimiento y cierre." />
+    
+    <NaviKpiToolbar
+        Class="consult-kpi-toolbar-v134"
+        Refresh="RefreshAsync"
+        IsRefreshing="isLoading"
+        RefreshTitle="Actualizar consulta"
+        RefreshAriaLabel="Actualizar consulta de compras y mantenimiento">
+    
+        <NaviKpiGrid
+            Columns="6"
+            Dividers="true"
+            Compact="true"
+            Class="consult-kpi-grid consult-kpi-grid-v134">
+    
+            <NaviKpiCard
+                Title="Total"
+                Description="Solicitudes visibles"
+                Tone="neutral"
+                Compact="true"
+                Class="consult-kpi consult-kpi-v134">
+    
+                <IconContent>
+                    <NaviKpiIcon Name="document" />
+                </IconContent>
+    
+                <ValueContent>
+                    @FilteredItems.Count()
+                </ValueContent>
+            </NaviKpiCard>
+    
+            <NaviKpiCard
+                Title="Compras"
+                Description="Herramientas y AF"
+                Tone="neutral"
+                Compact="true"
+                Class="consult-kpi consult-kpi-v134">
+    
+                <IconContent>
+                    <NaviKpiIcon Name="cart" />
+                </IconContent>
+    
+                <ValueContent>
+                    @FilteredPurchases.Count()
+                </ValueContent>
+            </NaviKpiCard>
+    
+            <NaviKpiCard
+                Title="Mantenimiento"
+                Description="Solicitudes de mtto."
+                Tone="soft"
+                Compact="true"
+                Class="consult-kpi consult-kpi-v134">
+    
+                <IconContent>
+                    <NaviKpiIcon Name="wrench" />
+                </IconContent>
+    
+                <ValueContent>
+                    @FilteredMaintenances.Count()
+                </ValueContent>
+            </NaviKpiCard>
+    
+            <NaviKpiCard
+                Title="En revisión"
+                Description="Pendientes por aprobar"
+                Tone="warning"
+                Compact="true"
+                Class="consult-kpi consult-kpi-v134">
+    
+                <IconContent>
+                    <NaviKpiIcon Name="clock" />
+                </IconContent>
+    
+                <ValueContent>
+                    @FilteredItems.Count(x => IsStatus(x, "InReview"))
+                </ValueContent>
+            </NaviKpiCard>
+    
+            <NaviKpiCard
+                Title="Aprobadas / ejecución"
+                Description="Solicitudes que suman costo"
+                Tone="positive"
+                Compact="true"
+                Class="consult-kpi consult-kpi-v134">
+    
+                <IconContent>
+                    <NaviKpiIcon Name="check" />
+                </IconContent>
+    
+                <ValueContent>
+                    @FilteredItems.Count(x => IsPositiveCostStatus(x.Status))
+                </ValueContent>
+            </NaviKpiCard>
+    
+            <NaviKpiCard
+                Title="Rechazadas"
+                Description="No continúan ni suman"
+                Tone="danger"
+                Compact="true"
+                Class="consult-kpi consult-kpi-v134">
+    
+                <IconContent>
+                    <NaviKpiIcon Name="alert" />
+                </IconContent>
+    
+                <ValueContent>
+                    @FilteredItems.Count(x => IsRejectedOrCanceled(x.Status))
+                </ValueContent>
+            </NaviKpiCard>
+    
+            
+    
+        </NaviKpiGrid>
+    </NaviKpiToolbar>
+    
     @if (!string.IsNullOrWhiteSpace(StatusMessage))
     {
-        <div class="alert alert-success">@StatusMessage</div>
+        <div class="alert alert-success consult-alert-v134">
+            @StatusMessage
+        </div>
     }
-
+    
     @if (!string.IsNullOrWhiteSpace(ErrorMessage))
     {
-        <div class="alert alert-warning">@ErrorMessage</div>
+        <div class="alert alert-warning consult-alert-v134">
+            @ErrorMessage
+        </div>
     }
-
-    <section class="consult-kpi-grid">
-        <article class="consult-kpi neutral">
-            <span>Total</span>
-            <strong>@FilteredItems.Count()</strong>
-            <small>Solicitudes</small>
-        </article>
-
-        <article class="consult-kpi neutral">
-            <span>Compras</span>
-            <strong>@FilteredPurchases.Count()</strong>
-            <small>Herramientas y AF</small>
-        </article>
-
-        <article class="consult-kpi primary">
-            <span>Mtto.</span>
-            <strong>@FilteredMaintenances.Count()</strong>
-            <small>Mantenimiento</small>
-        </article>
-
-        <article class="consult-kpi amber">
-            <span>En revisión</span>
-            <strong>@FilteredItems.Count(x => IsStatus(x, "InReview"))</strong>
-            <small>Por aprobar</small>
-        </article>
-
-        <article class="consult-kpi tone-positive">
-            <span>Aprobadas / ejecución</span>
-            <strong>@FilteredItems.Count(x => IsPositiveCostStatus(x.Status))</strong>
-            <small>Suman costo</small>
-        </article>
-
-        <article class="consult-kpi tone-danger">
-            <span>Rechazadas</span>
-            <strong>@FilteredItems.Count(x => IsRejectedOrCanceled(x.Status))</strong>
-            <small>No suman costo</small>
-        </article>
-
-        <article class="consult-kpi primary">
-            <span>Costo estimado</span>
-            <strong>@FormatMoney(TotalEstimatedCost)</strong>
-            <small>@CostedItemsCount con costo</small>
-        </article>
-    </section>
-
     
-    <section class="consult-status-filters consult-status-filters-modern" aria-label="Estados de consulta">
-        <button type="button"
-                class="@GetConsultStatusChipClass("all")"
-                @onclick="@(() => SelectConsultStatus("all"))" data-ntx-tone="secondary" >
-            Todos
-            <span>@ConsultBaseFilteredItems.Count()</span>
-        </button>
+    <section
+        class="assignment-history-v26-filter-card consult-page-filters consult-page-filters-v134"
+        aria-label="Filtros de consulta">
+    
+        <div class="assignment-history-v26-field consult-filter-field-v134">
+            <label for="consult-type-filter-v134">
+                Tipo de consulta
+            </label>
+    
+            <select
+                id="consult-type-filter-v134"
+                class="form-select form-select-sm"
+                @bind="typeFilter"
+                name="navi-maintenanceconsultation-field-001">
+    
+                <option value="all">
+                    Compra y mantenimiento
+                </option>
+    
+                <option value="purchase">
+                    Solo compras
+                </option>
+    
+                <option value="maintenance">
+                    Solo mantenimiento
+                </option>
+            </select>
+        </div>
+    
+        
+        <div class="assignment-history-v26-field consult-filter-field-v134">
+            <label for="consult-status-filter-v1371">
+                Estado
+            </label>
 
-        @foreach (var status in ConsultStatusOptions)
-        {
-            <button type="button"
-                    class="@GetConsultStatusChipClass(status.Value)"
-                    @onclick="@(() => SelectConsultStatus(status.Value))" data-ntx-tone="secondary" >
-                @status.Text
-                <span>@ConsultBaseFilteredItems.Count(x => IsStatus(x, status.Value))</span>
-            </button>
-        }
-    </section>
+            <select
+                id="consult-status-filter-v1371"
+                class="form-select form-select-sm"
+                @bind="statusFilter"
+                name="navi-maintenanceconsultation-field-status">
 
-    <section class="consult-page-filters" aria-label="Filtros de consulta">
-        <select class="form-select form-select-sm" @bind="typeFilter">
-            <option value="all">Compra y mantenimiento</option>
-            <option value="purchase">Solo compras</option>
-            <option value="maintenance">Solo mantenimiento</option>
-        </select>
+                <option value="all">
+                    Todos (@ConsultBaseFilteredItems.Count())
+                </option>
 
-        <input class="form-control form-control-sm"
-               @bind="searchText"
-               @bind:event="oninput"
-               placeholder="Buscar solicitud, activo, proveedor, técnico, sede..." />
+                @foreach (var status in ConsultStatusOptions)
+                {
+                    <option value="@status.Value">
+                        @status.Text
+                        (@ConsultBaseFilteredItems.Count(
+                            x => IsStatus(x, status.Value)))
+                    </option>
+                }
+            </select>
+        </div>
 
-        <div class="consult-page-filter-actions">
-            <button type="button" class="btn btn-primary btn-sm" @onclick="ApplyFilters" data-ntx-tone="secondary" >
+<div class="assignment-history-v26-field consult-filter-field-v134">
+            <label for="consult-search-filter-v134">
+                Buscar
+            </label>
+    
+            <input
+                id="consult-search-filter-v134"
+                class="form-control form-control-sm"
+                @bind="searchText"
+                @bind:event="oninput"
+                placeholder="Solicitud, activo, proveedor, técnico o sede..."
+                name="navi-maintenanceconsultation-field-002" />
+        </div>
+    
+        <div class="assignment-history-v26-filter-actions consult-page-filter-actions">
+            <button
+                type="button"
+                class="assignment-history-v26-filter-button btn ntx-btn--operation btn-sm"
+                @onclick="ApplyFilters"
+                data-ntx-tone="operation">
+    
                 Filtrar
             </button>
-
-            <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="ClearConsultFilters" data-ntx-tone="secondary" >
+    
+            <button
+                type="button"
+                class="assignment-history-v26-clear-button btn btn-outline-secondary btn-sm"
+                @onclick="ClearConsultFilters"
+                data-ntx-tone="secondary">
+    
                 Limpiar
             </button>
         </div>
     </section>
 
+@* NAVI CONSULT COST SUMMARY COMPACT V135.1 START *@
+<section
+    class="consult-panel consult-cost-summary-v134 consult-cost-summary-v135"
+    aria-labelledby="consult-cost-summary-title-v1351">
 
+    <div class="consult-cost-summary-header-v135">
+        <div class="consult-cost-summary-copy-v135">
+            <span class="consult-eyebrow-v134">
+                RESUMEN FINANCIERO
+            </span>
 
-    <section class="consult-layout">
-        <article class="consult-panel main">
-            <div class="consult-title-row">
+            <h3 id="consult-cost-summary-title-v1351">
+                Resumen de costos
+            </h3>
+
+            <p>
+                Solo suman solicitudes aprobadas, programadas,
+                en ejecución o cerradas.
+            </p>
+        </div>
+
+        <div class="consult-cost-total-v135">
+            <small>Total estimado</small>
+            <strong>@FormatMoney(TotalEstimatedCost)</strong>
+            <span>@CostedItemsCount solicitudes con costo</span>
+        </div>
+    </div>
+
+    <div class="cost-summary-stack-v134 cost-summary-stack-v135">
+
+        <section
+                            class="cost-block purchase cost-kpi-card-v134 cost-kpi-card-v135"
+                            aria-labelledby="consult-purchase-cost-title-v134">
+    
+                            <div class="cost-kpi-heading-v134">
+                                <span class="cost-kpi-icon-v134" aria-hidden="true">
+                                    <NaviKpiIcon Name="cart" />
+                                </span>
+    
+                                <div>
+                                    <small>Compras</small>
+    
+                                    <strong id="consult-purchase-cost-title-v134">
+                                        @FormatMoney(PurchaseCost)
+                                    </strong>
+                                </div>
+                            </div>
+    
+                            <div
+                                class="consult-cost-chart-v134"
+                                role="img"
+                                aria-label="Participación del costo de compras">
+    
+                                <div class="consult-cost-chart-track-v134">
+                                    <span
+                                        class="consult-cost-chart-fill-v134 purchase"
+                                        style="@NaviChartWidth(
+                                            PurchaseCost,
+                                            TotalEstimatedCost)">
+                                    </span>
+                                </div>
+    
+                                <small>
+                                    Participación sobre el costo total
+                                </small>
+                            </div>
+    
+                            <dl class="cost-metrics-v134">
+                                <div>
+                                    <dt>Promedio</dt>
+                                    <dd>@FormatMoney(PurchaseAverage)</dd>
+                                </div>
+    
+                                <div>
+                                    <dt>Mayor costo</dt>
+                                    <dd>@FormatMoney(PurchaseMax)</dd>
+                                </div>
+    
+                                <div>
+                                    <dt>Proveedores</dt>
+                                    <dd>@PurchaseProviders</dd>
+                                </div>
+                            </dl>
+                        </section>
+
+        <section
+                            class="cost-block maintenance cost-kpi-card-v134 cost-kpi-card-v135"
+                            aria-labelledby="consult-maintenance-cost-title-v134">
+    
+                            <div class="cost-kpi-heading-v134">
+                                <span class="cost-kpi-icon-v134" aria-hidden="true">
+                                    <NaviKpiIcon Name="wrench" />
+                                </span>
+    
+                                <div>
+                                    <small>Mantenimiento</small>
+    
+                                    <strong id="consult-maintenance-cost-title-v134">
+                                        @FormatMoney(MaintenanceCost)
+                                    </strong>
+                                </div>
+                            </div>
+    
+                            <div
+                                class="consult-cost-chart-v134"
+                                role="img"
+                                aria-label="Participación del costo de mantenimiento">
+    
+                                <div class="consult-cost-chart-track-v134">
+                                    <span
+                                        class="consult-cost-chart-fill-v134 maintenance"
+                                        style="@NaviChartWidth(
+                                            MaintenanceCost,
+                                            TotalEstimatedCost)">
+                                    </span>
+                                </div>
+    
+                                <small>
+                                    Participación sobre el costo total
+                                </small>
+                            </div>
+    
+                            <dl class="cost-metrics-v134">
+                                <div>
+                                    <dt>Promedio</dt>
+                                    <dd>@FormatMoney(MaintenanceAverage)</dd>
+                                </div>
+    
+                                <div>
+                                    <dt>Mayor costo</dt>
+                                    <dd>@FormatMoney(MaintenanceMax)</dd>
+                                </div>
+    
+                                <div>
+                                    <dt>Proveedores</dt>
+                                    <dd>@MaintenanceProviders</dd>
+                                </div>
+                            </dl>
+                        </section>
+    </div>
+</section>
+@* NAVI CONSULT COST SUMMARY COMPACT V135.1 END *@
+
+<section class="consult-layout consult-layout-v134 consult-layout-results-only-v135">
+    
+        <article class="assignment-history-v26-result-card consult-panel main consult-results-panel-v134">
+    
+            <div class="assignment-history-v26-result-header consult-title-row consult-title-row-v134">
                 <div>
-                    <h3>Solicitudes registradas</h3>
-                    <p>Compras y mantenimientos separados. Se muestran todos los estados: revisión, aprobadas, programadas, ejecución, cerradas, canceladas y rechazadas.</p>
+                    <span class="consult-eyebrow-v134">
+                        SOLICITUDES REGISTRADAS
+                    </span>
+    
+                    <h3>Compras y mantenimientos</h3>
+    
+                    <p>
+                        Consulta cada flujo por separado sin mezclar los
+                        registros ni perder la lectura de sus estados.
+                    </p>
                 </div>
+    
+                <span class="assignment-history-v26-result-count consult-result-count-v134">
+                    @FilteredItems.Count() resultados
+                </span>
             </div>
-
+    
             @if (ShowPurchases)
             {
-                <div class="consult-section-title">
-                    <strong>Compras</strong>
-                    <span>@FilteredPurchases.Count()</span>
-                </div>
-
-                <div class="consult-table-wrap">
-                    <table class="consult-table">
-                        <colgroup>
-                            <col class="ntx-col--14" />
-                            <col class="ntx-col--25" />
-                            <col class="ntx-col--7" />
-                            <col class="ntx-col--7" />
-                            <col class="ntx-col--8" />
-                            <col class="ntx-col--10" />
-                            <col class="ntx-col--9" />
-                            <col class="ntx-col--9" />
-                            <col class="ntx-col--11" />
-                        </colgroup>
-                        <thead>
-                            <tr>
-                                <th>Solicitud</th>
-                                <th>Necesidad / activo</th>
-                                <th>Tipo</th>
-                                <th>Prioridad</th>
-                                <th>Estado</th>
-                                <th>Costo / proveedor</th>
-                                <th>Fechas</th>
-                                <th>Responsable</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @if (!FilteredPurchases.Any())
-                            {
-                                <tr>
-                                    <td colspan="9">
-                                        <div class="consult-empty">No hay solicitudes de compra para los filtros seleccionados.</div>
-                                    </td>
-                                </tr>
-                            }
-                            else
-                            {
-                                @foreach (var item in FilteredPurchases)
-                                {
-                                    @RenderConsultRow(item)
-                                }
-                            }
-                        </tbody>
-                    </table>
-                </div>
+                <section
+                    class="consult-request-group-v134 purchase"
+                    aria-labelledby="consult-purchase-title-v134">
+    
+                    <div class="consult-section-title">
+                        <div>
+                            <strong id="consult-purchase-title-v134">
+                                Compras
+                            </strong>
+    
+                            <small>
+                                Solicitudes de herramientas y activos fijos.
+                            </small>
+                        </div>
+    
+                        <span>@FilteredPurchases.Count()</span>
+                    </div>
+    
+                    <div class="assignment-history-v26-table-wrap consult-table-wrap">
+                        <div
+                            class="ntx-table-scroll"
+                            tabindex="0"
+                            aria-label="Tabla de solicitudes de compra">
+    
+                            <table
+                                class="assignment-history-v26-table consult-table"
+                                aria-label="Solicitudes de compra">
+    
+                                <colgroup>
+                                    <col class="ntx-col--14" />
+                                    <col class="ntx-col--25" />
+                                    <col class="ntx-col--7" />
+                                    <col class="ntx-col--7" />
+                                    <col class="ntx-col--8" />
+                                    <col class="ntx-col--10" />
+                                    <col class="ntx-col--9" />
+                                    <col class="ntx-col--9" />
+                                    <col class="ntx-col--11" />
+                                </colgroup>
+    
+                                <thead>
+                                    <tr>
+                                        <th>Solicitud</th>
+                                        <th>Necesidad / activo</th>
+                                        <th>Tipo</th>
+                                        <th>Prioridad</th>
+                                        <th>Estado</th>
+                                        <th>Costo / proveedor</th>
+                                        <th>Fechas</th>
+                                        <th>Responsable</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+    
+                                <tbody>
+                                    @if (!FilteredPurchases.Any())
+                                    {
+                                        <tr>
+                                            <td colspan="9">
+                                                <div class="consult-empty">
+                                                    No hay solicitudes de compra
+                                                    para los filtros seleccionados.
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var item in FilteredPurchases)
+                                        {
+                                            @RenderConsultRow(item)
+                                        }
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
             }
-
+    
             @if (ShowMaintenances)
             {
-                <div class="consult-section-title maintenance">
-                    <strong>Mantenimiento</strong>
-                    <span>@FilteredMaintenances.Count()</span>
-                </div>
+                <section
+                    class="consult-request-group-v134 maintenance"
+                    aria-labelledby="consult-maintenance-title-v134">
+    
+                    <div class="consult-section-title maintenance">
+                        <div>
+                            <strong id="consult-maintenance-title-v134">
+                                Mantenimiento
+                            </strong>
+    
+                            <small>
+                                Solicitudes preventivas y correctivas.
+                            </small>
+                        </div>
+    
+                        <span>@FilteredMaintenances.Count()</span>
+                    </div>
+    
+                    <div class="assignment-history-v26-table-wrap consult-table-wrap">
+                        <div
+                            class="ntx-table-scroll"
+                            tabindex="0"
+                            aria-label="Tabla de solicitudes de mantenimiento">
+    
+                            <table
+                                class="assignment-history-v26-table consult-table"
+                                aria-label="Solicitudes de mantenimiento">
+    
+                                <colgroup>
+                                    <col class="ntx-col--14" />
+                                    <col class="ntx-col--25" />
+                                    <col class="ntx-col--7" />
+                                    <col class="ntx-col--7" />
+                                    <col class="ntx-col--8" />
+                                    <col class="ntx-col--10" />
+                                    <col class="ntx-col--9" />
+                                    <col class="ntx-col--9" />
+                                    <col class="ntx-col--11" />
+                                </colgroup>
+    
+                                <thead>
+                                    <tr>
+                                        <th>Solicitud</th>
+                                        <th>Necesidad / activo</th>
+                                        <th>Tipo</th>
+                                        <th>Prioridad</th>
+                                        <th>Estado</th>
+                                        <th>Costo / proveedor</th>
+                                        <th>Fechas</th>
+                                        <th>Responsable</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+    
+                                <tbody>
+                                    @if (!FilteredMaintenances.Any())
+                                    {
+                                        <tr>
+                                            <td colspan="9">
+                                                <div class="consult-empty">
+                                                    No hay solicitudes de
+                                                    mantenimiento para los
+                                                    filtros seleccionados.
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var item in FilteredMaintenances)
+                                        {
+                                            @RenderConsultRow(item)
+                                        }
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+            }
+        </article>
+    
+        
+    </section>
+    
+        </section>
 
-                <div class="consult-table-wrap">
-                    <table class="consult-table">
-                        <colgroup>
-                            <col class="ntx-col--14" />
-                            <col class="ntx-col--25" />
-                            <col class="ntx-col--7" />
-                            <col class="ntx-col--7" />
-                            <col class="ntx-col--8" />
-                            <col class="ntx-col--10" />
-                            <col class="ntx-col--9" />
-                            <col class="ntx-col--9" />
-                            <col class="ntx-col--11" />
-                        </colgroup>
-                        <thead>
-                            <tr>
-                                <th>Solicitud</th>
-                                <th>Necesidad / activo</th>
-                                <th>Tipo</th>
-                                <th>Prioridad</th>
-                                <th>Estado</th>
-                                <th>Costo / proveedor</th>
-                                <th>Fechas</th>
-                                <th>Responsable</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @if (!FilteredMaintenances.Any())
+    @* NAVI CONSULTA COMPRAS MTTO VISUAL V134 END *@
+
+    @* NAVI CONSULT DETAIL MODAL V138 START *@
+    @if (selectedItem is not null)
+    {
+        var approvedImage =
+            GetApprovedImage(selectedItem);
+
+        var approvedImageName =
+            GetApprovedImageName(selectedItem);
+
+        var approvedItemName =
+            GetApprovedItemName(selectedItem);
+
+        var approvedProvider =
+            GetApprovedProvider(selectedItem);
+
+        var interventionDescription =
+            GetInterventionDescription(
+                selectedItem);
+
+        var requestDetail =
+            GetConsultRequestDetailV139(
+                selectedItem);
+
+        var requestedTools =
+            GetConsultRequestedToolsV139(
+                selectedItem);
+
+        var approvedQuotations =
+            GetConsultApprovedQuotationsV139(
+                selectedItem);
+
+        var approvedEvidenceAvailable =
+            !string.IsNullOrWhiteSpace(
+                approvedImage);
+
+        <div
+            class="consult-modal-backdrop"
+            @onclick="CloseDetails">
+
+            <div
+                class="consult-modal consult-detail-modal-v138 consult-detail-modal-v139"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="consult-detail-title-v138"
+                @onclick:stopPropagation="true">
+
+                <header
+                    class="consult-modal-header consult-detail-header-v138">
+
+                    <div>
+                        <span>
+                            @(selectedItem.Kind
+                                == RequestKind.Purchase
+                                ? "Detalle de compra"
+                                : "Detalle de mantenimiento")
+                        </span>
+
+                        <h3 id="consult-detail-title-v138">
+                            @selectedItem.Number
+                        </h3>
+
+                        <p>
+                            @Dash(approvedItemName)
+                        </p>
+                    </div>
+
+                    <button
+                        type="button"
+                        class="consult-detail-close-v138"
+                        @onclick="CloseDetails"
+                        data-ntx-tone="ghost">
+
+                        Cerrar
+                    </button>
+                </header>
+
+                <div class="consult-detail-scroll-v138">
+                    <section
+                        class="consult-modal-grid consult-detail-summary-v138"
+                        aria-label="Resumen de la solicitud">
+
+                        <div>
+                            <span>Estado</span>
+
+                            <strong>
+                                @StatusLabel(
+                                    selectedItem.Status)
+                            </strong>
+                        </div>
+
+                        <div>
+                            <span>Prioridad</span>
+
+                            <strong>
+                                @selectedItem.Priority
+                            </strong>
+                        </div>
+
+                        <div>
+                            <span>Tipo</span>
+
+                            <strong>
+                                @selectedItem.Type
+                            </strong>
+                        </div>
+
+                        <div>
+                            <span>Costo</span>
+
+                            <strong>
+                                @FormatMoney(
+                                    selectedItem.EstimatedCost)
+                            </strong>
+                        </div>
+
+                        <div>
+                            <span>
+                                Proveedor aprobado
+                            </span>
+
+                            <strong>
+                                @Dash(approvedProvider)
+                            </strong>
+                        </div>
+
+                        <div>
+                            <span>Sede</span>
+
+                            <strong>
+                                @Dash(selectedItem.Branch)
+                            </strong>
+                        </div>
+
+                        <div>
+                            <span>Solicitó</span>
+
+                            <strong>
+                                @Dash(
+                                    selectedItem.RequestedBy)
+                            </strong>
+                        </div>
+
+                        <div>
+                            <span>Preparó</span>
+
+                            <strong>
+                                @Dash(
+                                    selectedItem.PreparedBy)
+                            </strong>
+                        </div>
+
+                        <div>
+                            <span>Técnico</span>
+
+                            <strong>
+                                @Dash(
+                                    selectedItem.Technician)
+                            </strong>
+                        </div>
+
+                        <div>
+                            <span>Creada</span>
+
+                            <strong>
+                                @FormatDate(
+                                    selectedItem.CreatedAt)
+                            </strong>
+                        </div>
+
+                        <div>
+                            <span>Programada</span>
+
+                            <strong>
+                                @FormatDate(
+                                    selectedItem.ScheduledAt)
+                            </strong>
+                        </div>
+
+                        <div>
+                            <span>Cerrada</span>
+
+                            <strong>
+                                @FormatDate(
+                                    selectedItem.ClosedAt)
+                            </strong>
+                        </div>
+                    </section>
+
+                    <section class="consult-approved-layout-v138">
+                        <article class="consult-approved-image-card-v138">
+                            <header>
+                                <div>
+                                    <span class="consult-detail-eyebrow-v138">
+                                        Evidencia aprobada
+                                    </span>
+
+                                    <h4>
+                                        Foto de la opción seleccionada
+                                    </h4>
+                                </div>
+
+                                <span class="consult-detail-status-v138">
+                                    @(approvedEvidenceAvailable
+                                        ? "Disponible"
+                                        : "Sin imagen")
+                                </span>
+                            </header>
+
+                            @if (approvedEvidenceAvailable)
                             {
-                                <tr>
-                                    <td colspan="9">
-                                        <div class="consult-empty">No hay solicitudes de mantenimiento para los filtros seleccionados.</div>
-                                    </td>
-                                </tr>
+                                <figure class="consult-approved-figure-v138">
+                                    <img
+                                        src="@approvedImage"
+                                        alt="@(
+                                            $"Evidencia aprobada de {Dash(approvedItemName)}")" />
+
+                                    @if (
+                                        !string.IsNullOrWhiteSpace(
+                                            approvedImageName))
+                                    {
+                                        <figcaption>
+                                            @approvedImageName
+                                        </figcaption>
+                                    }
+                                </figure>
                             }
                             else
                             {
-                                @foreach (var item in FilteredMaintenances)
-                                {
-                                    @RenderConsultRow(item)
-                                }
+                                <div
+                                    class="consult-approved-empty-v138"
+                                    role="note">
+
+                                    <span aria-hidden="true">
+                                        ▧
+                                    </span>
+
+                                    <strong>
+                                        No hay una imagen persistida
+                                    </strong>
+
+                                    <p>
+                                        La fotografía de la cotización
+                                        seleccionada aparecerá aquí cuando la
+                                        evidencia esté disponible dentro de la
+                                        información de la solicitud.
+                                    </p>
+                                </div>
                             }
-                        </tbody>
-                    </table>
+                        </article>
+
+                        <article class="consult-approved-detail-card-v138">
+                            <div class="consult-approved-title-v138">
+                                <span class="consult-detail-eyebrow-v138">
+                                    Opción aprobada
+                                </span>
+
+                                <h4>
+                                    @Dash(approvedItemName)
+                                </h4>
+                            </div>
+
+                            <dl class="consult-approved-facts-v138">
+                                <div>
+                                    <dt>Proveedor</dt>
+
+                                    <dd>
+                                        @Dash(approvedProvider)
+                                    </dd>
+                                </div>
+
+                                <div>
+                                    <dt>Valor aprobado</dt>
+
+                                    <dd>
+                                        @FormatMoney(
+                                            selectedItem.EstimatedCost)
+                                    </dd>
+                                </div>
+                            </dl>
+
+                            <div class="consult-detail-copy-v138">
+                                <span>
+                                    @(selectedItem.Kind
+                                        == RequestKind.Maintenance
+                                        ? "Descripción de la intervención"
+                                        : "Descripción de la opción aprobada")
+                                </span>
+
+                                <p>
+                                    @Dash(
+                                        interventionDescription)
+                                </p>
+                            </div>
+
+                            <section
+                                class="consult-approved-section-v139"
+                                aria-labelledby="consult-request-detail-title-v139">
+
+                                <div class="consult-approved-section-title-v139">
+                                    <span class="consult-detail-eyebrow-v138">
+                                        Solicitud
+                                    </span>
+
+                                    <h5 id="consult-request-detail-title-v139">
+                                        Detalles de la solicitud
+                                    </h5>
+                                </div>
+
+                                <dl class="consult-request-facts-v139">
+                                    <div>
+                                        <dt>Nombre</dt>
+
+                                        <dd>
+                                            @Dash(
+                                                requestDetail.RequestName)
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>
+                                            Responsable que aprueba
+                                        </dt>
+
+                                        <dd>
+                                            @Dash(
+                                                requestDetail.Approver)
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>Fecha requerida</dt>
+
+                                        <dd>
+                                            @Dash(
+                                                requestDetail.RequiredAt)
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>Ubicación / área</dt>
+
+                                        <dd>
+                                            @Dash(
+                                                requestDetail.Location)
+                                        </dd>
+                                    </div>
+                                </dl>
+                            </section>
+
+                            <section
+                                class="consult-approved-section-v139"
+                                aria-labelledby="consult-tools-title-v139">
+
+                                <div class="consult-approved-section-title-v139">
+                                    <span class="consult-detail-eyebrow-v138">
+                                        Elementos
+                                    </span>
+
+                                    <h5 id="consult-tools-title-v139">
+                                        Herramientas solicitadas
+                                    </h5>
+                                </div>
+
+                                @if (requestedTools.Count == 0)
+                                {
+                                    <p class="consult-approved-empty-text-v139">
+                                        No hay herramientas registradas.
+                                    </p>
+                                }
+                                else
+                                {
+                                    <div class="consult-requested-tools-v139">
+                                        @foreach (var tool in requestedTools)
+                                        {
+                                            <article
+                                                class="consult-requested-tool-v139">
+
+                                                <strong>
+                                                    @Dash(tool.Name)
+                                                </strong>
+
+                                                <dl>
+                                                    <div>
+                                                        <dt>Cantidad</dt>
+
+                                                        <dd>
+                                                            @Dash(
+                                                                tool.Quantity)
+                                                        </dd>
+                                                    </div>
+
+                                                    <div>
+                                                        <dt>
+                                                            Técnico / serial
+                                                        </dt>
+
+                                                        <dd>
+                                                            @Dash(
+                                                                tool.TechnicalOrSerial)
+                                                        </dd>
+                                                    </div>
+
+                                                    <div>
+                                                        <dt>Criticidad</dt>
+
+                                                        <dd>
+                                                            @Dash(
+                                                                tool.Criticality)
+                                                        </dd>
+                                                    </div>
+                                                </dl>
+                                            </article>
+                                        }
+                                    </div>
+                                }
+                            </section>
+
+                            <section
+                                class="consult-approved-section-v139"
+                                aria-labelledby="consult-approved-quotes-title-v139">
+
+                                <div class="consult-approved-section-title-v139">
+                                    <span class="consult-detail-eyebrow-v138">
+                                        Selección final
+                                    </span>
+
+                                    <h5 id="consult-approved-quotes-title-v139">
+                                        Cotización aprobada
+                                    </h5>
+                                </div>
+
+                                @if (approvedQuotations.Count == 0)
+                                {
+                                    <p class="consult-approved-empty-text-v139">
+                                        No se encontró una cotización marcada
+                                        como aprobada.
+                                    </p>
+                                }
+                                else
+                                {
+                                    <div class="consult-approved-quotes-v139">
+                                        @foreach (
+                                            var quotation
+                                            in approvedQuotations)
+                                        {
+                                            <article
+                                                class="consult-approved-quote-v139">
+
+                                                <div
+                                                    class="consult-approved-quote-heading-v139">
+
+                                                    <strong>
+                                                        @Dash(
+                                                            quotation.ToolName)
+                                                    </strong>
+
+                                                    <span>
+                                                        @Dash(
+                                                            quotation.Provider)
+                                                    </span>
+                                                </div>
+
+                                                <dl>
+                                                    <div>
+                                                        <dt>Fecha</dt>
+
+                                                        <dd>
+                                                            @Dash(
+                                                                quotation.Date)
+                                                        </dd>
+                                                    </div>
+
+                                                    <div>
+                                                        <dt>Entrega</dt>
+
+                                                        <dd>
+                                                            @Dash(
+                                                                quotation.Delivery)
+                                                        </dd>
+                                                    </div>
+
+                                                    <div>
+                                                        <dt>Valor</dt>
+
+                                                        <dd>
+                                                            @Dash(
+                                                                quotation.Price)
+                                                        </dd>
+                                                    </div>
+                                                </dl>
+                                            </article>
+                                        }
+                                    </div>
+                                }
+                            </section>
+                        </article>
+                    </section>
                 </div>
-            }
-        </article>
 
-        <aside class="consult-panel summary">
-            <h3>Resumen de costos</h3>
-            <p>Compras y mantenimiento se calculan por separado. Rechazadas, canceladas, borradores y en revisión se muestran, pero no suman.</p>
+                <footer
+                    class="consult-modal-actions consult-detail-actions-v138">
 
-            <div class="cost-block purchase">
-                <div class="cost-block-header">
-                    <strong>Compras</strong>
-                    <span>@FormatMoney(PurchaseCost)</span>
-                </div>
-
-                <div class="cost-mini-grid">
-                    <div><span>Total compras</span><strong>@FormatMoney(PurchaseCost)</strong></div>
-                    <div><span>Promedio</span><strong>@FormatMoney(PurchaseAverage)</strong></div>
-                    <div><span>Mayor costo</span><strong>@FormatMoney(PurchaseMax)</strong></div>
-                    <div><span>Proveedores</span><strong>@PurchaseProviders</strong></div>
-                </div>
-
-                @if (PurchaseCostItems.Any())
-                {
-                    <ul class="cost-list">
-                        @foreach (var item in PurchaseCostItems.Take(5))
-                        {
-                            <li>
-                                <strong>@ShortText(item.AssetName, 24)</strong>
-                                <span>@FormatMoney(item.EstimatedCost)</span>
-                                <small>@item.Number</small>
-                            </li>
-                        }
-                    </ul>
-                }
-                else
-                {
-                    <div class="cost-empty">No hay costos positivos de compras para sumar.</div>
-                }
-            </div>
-
-            <div class="cost-block maintenance">
-                <div class="cost-block-header">
-                    <strong>Mantenimiento</strong>
-                    <span>@FormatMoney(MaintenanceCost)</span>
-                </div>
-
-                <div class="cost-mini-grid">
-                    <div><span>Total mtto.</span><strong>@FormatMoney(MaintenanceCost)</strong></div>
-                    <div><span>Promedio</span><strong>@FormatMoney(MaintenanceAverage)</strong></div>
-                    <div><span>Mayor costo</span><strong>@FormatMoney(MaintenanceMax)</strong></div>
-                    <div><span>Proveedores</span><strong>@MaintenanceProviders</strong></div>
-                </div>
-
-                @if (MaintenanceCostItems.Any())
-                {
-                    <ul class="cost-list">
-                        @foreach (var item in MaintenanceCostItems.Take(5))
-                        {
-                            <li>
-                                <strong>@ShortText(item.AssetName, 24)</strong>
-                                <span>@FormatMoney(item.EstimatedCost)</span>
-                                <small>@item.Number</small>
-                            </li>
-                        }
-                    </ul>
-                }
-                else
-                {
-                    <div class="cost-empty">No hay costos positivos de mantenimiento para sumar.</div>
-                }
-            </div>
-        </aside>
-    </section>
-
-    @if (selectedItem is not null)
-    {
-        <div class="consult-modal-backdrop" @onclick="CloseDetails">
-            <div class="consult-modal" @onclick:stopPropagation="true">
-                <div class="consult-modal-header">
-                    <div>
-                        <span>@(selectedItem.Kind == RequestKind.Purchase ? "Compra" : "Mantenimiento")</span>
-                        <h3>@selectedItem.Number</h3>
-                    </div>
-
-                    <button type="button" @onclick="CloseDetails" data-ntx-tone="secondary" >Cerrar</button>
-                </div>
-
-                <div class="consult-modal-grid">
-                    <div>
-                        <span>Estado</span>
-                        <strong>@StatusLabel(selectedItem.Status)</strong>
-                    </div>
-
-                    <div>
-                        <span>Prioridad</span>
-                        <strong>@selectedItem.Priority</strong>
-                    </div>
-
-                    <div>
-                        <span>Tipo</span>
-                        <strong>@selectedItem.Type</strong>
-                    </div>
-
-                    <div>
-                        <span>Costo</span>
-                        <strong>@FormatMoney(selectedItem.EstimatedCost)</strong>
-                    </div>
-
-                    <div>
-                        <span>Proveedor</span>
-                        <strong>@Dash(selectedItem.Provider)</strong>
-                    </div>
-
-                    <div>
-                        <span>Sede</span>
-                        <strong>@Dash(selectedItem.Branch)</strong>
-                    </div>
-
-                    <div>
-                        <span>Solicitó</span>
-                        <strong>@Dash(selectedItem.RequestedBy)</strong>
-                    </div>
-
-                    <div>
-                        <span>Preparó</span>
-                        <strong>@Dash(selectedItem.PreparedBy)</strong>
-                    </div>
-
-                    <div>
-                        <span>Técnico</span>
-                        <strong>@Dash(selectedItem.Technician)</strong>
-                    </div>
-
-                    <div>
-                        <span>Creada</span>
-                        <strong>@FormatDate(selectedItem.CreatedAt)</strong>
-                    </div>
-
-                    <div>
-                        <span>Programada</span>
-                        <strong>@FormatDate(selectedItem.ScheduledAt)</strong>
-                    </div>
-
-                    <div>
-                        <span>Cerrada</span>
-                        <strong>@FormatDate(selectedItem.ClosedAt)</strong>
-                    </div>
-                </div>
-
-                <div class="consult-modal-section">
-                    <h4>Necesidad / activo</h4>
-                    <p>@Dash(selectedItem.AssetName)</p>
-                </div>
-
-                <div class="consult-modal-section">
-                    <h4>Detalle de la solicitud</h4>
-                    <p>@Dash(selectedItem.Description)</p>
-                </div>
-
-                <div class="consult-modal-section">
-                    <h4>Notas / observaciones</h4>
-                    <p>@Dash(selectedItem.Notes)</p>
-                </div>
-
-                <div class="consult-modal-actions">
                     @RenderActions(selectedItem)
-                </div>
+                </footer>
             </div>
         </div>
     }
+    @* NAVI CONSULT DETAIL MODAL V138 END *@
 }
 
 @code {
@@ -427,6 +1108,7 @@ else
     private List<ConsultationItem> items = new();
     private ConsultationItem? selectedItem;
 
+    private bool disposed;
     private bool isLoading;
     private string typeFilter = "all";
     private string statusFilter = "all";
@@ -526,7 +1208,74 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        /*
+         * La sesión puede restaurarse después del primer
+         * render cuando el navegador se actualiza.
+         *
+         * La vista debe escuchar ese cambio para volver a
+         * evaluar los permisos y cargar la consulta.
+         */
+        AuthSession.OnChange += HandleAuthSessionChanged;
+
         await RefreshAsync();
+    }
+
+    private void HandleAuthSessionChanged()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        /*
+         * WebAuthSessionService usa un evento sincrónico.
+         * La actualización se envía al contexto de Blazor
+         * sin bloquear la restauración global de la sesión.
+         */
+        _ = InvokeAsync(
+            RefreshAfterAuthSessionChangedAsync);
+    }
+
+    private async Task RefreshAfterAuthSessionChangedAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        /*
+         * Si la sesión fue cerrada o perdió autorización,
+         * se elimina únicamente la información visible de
+         * esta pantalla.
+         */
+        if (!CanViewModule)
+        {
+            items.Clear();
+            selectedItem = null;
+            isLoading = false;
+            StatusMessage = null;
+            ErrorMessage = null;
+
+            StateHasChanged();
+            return;
+        }
+
+        /*
+         * RefreshAsync establece isLoading antes de llegar
+         * a su primera espera. Se vuelve a renderizar de
+         * inmediato para retirar el aviso de permisos y
+         * mostrar la vista autorizada mientras carga.
+         */
+        var refreshTask = RefreshAsync();
+
+        StateHasChanged();
+
+        await refreshTask;
+
+        if (!disposed)
+        {
+            StateHasChanged();
+        }
     }
 
     private async Task RefreshAsync()
@@ -559,7 +1308,7 @@ else
 
             items = Deduplicate(loaded).ToList();
 
-            StatusMessage = $"Consulta actualizada correctamente. Registros cargados: {items.Count}.";
+            StatusMessage = null;
         }
         catch (Exception ex)
         {
@@ -863,6 +1612,880 @@ else
         ErrorMessage = null;
     }
 
+    // NAVI CONSULT DETAIL HELPERS V138 START
+
+    private static string? GetApprovedImage(
+        ConsultationItem item)
+    {
+        var quote =
+            GetSelectedQuotationElement(item);
+
+        var image =
+            GetJsonText(
+                quote,
+                "EvidencePreview",
+                "evidencePreview",
+                "ImagePreview",
+                "imagePreview");
+
+        if (IsUsableImageSource(image))
+        {
+            return image;
+        }
+
+        var line =
+            GetRelatedLineElement(
+                item,
+                quote);
+
+        image =
+            GetJsonText(
+                line,
+                "ImagePreview",
+                "imagePreview",
+                "EvidencePreview",
+                "evidencePreview");
+
+        return IsUsableImageSource(image)
+            ? image
+            : null;
+    }
+
+    private static string? GetApprovedImageName(
+        ConsultationItem item)
+    {
+        var quote =
+            GetSelectedQuotationElement(item);
+
+        var fileName =
+            GetJsonText(
+                quote,
+                "EvidenceFileName",
+                "evidenceFileName",
+                "ImageReference",
+                "imageReference");
+
+        if (!string.IsNullOrWhiteSpace(
+                fileName))
+        {
+            return fileName;
+        }
+
+        var line =
+            GetRelatedLineElement(
+                item,
+                quote);
+
+        return GetJsonText(
+            line,
+            "ImageReference",
+            "imageReference",
+            "EvidenceFileName",
+            "evidenceFileName");
+    }
+
+    private static string? GetApprovedItemName(
+        ConsultationItem item)
+    {
+        var quote =
+            GetSelectedQuotationElement(item);
+
+        var line =
+            GetRelatedLineElement(
+                item,
+                quote);
+
+        return FirstNonBlank(
+            GetJsonText(
+                line,
+                "ToolName",
+                "toolName",
+                "ItemName",
+                "itemName",
+                "Name",
+                "name"),
+            item.AssetName);
+    }
+
+    private static string? GetApprovedProvider(
+        ConsultationItem item)
+    {
+        var quote =
+            GetSelectedQuotationElement(item);
+
+        return FirstNonBlank(
+            GetJsonText(
+                quote,
+                "Provider",
+                "provider",
+                "Supplier",
+                "supplier"),
+            item.Provider);
+    }
+
+    private static string? GetApprovedQuotationDescription(
+        ConsultationItem item)
+    {
+        var quote =
+            GetSelectedQuotationElement(item);
+
+        return FirstNonBlank(
+            GetJsonText(
+                quote,
+                "AdditionalDetails",
+                "additionalDetails",
+                "Description",
+                "description",
+                "Details",
+                "details"),
+            item.Kind == RequestKind.Purchase
+                ? item.Description
+                : null);
+    }
+
+    private static string? GetInterventionDescription(
+        ConsultationItem item)
+    {
+        var root =
+            GetRawRootElement(item);
+
+        var header =
+            GetObjectProperty(
+                root,
+                "Header",
+                "header");
+
+        var quote =
+            GetSelectedQuotationElement(item);
+
+        var line =
+            GetRelatedLineElement(
+                item,
+                quote);
+
+        var directWork =
+            GetJsonText(
+                root,
+                "WorkDescription",
+                "workDescription",
+                "NeedDescription",
+                "needDescription");
+
+        var headerNeed =
+            GetJsonText(
+                header,
+                "NeedDescription",
+                "needDescription",
+                "Justification",
+                "justification");
+
+        var quoteDetail =
+            GetJsonText(
+                quote,
+                "AdditionalDetails",
+                "additionalDetails",
+                "Description",
+                "description");
+
+        var lineDetail =
+            GetJsonText(
+                line,
+                "Details",
+                "details",
+                "Novelty",
+                "novelty",
+                "ItemDescription",
+                "itemDescription",
+                "NeedDetail",
+                "needDetail");
+
+        return FirstNonBlank(
+            directWork,
+            headerNeed,
+            quoteDetail,
+            lineDetail,
+            item.Description);
+    }
+
+    private static JsonElement
+        GetSelectedQuotationElement(
+            ConsultationItem item)
+    {
+        var root =
+            GetRawRootElement(item);
+
+        var quotations =
+            GetArrayProperty(
+                root,
+                "Quotations",
+                "quotations");
+
+        if (
+            quotations.ValueKind
+            != JsonValueKind.Array)
+        {
+            return default;
+        }
+
+        JsonElement? onlyQuotation = null;
+        var quotationCount = 0;
+
+        foreach (
+            var quotation
+            in quotations.EnumerateArray())
+        {
+            if (
+                quotation.ValueKind
+                != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            quotationCount++;
+
+            onlyQuotation ??=
+                quotation.Clone();
+
+            if (
+                GetJsonBoolean(
+                    quotation,
+                    "Selected",
+                    "selected"))
+            {
+                return quotation.Clone();
+            }
+        }
+
+        return (
+            quotationCount == 1
+            && onlyQuotation.HasValue)
+            ? onlyQuotation.Value
+            : default;
+    }
+
+    private static JsonElement
+        GetRelatedLineElement(
+            ConsultationItem item,
+            JsonElement quotation)
+    {
+        var root =
+            GetRawRootElement(item);
+
+        var lines =
+            GetArrayProperty(
+                root,
+                "Lines",
+                "lines");
+
+        if (
+            lines.ValueKind
+            != JsonValueKind.Array)
+        {
+            return default;
+        }
+
+        var quotationLineId =
+            GetJsonText(
+                quotation,
+                "LineId",
+                "lineId");
+
+        JsonElement? onlyLine = null;
+        var lineCount = 0;
+
+        foreach (
+            var line
+            in lines.EnumerateArray())
+        {
+            if (
+                line.ValueKind
+                != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            lineCount++;
+
+            onlyLine ??=
+                line.Clone();
+
+            var lineId =
+                GetJsonText(
+                    line,
+                    "Id",
+                    "id");
+
+            if (
+                !string.IsNullOrWhiteSpace(
+                    quotationLineId)
+                && string.Equals(
+                    quotationLineId,
+                    lineId,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return line.Clone();
+            }
+        }
+
+        return (
+            lineCount == 1
+            && onlyLine.HasValue)
+            ? onlyLine.Value
+            : default;
+    }
+
+    private static JsonElement
+        GetRawRootElement(
+            ConsultationItem item)
+    {
+        if (
+            string.IsNullOrWhiteSpace(
+                item.RawText))
+        {
+            return default;
+        }
+
+        try
+        {
+            using var document =
+                JsonDocument.Parse(
+                    item.RawText);
+
+            return document
+                .RootElement
+                .Clone();
+        }
+        catch
+        {
+            return default;
+        }
+    }
+
+    private static JsonElement
+        GetObjectProperty(
+            JsonElement element,
+            params string[] names)
+    {
+        if (
+            TryGetJsonProperty(
+                element,
+                out var property,
+                names)
+            && property.ValueKind
+                == JsonValueKind.Object)
+        {
+            return property.Clone();
+        }
+
+        return default;
+    }
+
+    private static JsonElement
+        GetArrayProperty(
+            JsonElement element,
+            params string[] names)
+    {
+        if (
+            TryGetJsonProperty(
+                element,
+                out var property,
+                names)
+            && property.ValueKind
+                == JsonValueKind.Array)
+        {
+            return property.Clone();
+        }
+
+        return default;
+    }
+
+    private static string? GetJsonText(
+        JsonElement element,
+        params string[] names)
+    {
+        if (
+            !TryGetJsonProperty(
+                element,
+                out var property,
+                names))
+        {
+            return null;
+        }
+
+        return property.ValueKind switch
+        {
+            JsonValueKind.String
+                => property.GetString(),
+
+            JsonValueKind.Number
+                or JsonValueKind.True
+                or JsonValueKind.False
+                => property.ToString(),
+
+            _ => null
+        };
+    }
+
+    private static bool GetJsonBoolean(
+        JsonElement element,
+        params string[] names)
+    {
+        if (
+            !TryGetJsonProperty(
+                element,
+                out var property,
+                names))
+        {
+            return false;
+        }
+
+        if (
+            property.ValueKind
+            == JsonValueKind.True)
+        {
+            return true;
+        }
+
+        if (
+            property.ValueKind
+            == JsonValueKind.False)
+        {
+            return false;
+        }
+
+        return bool.TryParse(
+            property.ToString(),
+            out var result)
+            && result;
+    }
+
+    private static bool TryGetJsonProperty(
+        JsonElement element,
+        out JsonElement value,
+        params string[] names)
+    {
+        value = default;
+
+        if (
+            element.ValueKind
+            != JsonValueKind.Object)
+        {
+            return false;
+        }
+
+        foreach (
+            var property
+            in element.EnumerateObject())
+        {
+            if (
+                names.Any(
+                    name => string.Equals(
+                        property.Name,
+                        name,
+                        StringComparison.OrdinalIgnoreCase)))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string? FirstNonBlank(
+        params string?[] values)
+    {
+        return values.FirstOrDefault(
+            value =>
+                !string.IsNullOrWhiteSpace(
+                    value));
+    }
+
+    private static bool IsUsableImageSource(
+        string? source)
+    {
+        if (
+            string.IsNullOrWhiteSpace(
+                source))
+        {
+            return false;
+        }
+
+        return source.StartsWith(
+                   "data:image/",
+                   StringComparison.OrdinalIgnoreCase)
+               || source.StartsWith(
+                   "https://",
+                   StringComparison.OrdinalIgnoreCase)
+               || source.StartsWith(
+                   "http://",
+                   StringComparison.OrdinalIgnoreCase)
+               || source.StartsWith(
+                   "/",
+                   StringComparison.Ordinal);
+    }
+
+    
+    // NAVI CONSULT VIEW COMPACT HELPERS V139 START
+
+    private static ConsultRequestDetailV139
+        GetConsultRequestDetailV139(
+            ConsultationItem item)
+    {
+        var root =
+            GetRawRootElement(item);
+
+        var header =
+            GetObjectProperty(
+                root,
+                "Header",
+                "header");
+
+        return new ConsultRequestDetailV139(
+            FirstNonBlank(
+                GetJsonText(
+                    header,
+                    "RequestName",
+                    "requestName",
+                    "Name",
+                    "name"),
+                item.AssetName),
+            GetJsonText(
+                header,
+                "Approver",
+                "approver",
+                "ApprovedBy",
+                "approvedBy"),
+            FormatConsultJsonDateV139(
+                GetJsonText(
+                    header,
+                    "RequiredAt",
+                    "requiredAt",
+                    "RequiredDate",
+                    "requiredDate")),
+            FirstNonBlank(
+                GetJsonText(
+                    header,
+                    "Location",
+                    "location",
+                    "Area",
+                    "area"),
+                item.Branch));
+    }
+
+    private static IReadOnlyList<ConsultRequestedToolV139>
+        GetConsultRequestedToolsV139(
+            ConsultationItem item)
+    {
+        var root =
+            GetRawRootElement(item);
+
+        var lines =
+            GetArrayProperty(
+                root,
+                "Lines",
+                "lines");
+
+        var result =
+            new List<ConsultRequestedToolV139>();
+
+        if (
+            lines.ValueKind
+            == JsonValueKind.Array)
+        {
+            foreach (
+                var line
+                in lines.EnumerateArray())
+            {
+                if (
+                    line.ValueKind
+                    != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                result.Add(
+                    new ConsultRequestedToolV139(
+                        FirstNonBlank(
+                            GetJsonText(
+                                line,
+                                "ToolName",
+                                "toolName",
+                                "ItemName",
+                                "itemName",
+                                "Name",
+                                "name"),
+                            item.AssetName),
+                        FirstNonBlank(
+                            GetJsonText(
+                                line,
+                                "Quantity",
+                                "quantity"),
+                            "1"),
+                        GetJsonText(
+                            line,
+                            "TechnicalOrSerial",
+                            "technicalOrSerial",
+                            "TechnicalInfo",
+                            "technicalInfo",
+                            "Serial",
+                            "serial"),
+                        GetJsonText(
+                            line,
+                            "Criticality",
+                            "criticality")));
+            }
+        }
+
+        if (
+            result.Count == 0
+            && !string.IsNullOrWhiteSpace(
+                item.AssetName))
+        {
+            result.Add(
+                new ConsultRequestedToolV139(
+                    item.AssetName,
+                    "1",
+                    null,
+                    null));
+        }
+
+        return result;
+    }
+
+    private static IReadOnlyList<ConsultApprovedQuotationV139>
+        GetConsultApprovedQuotationsV139(
+            ConsultationItem item)
+    {
+        var root =
+            GetRawRootElement(item);
+
+        var quotations =
+            GetArrayProperty(
+                root,
+                "Quotations",
+                "quotations");
+
+        if (
+            quotations.ValueKind
+            != JsonValueKind.Array)
+        {
+            return Array.Empty<
+                ConsultApprovedQuotationV139>();
+        }
+
+        var all =
+            quotations
+                .EnumerateArray()
+                .Where(
+                    quotation =>
+                        quotation.ValueKind
+                        == JsonValueKind.Object)
+                .Select(
+                    quotation =>
+                        quotation.Clone())
+                .ToList();
+
+        var selected =
+            all
+                .Where(
+                    quotation =>
+                        GetJsonBoolean(
+                            quotation,
+                            "Selected",
+                            "selected"))
+                .ToList();
+
+        if (
+            selected.Count == 0
+            && all.Count == 1)
+        {
+            selected = all;
+        }
+
+        var result =
+            new List<
+                ConsultApprovedQuotationV139>();
+
+        foreach (
+            var quotation
+            in selected)
+        {
+            var line =
+                GetRelatedLineElement(
+                    item,
+                    quotation);
+
+            var price =
+                GetConsultJsonDecimalV139(
+                    quotation,
+                    "PriceBeforeVat",
+                    "priceBeforeVat",
+                    "PriceBeforeTax",
+                    "priceBeforeTax",
+                    "Price",
+                    "price",
+                    "Amount",
+                    "amount");
+
+            result.Add(
+                new ConsultApprovedQuotationV139(
+                    FirstNonBlank(
+                        GetJsonText(
+                            line,
+                            "ToolName",
+                            "toolName",
+                            "ItemName",
+                            "itemName",
+                            "Name",
+                            "name"),
+                        GetJsonText(
+                            quotation,
+                            "ToolName",
+                            "toolName",
+                            "ItemName",
+                            "itemName"),
+                        item.AssetName),
+                    FirstNonBlank(
+                        GetJsonText(
+                            quotation,
+                            "Provider",
+                            "provider",
+                            "Supplier",
+                            "supplier"),
+                        item.Provider),
+                    FormatConsultJsonDateV139(
+                        GetJsonText(
+                            quotation,
+                            "QuotationDate",
+                            "quotationDate",
+                            "Date",
+                            "date")),
+                    GetJsonText(
+                        quotation,
+                        "DeliveryTime",
+                        "deliveryTime",
+                        "Delivery",
+                        "delivery"),
+                    price.HasValue
+                        ? FormatMoney(
+                            price.Value)
+                        : selected.Count == 1
+                            ? FormatMoney(
+                                item.EstimatedCost)
+                            : "—"));
+        }
+
+        return result;
+    }
+
+    private static decimal?
+        GetConsultJsonDecimalV139(
+            JsonElement element,
+            params string[] names)
+    {
+        var value =
+            GetJsonText(
+                element,
+                names);
+
+        if (
+            string.IsNullOrWhiteSpace(
+                value))
+        {
+            return null;
+        }
+
+        if (
+            decimal.TryParse(
+                value,
+                NumberStyles.Any,
+                CultureInfo.InvariantCulture,
+                out var invariant))
+        {
+            return invariant;
+        }
+
+        if (
+            decimal.TryParse(
+                value,
+                NumberStyles.Any,
+                CultureInfo.GetCultureInfo(
+                    "es-CO"),
+                out var colombian))
+        {
+            return colombian;
+        }
+
+        return null;
+    }
+
+    private static string
+        FormatConsultJsonDateV139(
+            string? value)
+    {
+        if (
+            string.IsNullOrWhiteSpace(
+                value))
+        {
+            return "—";
+        }
+
+        if (
+            DateTimeOffset.TryParse(
+                value,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal,
+                out var offset))
+        {
+            return offset
+                .ToLocalTime()
+                .ToString(
+                    "dd/MM/yyyy",
+                    CultureInfo.InvariantCulture);
+        }
+
+        if (
+            DateTime.TryParse(
+                value,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeLocal,
+                out var date))
+        {
+            return date.ToString(
+                "dd/MM/yyyy",
+                CultureInfo.InvariantCulture);
+        }
+
+        return value;
+    }
+
+    private sealed record
+        ConsultRequestDetailV139(
+            string? RequestName,
+            string? Approver,
+            string RequiredAt,
+            string? Location);
+
+    private sealed record
+        ConsultRequestedToolV139(
+            string? Name,
+            string? Quantity,
+            string? TechnicalOrSerial,
+            string? Criticality);
+
+    private sealed record
+        ConsultApprovedQuotationV139(
+            string? ToolName,
+            string? Provider,
+            string Date,
+            string? Delivery,
+            string Price);
+
+    // NAVI CONSULT VIEW COMPACT HELPERS V139 END
+
+// NAVI CONSULT DETAIL HELPERS V138 END
+
     private void OpenDetails(ConsultationItem item)
     {
         selectedItem = item;
@@ -1159,6 +2782,8 @@ else
         builder.OpenElement(seq++, "button");
         builder.AddAttribute(seq++, "type", "button");
         builder.AddAttribute(seq++, "class", "btn-action view");
+
+        builder.AddAttribute(seq++, "data-ntx-tone", "consult");
         builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => OpenDetails(item)));
         builder.AddContent(seq++, "Ver");
         builder.CloseElement();
@@ -1182,6 +2807,8 @@ else
                 builder.OpenElement(seq++, "button");
                 builder.AddAttribute(seq++, "type", "button");
                 builder.AddAttribute(seq++, "class", "btn-action approve");
+
+                builder.AddAttribute(seq++, "data-ntx-tone", "affirmative");
                 builder.AddAttribute(seq++, "disabled", !CanApprovePurchase);
                 builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => ApprovePurchaseAsync(item)));
                 builder.AddContent(seq++, "Aprobar compra");
@@ -1190,6 +2817,8 @@ else
                 builder.OpenElement(seq++, "button");
                 builder.AddAttribute(seq++, "type", "button");
                 builder.AddAttribute(seq++, "class", "btn-action reject");
+
+                builder.AddAttribute(seq++, "data-ntx-tone", "danger");
                 builder.AddAttribute(seq++, "disabled", !CanRejectPurchase);
                 builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => RejectPurchaseAsync(item)));
                 builder.AddContent(seq++, "Rechazar compra");
@@ -1200,6 +2829,8 @@ else
                 builder.OpenElement(seq++, "button");
                 builder.AddAttribute(seq++, "type", "button");
                 builder.AddAttribute(seq++, "class", "btn-action approve");
+
+                builder.AddAttribute(seq++, "data-ntx-tone", "affirmative");
                 builder.AddAttribute(seq++, "disabled", !CanApprovePurchase);
                 builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => ClosePurchaseAsync(item)));
                 builder.AddContent(seq++, "Cerrar compra");
@@ -1214,6 +2845,8 @@ else
             builder.OpenElement(seq++, "button");
             builder.AddAttribute(seq++, "type", "button");
             builder.AddAttribute(seq++, "class", "btn-action approve");
+
+            builder.AddAttribute(seq++, "data-ntx-tone", "affirmative");
             builder.AddAttribute(seq++, "disabled", !CanCloseMaintenance);
             builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => ApproveMaintenanceAsync(item)));
             builder.AddContent(seq++, "Aprobar mtto.");
@@ -1222,6 +2855,8 @@ else
             builder.OpenElement(seq++, "button");
             builder.AddAttribute(seq++, "type", "button");
             builder.AddAttribute(seq++, "class", "btn-action reject");
+
+            builder.AddAttribute(seq++, "data-ntx-tone", "danger");
             builder.AddAttribute(seq++, "disabled", !CanRejectMaintenance);
             builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => RejectMaintenanceAsync(item)));
             builder.AddContent(seq++, "Rechazar mantenimiento");
@@ -1232,6 +2867,8 @@ else
             builder.OpenElement(seq++, "button");
             builder.AddAttribute(seq++, "type", "button");
             builder.AddAttribute(seq++, "class", "btn-action execute");
+
+            builder.AddAttribute(seq++, "data-ntx-tone", "operation");
             builder.AddAttribute(seq++, "disabled", !CanExecuteMaintenance);
             builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => ExecuteMaintenanceAsync(item)));
             builder.AddContent(seq++, "Ejecutar");
@@ -1240,6 +2877,8 @@ else
             builder.OpenElement(seq++, "button");
             builder.AddAttribute(seq++, "type", "button");
             builder.AddAttribute(seq++, "class", "btn-action approve");
+
+            builder.AddAttribute(seq++, "data-ntx-tone", "affirmative");
             builder.AddAttribute(seq++, "disabled", !CanExecuteMaintenance && !CanCloseMaintenance);
             builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => CloseMaintenanceAsync(item)));
             builder.AddContent(seq++, "Cerrar / aprobar");
@@ -1250,6 +2889,8 @@ else
             builder.OpenElement(seq++, "button");
             builder.AddAttribute(seq++, "type", "button");
             builder.AddAttribute(seq++, "class", "btn-action approve");
+
+            builder.AddAttribute(seq++, "data-ntx-tone", "affirmative");
             builder.AddAttribute(seq++, "disabled", !CanExecuteMaintenance && !CanCloseMaintenance);
             builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => CloseMaintenanceAsync(item)));
             builder.AddContent(seq++, "Cerrar / aprobar");
@@ -1508,6 +3149,14 @@ else
         }
 
         return content.Length > 260 ? content[..260] + "…" : content;
+    }
+
+    public void Dispose()
+    {
+        disposed = true;
+
+        AuthSession.OnChange -=
+            HandleAuthSessionChanged;
     }
 
     private enum RequestKind

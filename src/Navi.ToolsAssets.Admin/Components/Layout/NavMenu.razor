@@ -35,21 +35,6 @@
     }
     else
     {
-        <div class="nav-user-card">
-            <div class="nav-user-left">
-                <div class="nav-avatar">@GetInitials()</div>
-
-                <div class="nav-user-info">
-                    <strong>@AuthSession.DisplayName</strong>
-                    <span>@AuthSession.RoleName · @AuthSession.BranchCode</span>
-                </div>
-            </div>
-
-            <button type="button" class="nav-logout-btn" @onclick="Logout" data-ntx-tone="secondary" >
-                Salir
-            </button>
-        </div>
-
         <div class="nav-scrollable">
             <nav class="nav-menu-list">
                 @if (AuthSession.HasPermission("Dashboard.View"))
@@ -250,53 +235,93 @@
     protected override void OnInitialized()
     {
         AuthSession.OnChange += HandleAuthChanged;
+
+        /*
+         * Evita mostrar nuevamente la validación cuando
+         * la sesión ya fue restaurada en este circuito.
+         */
+        sessionChecked =
+            AuthSession.IsAuthenticated;
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override async Task OnAfterRenderAsync(
+        bool firstRender)
     {
         if (!firstRender)
         {
             return;
         }
 
+        /*
+         * Si la sesión ya existe, el menú se muestra
+         * inmediatamente. La actualización del rol se realiza
+         * después y no bloquea la interfaz.
+         */
+        if (AuthSession.IsAuthenticated)
+        {
+            sessionChecked = true;
+
+            await InvokeAsync(StateHasChanged);
+
+            _ = RefreshCurrentRolePermissionsAsync();
+
+            return;
+        }
+
         try
         {
-            if (!AuthSession.IsAuthenticated)
-            {
-                var json = await JS.InvokeAsync<string?>("localStorage.getItem", StorageKey);
+            using var timeout =
+                new CancellationTokenSource(
+                    TimeSpan.FromSeconds(2));
 
-                if (!string.IsNullOrWhiteSpace(json))
-                {
-                    var user = JsonSerializer.Deserialize<AuthSessionUser>(
+            var json =
+                await JS.InvokeAsync<string?>(
+                    "localStorage.getItem",
+                    timeout.Token,
+                    new object?[]
+                    {
+                        StorageKey
+                    });
+
+            if (!string.IsNullOrWhiteSpace(json))
+            {
+                var user =
+                    JsonSerializer.Deserialize<AuthSessionUser>(
                         json,
                         new JsonSerializerOptions
                         {
                             PropertyNameCaseInsensitive = true
                         });
 
-                    if (user is not null && !string.IsNullOrWhiteSpace(user.UserName))
-                    {
-                        AuthSession.Login(user);
-                        await RefreshCurrentRolePermissionsAsync();
-                    }
+                if (user is not null &&
+                    !string.IsNullOrWhiteSpace(
+                        user.UserName))
+                {
+                    AuthSession.Login(user);
                 }
             }
         }
         catch
         {
-            try
-            {
-                await JS.InvokeVoidAsync("localStorage.removeItem", StorageKey);
-            }
-            catch
-            {
-                // Ignorar error limpiando sesión.
-            }
+            /*
+             * No se elimina la sesión local por una desconexión
+             * temporal de JavaScript.
+             */
         }
         finally
         {
             sessionChecked = true;
+
             await InvokeAsync(StateHasChanged);
+        }
+
+        /*
+         * La consulta de permisos se ejecuta sin mantener
+         * bloqueado el menú lateral.
+         */
+        if (AuthSession.IsAuthenticated)
+        {
+            _ = RefreshCurrentRolePermissionsAsync();
         }
     }
 
@@ -313,42 +338,86 @@
 
     private async Task RefreshCurrentRolePermissionsAsync()
     {
-        if (!AuthSession.IsAuthenticated || AuthSession.RoleId is null)
+        if (!AuthSession.IsAuthenticated ||
+            AuthSession.RoleId is null)
         {
             return;
         }
 
         try
         {
-            var api = HttpClientFactory.CreateClient("NaviApi");
-            var roles = await api.GetFromJsonAsync<List<RoleRefreshDto>>("api/settings/roles") ?? new();
+            var api =
+                HttpClientFactory.CreateClient(
+                    "NaviApi");
 
-            var role = roles.FirstOrDefault(x => x.Id == AuthSession.RoleId.Value);
+            /*
+             * La API no puede dejar el menú esperando
+             * indefinidamente.
+             */
+            using var apiTimeout =
+                new CancellationTokenSource(
+                    TimeSpan.FromSeconds(3));
+
+            var roles =
+                await api.GetFromJsonAsync<List<RoleRefreshDto>>(
+                    "api/settings/roles",
+                    apiTimeout.Token)
+                ?? new();
+
+            var role =
+                roles.FirstOrDefault(
+                    x =>
+                        x.Id ==
+                        AuthSession.RoleId.Value);
 
             if (role is null)
             {
                 return;
             }
 
-            var current = AuthSession.CurrentUser;
+            var current =
+                AuthSession.CurrentUser;
 
             if (current is null)
             {
                 return;
             }
 
-            current.RoleCode = role.Code;
-            current.RoleName = role.Name;
-            current.Permissions = ParsePermissions(role.Permissions).ToList();
+            current.RoleCode =
+                role.Code;
+
+            current.RoleName =
+                role.Name;
+
+            current.Permissions =
+                ParsePermissions(
+                    role.Permissions)
+                .ToList();
 
             AuthSession.Login(current);
 
-            var json = JsonSerializer.Serialize(current);
-            await JS.InvokeVoidAsync("localStorage.setItem", StorageKey, json);
+            var json =
+                JsonSerializer.Serialize(current);
+
+            using var storageTimeout =
+                new CancellationTokenSource(
+                    TimeSpan.FromSeconds(2));
+
+            await JS.InvokeAsync<object?>(
+                "localStorage.setItem",
+                storageTimeout.Token,
+                new object?[]
+                {
+                    StorageKey,
+                    json
+                });
         }
         catch
         {
-            // Si no se puede refrescar, se conserva la sesión actual.
+            /*
+             * Cuando la API o el navegador tardan, se mantienen
+             * los permisos guardados en la sesión actual.
+             */
         }
     }
 
@@ -419,7 +488,13 @@
 
     private void HandleAuthChanged()
     {
-        InvokeAsync(StateHasChanged);
+        /*
+         * La validación ya terminó, tanto para inicio de sesión
+         * como para cierre de sesión.
+         */
+        sessionChecked = true;
+
+        _ = InvokeAsync(StateHasChanged);
     }
 
     public void Dispose()

@@ -13,7 +13,9 @@
 <PageTitle>Usuarios - Configuración</PageTitle>
 
 <section class="users-page">
+    <section class="navi-reference-toolbar navi-reference-toolbar--back-below">
     <NaviPageHero
+        Class="navi-reference-toolbar__actions"
         Pill="SEGURIDAD"
         Title="Usuarios"
         Description="Administra usuarios del sistema, roles asignados, estado de acceso, cambio de contraseña y alcance operativo por sede o perfil.">
@@ -24,51 +26,51 @@
 
     </NaviPageHero>
 
+    <NaviKpiGrid Class="users-kpi-grid users-kpi-grid-standard">
+        <NaviKpiCard>
+            <span>Total usuarios</span>
+            <strong>@FilteredUsers.Count()</strong>
+            <small>Según filtros activos</small>
+        </NaviKpiCard>
+
+        <NaviKpiCard Class="success">
+            <span>Activos</span>
+            <strong>@FilteredUsers.Count(x => x.IsActive)</strong>
+            <small>Con acceso habilitado</small>
+        </NaviKpiCard>
+
+        <NaviKpiCard Class="danger">
+            <span>Inactivos</span>
+            <strong>@FilteredUsers.Count(x => !x.IsActive)</strong>
+            <small>Acceso deshabilitado</small>
+        </NaviKpiCard>
+
+        <NaviKpiCard Class="neutral">
+            <span>Roles</span>
+            <strong>@FilteredUsers.Select(x => x.Role?.Code).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Count()</strong>
+            <small>Roles visibles</small>
+        </NaviKpiCard>
+
+        <NaviKpiCard Class="warning">
+            <span>Sedes</span>
+            <strong>@FilteredUsers.Select(x => x.Branch?.Code ?? "Todas").Distinct(StringComparer.OrdinalIgnoreCase).Count()</strong>
+            <small>Alcance operativo</small>
+        </NaviKpiCard>
+    </NaviKpiGrid>
+    </section>
+
     @if (!string.IsNullOrWhiteSpace(message))
     {
         <div class="@messageClass">@message</div>
     }
 
-    
-    <section class="users-kpi-grid users-kpi-grid-standard">
-        <article>
-            <span>Total usuarios</span>
-            <strong>@FilteredUsers.Count()</strong>
-            <small>Según filtros activos</small>
-        </article>
-
-        <article class="success">
-            <span>Activos</span>
-            <strong>@FilteredUsers.Count(x => x.IsActive)</strong>
-            <small>Con acceso habilitado</small>
-        </article>
-
-        <article class="danger">
-            <span>Inactivos</span>
-            <strong>@FilteredUsers.Count(x => !x.IsActive)</strong>
-            <small>Acceso deshabilitado</small>
-        </article>
-
-        <article class="neutral">
-            <span>Roles</span>
-            <strong>@FilteredUsers.Select(x => x.Role?.Code).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Count()</strong>
-            <small>Roles visibles</small>
-        </article>
-
-        <article class="warning">
-            <span>Sedes</span>
-            <strong>@FilteredUsers.Select(x => x.Branch?.Code ?? "Todas").Distinct(StringComparer.OrdinalIgnoreCase).Count()</strong>
-            <small>Alcance operativo</small>
-        </article>
-    </section>
-
     <section class="users-page-filters" aria-label="Filtros de usuarios">
         <input class="form-control form-control-sm"
                placeholder="Buscar documento, nombre, correo electrónico, rol o sede..."
                @bind="searchText"
-               @bind:event="oninput" />
+               @bind:event="oninput" name="navi-settingsusers-field-001" />
 
-        <select class="form-select form-select-sm" @bind="selectedBranchFilter">
+        <select class="form-select form-select-sm" @bind="selectedBranchFilter" name="navi-settingsusers-field-002">
             <option value="">Todas las sedes</option>
             <option value="__ALL__">Usuarios con alcance Todas</option>
             @foreach (var branch in UserBranchFilterOptions)
@@ -77,7 +79,7 @@
             }
         </select>
 
-        <select class="form-select form-select-sm" @bind="selectedRoleFilter">
+        <select class="form-select form-select-sm" @bind="selectedRoleFilter" name="navi-settingsusers-field-003">
             <option value="">Todos los roles</option>
             @foreach (var role in UserRoleFilterOptions)
             {
@@ -85,13 +87,13 @@
             }
         </select>
 
-        <select class="form-select form-select-sm" @bind="selectedStatusFilter">
+        <select class="form-select form-select-sm" @bind="selectedStatusFilter" name="navi-settingsusers-field-004">
             <option value="">Todos los estados</option>
             <option value="active">Activos</option>
             <option value="inactive">Inactivos</option>
         </select>
 
-        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="ClearUserFilters" data-ntx-tone="primary" >
+        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="ClearUserFilters" data-ntx-tone="secondary" >
             Limpiar
         </button>
     </section>
@@ -108,7 +110,7 @@
                     <InputText class="form-control"
                                @bind-Value="formModel.UserName"
                                placeholder="Ingrese número de documento"
-                               disabled="@(!CanManageUsers)" />
+                               disabled="@(!CanManageUsers)" name="navi-settingsusers-field-005" />
                 </label>
 
                 <label class="users-field-half">
@@ -116,7 +118,7 @@
                     <InputText class="form-control"
                                @bind-Value="formModel.DisplayName"
                                placeholder="Ingrese nombre completo"
-                               disabled="@(!CanManageUsers)" />
+                               disabled="@(!CanManageUsers)" name="navi-settingsusers-field-006" />
                 </label>
 
                 <label class="users-field-half">
@@ -124,7 +126,7 @@
                     <InputText class="form-control"
                                @bind-Value="formModel.Email"
                                placeholder="usuario@empresa.com"
-                               disabled="@(!CanManageUsers)" />
+                               disabled="@(!CanManageUsers)" name="navi-settingsusers-field-007" />
                 </label>
 
                 <label class="users-field-half">
@@ -132,7 +134,7 @@
                     <InputText class="form-control"
                                @bind-Value="formModel.Position"
                                placeholder="Ingrese cargo"
-                               disabled="@(!CanManageUsers)" />
+                               disabled="@(!CanManageUsers)" name="navi-settingsusers-field-008" />
                 </label>
 
                 <label class="users-field-half">
@@ -140,12 +142,12 @@
                     <InputText class="form-control"
                                @bind-Value="formModel.Area"
                                placeholder="Ingrese área"
-                               disabled="@(!CanManageUsers)" />
+                               disabled="@(!CanManageUsers)" name="navi-settingsusers-field-009" />
                 </label>
 
                 <label class="users-field-half">
                     Rol <strong class="users-required-star">*</strong>
-                    <InputSelect class="form-select" @bind-Value="formModel.AppRoleId" disabled="@(!CanManageUsers)">
+                    <InputSelect class="form-select" @bind-Value="formModel.AppRoleId" disabled="@(!CanManageUsers)" name="navi-settingsusers-field-010">
                         <option value="">Seleccione rol</option>
                         @foreach (var role in RolesForForm)
                         {
@@ -156,7 +158,7 @@
 
                 <label class="users-field-full users-branch-field">
                     Sede operativa
-                    <InputSelect class="form-select" @bind-Value="formModel.BranchId" disabled="@(!CanManageUsers)">
+                    <InputSelect class="form-select" @bind-Value="formModel.BranchId" disabled="@(!CanManageUsers)" name="navi-settingsusers-field-011">
                         <option value="">Seleccione sede operativa</option>
                         @foreach (var branch in branches)
                         {
@@ -172,7 +174,7 @@
                     <label class="users-switch-row">
                         <InputCheckbox class="form-check-input"
                                        @bind-Value="formModel.CreateOperationalResponsibleFromUser"
-                                       disabled="@(!CanManageUsers)" />
+                                       disabled="@(!CanManageUsers)" name="navi-settingsusers-field-012" />
                         <span>Solicitante operativo del usuario</span>
                     </label>
 
@@ -186,7 +188,7 @@
                             Vincular con solicitante existente <strong class="users-required-star">*</strong>
                             <InputSelect class="form-select"
                                          @bind-Value="formModel.ResponsiblePersonId"
-                                         disabled="@(!CanManageUsers)">
+                                         disabled="@(!CanManageUsers)" name="navi-settingsusers-field-013">
                                 <option value="">Seleccione solicitante existente</option>
                                 @foreach (var responsible in responsibles.Where(x => x.IsActive).OrderBy(x => x.FullName))
                                 {
@@ -198,21 +200,21 @@
                         <button type="button"
                                 class="btn btn-sm btn-outline-secondary mt-1"
                                 @onclick="CompleteWithResponsibleButton"
-                                disabled="@(!CanManageUsers || formModel.ResponsiblePersonId is null)" data-ntx-tone="positive" >
+                                disabled="@(!CanManageUsers || formModel.ResponsiblePersonId is null)" data-ntx-tone="ghost" >
                             Completar datos con solicitante existente
                         </button>
                     }
                 </div>
 
                 <label class="users-switch-row users-field-full">
-                    <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive" disabled="@(!CanManageUsers)" />
+                    <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive" disabled="@(!CanManageUsers)" name="navi-settingsusers-field-014" />
                     <span>Usuario activo</span>
                 </label>
 
                 <div class="users-actions users-field-full">
                     @if (CanManageUsers)
                     {
-                        <button class="btn btn-primary" type="submit" data-ntx-tone="primary" >
+                        <button class="btn ntx-btn--operation" type="submit" data-ntx-tone="affirmative" >
                             @(editingId is null ? "Guardar" : "Guardar cambios")
                         </button>
                     }
@@ -241,7 +243,7 @@
                                            type="password"
                                            @bind-Value="formModel.Password"
                                            placeholder="Ingrese contraseña"
-                                           disabled="@(!CanManageUsers)" />
+                                           disabled="@(!CanManageUsers)" name="navi-settingsusers-field-015" />
                             </label>
 
                             <label>
@@ -250,7 +252,7 @@
                                            type="password"
                                            @bind-Value="formModel.ConfirmPassword"
                                            placeholder="Confirme la contraseña"
-                                           disabled="@(!CanManageUsers)" />
+                                           disabled="@(!CanManageUsers)" name="navi-settingsusers-field-016" />
                             </label>
                         </div>
                     </div>
@@ -289,7 +291,7 @@
                                        type="password"
                                        @bind="passwordModel.NewPassword"
                                        placeholder="Ingrese nueva contraseña"
-                                       disabled="@(!CanManageUsers)" />
+                                       disabled="@(!CanManageUsers)" name="navi-settingsusers-field-017" />
                             </label>
 
                             <label>
@@ -298,7 +300,7 @@
                                        type="password"
                                        @bind="passwordModel.ConfirmPassword"
                                        placeholder="Confirme la nueva contraseña"
-                                       disabled="@(!CanManageUsers)" />
+                                       disabled="@(!CanManageUsers)" name="navi-settingsusers-field-018" />
                             </label>
                         </div>
 
@@ -307,7 +309,7 @@
 
                             @if (CanManageUsers)
                             {
-                                <button class="btn btn-outline-primary" type="button" @onclick="ChangePasswordAsync" data-ntx-tone="ghost" >
+                                <button class="btn ntx-btn--operation" type="button" @onclick="ChangePasswordAsync" data-ntx-tone="operation" >
                                     Cambiar contraseña
                                 </button>
                             }
@@ -324,7 +326,7 @@
 
             @if (isLoading)
             {
-                <div class="users-empty">Cargando usuarios...</div>
+                <div class="users-empty" role="status" aria-busy="true">Cargando usuarios...</div>
             }
             else if (!FilteredUsers.Any())
             {
@@ -333,7 +335,8 @@
             else
             {
                 <div class="users-table-wrapper">
-                    <table class="table table-hover align-middle users-table">
+                    <div class="ntx-table-scroll">
+                        <table class="table table-hover align-middle users-table">
                         <thead>
                             <tr>
                                 <th>Documento</th>
@@ -364,17 +367,17 @@
                                     <td class="text-end">
                                         @if (CanManageUsers)
                                         {
-                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(user)" data-ntx-tone="secondary" >Editar</button>
-                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => SelectPasswordUser(user)" data-ntx-tone="ghost" >Contraseña</button>
+                                            <button class="btn btn-sm ntx-btn--operation" @onclick="() => Edit(user)" data-ntx-tone="operation" >Editar</button>
+                                            <button class="btn btn-sm ntx-btn--operation" @onclick="() => SelectPasswordUser(user)" data-ntx-tone="ghost" >Contraseña</button>
                                             @if (user.IsActive)
                                         {
-                                            <button class="btn btn-sm btn-outline-warning" @onclick="() => SetUserStatusAsync(user, false)" data-ntx-tone="ghost" >
+                                            <button class="btn btn-sm ntx-btn--warning" @onclick="() => SetUserStatusAsync(user, false)" data-ntx-tone="danger" >
                                                 Deshabilitar
                                             </button>
                                         }
                                         else
                                         {
-                                            <button class="btn btn-sm btn-outline-success" @onclick="() => SetUserStatusAsync(user, true)" data-ntx-tone="ghost" >
+                                            <button class="btn btn-sm ntx-btn--affirmative" @onclick="() => SetUserStatusAsync(user, true)" data-ntx-tone="affirmative" >
                                                 Habilitar
                                             </button>
                                         }
@@ -384,6 +387,7 @@
                             }
                         </tbody>
                     </table>
+                    </div>
                 </div>
             }
         </div>

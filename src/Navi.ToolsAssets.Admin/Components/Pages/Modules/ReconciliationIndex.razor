@@ -15,23 +15,79 @@
 
 <PermissionGuard Permission="Reconciliation.View" ModuleName="Conciliación">
     <div class="reconciliation-page">
-        <NaviPageHero
-            Pill="CONTROL"
-            Title="Conciliación"
-            Description="Revisa lo reportado por los usuarios, filtra diferencias y toma decisiones: aclarar, aprobar creación, crear en Inventario de Herramientas y AF, conciliar o rechazar.">
+        <section class="navi-reference-toolbar reconciliation-kpi-toolbar">
+            <NaviPageHero
+                Class="navi-reference-toolbar__actions"
+                Pill="CONTROL"
+                Title="Conciliación"
+                Description="Revisa lo reportado por los usuarios, filtra diferencias y toma decisiones: aclarar, aprobar creación, crear en Inventario de Herramientas y AF, conciliar o rechazar.">
 
-            <button type="button" @onclick="LoadAsync" disabled="@isLoading" data-ntx-tone="secondary" >
-                @(isLoading ? "Actualizando..." : "Actualizar")
-            </button>
+                @if (SelectedCountId.HasValue)
+                {
+                    <a class="btn"
+                       href="@($"/physical-counts/{SelectedCountId}")"
+                       data-ntx-tone="consult">
+                        Ver toma
+                    </a>
+                }
 
-            @if (SelectedCountId.HasValue)
-            {
-                <a href="@($"/physical-counts/{SelectedCountId}")">
-                    Ver toma
-                </a>
-            }
+                <button type="button"
+                        title="Actualizar conciliación"
+                        aria-label="Actualizar conciliación"
+                        data-ntx-icon-only="true"
+                        @onclick="LoadAsync"
+                        disabled="@isLoading"
+                        data-ntx-tone="refresh">
+                    @(isLoading ? "Actualizando..." : "Actualizar")
+                </button>
 
-        </NaviPageHero>
+            </NaviPageHero>
+
+            <NaviKpiGrid Columns="6"
+                         Class="rec-kpi-grid">
+                <NaviKpiCard Title="Total filtrado"
+                             Description="Registros visibles"
+                             Tone="neutral">
+                    <IconContent><NaviKpiIcon Name="inventory" /></IconContent>
+                    <ValueContent>@FilteredItems.Count()</ValueContent>
+                </NaviKpiCard>
+
+                <NaviKpiCard Title="No listadas"
+                             Description="Posible creación"
+                             Tone="soft">
+                    <IconContent><NaviKpiIcon Name="document" /></IconContent>
+                    <ValueContent>@FilteredItems.Count(x => x.ReportType == "ExtraNotListed")</ValueContent>
+                </NaviKpiCard>
+
+                <NaviKpiCard Title="Pendiente creación"
+                             Description="Aprobar o crear"
+                             Tone="warning">
+                    <IconContent><NaviKpiIcon Name="clock" /></IconContent>
+                    <ValueContent>@FilteredItems.Count(x => IsPendingCreation(x))</ValueContent>
+                </NaviKpiCard>
+
+                <NaviKpiCard Title="Pendiente conciliación"
+                             Description="Revisar trazabilidad"
+                             Tone="warning">
+                    <IconContent><NaviKpiIcon Name="transfer" /></IconContent>
+                    <ValueContent>@FilteredItems.Count(x => x.ReconciliationStatus == "MatchedInSystem")</ValueContent>
+                </NaviKpiCard>
+
+                <NaviKpiCard Title="Aclaración"
+                             Description="Contactar usuario"
+                             Tone="soft">
+                    <IconContent><NaviKpiIcon Name="users" /></IconContent>
+                    <ValueContent>@FilteredItems.Count(x => x.RequiresUserClarification || x.ReconciliationStatus == "RequiresUserClarification")</ValueContent>
+                </NaviKpiCard>
+
+                <NaviKpiCard Title="Completos"
+                             Description="Conciliados"
+                             Tone="positive">
+                    <IconContent><NaviKpiIcon Name="check" /></IconContent>
+                    <ValueContent>@FilteredItems.Count(x => x.ReconciliationStatus == "Reconciled")</ValueContent>
+                </NaviKpiCard>
+            </NaviKpiGrid>
+        </section>
 
         @if (!string.IsNullOrWhiteSpace(errorMessage))
         {
@@ -43,7 +99,7 @@
             <div class="rec-alert rec-alert-success">@successMessage</div>
         }
 
-        <section class="rec-card">
+        <section class="rec-card rec-filters-card">
             <div class="rec-section-title">
                 <div>
                     <h2>Filtros de conciliación</h2>
@@ -58,7 +114,7 @@
             <div class="rec-filter-grid">
                 <label>
                     Toma física
-                    <select @bind="selectedCountIdText" @bind:after="OnSelectedCountChangedAsync">
+                    <select @bind="selectedCountIdText" @bind:after="OnSelectedCountChangedAsync" name="navi-reconciliationindex-field-001">
                         <option value="">Seleccione toma...</option>
                         @foreach (var count in physicalCounts)
                         {
@@ -71,7 +127,7 @@
 
                 <label>
                     Sede
-                    <select @bind="filterBranch">
+                    <select @bind="filterBranch" name="navi-reconciliationindex-field-002">
                         <option value="">Todas las sedes</option>
                         @foreach (var branch in BranchOptions)
                         {
@@ -82,7 +138,7 @@
 
                 <label>
                     Usuario / participante
-                    <select @bind="filterParticipant">
+                    <select @bind="filterParticipant" name="navi-reconciliationindex-field-003">
                         <option value="">Todos los usuarios</option>
                         @foreach (var participant in ParticipantOptions)
                         {
@@ -93,7 +149,7 @@
 
                 <label>
                     Tipo de reporte
-                    <select @bind="filterReportType">
+                    <select @bind="filterReportType" name="navi-reconciliationindex-field-004">
                         <option value="">Todos</option>
                         <option value="Found">Encontrada / validada</option>
                         <option value="NotFound">No encontrada</option>
@@ -105,7 +161,7 @@
 
                 <label>
                     Estado de conciliación
-                    <select @bind="filterReconciliationStatus">
+                    <select @bind="filterReconciliationStatus" name="navi-reconciliationindex-field-005">
                         <option value="">Todos</option>
                         <option value="PendingReview">Pendiente revisión</option>
                         <option value="NotFoundInSystem">Pendiente creación</option>
@@ -119,7 +175,7 @@
 
                 <label>
                     Datos mínimos
-                    <select @bind="filterMinimumData">
+                    <select @bind="filterMinimumData" name="navi-reconciliationindex-field-006">
                         <option value="">Todos</option>
                         <option value="Complete">Completos</option>
                         <option value="Missing">Sin mínimos</option>
@@ -128,64 +184,26 @@
 
                 <label>
                     Desde
-                    <input @bind="filterFromDateText" placeholder="yyyy-MM-dd" />
+                    <input @bind="filterFromDateText" placeholder="yyyy-MM-dd" name="navi-reconciliationindex-field-007" />
                 </label>
 
                 <label>
                     Hasta
-                    <input @bind="filterToDateText" placeholder="yyyy-MM-dd" />
+                    <input @bind="filterToDateText" placeholder="yyyy-MM-dd" name="navi-reconciliationindex-field-008" />
                 </label>
             </div>
 
             <div class="rec-filter-bottom">
                 <label class="rec-search">
                     Buscar
-                    <input @bind="searchText" @bind:event="oninput" placeholder="Código, nombre, serial, usuario, categoría, observación..." />
+                    <input @bind="searchText" @bind:event="oninput" placeholder="Código, nombre, serial, usuario, categoría, observación..." name="navi-reconciliationindex-field-009" />
                 </label>
 
                 <label class="rec-check">
-                    <input type="checkbox" @bind="onlyPending" />
+                    <input type="checkbox" @bind="onlyPending" name="navi-reconciliationindex-field-010" />
                     Mostrar solo pendientes de decisión
                 </label>
             </div>
-        </section>
-
-        <section class="rec-kpi-grid">
-            <article>
-                <span>Total filtrado</span>
-                <strong>@FilteredItems.Count()</strong>
-                <small>Registros visibles</small>
-            </article>
-
-            <article>
-                <span>No listadas</span>
-                <strong>@FilteredItems.Count(x => x.ReportType == "ExtraNotListed")</strong>
-                <small>Posible creación</small>
-            </article>
-
-            <article>
-                <span>Pendiente creación</span>
-                <strong>@FilteredItems.Count(x => IsPendingCreation(x))</strong>
-                <small>Aprobar o crear</small>
-            </article>
-
-            <article>
-                <span>Pendiente conciliación</span>
-                <strong>@FilteredItems.Count(x => x.ReconciliationStatus == "MatchedInSystem")</strong>
-                <small>Revisar trazabilidad</small>
-            </article>
-
-            <article>
-                <span>Aclaración</span>
-                <strong>@FilteredItems.Count(x => x.RequiresUserClarification || x.ReconciliationStatus == "RequiresUserClarification")</strong>
-                <small>Contactar usuario</small>
-            </article>
-
-            <article>
-                <span>Completos</span>
-                <strong>@FilteredItems.Count(x => x.ReconciliationStatus == "Reconciled")</strong>
-                <small>Conciliados</small>
-            </article>
         </section>
 
         <section class="rec-card">
@@ -206,7 +224,7 @@
 
             @if (isLoading)
             {
-                <div class="rec-empty">Cargando información de conciliación...</div>
+                <div class="rec-empty" role="status" aria-busy="true">Cargando información de conciliación...</div>
             }
             else if (!physicalCounts.Any())
             {
@@ -222,8 +240,10 @@
             }
             else
             {
-                <div class="rec-table-wrapper">
-                    <table class="rec-table">
+                <div class="rec-table-wrapper ntx-table-scroll"
+                     tabindex="0"
+                     aria-label="Registros para conciliación">
+                        <table class="rec-table">
                         <thead>
                             <tr>
                                 <th class="rec-col-type">Tipo</th>
@@ -233,8 +253,6 @@
                                 <th class="rec-col-location">Ubicación / responsable</th>
                                 <th class="rec-col-status">Estado reportado</th>
                                 <th class="rec-col-reconciliation">Conciliación</th>
-                                <th class="rec-col-minimum">Datos mínimos</th>
-                                <th class="rec-col-date">Fecha</th>
                                 <th class="rec-col-actions">Acciones</th>
                             </tr>
                         </thead>
@@ -301,54 +319,47 @@
                                     </td>
 
                                     <td>
-                                        @if (item.MinimumDataCompleted)
-                                        {
-                                            <span class="rec-pill-ok">Completos</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="rec-pill-danger">Sin mínimos</span>
-                                            <small>@Display(item.MissingRequiredData)</small>
-                                        }
-                                    </td>
-
-                                    <td>
-                                        @FormatDate(item.ReportedAt)
-                                    </td>
-
-                                    <td>
                                         <div class="rec-actions">
+
+                                            @* NAVI RECONCILIATION VIEW BUTTON V162 CORR1 START *@
+                                            <button type="button"
+                                                    class="rec-action rec-action-view"
+                                                    data-ntx-tone="ghost"
+                                                    @onclick="() => OpenDetailWithEvidenceAsync(item)">
+                                                Ver
+                                            </button>
+                                            @* NAVI RECONCILIATION VIEW BUTTON V162 CORR1 END *@
                                             @if (CanRequestClarification(item))
                                             {
-                                                <button type="button" class="rec-action warn" @onclick="() => RequestClarificationAsync(item.Id)" data-ntx-tone="warning" >
+                                                <button type="button" class="rec-action warn" @onclick="() => RequestClarificationAsync(item.Id)" data-ntx-tone="ghost" >
                                                     Aclarar
                                                 </button>
                                             }
 
                                             @if (CanResolveClarification(item))
                                             {
-                                                <button type="button" class="rec-action neutral" @onclick="() => ResolveClarificationAsync(item.Id)" data-ntx-tone="positive" >
+                                                <button type="button" class="rec-action neutral" @onclick="() => ResolveClarificationAsync(item.Id)" data-ntx-tone="ghost" >
                                                     Aclarado
                                                 </button>
                                             }
 
                                             @if (CanApproveCreation(item))
                                             {
-                                                <button type="button" class="rec-action ok" @onclick="() => ApproveCreationAsync(item.Id)" data-ntx-tone="positive" >
+                                                <button type="button" class="rec-action ok" @onclick="() => ApproveCreationAsync(item.Id)" data-ntx-tone="affirmative" >
                                                     Aprobar creación
                                                 </button>
                                             }
 
                                             @if (CanCreateInventoryAsset(item))
                                             {
-                                                <button type="button" class="rec-action ok-fill" @onclick="() => CreateInventoryAssetAsync(item.Id)" data-ntx-tone="primary" >
+                                                <button type="button" class="rec-action ok-fill" @onclick="() => CreateInventoryAssetAsync(item.Id)" data-ntx-tone="operation" >
                                                     Crear activo
                                                 </button>
                                             }
 
                                             @if (CanReconcile(item))
                                             {
-                                                <button type="button" class="rec-action neutral" @onclick="() => ReconcileAsync(item.Id)" data-ntx-tone="danger" >
+                                                <button type="button" class="rec-action neutral" @onclick="() => ReconcileAsync(item.Id)" data-ntx-tone="ghost" >
                                                     Conciliar
                                                 </button>
                                             }
@@ -369,6 +380,819 @@
             }
         </section>
     </div>
+
+
+        @* NAVI RECONCILIATION DETAIL MODAL V162 CORR1 START *@
+        @if (detailItem is not null)
+        {
+            <div class="rec-detail-backdrop"
+                 role="presentation"
+                 @onclick="CloseDetail">
+
+                <section class="rec-detail-modal"
+                         role="dialog"
+                         aria-modal="true"
+                         aria-labelledby="rec-detail-title"
+                         @onclick:stopPropagation="true">
+
+                    <header class="rec-detail-header">
+
+                        <div>
+                            <span class="rec-detail-eyebrow">
+                                Conciliación
+                            </span>
+
+                            <h2 id="rec-detail-title">
+                                Detalle del registro
+                            </h2>
+
+                            <p>
+                                @Display(
+                                    detailItem.ToolInternalCode
+                                    ?? detailItem.ReportedCode
+                                    ?? detailItem.MatchedToolInternalCode
+                                )
+                                ·
+                                @Display(
+                                    detailItem.ToolName
+                                    ?? detailItem.ReportedName
+                                    ?? detailItem.MatchedToolName
+                                )
+                            </p>
+                        </div>
+
+                        <button type="button"
+                                class="rec-detail-close"
+                                aria-label="Cerrar detalle"
+                                title="Cerrar"
+                                @onclick="CloseDetail">
+                            ×
+                        </button>
+
+                    </header>
+
+                    <div class="rec-detail-body">
+
+                        <div class="rec-detail-status-row">
+
+                            <div>
+                                <span>Tipo de reporte</span>
+                                <strong>
+                                    @GetReportTypeLabel(
+                                        detailItem
+                                    )
+                                </strong>
+                            </div>
+
+                            <div>
+                                <span>Conciliación</span>
+                                <strong>
+                                    @GetReconciliationLabel(
+                                        detailItem
+                                    )
+                                </strong>
+                            </div>
+
+                            <div>
+                                <span>Datos mínimos</span>
+                                <strong>
+                                    @(detailItem.MinimumDataCompleted
+                                        ? "Completos"
+                                        : "Sin mínimos")
+                                </strong>
+                            </div>
+
+                            <div>
+                                <span>Fecha reportada</span>
+                                <strong>
+                                    @FormatDate(
+                                        detailItem.ReportedAt
+                                    )
+                                </strong>
+                            </div>
+
+                        </div>
+
+                        <div class="rec-detail-sections">
+
+                            <article class="rec-detail-section">
+
+                                <h3>
+                                    Identificación del activo
+                                </h3>
+
+                                <dl class="rec-detail-grid">
+
+                                    <div>
+                                        <dt>Código interno</dt>
+                                        <dd>
+                                            @Display(
+                                                detailItem
+                                                    .ToolInternalCode
+                                            )
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>Nombre del activo</dt>
+                                        <dd>
+                                            @Display(
+                                                detailItem.ToolName
+                                            )
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>Código reportado</dt>
+                                        <dd>
+                                            @Display(
+                                                detailItem
+                                                    .ReportedCode
+                                            )
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>Nombre reportado</dt>
+                                        <dd>
+                                            @Display(
+                                                detailItem
+                                                    .ReportedName
+                                            )
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>Código coincidente</dt>
+                                        <dd>
+                                            @Display(
+                                                detailItem
+                                                    .MatchedToolInternalCode
+                                            )
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>Nombre coincidente</dt>
+                                        <dd>
+                                            @Display(
+                                                detailItem
+                                                    .MatchedToolName
+                                            )
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>Serial</dt>
+                                        <dd>
+                                            @Display(
+                                                detailItem
+                                                    .SerialNumber
+                                            )
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>Marca</dt>
+                                        <dd>
+                                            @Display(
+                                                detailItem.Brand
+                                            )
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>Modelo</dt>
+                                        <dd>
+                                            @Display(
+                                                detailItem.Model
+                                            )
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>Creado en inventario</dt>
+                                        <dd>
+                                            @(detailItem
+                                                .CreatedToolAssetId
+                                                .HasValue
+                                                    ? "Sí"
+                                                    : "No")
+                                        </dd>
+                                    </div>
+
+                                </dl>
+
+                            </article>
+
+
+                            <article class="rec-detail-section">
+
+                                <h3>
+                                    Usuario y reporte
+                                </h3>
+
+                                <dl class="rec-detail-grid">
+
+                                    <div>
+                                        <dt>Participante</dt>
+                                        <dd>
+                                            @Display(
+                                                detailItem
+                                                    .ParticipantName
+                                                ?? detailItem
+                                                    .ResponsibleName
+                                            )
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>Usuario</dt>
+                                        <dd>
+                                            @Display(
+                                                detailItem
+                                                    .ParticipantUserName
+                                            )
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>Reportado por</dt>
+                                        <dd>
+                                            @Display(
+                                                detailItem
+                                                    .ReportedBy
+                                            )
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>Fecha reportada</dt>
+                                        <dd>
+                                            @FormatDate(
+                                                detailItem
+                                                    .ReportedAt
+                                            )
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>Tipo de reporte</dt>
+                                        <dd>
+                                            @GetReportTypeLabel(
+                                                detailItem
+                                            )
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>Código de reporte</dt>
+                                        <dd>
+                                            @Display(
+                                                detailItem
+                                                    .ReportType
+                                            )
+                                        </dd>
+                                    </div>
+
+                                </dl>
+
+                            </article>
+
+
+                            <article class="rec-detail-section">
+
+                                <h3>
+                                    Clasificación y ubicación
+                                </h3>
+
+                                <dl class="rec-detail-grid">
+
+                                    <div>
+                                        <dt>Tipo de activo</dt>
+                                        <dd>
+                                            @Display(
+                                                detailItem
+                                                    .AssetTypeName
+                                            )
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>Categoría</dt>
+                                        <dd>
+                                            @Display(
+                                                detailItem
+                                                    .CategoryName
+                                            )
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>Sede</dt>
+                                        <dd>
+                                            @Display(
+                                                detailItem
+                                                    .BranchCode
+                                                ?? board
+                                                    ?.BranchCode
+                                            )
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>
+                                            Ubicación encontrada
+                                        </dt>
+                                        <dd>
+                                            @Display(
+                                                detailItem
+                                                    .FoundLocation
+                                            )
+                                        </dd>
+                                    </div>
+
+                                    <div class="rec-detail-field-wide">
+                                        <dt>Responsable</dt>
+                                        <dd>
+                                            @Display(
+                                                detailItem
+                                                    .ResponsibleName
+                                            )
+                                        </dd>
+                                    </div>
+
+                                </dl>
+
+                            </article>
+
+
+                            <article class="rec-detail-section">
+
+                                <h3>
+                                    Estado reportado
+                                </h3>
+
+                                <dl class="rec-detail-grid">
+
+                                    <div>
+                                        <dt>Estado físico</dt>
+                                        <dd>
+                                            @Display(
+                                                detailItem
+                                                    .PhysicalStatus
+                                            )
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>Estado operativo</dt>
+                                        <dd>
+                                            @Display(
+                                                detailItem
+                                                    .OperationalStatus
+                                            )
+                                        </dd>
+                                    </div>
+
+                                    <div class="rec-detail-field-wide">
+                                        <dt>Observación</dt>
+                                        <dd>
+                                            @Display(
+                                                detailItem
+                                                    .Observation
+                                            )
+                                        </dd>
+                                    </div>
+
+                                </dl>
+
+                            </article>
+
+
+                            <article class="rec-detail-section">
+
+                                <h3>
+                                    Conciliación
+                                </h3>
+
+                                <dl class="rec-detail-grid">
+
+                                    <div>
+                                        <dt>Estado</dt>
+                                        <dd>
+                                            @GetReconciliationLabel(
+                                                detailItem
+                                            )
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>
+                                            Requiere aclaración
+                                        </dt>
+                                        <dd>
+                                            @(detailItem
+                                                .RequiresUserClarification
+                                                    ? "Sí"
+                                                    : "No")
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>
+                                            Aprobado para creación
+                                        </dt>
+                                        <dd>
+                                            @(detailItem
+                                                .ApprovedForCreation
+                                                    ? "Sí"
+                                                    : "No")
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>Rechazado</dt>
+                                        <dd>
+                                            @(detailItem.Rejected
+                                                ? "Sí"
+                                                : "No")
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>Conciliado por</dt>
+                                        <dd>
+                                            @Display(
+                                                detailItem
+                                                    .ReconciledBy
+                                            )
+                                        </dd>
+                                    </div>
+
+                                    <div>
+                                        <dt>
+                                            Fecha de conciliación
+                                        </dt>
+                                        <dd>
+                                            @FormatDate(
+                                                detailItem
+                                                    .ReconciledAt
+                                            )
+                                        </dd>
+                                    </div>
+
+                                    <div class="rec-detail-field-wide">
+                                        <dt>
+                                            Observación de conciliación
+                                        </dt>
+                                        <dd>
+                                            @Display(
+                                                detailItem
+                                                    .ReconciliationObservation
+                                            )
+                                        </dd>
+                                    </div>
+
+                                </dl>
+
+                            </article>
+
+
+                            <article class="rec-detail-section">
+
+                                <h3>
+                                    Datos mínimos
+                                </h3>
+
+                                <dl class="rec-detail-grid">
+
+                                    <div>
+                                        <dt>Estado</dt>
+                                        <dd>
+                                            @(detailItem
+                                                .MinimumDataCompleted
+                                                    ? "Completos"
+                                                    : "Sin mínimos")
+                                        </dd>
+                                    </div>
+
+                                    <div class="rec-detail-field-wide">
+                                        <dt>Datos faltantes</dt>
+                                        <dd>
+                                            @Display(
+                                                detailItem
+                                                    .MissingRequiredData
+                                            )
+                                        </dd>
+                                    </div>
+
+                                </dl>
+
+                            </article>
+
+                        </div>
+
+
+                        @* NAVI RECONCILIATION EVIDENCE GALLERY V170 START *@
+                        <article class="rec-detail-section
+                                        rec-detail-evidence-section">
+
+                            <div class="rec-evidence-heading">
+
+                                <div>
+                                    <h3>Evidencias subidas</h3>
+
+                                    <p>
+                                        Fotografías y documentos asociados
+                                        al registro y a la herramienta.
+                                    </p>
+                                </div>
+
+                                <span class="rec-evidence-count">
+                                    @detailEvidences.Count archivo(s)
+                                </span>
+
+                            </div>
+
+
+                            @if (isLoadingDetailEvidences)
+                            {
+                                <div class="rec-evidence-message"
+                                     role="status"
+                                     aria-busy="true">
+                                    Cargando evidencias...
+                                </div>
+                            }
+                            else if (
+                                !string.IsNullOrWhiteSpace(
+                                    detailEvidenceError))
+                            {
+                                <div class="rec-evidence-message
+                                            rec-evidence-message-error">
+                                    @detailEvidenceError
+                                </div>
+                            }
+                            else if (
+                                detailEvidences.Count == 0)
+                            {
+                                <div class="rec-evidence-message">
+                                    No hay fotografías o documentos
+                                    asociados a este registro.
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="rec-evidence-grid">
+
+                                    @foreach (
+                                        var evidence
+                                        in detailEvidences)
+                                    {
+                                        <article class="rec-evidence-card">
+
+                                            <div class="rec-evidence-preview">
+
+                                                @if (
+                                                    IsImageEvidence(
+                                                        evidence)
+                                                    &&
+                                                    !string
+                                                        .IsNullOrWhiteSpace(
+                                                            evidence.DataUrl))
+                                                {
+                                                    <button type="button"
+                                                            class="rec-evidence-preview-button"
+                                                            title="Abrir imagen completa"
+                                                            aria-label="@($"Abrir evidencia {Display(evidence.FileName)}")"
+                                                            @onclick="() => OpenEvidencePreview(evidence)">
+
+                                                        <img src="@evidence.DataUrl"
+                                                             alt="@($"Evidencia {Display(evidence.FileName)}")"
+                                                             loading="lazy" />
+
+                                                    </button>
+                                                }
+                                                else if (
+                                                    IsPdfEvidence(
+                                                        evidence)
+                                                    &&
+                                                    !string
+                                                        .IsNullOrWhiteSpace(
+                                                            evidence.DataUrl))
+                                                {
+                                                    <button type="button"
+                                                            class="rec-evidence-document"
+                                                            @onclick="() => OpenEvidencePreview(evidence)">
+                                                        Abrir PDF
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <div class="rec-evidence-placeholder">
+                                                        @(IsImageEvidence(
+                                                            evidence)
+                                                            ? "Imagen"
+                                                            : "Documento")
+                                                    </div>
+                                                }
+
+                                            </div>
+
+
+                                            <div class="rec-evidence-info">
+
+                                                <strong>
+                                                    @Display(
+                                                        evidence.FileName)
+                                                </strong>
+
+                                                <span>
+                                                    @Display(
+                                                        evidence.ContentType)
+                                                    ·
+                                                    @FormatEvidenceSize(
+                                                        evidence.SizeBytes)
+                                                </span>
+
+                                                <span>
+                                                    @Display(
+                                                        evidence.SourceLabel)
+                                                </span>
+
+                                                <span>
+                                                    Subida por
+                                                    @Display(
+                                                        evidence.UploadedBy)
+                                                    ·
+                                                    @FormatDate(
+                                                        evidence.UploadedAt)
+                                                </span>
+
+                                                @if (
+                                                    !string
+                                                        .IsNullOrWhiteSpace(
+                                                            evidence
+                                                                .Description))
+                                                {
+                                                    <p>
+                                                        @evidence.Description
+                                                    </p>
+                                                }
+
+                                                @if (
+                                                    !string
+                                                        .IsNullOrWhiteSpace(
+                                                            evidence
+                                                                .PreviewError))
+                                                {
+                                                    <small class="rec-evidence-warning">
+                                                        @evidence.PreviewError
+                                                    </small>
+                                                }
+
+                                                @if (
+                                                    !string
+                                                        .IsNullOrWhiteSpace(
+                                                            evidence.DataUrl))
+                                                {
+                                                    <div class="rec-evidence-actions">
+
+                                                        <button type="button"
+                                                                class="rec-evidence-open-button"
+                                                                @onclick="() => OpenEvidencePreview(evidence)">
+                                                            Abrir
+                                                        </button>
+
+                                                        <a href="@evidence.DataUrl"
+                                                           download="@evidence.FileName">
+                                                            Descargar
+                                                        </a>
+
+                                                    </div>
+                                                }
+
+                                            </div>
+
+                                        </article>
+                                    }
+
+                                </div>
+                            }
+
+                        </article>
+                        @* NAVI RECONCILIATION EVIDENCE GALLERY V170 END *@
+
+                    </div>
+
+                    <footer class="rec-detail-footer">
+
+                        <button type="button"
+                                class="rec-detail-close-button"
+                                @onclick="CloseDetail">
+                            Cerrar
+                        </button>
+
+                    </footer>
+
+                </section>
+
+            </div>
+        }
+        @* NAVI RECONCILIATION DETAIL MODAL V162 CORR1 END *@
+
+
+        @* NAVI RECONCILIATION EVIDENCE PREVIEW MODAL V171 START *@
+        @if (previewEvidence is not null)
+        {
+            <div class="rec-evidence-viewer-overlay"
+                 role="dialog"
+                 aria-modal="true"
+                 aria-labelledby="rec-evidence-viewer-title">
+
+                <section class="rec-evidence-viewer">
+
+                    <header class="rec-evidence-viewer-header">
+
+                        <div>
+                            <span>VISTA PREVIA</span>
+
+                            <h3 id="rec-evidence-viewer-title">
+                                @Display(
+                                    previewEvidence.FileName)
+                            </h3>
+                        </div>
+
+                        <button type="button"
+                                class="rec-evidence-viewer-close-icon"
+                                aria-label="Cerrar vista previa"
+                                title="Cerrar"
+                                @onclick="CloseEvidencePreview">
+                            ×
+                        </button>
+
+                    </header>
+
+
+                    <div class="rec-evidence-viewer-body">
+
+                        @if (
+                            IsImageEvidence(
+                                previewEvidence)
+                            &&
+                            !string.IsNullOrWhiteSpace(
+                                previewEvidence.DataUrl))
+                        {
+                            <img src="@previewEvidence.DataUrl"
+                                 alt="@($"Vista previa de {Display(previewEvidence.FileName)}")" />
+                        }
+                        else if (
+                            IsPdfEvidence(
+                                previewEvidence)
+                            &&
+                            !string.IsNullOrWhiteSpace(
+                                previewEvidence.DataUrl))
+                        {
+                            <iframe src="@previewEvidence.DataUrl"
+                                    title="@($"Vista previa de {Display(previewEvidence.FileName)}")">
+                            </iframe>
+                        }
+                        else
+                        {
+                            <div class="rec-evidence-viewer-unavailable">
+                                No hay una vista previa disponible
+                                para este tipo de archivo.
+                            </div>
+                        }
+
+                    </div>
+
+
+                    <footer class="rec-evidence-viewer-footer">
+
+                        @if (
+                            !string.IsNullOrWhiteSpace(
+                                previewEvidence.DataUrl))
+                        {
+                            <a href="@previewEvidence.DataUrl"
+                               download="@previewEvidence.FileName">
+                                Descargar
+                            </a>
+                        }
+
+                        <button type="button"
+                                @onclick="CloseEvidencePreview">
+                            Cerrar
+                        </button>
+
+                    </footer>
+
+                </section>
+
+            </div>
+        }
+        @* NAVI RECONCILIATION EVIDENCE PREVIEW MODAL V171 END *@
+
 </PermissionGuard>
 
 @code {
@@ -436,7 +1260,10 @@
     private List<PhysicalCountListItem> physicalCounts = new();
     private ReportedItemsBoard? board;
 
-    private string? selectedCountIdText;
+    
+    // NAVI RECONCILIATION DETAIL MODAL V162 CORR1
+    private ReportedItem? detailItem;
+private string? selectedCountIdText;
     private string? filterBranch;
     private string? filterParticipant;
     private string? filterReportType;
@@ -562,7 +1389,494 @@ private async Task LoadBoardAsync()
         return HttpClientFactory.CreateClient("NaviApi");
     }
 
-    private void ClearFilters()
+// NAVI RECONCILIATION EVIDENCE CODE V170 START
+
+    private List<ReconciliationEvidenceFile>
+        detailEvidences = new();
+
+    private bool isLoadingDetailEvidences;
+
+    private string? detailEvidenceError;
+
+    // NAVI V171: evidencia seleccionada para el visor emergente.
+    private ReconciliationEvidenceFile? previewEvidence;
+
+    private const long MaxEvidencePreviewBytes =
+        20L * 1024L * 1024L;
+
+
+    private async Task OpenDetailWithEvidenceAsync(
+        ReportedItem item)
+    {
+        detailItem = item;
+        previewEvidence = null;
+
+        detailEvidences = new();
+        detailEvidenceError = null;
+        isLoadingDetailEvidences = true;
+
+        try
+        {
+            var api = CreateApiClient();
+
+            var loadedEvidences =
+                new List<ReconciliationEvidenceFile>();
+
+            var sourceErrors = new List<string>();
+
+            await LoadReportedItemEvidencesAsync(
+                api,
+                item.Id,
+                loadedEvidences,
+                sourceErrors);
+
+            foreach (
+                var toolAssetId
+                in GetEvidenceToolIds(item))
+            {
+                await LoadToolPhysicalCountEvidencesAsync(
+                    api,
+                    toolAssetId,
+                    loadedEvidences,
+                    sourceErrors);
+            }
+
+            detailEvidences = loadedEvidences
+                .GroupBy(
+                    BuildEvidenceIdentity,
+                    StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .OrderByDescending(
+                    evidence => evidence.UploadedAt)
+                .ThenBy(
+                    evidence => evidence.FileName)
+                .ToList();
+
+            await LoadEvidencePreviewsAsync(api);
+
+            if (detailEvidences.Count == 0 &&
+                sourceErrors.Count > 0)
+            {
+                detailEvidenceError = string.Join(
+                    " ",
+                    sourceErrors.Distinct(
+                        StringComparer.OrdinalIgnoreCase));
+            }
+        }
+        catch (Exception ex)
+        {
+            detailEvidenceError =
+                "No se pudieron cargar las evidencias: "
+                + ex.Message;
+        }
+        finally
+        {
+            isLoadingDetailEvidences = false;
+        }
+    }
+
+
+    private static List<Guid> GetEvidenceToolIds(
+        ReportedItem item)
+    {
+        return new Guid?[]
+            {
+                item.ToolAssetId,
+                item.MatchedToolAssetId,
+                item.CreatedToolAssetId
+            }
+            .Where(
+                id =>
+                    id.HasValue &&
+                    id.Value != Guid.Empty)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
+    }
+
+
+    private async Task LoadReportedItemEvidencesAsync(
+        HttpClient api,
+        Guid reportedItemId,
+        List<ReconciliationEvidenceFile> target,
+        List<string> sourceErrors)
+    {
+        var endpoint =
+            $"api/physical-counts/"
+            + $"reported-items/"
+            + $"{reportedItemId}/evidences";
+
+        try
+        {
+            using var response =
+                await api.GetAsync(endpoint);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                sourceErrors.Add(
+                    "No se pudieron consultar las "
+                    + "evidencias vinculadas directamente "
+                    + "al registro. Código HTTP: "
+                    + $"{(int)response.StatusCode}.");
+
+                return;
+            }
+
+            var evidences =
+                await response.Content
+                    .ReadFromJsonAsync<
+                        List<ReconciliationEvidenceFile>>()
+                ?? new();
+
+            foreach (var evidence in evidences)
+            {
+                evidence.SourceKey =
+                    "ReportedItem";
+
+                evidence.SourceLabel =
+                    "Evidencia del registro";
+
+                target.Add(evidence);
+            }
+        }
+        catch (Exception ex)
+        {
+            sourceErrors.Add(
+                "Error consultando evidencias "
+                + "del registro: "
+                + ex.Message);
+        }
+    }
+
+
+    private async Task LoadToolPhysicalCountEvidencesAsync(
+        HttpClient api,
+        Guid toolAssetId,
+        List<ReconciliationEvidenceFile> target,
+        List<string> sourceErrors)
+    {
+        var endpoint =
+            $"api/tools/{toolAssetId}/documents";
+
+        try
+        {
+            using var response =
+                await api.GetAsync(endpoint);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                sourceErrors.Add(
+                    "No se pudieron consultar las "
+                    + "fotografías guardadas en la "
+                    + "herramienta. Código HTTP: "
+                    + $"{(int)response.StatusCode}.");
+
+                return;
+            }
+
+            var documents =
+                await response.Content
+                    .ReadFromJsonAsync<
+                        List<ToolEvidenceDocument>>()
+                ?? new();
+
+            foreach (
+                var document
+                in documents.Where(
+                    IsPhysicalCountToolEvidence))
+            {
+                target.Add(
+                    new ReconciliationEvidenceFile
+                    {
+                        Id = document.Id,
+                        FileName =
+                            document.FileName,
+                        ContentType =
+                            document.ContentType,
+                        SizeBytes =
+                            document.SizeBytes,
+                        Description =
+                            document.Description,
+                        UploadedBy =
+                            document.UploadedBy,
+                        UploadedAt =
+                            document.UploadedAt,
+                        DownloadUrl =
+                            document.DownloadUrl,
+                        SourceKey =
+                            "ToolDocument",
+                        SourceLabel =
+                            "Evidencia guardada "
+                            + "en la herramienta"
+                    });
+            }
+        }
+        catch (Exception ex)
+        {
+            sourceErrors.Add(
+                "Error consultando fotografías "
+                + "de la herramienta: "
+                + ex.Message);
+        }
+    }
+
+
+    private static bool IsPhysicalCountToolEvidence(
+        ToolEvidenceDocument document)
+    {
+        return string.Equals(
+                   document.DocumentType,
+                   "PhysicalCountEvidence",
+                   StringComparison.OrdinalIgnoreCase)
+               ||
+               string.Equals(
+                   document.DocumentType,
+                   "PhotoEvidence",
+                   StringComparison.OrdinalIgnoreCase);
+    }
+
+
+    private static string BuildEvidenceIdentity(
+        ReconciliationEvidenceFile evidence)
+    {
+        if (!string.IsNullOrWhiteSpace(
+                evidence.DownloadUrl))
+        {
+            return evidence.DownloadUrl.Trim();
+        }
+
+        var uploadedAt =
+            evidence.UploadedAt?.ToString("O")
+            ?? string.Empty;
+
+        return
+            $"{evidence.SourceKey}:"
+            + $"{evidence.Id:N}:"
+            + $"{evidence.FileName}:"
+            + $"{evidence.SizeBytes}:"
+            + uploadedAt;
+    }
+
+
+    private async Task LoadEvidencePreviewsAsync(
+        HttpClient api)
+    {
+        foreach (var evidence in detailEvidences)
+        {
+            if (string.IsNullOrWhiteSpace(
+                    evidence.DownloadUrl))
+            {
+                evidence.PreviewError =
+                    "No se recibió una ruta de descarga.";
+
+                continue;
+            }
+
+            if (evidence.SizeBytes >
+                MaxEvidencePreviewBytes)
+            {
+                evidence.PreviewError =
+                    "El archivo supera 20 MB. "
+                    + "No se genera vista previa.";
+
+                continue;
+            }
+
+            try
+            {
+                using var fileResponse =
+                    await api.GetAsync(
+                        evidence.DownloadUrl);
+
+                if (!fileResponse.IsSuccessStatusCode)
+                {
+                    evidence.PreviewError =
+                        "No se pudo cargar el archivo. "
+                        + "Código HTTP: "
+                        + $"{(int)fileResponse.StatusCode}.";
+
+                    continue;
+                }
+
+                var bytes =
+                    await fileResponse.Content
+                        .ReadAsByteArrayAsync();
+
+                if (bytes.Length == 0)
+                {
+                    evidence.PreviewError =
+                        "La evidencia está vacía.";
+
+                    continue;
+                }
+
+                var contentType =
+                    fileResponse.Content.Headers
+                        .ContentType
+                        ?.MediaType
+                    ?? evidence.ContentType
+                    ?? "application/octet-stream";
+
+                evidence.ResolvedContentType =
+                    contentType;
+
+                evidence.DataUrl =
+                    $"data:{contentType};base64,"
+                    + Convert.ToBase64String(bytes);
+            }
+            catch (Exception ex)
+            {
+                evidence.PreviewError =
+                    "No se pudo cargar la vista previa: "
+                    + ex.Message;
+            }
+        }
+    }
+
+
+    private void OpenEvidencePreview(
+        ReconciliationEvidenceFile evidence)
+    {
+        if (string.IsNullOrWhiteSpace(
+                evidence.DataUrl))
+        {
+            return;
+        }
+
+        previewEvidence = evidence;
+    }
+
+
+    private void CloseEvidencePreview()
+    {
+        previewEvidence = null;
+    }
+
+
+    private void CloseDetail()
+    {
+        previewEvidence = null;
+        detailItem = null;
+
+        detailEvidences = new();
+        detailEvidenceError = null;
+        isLoadingDetailEvidences = false;
+    }
+
+
+    private static bool IsImageEvidence(
+        ReconciliationEvidenceFile evidence)
+    {
+        var contentType =
+            evidence.ResolvedContentType
+            ?? evidence.ContentType;
+
+        return contentType?.StartsWith(
+            "image/",
+            StringComparison.OrdinalIgnoreCase)
+            == true;
+    }
+
+
+    private static bool IsPdfEvidence(
+        ReconciliationEvidenceFile evidence)
+    {
+        var contentType =
+            evidence.ResolvedContentType
+            ?? evidence.ContentType;
+
+        return string.Equals(
+            contentType,
+            "application/pdf",
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+
+    private static string FormatEvidenceSize(
+        long bytes)
+    {
+        if (bytes < 1024L)
+        {
+            return $"{bytes} B";
+        }
+
+        if (bytes < 1024L * 1024L)
+        {
+            return $"{bytes / 1024d:0.0} KB";
+        }
+
+        return
+            $"{bytes / 1024d / 1024d:0.0} MB";
+    }
+
+
+    private sealed class ReconciliationEvidenceFile
+    {
+        public Guid Id { get; set; }
+
+        public Guid PhysicalCountReportedItemId
+        {
+            get;
+            set;
+        }
+
+        public string? FileName { get; set; }
+
+        public string? ContentType { get; set; }
+
+        public long SizeBytes { get; set; }
+
+        public string? Description { get; set; }
+
+        public string? UploadedBy { get; set; }
+
+        public DateTime? UploadedAt { get; set; }
+
+        public string? DownloadUrl { get; set; }
+
+        public string? ResolvedContentType
+        {
+            get;
+            set;
+        }
+
+        public string? DataUrl { get; set; }
+
+        public string? PreviewError { get; set; }
+
+        public string SourceKey { get; set; } =
+            "ReportedItem";
+
+        public string? SourceLabel { get; set; }
+    }
+
+
+    private sealed class ToolEvidenceDocument
+    {
+        public Guid Id { get; set; }
+
+        public Guid ToolAssetId { get; set; }
+
+        public string? DocumentType { get; set; }
+
+        public string? FileName { get; set; }
+
+        public string? ContentType { get; set; }
+
+        public long SizeBytes { get; set; }
+
+        public string? UploadedBy { get; set; }
+
+        public DateTime? UploadedAt { get; set; }
+
+        public string? Description { get; set; }
+
+        public string? DownloadUrl { get; set; }
+    }
+
+// NAVI RECONCILIATION EVIDENCE CODE V170 END
+
+private void ClearFilters()
     {
         filterBranch = null;
         filterParticipant = null;

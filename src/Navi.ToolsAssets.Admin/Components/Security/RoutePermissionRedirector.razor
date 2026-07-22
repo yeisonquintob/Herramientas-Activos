@@ -42,76 +42,126 @@
 
         try
         {
-            var json = await JS.InvokeAsync<string?>("localStorage.getItem", StorageKey);
+            using var timeout =
+                new CancellationTokenSource(
+                    TimeSpan.FromSeconds(2));
+
+            var json =
+                await JS.InvokeAsync<string?>(
+                    "localStorage.getItem",
+                    timeout.Token,
+                    new object?[]
+                    {
+                        StorageKey
+                    });
 
             if (string.IsNullOrWhiteSpace(json))
             {
                 return;
             }
 
-            var user = JsonSerializer.Deserialize<AuthSessionUser>(
-                json,
-                new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
+            var user =
+                JsonSerializer.Deserialize<AuthSessionUser>(
+                    json,
+                    new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
 
-            if (user is not null && !string.IsNullOrWhiteSpace(user.UserName))
+            if (user is not null &&
+                !string.IsNullOrWhiteSpace(
+                    user.UserName))
             {
                 AuthSession.Login(user);
             }
         }
         catch
         {
-            try
-            {
-                await JS.InvokeVoidAsync("localStorage.removeItem", StorageKey);
-            }
-            catch
-            {
-                // Ignorar error JS.
-            }
+            /*
+             * Una demora del navegador no elimina la sesión
+             * ni mantiene bloqueada la navegación.
+             */
         }
     }
 
     private async Task RefreshCurrentRolePermissionsAsync()
     {
-        if (!AuthSession.IsAuthenticated || AuthSession.RoleId is null)
+        if (!AuthSession.IsAuthenticated ||
+            AuthSession.RoleId is null)
         {
             return;
         }
 
         try
         {
-            var api = HttpClientFactory.CreateClient("NaviApi");
-            var roles = await api.GetFromJsonAsync<List<RoleRefreshDto>>("api/settings/roles") ?? new();
+            var api =
+                HttpClientFactory.CreateClient(
+                    "NaviApi");
 
-            var role = roles.FirstOrDefault(x => x.Id == AuthSession.RoleId.Value);
+            using var apiTimeout =
+                new CancellationTokenSource(
+                    TimeSpan.FromSeconds(3));
+
+            var roles =
+                await api.GetFromJsonAsync<List<RoleRefreshDto>>(
+                    "api/settings/roles",
+                    apiTimeout.Token)
+                ?? new();
+
+            var role =
+                roles.FirstOrDefault(
+                    x =>
+                        x.Id ==
+                        AuthSession.RoleId.Value);
 
             if (role is null)
             {
                 return;
             }
 
-            var current = AuthSession.CurrentUser;
+            var current =
+                AuthSession.CurrentUser;
 
             if (current is null)
             {
                 return;
             }
 
-            current.RoleCode = role.Code;
-            current.RoleName = role.Name;
-            current.Permissions = ParsePermissions(role.Permissions).ToList();
+            current.RoleCode =
+                role.Code;
+
+            current.RoleName =
+                role.Name;
+
+            current.Permissions =
+                ParsePermissions(
+                    role.Permissions)
+                .ToList();
 
             AuthSession.Login(current);
 
-            var json = JsonSerializer.Serialize(current);
-            await JS.InvokeVoidAsync("localStorage.setItem", StorageKey, json);
+            var json =
+                JsonSerializer.Serialize(current);
+
+            using var storageTimeout =
+                new CancellationTokenSource(
+                    TimeSpan.FromSeconds(2));
+
+            await JS.InvokeAsync<object?>(
+                "localStorage.setItem",
+                storageTimeout.Token,
+                new object?[]
+                {
+                    StorageKey,
+                    json
+                });
         }
         catch
         {
-            // Si no se puede refrescar, se conserva la sesión actual.
+            /*
+             * Si la actualización remota tarda o falla,
+             * se conservan los permisos de la sesión local.
+             */
         }
     }
 

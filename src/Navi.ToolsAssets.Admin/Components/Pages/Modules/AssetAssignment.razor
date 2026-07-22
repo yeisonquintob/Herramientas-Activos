@@ -4,125 +4,250 @@
 @inject IHttpClientFactory HttpClientFactory
 @inject NaviAccessScopeService AccessScope
 @using Navi.ToolsAssets.Admin.Services.Auth
+@using Navi.ToolsAssets.Admin.Services.Ui
 @using Navi.ToolsAssets.Admin.Components.Shared
 @inject NavigationManager NavigationManager
 @inject WebAuthSessionService AuthSession
+@inject NaviAdminNotificationState Notifications
 
 <PageTitle>Asignar Herramientas y AF - NAVI</PageTitle>
 
 <PermissionGuard Permission="AssetAssignment.View" ModuleName="Asignar Herramientas y AF">
 
+<section class="assignment-web-v24">
+
 <NaviPageHero
     Pill="ACTIVOS FIJOS"
     Title="Asignar Herramientas y AF"
-    Description="Solicita, aprueba, asigna o regresa activos fijos con trazabilidad de préstamo y responsable.">
-
-    <button type="button" @onclick="LoadAsync" data-ntx-tone="secondary" >
-        Actualizar
-    </button>
-
-</NaviPageHero>
+    Description="Solicita, aprueba, asigna o regresa activos fijos con trazabilidad de préstamo y responsable." />
 
 @if (!string.IsNullOrWhiteSpace(message))
 {
-    <div class="@messageClass">@message</div>
+    <div class="@messageClass assignment-v24-message"
+         role="status">
+
+        @message
+    </div>
 }
 
 
-<section class="assignment-kpi-grid">
-    <article class="assignment-kpi total">
-        <span>Total activos</span>
-        <strong>@FilteredTools.Count()</strong>
-        <small>Según filtros activos</small>
-    </article>
+<NaviKpiToolbar Class="assignment-v24-kpi-row"
+                Refresh="LoadAsync"
+                IsRefreshing="isLoading"
+                RefreshTitle="Actualizar información"
+                RefreshAriaLabel="Actualizar información">
+    <NaviKpiGrid Columns="5" Dividers="true" Class="assignment-v24-kpis">
+        <NaviKpiCard Title="Activos visibles"
+                     Description="Según filtros y alcance"
+                     Tone="neutral">
+            <IconContent><NaviKpiIcon Name="inventory" /></IconContent>
+            <ValueContent>@FilteredTools.Count()</ValueContent>
+        </NaviKpiCard>
+        <NaviKpiCard Title="Disponibles"
+                     Description="Listos para asignar"
+                     Tone="positive">
+            <IconContent><NaviKpiIcon Name="check" /></IconContent>
+            <ValueContent>
+                @(FilteredTools.Count(item =>
+                    string.Equals(item.OperationalStatus, "Available", StringComparison.OrdinalIgnoreCase)))
+            </ValueContent>
+        </NaviKpiCard>
+        <NaviKpiCard Title="En uso"
+                     Description="Asignadas o prestadas"
+                     Tone="soft">
+            <IconContent><NaviKpiIcon Name="transfer" /></IconContent>
+            <ValueContent>
+                @(FilteredTools.Count(item =>
+                    string.Equals(item.OperationalStatus, "Assigned", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(item.OperationalStatus, "Loaned", StringComparison.OrdinalIgnoreCase)))
+            </ValueContent>
+        </NaviKpiCard>
+        <NaviKpiCard Title="Solicitudes"
+                     Description="Pendientes de decisión"
+                     Tone="warning">
+            <IconContent><NaviKpiIcon Name="document" /></IconContent>
+            <ValueContent>
+                @(FilteredTools.Count(item => FindPendingRequestForTool(item.Id) is not null))
+            </ValueContent>
+        </NaviKpiCard>
+        <NaviKpiCard Title="Sin responsable"
+                     Description="Disponibles o por revisar"
+                     Tone="danger">
+            <IconContent><NaviKpiIcon Name="users" /></IconContent>
+            <ValueContent>@(FilteredTools.Count(item => item.ResponsiblePersonId is null))</ValueContent>
+        </NaviKpiCard>
+    </NaviKpiGrid>
+</NaviKpiToolbar>
 
-    <article class="assignment-kpi success">
-        <span>Disponibles</span>
-        <strong>@FilteredTools.Count(x => string.Equals(x.OperationalStatus, "Available", StringComparison.OrdinalIgnoreCase))</strong>
-        <small>Listos para asignar</small>
-    </article>
+<section class="assignment-v24-filter-card"
+         aria-label="Filtros de asignación">
 
-    <article class="assignment-kpi neutral">
-        <span>Asignadas / prestadas</span>
-        <strong>@FilteredTools.Count(x => string.Equals(x.OperationalStatus, "Assigned", StringComparison.OrdinalIgnoreCase) || string.Equals(x.OperationalStatus, "Loaned", StringComparison.OrdinalIgnoreCase))</strong>
-        <small>Con responsable</small>
-    </article>
+    <label class="assignment-v24-field assignment-v24-search">
 
-    <article class="assignment-kpi warning">
-        <span>Solicitudes</span>
-        <strong>@FilteredTools.Count(x => FindPendingRequestForTool(x.Id) is not null)</strong>
-        <small>Pendientes de decisión</small>
-    </article>
+        <span>Buscar activo</span>
 
-    <article class="assignment-kpi danger">
-        <span>Sin responsable</span>
-        <strong>@FilteredTools.Count(x => x.ResponsiblePersonId is null)</strong>
-        <small>Disponibles o por revisar</small>
-    </article>
-</section>
+        <div>
 
-<section class="assignment-status-filters assignment-status-filters-modern" aria-label="Estados de asignación">
-    <button type="button"
-            class="assignment-status-filter-chip assignment-status-all @(selectedToolStatuses.Count == 0 ? "active" : "")"
-            @onclick="ClearToolStatusFilter" data-ntx-tone="primary" >
-        Todos
-        <span>@AssignmentBaseFilteredTools.Count()</span>
-    </button>
+            <svg viewBox="0 0 24 24"
+                 aria-hidden="true"
+                 focusable="false">
 
-    @foreach (var status in ToolStatusFilterOptions)
-    {
-        var selected = selectedToolStatuses.Contains(status.Value);
+                <circle cx="10.5"
+                        cy="10.5"
+                        r="6.5">
+                </circle>
 
-        <button type="button"
-                class="@GetAssignmentStatusChipClass(status.Value, selected)"
-                @onclick="() => ToggleToolStatusFilter(status.Value)" data-ntx-tone="primary" >
-            @status.Text
-            <span>@AssignmentBaseFilteredTools.Count(x => string.Equals(x.OperationalStatus, status.Value, StringComparison.OrdinalIgnoreCase))</span>
-        </button>
-    }
-</section>
+                <path d="M15.5 15.5L21 21"></path>
+            </svg>
 
-<section class="assignment-page-filters" aria-label="Filtros de asignación">
-    <input class="form-control form-control-sm"
-           placeholder="Buscar código, nombre, serial, sede, ubicación o responsable..."
-           @bind="search"
-           @bind:event="oninput" />
+            <input id="assignment-table-search"
+                   name="assignment-table-search"
+                   type="search"
+                   autocomplete="off"
+                   placeholder="Código, nombre, serial, sede, ubicación o responsable..."
+                   @bind="search"
+                   @bind:event="oninput" />
+        </div>
+    </label>
 
-    <input class="form-control form-control-sm"
-           list="assignment-table-branches-list"
-           value="@selectedBranchSearchText"
-           @oninput="OnTableBranchSearchInput"
-           placeholder="Todas las sedes" />
+    <label class="assignment-v24-field">
+
+        <span>Sede</span>
+
+        <input id="assignment-table-branch"
+               name="assignment-table-branch"
+               type="text"
+               autocomplete="off"
+               list="assignment-table-branches-list"
+               value="@selectedBranchSearchText"
+               @oninput="OnTableBranchSearchInput"
+               placeholder="Todas las sedes" />
+    </label>
 
     <datalist id="assignment-table-branches-list">
+
         @if (IsAllBranchScope())
         {
-            <option value="Todas las sedes"></option>
+            <option value="Todas las sedes">
+            </option>
         }
 
         @foreach (var branch in BranchFilterOptions)
         {
-            <option value="@FormatBranchOption(branch)"></option>
-            <option value="@branch.Code"></option>
-            <option value="@branch.Name"></option>
+            <option value="@FormatBranchOption(branch)">
+            </option>
+
+            <option value="@branch.Code">
+            </option>
+
+            <option value="@branch.Name">
+            </option>
         }
     </datalist>
 
-    <input class="form-control form-control-sm"
-           list="table-responsibles-list"
-           value="@selectedResponsibleSearchText"
-           @oninput="OnTableResponsibleSearchInput"
-           placeholder="Todos los usuarios" />
+    <label class="assignment-v24-field">
+
+        <span>Responsable</span>
+
+        <input id="assignment-table-responsible"
+               name="assignment-table-responsible"
+               type="text"
+               autocomplete="off"
+               list="table-responsibles-list"
+               value="@selectedResponsibleSearchText"
+               @oninput="OnTableResponsibleSearchInput"
+               placeholder="Todos los usuarios" />
+    </label>
 
     <datalist id="table-responsibles-list">
-        <option value="Todos los usuarios"></option>
-        <option value="Sin responsable"></option>
-        @foreach (var responsible in responsibles.OrderBy(x => x.FullName))
+
+        <option value="Todos los usuarios">
+        </option>
+
+        <option value="Sin responsable">
+        </option>
+
+        @foreach (var responsible in responsibles.OrderBy(
+            item => item.FullName))
         {
-            <option value="@FormatResponsibleOption(responsible)"></option>
-            <option value="@responsible.FullName"></option>
+            <option value="@FormatResponsibleOption(responsible)">
+            </option>
+
+            <option value="@responsible.FullName">
+            </option>
         }
     </datalist>
+
+    <div class="assignment-v24-filter-result">
+
+        <span>Resultado</span>
+
+        <strong>
+            @FilteredTools.Count()
+        </strong>
+
+        <small>activos visibles</small>
+    </div>
+</section>
+
+<section class="assignment-v24-status-card"
+         aria-label="Estados de asignación">
+
+    <header>
+
+        <div>
+            <strong>Estado operativo</strong>
+
+            <small>
+                Selecciona uno o varios estados para limitar el listado.
+            </small>
+        </div>
+
+        <span>
+            @AssignmentBaseFilteredTools.Count() registros
+        </span>
+    </header>
+
+    <div class="assignment-v24-status-list">
+
+        <button type="button"
+                class="assignment-v24-status-chip assignment-status-all @(selectedToolStatuses.Count == 0 ? "active" : string.Empty)"
+                @onclick="ClearToolStatusFilter" data-ntx-tone="ghost">
+
+            <i aria-hidden="true"></i>
+
+            <span>Todos</span>
+
+            <strong>
+                @AssignmentBaseFilteredTools.Count()
+            </strong>
+        </button>
+
+        @foreach (var status in ToolStatusFilterOptions)
+        {
+            var selected =
+                selectedToolStatuses.Contains(
+                    status.Value);
+
+            <button type="button"
+                    class="assignment-v24-status-chip @(GetAssignmentStatusChipClass(status.Value, selected))"
+                    @onclick="() => ToggleToolStatusFilter(status.Value)" data-ntx-tone="expand">
+
+                <i aria-hidden="true"></i>
+
+                <span>@status.Text</span>
+
+                <strong>
+                    @(AssignmentBaseFilteredTools.Count(item =>
+                        string.Equals(
+                            item.OperationalStatus,
+                            status.Value,
+                            StringComparison.OrdinalIgnoreCase)))
+                </strong>
+            </button>
+        }
+
+    </div>
 </section>
 
 <section class="af-grid">
@@ -139,7 +264,7 @@
                        placeholder="Escriba código, nombre o serial..." />
 
                 <datalist id="assignment-tools-list">
-                    @foreach (var tool in ScopedTools.OrderBy(x => x.InternalCode))
+                    @foreach (var tool in AssignmentToolOptions.OrderBy(x => x.InternalCode))
                     {
                         <option value="@FormatToolOption(tool)"></option>
                     }
@@ -240,13 +365,13 @@
             <div class="d-grid gap-2">
                 @if (form.AssignmentType == "Warehouse")
                 {
-                    <button class="assign-main assign-main-warning" @onclick="SaveAsync" disabled="@(isSaving || !CanReturnAsset)" data-ntx-tone="primary" >
+                    <button type="button" class="assign-main assignment-v25-confirm" @onclick="SaveAsync" disabled="@(isSaving || !CanReturnAsset)" data-ntx-tone="affirmative">
                         @(isSaving ? "Guardando..." : "Confirmar regreso")
                     </button>
                 }
                 else
                 {
-                    <button class="assign-main assign-main-primary" @onclick="SaveAsync" disabled="@(isSaving || !CanAssignAsset)" data-ntx-tone="primary" >
+                    <button type="button" class="assign-main assignment-v25-confirm" @onclick="SaveAsync" disabled="@(isSaving || !CanAssignAsset)" data-ntx-tone="affirmative">
                         @(isSaving ? "Guardando..." : "Confirmar asignación")
                     </button>
                 }
@@ -287,7 +412,7 @@
                        @bind:event="oninput" />
             </div>
 
-            <button class="btn-open-history" @onclick="OpenHistory" disabled="@(!CanViewAssignmentHistory)" data-ntx-tone="ghost" >
+            <button class="btn-open-history" @onclick="OpenHistory" disabled="@(!CanViewAssignmentHistory)" data-ntx-tone="consult" >
                 Abrir historial de asignaciones
             </button>
         </div>
@@ -327,14 +452,20 @@
             {
                 <div class="request-results">
                     <div class="request-results-title">
-                        <span>Resultados filtrados</span>
+                        <div>
+                            <span>Disponibles para solicitar</span>
+                            <small>
+                                Solo herramientas disponibles y sin solicitud activa.
+                            </small>
+                        </div>
+
                         <strong>@RequestTools.Count()</strong>
                     </div>
 
                     @if (!RequestTools.Any())
                     {
                         <div class="request-result-empty">
-                            No se encontraron herramientas con ese criterio.
+                            No hay herramientas disponibles con ese criterio.
                         </div>
                     }
                     else
@@ -353,8 +484,9 @@
                                     <small>@Show(tool.BranchCode) · @Show(tool.LocationName) · Est: @Show(tool.ShelfLocation)</small>
                                 </span>
 
-                                <em class="@GetRequestAvailabilityClass(tool, pending)">
-                                    @(pending is not null ? "Con solicitud" : GetStatusLabel(tool.OperationalStatus))
+                                <em class="request-status request-status-available request-status-available-v54">
+                                    <span aria-hidden="true">✓</span>
+                                    Disponible
                                 </em>
                             </button>
                         }
@@ -371,7 +503,7 @@
                         <small>@Show(SelectedRequestTool.BranchCode) · @Show(SelectedRequestTool.LocationName) · Est: @Show(SelectedRequestTool.ShelfLocation)</small>
                     </div>
 
-                    <button type="button" @onclick="ClearRequestToolSelection" data-ntx-tone="ghost" >
+                    <button type="button" @onclick="ClearRequestToolSelection" data-ntx-tone="operation" >
                         Cambiar
                     </button>
                 </div>
@@ -397,14 +529,25 @@
             <button type="button"
                     class="btn-request-assignment"
                     @onclick="SubmitSelfAssignmentRequestAsync"
-                    disabled="@(isSaving || !CanRequestAssignment || CurrentRequesterPersonId is null || !requestForm.ToolId.HasValue)" data-ntx-tone="ghost" >
+                    disabled="@(isSaving
+                                || !CanRequestAssignment
+                                || CurrentRequesterPersonId is null
+                                || !requestForm.ToolId.HasValue
+                                || SelectedRequestToolHasPendingRequest)" data-ntx-tone="affirmative" >
                 @(isSaving ? "Registrando..." : "Solicitud de asignación")
             </button>
         </div>
 
-        <div class="af-card pending-card">
+        <div id="solicitudes-pendientes" class="af-card pending-card">
             <span class="history-pill approve">APROBACIÓN</span>
-            <h3>Solicitudes pendientes</h3>
+            <div class="assignment-v25-pending-title">
+
+                <h3>Solicitudes pendientes</h3>
+
+                <strong>
+                    @PendingLoanRequests.Count()
+                </strong>
+            </div>
 
             @if (!PendingLoanRequests.Any())
             {
@@ -426,7 +569,7 @@
 
                             <div class="pending-actions">
                                 <button class="approve" @onclick="() => ApproveRequestAsync(request)"
-                                        disabled="@(isSaving || !CanApproveAssignmentRequest)" data-ntx-tone="danger" >
+                                        disabled="@(isSaving || !CanApproveAssignmentRequest)" data-ntx-tone="affirmative" >
                                     Aprobar
                                 </button>
 
@@ -460,82 +603,215 @@
         }
         else
         {
-            <table class="table table-hover align-middle af-table">
-                <thead>
-                    <tr>
-                        <th>Código</th>
-                        <th>Activo</th>
-                        <th>Sede</th>
-                        <th>Ubicación</th>
-                        <th>Estantería</th>
-                        <th>Usuario / Responsable</th>
-                        <th>Estado</th>
-                        <th>Solicitud</th>
-                        <th>Fecha asignación</th>
-                        <th>Fecha entrega</th>
-                        <th class="text-end">Acción</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var tool in FilteredTools)
-                    {
-                        var pending = FindPendingRequestForTool(tool.Id);
+            <div class="assignment-v24-table-wrap">
 
-                        <tr>
-                            <td><strong>@tool.InternalCode</strong></td>
-                            <td>
-                                <div>@tool.Name</div>
-                                <small class="text-muted">@Show(tool.SerialNumber)</small>
-                            </td>
-                            <td>@Show(tool.BranchCode)</td>
-                            <td>@Show(tool.LocationName)</td>
-                            <td><span class="assignment-shelf-pill">@Show(tool.ShelfLocation)</span></td>
-                            <td>
-                                <div>@Show(tool.ResponsiblePersonName)</div>
-                                <small class="text-muted">@Show(tool.ResponsiblePosition)</small>
-                            </td>
-                            <td><span class="@GetStatusBadge(tool.OperationalStatus)">@GetStatusLabel(tool.OperationalStatus)</span></td>
-                            <td>
-                                @if (pending is null)
-                                {
-                                    <span class="request-state empty">Sin solicitud</span>
-                                }
-                                else
-                                {
-                                    <span class="request-state pending">@pending.LoanNumber</span>
-                                }
-                            </td>
-                            <td>@ShowDate(tool.LastAssignmentDate)</td>
-                            <td>@ShowDate(tool.LastReturnDate)</td>
-                            <td class="text-end">
-                                <div class="assignment-actions">
-                                    <button class="assign-action assign-action-primary" @onclick="() => SelectForAssignment(tool)" disabled="@(!CanDirectAssign)" data-ntx-tone="positive" >
-                                        Asignar
-                                    </button>
+    <table class="assignment-v24-table">
 
-                                    <button class="assign-action assign-action-success"
-                                            @onclick="() => ApproveRequestAsync(pending)"
-                                            disabled="@(pending is null || !CanApproveAssignmentRequest || isSaving)" data-ntx-tone="danger" >
-                                        Aprobar
-                                    </button>
+        <thead>
+            <tr>
+                <th>Código</th>
+                <th>Activo e identificación</th>
+                <th>Sede y ubicación</th>
+                <th>Responsable</th>
+                <th>Estado y solicitud</th>
+                <th>Fechas</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
 
-                                    <button class="assign-action assign-action-danger"
-                                            @onclick="() => RejectRequestAsync(pending)"
-                                            disabled="@(pending is null || !CanDenyAssignmentRequest || isSaving)" data-ntx-tone="danger" >
-                                        Denegar
-                                    </button>
+        <tbody>
 
-                                    <button class="assign-action assign-action-warning" @onclick="() => SelectForReturn(tool)" disabled="@(!CanReturnAssignment)" data-ntx-tone="primary" >
-                                        Regresar
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+            @foreach (var tool in FilteredTools)
+            {
+                var pending =
+                    FindPendingRequestForTool(
+                        tool.Id);
+
+                <tr>
+
+                    <td class="assignment-v24-code">
+
+                        <strong>
+                            @tool.InternalCode
+                        </strong>
+                    </td>
+
+                    <td class="assignment-v24-tool">
+
+                        <strong>
+                            @tool.Name
+                        </strong>
+
+                        <small>
+                            Serial:
+                            @Show(tool.SerialNumber)
+                        </small>
+                    </td>
+
+                    <td class="assignment-v24-location">
+
+                        <strong>
+                            @Show(tool.BranchCode)
+                        </strong>
+
+                        <span>
+                            @Show(tool.LocationName)
+                        </span>
+
+                        <small>
+                            Estantería:
+                            @Show(tool.ShelfLocation)
+                        </small>
+                    </td>
+
+                    <td class="assignment-v24-responsible">
+
+                        <strong>
+                            @Show(tool.ResponsiblePersonName)
+                        </strong>
+
+                        <small>
+                            @Show(tool.ResponsiblePosition)
+                        </small>
+                    </td>
+
+                    <td class="assignment-v24-state">
+
+                        <span class="@GetStatusBadge(
+                            tool.OperationalStatus)">
+
+                            @GetStatusLabel(
+                                tool.OperationalStatus)
+                        </span>
+
+                        @if (pending is null)
+                        {
+                            <small class="request-state empty">
+                                Sin solicitud
+                            </small>
+                        }
+                        else
+                        {
+                            <small class="request-state pending">
+                                @pending.LoanNumber
+                            </small>
+                        }
+                    </td>
+
+                    <td class="assignment-v24-dates">
+
+                        <div>
+                            <span>Asignación</span>
+
+                            <strong>
+                                @ShowDate(tool.LastAssignmentDate)
+                            </strong>
+                        </div>
+
+                        <div>
+                            <span>Regreso</span>
+
+                            <strong>
+                                @ShowDate(tool.LastReturnDate)
+                            </strong>
+                        </div>
+                    </td>
+
+                    <td class="assignment-v24-actions-cell">
+
+                        <div class="assignment-actions">
+
+                            <button type="button"
+                                    class="assign-action assign-action-primary"
+                                    title="Asignar activo"
+                                    aria-label="Asignar activo"
+                                    @onclick="() => SelectForAssignment(tool)"
+                                    disabled="@(pending is not null || !CanDirectAssign)"
+                                     data-ntx-tone="operation">
+
+                                <svg viewBox="0 0 24 24"
+                                     aria-hidden="true"
+                                     focusable="false">
+
+                                    <circle cx="9"
+                                            cy="8"
+                                            r="3">
+                                    </circle>
+
+                                    <path d="M3 20C3.8 15.8 6.2 14 9 14"></path>
+                                    <path d="M15 12H21"></path>
+                                    <path d="M18 9V15"></path>
+                                </svg>
+
+                                <span>Asignar</span>
+                            </button>
+
+                            <button type="button"
+                                    class="assign-action assign-action-success"
+                                    title="Aprobar solicitud"
+                                    aria-label="Aprobar solicitud"
+                                    @onclick="() => ApproveRequestAsync(pending)"
+                                    disabled="@(pending is null || !CanApproveAssignmentRequest || isSaving)" data-ntx-tone="affirmative">
+
+                                <svg viewBox="0 0 24 24"
+                                     aria-hidden="true"
+                                     focusable="false">
+
+                                    <path d="M5 12L10 17L19 7"></path>
+                                </svg>
+
+                                <span>Aprobar</span>
+                            </button>
+
+                            <button type="button"
+                                    class="assign-action assign-action-danger"
+                                    title="Denegar solicitud"
+                                    aria-label="Denegar solicitud"
+                                    @onclick="() => RejectRequestAsync(pending)"
+                                    disabled="@(pending is null || !CanDenyAssignmentRequest || isSaving)" data-ntx-tone="danger">
+
+                                <svg viewBox="0 0 24 24"
+                                     aria-hidden="true"
+                                     focusable="false">
+
+                                    <path d="M5 5L19 19"></path>
+                                    <path d="M19 5L5 19"></path>
+                                </svg>
+
+                                <span>Denegar</span>
+                            </button>
+
+                            <button type="button"
+                                    class="assign-action assign-action-warning"
+                                    title="Registrar regreso"
+                                    aria-label="Registrar regreso"
+                                    @onclick="() => SelectForReturn(tool)"
+                                    disabled="@(!CanReturnAssignment)" data-ntx-tone="warning">
+
+                                <svg viewBox="0 0 24 24"
+                                     aria-hidden="true"
+                                     focusable="false">
+
+                                    <path d="M9 7H19V17H9"></path>
+                                    <path d="M9 12H4"></path>
+                                    <path d="M7 9L4 12L7 15"></path>
+                                </svg>
+
+                                <span>Regresar</span>
+                            </button>
+
+                        </div>
+                    </td>
+                </tr>
+            }
+
+        </tbody>
+    </table>
+</div>
         }
     </section>
+</section>
+
 </section>
 
 </PermissionGuard>
@@ -823,15 +1099,32 @@ private IEnumerable<ToolItem> AssignmentBaseFilteredTools =>
 
     private IEnumerable<ToolItem> RequestTools =>
         ScopedTools
-            .Where(x => string.IsNullOrWhiteSpace(requestSearch) ||
-                        x.InternalCode.Contains(requestSearch, StringComparison.OrdinalIgnoreCase) ||
-                        x.Name.Contains(requestSearch, StringComparison.OrdinalIgnoreCase) ||
-                        (x.SerialNumber ?? string.Empty).Contains(requestSearch, StringComparison.OrdinalIgnoreCase) ||
-                        (x.BranchCode ?? string.Empty).Contains(requestSearch, StringComparison.OrdinalIgnoreCase) ||
-                        (x.LocationName ?? string.Empty).Contains(requestSearch, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(x => x.OperationalStatus.Equals("Available", StringComparison.OrdinalIgnoreCase))
-            .ThenBy(x => FindPendingRequestForTool(x.Id) is not null)
-            .ThenBy(x => x.InternalCode)
+            .Where(tool =>
+                string.Equals(
+                    tool.OperationalStatus,
+                    "Available",
+                    StringComparison.OrdinalIgnoreCase))
+            .Where(tool =>
+                FindPendingRequestForTool(
+                    tool.Id) is null)
+            .Where(tool =>
+                string.IsNullOrWhiteSpace(requestSearch)
+                || tool.InternalCode.Contains(
+                    requestSearch,
+                    StringComparison.OrdinalIgnoreCase)
+                || tool.Name.Contains(
+                    requestSearch,
+                    StringComparison.OrdinalIgnoreCase)
+                || (tool.SerialNumber ?? string.Empty).Contains(
+                    requestSearch,
+                    StringComparison.OrdinalIgnoreCase)
+                || (tool.BranchCode ?? string.Empty).Contains(
+                    requestSearch,
+                    StringComparison.OrdinalIgnoreCase)
+                || (tool.LocationName ?? string.Empty).Contains(
+                    requestSearch,
+                    StringComparison.OrdinalIgnoreCase))
+            .OrderBy(tool => tool.InternalCode)
             .Take(80);
 
     private ToolItem? SelectedRequestTool =>
@@ -844,6 +1137,32 @@ private IEnumerable<ToolItem> AssignmentBaseFilteredTools =>
             .Where(x => IsPendingStatus(x.Status))
             .Where(x => x.Items.Any(i => !i.Returned))
             .OrderByDescending(x => x.RequestedAt);
+
+    // NAVI UNIQUE ASSIGNMENT REQUEST WEB V53 START
+
+    private IEnumerable<ToolItem> AssignmentToolOptions =>
+        form.AssignmentType == "Responsible"
+            ? ScopedTools.Where(
+                tool =>
+                    !HasPendingAssignmentRequest(
+                        tool.Id))
+            : ScopedTools;
+
+    private bool SelectedRequestToolHasPendingRequest =>
+        requestForm.ToolId.HasValue
+        &&
+        HasPendingAssignmentRequest(
+            requestForm.ToolId.Value);
+
+    private bool HasPendingAssignmentRequest(
+        Guid toolId)
+    {
+        return FindPendingRequestForTool(
+            toolId) is not null;
+    }
+
+    // NAVI UNIQUE ASSIGNMENT REQUEST WEB V53 END
+
 
     protected override async Task OnInitializedAsync()
     {
@@ -1225,6 +1544,23 @@ private IEnumerable<ToolItem> AssignmentBaseFilteredTools =>
             return;
         }
 
+        // NAVI UNIQUE DIRECT ASSIGNMENT V53
+        var pending =
+            FindPendingRequestForTool(
+                tool.Id);
+
+        if (pending is not null)
+        {
+            ShowError(
+                $"La herramienta {tool.InternalCode} "
+                + $"ya tiene la solicitud activa "
+                + $"{pending.LoanNumber}. "
+                + "Debe aprobarse o denegarse antes "
+                + "de realizar otra asignación.");
+
+            return;
+        }
+
         form.ToolId = tool.Id;
         form.AssignmentType = "Responsible";
         form.BranchId = tool.BranchId;
@@ -1293,6 +1629,29 @@ private IEnumerable<ToolItem> AssignmentBaseFilteredTools =>
             return;
         }
 
+        // NAVI UNIQUE ASSIGNMENT SAVE V53
+        if (
+            form.AssignmentType == "Responsible"
+            &&
+            form.ToolId.HasValue)
+        {
+            var pending =
+                FindPendingRequestForTool(
+                    form.ToolId.Value);
+
+            if (pending is not null)
+            {
+                ShowError(
+                    $"La herramienta ya tiene "
+                    + $"la solicitud activa "
+                    + $"{pending.LoanNumber}. "
+                    + "Debe aprobarse o denegarse "
+                    + "antes de asignarla.");
+
+                return;
+            }
+        }
+
         if (form.AssignmentType == "Responsible" && form.ResponsiblePersonId is null)
         {
             ShowError("Debe seleccionar un responsable.");
@@ -1348,8 +1707,43 @@ private IEnumerable<ToolItem> AssignmentBaseFilteredTools =>
 
     private void SelectRequestTool(ToolItem tool)
     {
+        // NAVI REQUEST AVAILABLE ONLY WEB V54
+        if (!string.Equals(
+                tool.OperationalStatus,
+                "Available",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            requestForm.ToolId = null;
+            requestSearch = string.Empty;
+
+            ShowError(
+                $"La herramienta {tool.InternalCode} "
+                + "no está disponible para solicitar.");
+
+            return;
+        }
+
+        // NAVI UNIQUE REQUEST SELECT V53
+        var pending =
+            FindPendingRequestForTool(
+                tool.Id);
+
+        if (pending is not null)
+        {
+            requestForm.ToolId = null;
+            requestSearch = string.Empty;
+
+            ShowError(
+                $"La herramienta {tool.InternalCode} "
+                + $"ya tiene la solicitud activa "
+                + $"{pending.LoanNumber}.");
+
+            return;
+        }
+
         requestForm.ToolId = tool.Id;
-        requestSearch = $"{tool.InternalCode} - {tool.Name}";
+        requestSearch =
+            $"{tool.InternalCode} - {tool.Name}";
     }
 
     private void ClearRequestToolSelection()
@@ -1514,6 +1908,7 @@ private IEnumerable<ToolItem> AssignmentBaseFilteredTools =>
             ShowSuccess($"Solicitud {request.LoanNumber} denegada correctamente.");
 
             await LoadAsync();
+            Notifications.RequestRefresh();
         }
         catch (Exception ex)
         {
@@ -1561,6 +1956,7 @@ private IEnumerable<ToolItem> AssignmentBaseFilteredTools =>
             ShowSuccess($"Solicitud {request.LoanNumber} aprobada y activo asignado correctamente.");
 
             await LoadAsync();
+            Notifications.RequestRefresh();
         }
         catch (Exception ex)
         {
@@ -1602,6 +1998,30 @@ private IEnumerable<ToolItem> AssignmentBaseFilteredTools =>
 
         if (tool is not null)
         {
+            // NAVI UNIQUE ASSIGNMENT INPUT V53
+            if (
+                form.AssignmentType == "Responsible"
+                &&
+                HasPendingAssignmentRequest(
+                    tool.Id))
+            {
+                var pending =
+                    FindPendingRequestForTool(
+                        tool.Id);
+
+                form.ToolId = null;
+                assignmentToolSearchText =
+                    string.Empty;
+
+                ShowError(
+                    $"La herramienta "
+                    + $"{tool.InternalCode} "
+                    + $"ya tiene la solicitud activa "
+                    + $"{pending?.LoanNumber}.");
+
+                return;
+            }
+
             form.ToolId = tool.Id;
             LoadSelectedTool();
         }
@@ -1802,10 +2222,22 @@ private IEnumerable<ToolItem> AssignmentBaseFilteredTools =>
 
     private static bool IsPendingStatus(string? status)
     {
-        return status is not null &&
-               (status.Equals("Draft", StringComparison.OrdinalIgnoreCase) ||
-                status.Equals("Requested", StringComparison.OrdinalIgnoreCase) ||
-                status.Equals("PendingApproval", StringComparison.OrdinalIgnoreCase));
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return false;
+        }
+
+        return status.Equals(
+                   "Draft",
+                   StringComparison.OrdinalIgnoreCase)
+               ||
+               status.Equals(
+                   "Requested",
+                   StringComparison.OrdinalIgnoreCase)
+               ||
+               status.Equals(
+                   "PendingApproval",
+                   StringComparison.OrdinalIgnoreCase);
     }
 
     private static string Show(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;

@@ -1,37 +1,293 @@
 @using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Web
 
-@if (!string.IsNullOrWhiteSpace(Href))
+@if (IsLink)
 {
-    <a href="@(IsDisabled ? null : Href)" class="@CssClass" aria-disabled="@IsDisabled" aria-busy="@Loading" @onclick="OnClick" @attributes="AdditionalAttributes">@ButtonContent</a>
+    <a @attributes="AdditionalAttributes"
+       href="@(IsDisabled ? null : Href)"
+       class="@CssClass"
+       aria-disabled="@IsDisabled"
+       aria-busy="@Loading"
+       tabindex="@(IsDisabled ? "-1" : null)"
+       data-ntx-tone="@NormalizedTone"
+       data-ntx-size="@NormalizedSize"
+       data-ntx-block="@(Block ? "true" : null)"
+       data-ntx-icon-only="@(IconOnly ? "true" : null)"
+       @onclick="HandleClickAsync"
+       @onclick:preventDefault="IsDisabled">
+        @ButtonContent
+    </a>
 }
 else
 {
-    <button type="@Type" class="@CssClass" disabled="@IsDisabled" aria-busy="@Loading" @onclick="OnClick" @attributes="AdditionalAttributes">@ButtonContent</button>
+    <button @attributes="AdditionalAttributes"
+            type="@NormalizedType"
+            class="@CssClass"
+            disabled="@IsDisabled"
+            aria-busy="@Loading"
+            data-ntx-tone="@NormalizedTone"
+            data-ntx-size="@NormalizedSize"
+            data-ntx-block="@(Block ? "true" : null)"
+            data-ntx-icon-only="@(IconOnly ? "true" : null)"
+            @onclick="HandleClickAsync">
+        @ButtonContent
+    </button>
 }
 
 @code {
-    [Parameter] public string Type { get; set; } = "button";
-    [Parameter] public string? Href { get; set; }
-    [Parameter] public string Tone { get; set; } = "primary";
-    [Parameter] public string Size { get; set; } = "normal";
-    [Parameter] public string? Class { get; set; }
-    [Parameter] public bool Block { get; set; }
-    [Parameter] public bool Disabled { get; set; }
-    [Parameter] public bool Loading { get; set; }
-    [Parameter] public string LoadingText { get; set; } = "Procesando…";
-    [Parameter] public EventCallback OnClick { get; set; }
-    [Parameter] public RenderFragment? ChildContent { get; set; }
-    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AdditionalAttributes { get; set; }
+    [Parameter]
+    public string Type { get; set; } = "button";
 
-    private bool IsDisabled => Disabled || Loading;
-    private RenderFragment ButtonContent => builder => builder.AddContent(0, Loading ? LoadingText : ChildContent);
-    private string CssClass => $"ntx-btn ntx-btn--{NormalizeTone(Tone)} ntx-btn--{Size}{(Block ? " is-block" : string.Empty)}{(string.IsNullOrWhiteSpace(Class) ? string.Empty : $" {Class}")}";
-    private static string NormalizeTone(string? tone) => tone?.ToLowerInvariant() switch
+    [Parameter]
+    public string? Href { get; set; }
+
+    [Parameter]
+    public string Tone { get; set; } = "operation";
+
+    [Parameter]
+    public string Size { get; set; } = "normal";
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public bool Block { get; set; }
+
+    [Parameter]
+    public bool IconOnly { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public bool Loading { get; set; }
+
+    [Parameter]
+    public string LoadingText { get; set; } = "Procesando…";
+
+    [Parameter]
+    public EventCallback OnClick { get; set; }
+
+    [Parameter]
+    public RenderFragment? StartContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? EndContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private bool IsLink =>
+        !string.IsNullOrWhiteSpace(Href);
+
+    private bool IsDisabled =>
+        Disabled || Loading;
+
+    private string NormalizedTone =>
+        NormalizeTone(Tone);
+
+    private string NormalizedSize =>
+        NormalizeSize(Size);
+
+    private string NormalizedType =>
+        NormalizeType(Type);
+
+    private string CssClass
     {
-        "success" or "approve" => "positive",
-        "destructive" or "delete" => "danger",
-        "outline" => "secondary",
-        "primary" or "positive" or "danger" or "warning" or "secondary" or "ghost" => tone.ToLowerInvariant(),
-        _ => "secondary"
+        get
+        {
+            var classes = new List<string>
+            {
+                "ntx-btn",
+                $"ntx-btn--{NormalizedTone}"
+            };
+
+            if (NormalizedSize is not "normal")
+            {
+                classes.Add($"ntx-btn--{NormalizedSize}");
+            }
+
+            if (Block)
+            {
+                classes.Add("ntx-btn--block");
+                classes.Add("is-block");
+            }
+
+            if (IconOnly)
+            {
+                classes.Add("ntx-btn--icon");
+            }
+
+            if (Loading)
+            {
+                classes.Add("is-loading");
+            }
+
+            if (!string.IsNullOrWhiteSpace(Class))
+            {
+                classes.Add(Class.Trim());
+            }
+
+            return string.Join(" ", classes);
+        }
+    }
+
+    private RenderFragment ButtonContent => builder =>
+    {
+        var sequence = 0;
+
+        if (Loading)
+        {
+            builder.OpenElement(sequence++, "span");
+            builder.AddAttribute(
+                sequence++,
+                "class",
+                "ntx-btn__label ntx-btn__label--loading");
+
+            builder.AddContent(sequence++, LoadingText);
+            builder.CloseElement();
+            return;
+        }
+
+        if (StartContent is not null)
+        {
+            builder.OpenElement(sequence++, "span");
+            builder.AddAttribute(
+                sequence++,
+                "class",
+                "ntx-btn__icon ntx-btn__icon--start");
+
+            builder.AddAttribute(
+                sequence++,
+                "aria-hidden",
+                "true");
+
+            builder.AddContent(sequence++, StartContent);
+            builder.CloseElement();
+        }
+
+        if (ChildContent is not null)
+        {
+            builder.OpenElement(sequence++, "span");
+            builder.AddAttribute(
+                sequence++,
+                "class",
+                "ntx-btn__label");
+
+            builder.AddContent(sequence++, ChildContent);
+            builder.CloseElement();
+        }
+
+        if (EndContent is not null)
+        {
+            builder.OpenElement(sequence++, "span");
+            builder.AddAttribute(
+                sequence++,
+                "class",
+                "ntx-btn__icon ntx-btn__icon--end");
+
+            builder.AddAttribute(
+                sequence++,
+                "aria-hidden",
+                "true");
+
+            builder.AddContent(sequence++, EndContent);
+            builder.CloseElement();
+        }
     };
+
+    private async Task HandleClickAsync(MouseEventArgs args)
+    {
+        if (IsDisabled || !OnClick.HasDelegate)
+        {
+            return;
+        }
+
+        await OnClick.InvokeAsync();
+    }
+
+    private static string NormalizeTone(string? tone)
+    {
+        return tone?.Trim().ToLowerInvariant() switch
+        {
+            "success" or
+            "positive" or
+            "approve" or
+            "approved" or
+            "accept" or
+            "confirm" => "affirmative",
+
+            "primary" or
+            "edit" or
+            "assign" or
+            "manage" or
+            "create" => "operation",
+
+            "destructive" or
+            "delete" or
+            "remove" or
+            "reject" or
+            "deny" or
+            "cancel-danger" => "danger",
+
+            "alert" or
+            "caution" => "warning",
+
+            "outline" or
+            "back" or
+            "cancel" => "secondary",
+
+            "link" or
+            "detail" or
+            "view" => "consult",
+
+            "affirmative" or
+            "refresh" or
+            "operation" or
+            "danger" or
+            "warning" or
+            "consult" or
+            "secondary" or
+            "expand" or
+            "ghost" => tone.Trim().ToLowerInvariant(),
+
+            _ => "secondary"
+        };
+    }
+
+    private static string NormalizeSize(string? size)
+    {
+        return size?.Trim().ToLowerInvariant() switch
+        {
+            "xs" or
+            "extra-small" => "sm",
+
+            "sm" or
+            "small" => "sm",
+
+            "lg" or
+            "large" => "lg",
+
+            "normal" or
+            "md" or
+            "medium" or
+            null or
+            "" => "normal",
+
+            _ => "normal"
+        };
+    }
+
+    private static string NormalizeType(string? type)
+    {
+        return type?.Trim().ToLowerInvariant() switch
+        {
+            "submit" => "submit",
+            "reset" => "reset",
+            _ => "button"
+        };
+    }
 }

@@ -12,7 +12,7 @@
 <section class="mobile-page mobile-settings-web">
     @if (isLoading && !initialized)
     {
-        <div class="mobile-loading">Cargando configuración...</div>
+        <div class="mobile-loading" role="status" aria-busy="true">Cargando configuración...</div>
     }
     else if (!Auth.IsAuthenticated)
     {
@@ -33,38 +33,45 @@
                              ShowHomeButton="true"
                              ShowBackButton="false" />
 
-        <section class="navi-mobile-settings-kpi-board-v2">
-            <div class="navi-mobile-settings-kpi-tile-v2 total">
+        <NaviMobileKpiOverflow PrimaryCount="3" OverflowCount="1" ButtonLabel="Mostrar indicador adicional">
+            <PrimaryContent>
+        <NaviMobileKpiGrid Class="navi-mobile-settings-kpi-board-v2">
+            <NaviMobileKpiCard Class="navi-mobile-settings-kpi-tile-v2 total">
                 <span>Permisos</span>
                 <strong>@GrantedPermissionRows.Count</strong>
                 <small>Activos</small>
-            </div>
+            </NaviMobileKpiCard>
 
-            <div class="navi-mobile-settings-kpi-tile-v2 primary">
+            <NaviMobileKpiCard Class="navi-mobile-settings-kpi-tile-v2 primary">
                 <span>Rol</span>
                 <strong>@Display(CurrentUser?.RoleCode)</strong>
                 <small>Principal</small>
-            </div>
+            </NaviMobileKpiCard>
 
-            <div class="navi-mobile-settings-kpi-tile-v2 success">
+            <NaviMobileKpiCard Class="navi-mobile-settings-kpi-tile-v2 success">
                 <span>Usuarios</span>
                 <strong>@(CanManageUsers ? "Sí" : "No")</strong>
                 <small>Security.Users</small>
-            </div>
+            </NaviMobileKpiCard>
+        </NaviMobileKpiGrid>
+            </PrimaryContent>
+            <OverflowContent>
+        <NaviMobileKpiGrid Class="navi-mobile-settings-kpi-board-v2">
 
-            <div class="navi-mobile-settings-kpi-tile-v2 warning">
+            <NaviMobileKpiCard Class="navi-mobile-settings-kpi-tile-v2 warning">
                 <span>Cédula</span>
                 <strong>@(HasProtectedDocument ? "Sí" : "No")</strong>
                 <small>@(HasProtectedDocument ? "Protegida" : "Pendiente")</small>
-            </div>
-        </section>
+            </NaviMobileKpiCard>
+        </NaviMobileKpiGrid>
+            </OverflowContent>
+        </NaviMobileKpiOverflow>
 
         @if (!string.IsNullOrWhiteSpace(message))
         {
             <div class="@messageClass">@message</div>
         }
-
-        <section class="mset-layout">
+<section class="mset-layout">
             <aside class="mset-left">
                 <details class="mset-card" open>
                     <summary>
@@ -80,7 +87,7 @@
                             <input value="@profile.DocumentNumber"
                                    @oninput="OnDocumentInput"
                                    disabled="@HasProtectedDocument"
-                                   placeholder="Ingrese documento" />
+                                   placeholder="Ingrese documento" name="navi-mobilesettings-field-001" />
                             <small>
                                 @(HasProtectedDocument
                                     ? "La cédula ya está registrada y no se puede borrar ni cambiar."
@@ -90,46 +97,46 @@
 
                         <label>
                             <span>Código empleado</span>
-                            <input @bind="profile.EmployeeCode" @bind:event="oninput" placeholder="Código interno" />
+                            <input @bind="profile.EmployeeCode" @bind:event="oninput" placeholder="Código interno" name="navi-mobilesettings-field-002" />
                         </label>
 
                         <label>
                             <span>Nombre completo</span>
-                            <input @bind="profile.DisplayName" @bind:event="oninput" placeholder="Nombre completo" />
+                            <input @bind="profile.DisplayName" @bind:event="oninput" placeholder="Nombre completo" name="navi-mobilesettings-field-003" />
                         </label>
 
                         <label>
                             <span>Correo</span>
-                            <input @bind="profile.Email" @bind:event="oninput" placeholder="correo@empresa.com" />
+                            <input @bind="profile.Email" @bind:event="oninput" placeholder="correo@empresa.com" name="navi-mobilesettings-field-004" />
                         </label>
 
                         <label>
                             <span>Cargo</span>
-                            <input @bind="profile.Position" @bind:event="oninput" placeholder="Cargo" />
+                            <input @bind="profile.Position" @bind:event="oninput" placeholder="Cargo" name="navi-mobilesettings-field-005" />
                         </label>
 
                         <label>
                             <span>Área</span>
-                            <input @bind="profile.Area" @bind:event="oninput" placeholder="Área" />
+                            <input @bind="profile.Area" @bind:event="oninput" placeholder="Área" name="navi-mobilesettings-field-006" />
                         </label>
 
                         <label>
                             <span>Sede</span>
-                            <input value="@Display(CurrentUser?.BranchCode) - @Display(CurrentUser?.BranchName)" disabled />
+                            <input value="@Display(CurrentUser?.BranchCode) - @Display(CurrentUser?.BranchName)" disabled name="navi-mobilesettings-field-007" />
                         </label>
 
                         <label>
                             <span>Rol</span>
-                            <input value="@Display(CurrentUser?.RoleName)" disabled />
+                            <input value="@Display(CurrentUser?.RoleName)" disabled name="navi-mobilesettings-field-008" />
                         </label>
                     </div>
 
                     <div class="mset-actions">
-                        <button type="button" class="success mset-save-profile-button-v2" @onclick="SaveProfileAsync" disabled="@isSaving" data-ntx-tone="primary" >
+                        <button type="button" class="success mset-save-profile-button-v2" @onclick="SaveProfileAsync" disabled="@isSaving" data-ntx-tone="affirmative" >
                             @(isSaving ? "Guardando..." : "Guardar mi información")
                         </button>
 
-                        <button type="button" class="mset-undo-profile-button-v2" @onclick="UndoProfileChanges" data-ntx-tone="ghost" >
+                        <button type="button" class="mset-undo-profile-button-v2" @onclick="UndoProfileChanges" data-ntx-tone="secondary" >
                             Deshacer
                         </button>
                     </div>
@@ -146,22 +153,22 @@
                     <div class="mset-form-grid one">
                         <label>
                             <span>Contraseña actual</span>
-                            <input type="password" @bind="passwordForm.CurrentPassword" />
+                            <input type="password" @bind="passwordForm.CurrentPassword" name="navi-mobilesettings-field-009" />
                         </label>
 
                         <label>
                             <span>Nueva contraseña</span>
-                            <input type="password" @bind="passwordForm.NewPassword" />
+                            <input type="password" @bind="passwordForm.NewPassword" name="navi-mobilesettings-field-010" />
                         </label>
 
                         <label>
                             <span>Confirmar nueva contraseña</span>
-                            <input type="password" @bind="passwordForm.ConfirmPassword" />
+                            <input type="password" @bind="passwordForm.ConfirmPassword" name="navi-mobilesettings-field-011" />
                         </label>
                     </div>
 
                     <div class="mset-actions">
-                        <button type="button" class="primary" @onclick="ChangePasswordAsync" disabled="@isSaving" data-ntx-tone="secondary" >
+                        <button type="button" class="primary" @onclick="ChangePasswordAsync" disabled="@isSaving" data-ntx-tone="operation" >
                             Cambiar contraseña
                         </button>
 
@@ -170,6 +177,45 @@
                         </button>
                     </div>
                 </details>
+
+                <!-- NAVI MOBILE APPEARANCE ACCORDION START -->
+
+                <details class="mset-card mset-appearance-card">
+
+                    <summary class="mset-appearance-summary">
+
+                        <div class="mset-appearance-summary__text">
+                            <h2>
+                                Apariencia y accesibilidad
+                            </h2>
+
+                            <p>
+                                Tamaño del texto, colores y contraste
+                                de este dispositivo.
+                            </p>
+                        </div>
+
+                        <span class="mset-appearance-toggle"
+                              aria-hidden="true">
+
+                            <span class="mset-appearance-toggle__show">
+                                Mostrar
+                            </span>
+
+                            <span class="mset-appearance-toggle__hide">
+                                Ocultar
+                            </span>
+
+                        </span>
+
+                    </summary>
+
+                    <MobileAppearanceSettingsPanel />
+
+                </details>
+
+                <!-- NAVI MOBILE APPEARANCE ACCORDION END -->
+
             </aside>
 
             <main class="mset-main">

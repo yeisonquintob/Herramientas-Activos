@@ -15,14 +15,14 @@
 <section class="mobile-page navi-mobile-physical-v3 navi-mobile-physical-detail-v3 mobile-physical-standard-page mobile-physical-detail-final-real navi-mobile-phone-view navi-mobile-physical-detail-phone-v8 navi-mobile-physical-detail-v10 navi-mobile-physical-detail-v11">
     @if (isLoading && !initialized)
     {
-        <div class="mobile-loading">Cargando detalle de toma física...</div>
+        <div class="mobile-loading" role="status" aria-busy="true">Cargando detalle de toma física...</div>
     }
     else if (!Auth.IsAuthenticated)
     {
         <div class="mobile-empty">
             <strong>Sesión requerida</strong>
             <span>Debes iniciar sesión para consultar el detalle.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="secondary" >Ir al login</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="ghost" >Ir al login</button>
         </div>
     }
     else if (!CanAccessPhysicalCounts)
@@ -30,7 +30,7 @@
         <div class="mobile-empty">
             <strong>Sin permiso</strong>
             <span>No tienes permisos para consultar esta toma física.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoBack" data-ntx-tone="primary" >Volver</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoBack" data-ntx-tone="secondary" >Volver</button>
         </div>
     }
     else if (board is null)
@@ -38,7 +38,7 @@
         <div class="mobile-empty">
             <strong>Sin información</strong>
             <span>No se pudo cargar la toma física solicitada.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoBack" data-ntx-tone="primary" >Volver</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoBack" data-ntx-tone="secondary" >Volver</button>
         </div>
     }
     else
@@ -54,37 +54,45 @@
                              ShowHomeButton="true"
                              ShowBackButton="true" />
 
-        <section class="navi-mobile-physical-kpi-board-v2 navi-mobile-physical-kpi-board-v2--detail">
-            <div class="navi-mobile-physical-kpi-tile-v2 total">
+        <NaviMobileKpiOverflow PrimaryCount="3" OverflowCount="2" ButtonLabel="Mostrar indicadores adicionales">
+            <PrimaryContent>
+        <NaviMobileKpiGrid Class="navi-mobile-physical-kpi-board-v2 navi-mobile-physical-kpi-board-v2--detail">
+            <NaviMobileKpiCard Class="navi-mobile-physical-kpi-tile-v2 total">
                 <span>Esperados</span>
                 <strong>@CurrentExpectedItems</strong>
                 <small>Asignados</small>
-            </div>
+            </NaviMobileKpiCard>
 
-            <div class="navi-mobile-physical-kpi-tile-v2 info">
+            <NaviMobileKpiCard Class="navi-mobile-physical-kpi-tile-v2 info">
                 <span>Reportadas</span>
                 <strong>@CurrentCountedItems</strong>
                 <small>Gestionadas</small>
-            </div>
+            </NaviMobileKpiCard>
 
-            <div class="navi-mobile-physical-kpi-tile-v2 warning">
+            <NaviMobileKpiCard Class="navi-mobile-physical-kpi-tile-v2 warning">
                 <span>Pendientes</span>
                 <strong>@CurrentPendingItems</strong>
                 <small>Sin reportar</small>
-            </div>
+            </NaviMobileKpiCard>
+        </NaviMobileKpiGrid>
+            </PrimaryContent>
+            <OverflowContent>
+        <NaviMobileKpiGrid Class="navi-mobile-physical-kpi-board-v2 navi-mobile-physical-kpi-board-v2--detail">
 
-            <div class="navi-mobile-physical-kpi-tile-v2 danger">
+            <NaviMobileKpiCard Class="navi-mobile-physical-kpi-tile-v2 danger">
                 <span>Diferencias</span>
                 <strong>@CurrentDifferences</strong>
                 <small>Conciliación</small>
-            </div>
+            </NaviMobileKpiCard>
 
-            <div class="navi-mobile-physical-kpi-tile-v2 primary progress">
+            <NaviMobileKpiCard Class="navi-mobile-physical-kpi-tile-v2 primary progress">
                 <span>Avance persona</span>
                 <strong>@CurrentProgressText</strong>
                 <small>@CurrentCountedItems de @CurrentExpectedItems</small>
-            </div>
-        </section>
+            </NaviMobileKpiCard>
+        </NaviMobileKpiGrid>
+            </OverflowContent>
+        </NaviMobileKpiOverflow>
 
         @if (!string.IsNullOrWhiteSpace(successMessage))
         {
@@ -130,12 +138,12 @@
                     <div class="mph-form-grid">
                         <label>
                             <span>Usuario que reporta</span>
-                            <input value="@Display(CurrentParticipant.DisplayName ?? Auth.CurrentUser?.DisplayName)" disabled />
+                            <input value="@Display(CurrentParticipant.DisplayName ?? Auth.CurrentUser?.DisplayName)" disabled name="navi-mobilephysicalcountdetail-field-001" />
                         </label>
 
                         <label>
                             <span>Tipo de reporte</span>
-                            <select @bind="extraForm.ReportType">
+                            <select @bind="extraForm.ReportType" name="navi-mobilephysicalcountdetail-field-002">
                                 <option value="ExtraNotListed">Herramienta / activo no listado</option>
                                 <option value="NotFound">No encontrado</option>
                                 <option value="Different">Diferencia</option>
@@ -145,7 +153,7 @@
 
                         <label>
                             <span>Tipo de activo</span>
-                            <select @bind="extraForm.AssetType">
+                            <select @bind="extraForm.AssetType" name="navi-mobilephysicalcountdetail-field-003">
                                 <option value="Herramienta">Herramienta</option>
                                 <option value="Activo fijo">Activo fijo</option>
                                 <option value="Equipo tecnológico">Equipo tecnológico</option>
@@ -156,32 +164,32 @@
 
                         <label>
                             <span>Código / placa visible</span>
-                            <input @bind="extraForm.ReportedCode" placeholder="Ej: AGU-NO-SIS-001..." />
+                            <input @bind="extraForm.ReportedCode" placeholder="Ej: AGU-NO-SIS-001..." name="navi-mobilephysicalcountdetail-field-004" />
                         </label>
 
                         <label>
                             <span>Nombre activo / herramienta</span>
-                            <input @bind="extraForm.ReportedName" @bind:event="oninput" placeholder="Ej: Taladro, gato, escáner..." />
+                            <input @bind="extraForm.ReportedName" @bind:event="oninput" placeholder="Ej: Taladro, gato, escáner..." name="navi-mobilephysicalcountdetail-field-005" />
                         </label>
 
                         <label>
                             <span>Categoría</span>
-                            <input @bind="extraForm.Category" placeholder="Ej: Eléctrica, hidráulica, cómputo..." />
+                            <input @bind="extraForm.Category" placeholder="Ej: Eléctrica, hidráulica, cómputo..." name="navi-mobilephysicalcountdetail-field-006" />
                         </label>
 
                         <label>
                             <span>Sede</span>
-                            <input @bind="extraForm.BranchCode" />
+                            <input @bind="extraForm.BranchCode" name="navi-mobilephysicalcountdetail-field-007" />
                         </label>
 
                         <label>
                             <span>Ubicación encontrada</span>
-                            <input @bind="extraForm.FoundLocation" />
+                            <input @bind="extraForm.FoundLocation" name="navi-mobilephysicalcountdetail-field-008" />
                         </label>
 
                         <label>
                             <span>Estado físico</span>
-                            <select @bind="extraForm.PhysicalStatus">
+                            <select @bind="extraForm.PhysicalStatus" name="navi-mobilephysicalcountdetail-field-009">
                                 <option value="Bueno">Bueno</option>
                                 <option value="Regular">Regular</option>
                                 <option value="Dañado">Dañado</option>
@@ -191,22 +199,22 @@
 
                         <label>
                             <span>Serial</span>
-                            <input @bind="extraForm.ReportedSerial" />
+                            <input @bind="extraForm.ReportedSerial" name="navi-mobilephysicalcountdetail-field-010" />
                         </label>
 
                         <label>
                             <span>Marca</span>
-                            <input @bind="extraForm.ReportedBrand" />
+                            <input @bind="extraForm.ReportedBrand" name="navi-mobilephysicalcountdetail-field-011" />
                         </label>
 
                         <label>
                             <span>Modelo</span>
-                            <input @bind="extraForm.ReportedModel" />
+                            <input @bind="extraForm.ReportedModel" name="navi-mobilephysicalcountdetail-field-012" />
                         </label>
 
                         <label>
                             <span>Estado operativo</span>
-                            <input @bind="extraForm.OperationalStatus" />
+                            <input @bind="extraForm.OperationalStatus" name="navi-mobilephysicalcountdetail-field-013" />
                         </label>
                     </div>
 
@@ -214,20 +222,20 @@
                         <span>Observación</span>
                         <textarea rows="3"
                                   @bind="extraForm.Observation"
-                                  placeholder="Describa lo que reportó el usuario y cualquier detalle para conciliación."></textarea>
+                                  placeholder="Describa lo que reportó el usuario y cualquier detalle para conciliación." name="navi-mobilephysicalcountdetail-field-014"></textarea>
                     </label>
 
                     <label class="mph-check">
-                        <input type="checkbox" @bind="extraForm.RequiresUserClarification" />
+                        <input type="checkbox" @bind="extraForm.RequiresUserClarification" name="navi-mobilephysicalcountdetail-field-015" />
                         Requiere llamar/contactar al usuario para aclaración
                     </label>
 
                     <div class="mph-action-row">
-                        <button type="button" class="success mph-save-extra-tool" @onclick="SaveExtraToolAsync" disabled="@(!CanSaveExtraTool || isSaving)" data-ntx-tone="primary" >
+                        <button type="button" class="success mph-save-extra-tool" @onclick="SaveExtraToolAsync" disabled="@(!CanSaveExtraTool || isSaving)" data-ntx-tone="affirmative" >
                             @(isSaving ? "Guardando..." : "Guardar")
                         </button>
 
-                        <button type="button" @onclick="ResetExtraForm" data-ntx-tone="danger" >Limpiar</button>
+                        <button type="button" @onclick="ResetExtraForm" data-ntx-tone="secondary" >Limpiar</button>
                     </div>
                 }
             </details>
@@ -274,7 +282,7 @@
                             </section>
 
                             <div class="mph-actions one">
-                                <button type="button" class="view" @onclick="() => OpenToolDetailAsync(tool)" data-ntx-tone="positive" >
+                                <button type="button" class="view" @onclick="() => OpenToolDetailAsync(tool)" data-ntx-tone="consult" >
                                     Detalle
                                 </button>
                             </div>
@@ -356,7 +364,7 @@
 
                             <label>
                                 <span>Ubicación encontrada</span>
-                                <select @bind="validationForm.LocationId" disabled="@(!CanReportPhysicalCounts || isRejectMode)">
+                                <select @bind="validationForm.LocationId" disabled="@(!CanReportPhysicalCounts || isRejectMode)" name="navi-mobilephysicalcountdetail-field-016">
                                     <option value="">Seleccione ubicación...</option>
                                     @foreach (var location in locations.OrderBy(x => x.Name))
                                     {
@@ -367,7 +375,7 @@
 
                             <label>
                                 <span>Estado físico observado</span>
-                                <select @bind="validationForm.PhysicalStatus" disabled="@(!CanReportPhysicalCounts || isRejectMode)">
+                                <select @bind="validationForm.PhysicalStatus" disabled="@(!CanReportPhysicalCounts || isRejectMode)" name="navi-mobilephysicalcountdetail-field-017">
                                     <option value="Good">Bueno</option>
                                     <option value="Damaged">Dañado</option>
                                     <option value="Lost">No localizado</option>
@@ -377,7 +385,7 @@
 
                             <label>
                                 <span>Estado operativo observado</span>
-                                <select @bind="validationForm.OperationalStatus" disabled="@(!CanReportPhysicalCounts || isRejectMode)">
+                                <select @bind="validationForm.OperationalStatus" disabled="@(!CanReportPhysicalCounts || isRejectMode)" name="navi-mobilephysicalcountdetail-field-018">
                                     <option value="Available">Disponible</option>
                                     <option value="Assigned">Asignado</option>
                                     <option value="InUse">En uso</option>
@@ -389,7 +397,7 @@
 
                             <label>
                                 <span>@(isRejectMode ? "Comentario del rechazo" : "Comentario de validación")</span>
-                                <textarea rows="4" @bind="validationForm.Observation" disabled="@(!CanReportPhysicalCounts)"></textarea>
+                                <textarea rows="4" @bind="validationForm.Observation" disabled="@(!CanReportPhysicalCounts)" name="navi-mobilephysicalcountdetail-field-019"></textarea>
                             </label>
 
                             @if (isRejectMode)
@@ -411,7 +419,7 @@
                                     </div>
                                 </div>
 
-                                <InputFile OnChange="OnEvidenceSelected" multiple />
+                                <InputFile OnChange="OnEvidenceSelected" multiple name="navi-mobilephysicalcountdetail-field-020" />
 
                                 @if (!string.IsNullOrWhiteSpace(evidenceSelectionError))
                                 {
@@ -437,7 +445,7 @@
 
                                 <label>
                                     <span>Descripción de las evidencias</span>
-                                    <input @bind="validationForm.EvidenceDescription" />
+                                    <input @bind="validationForm.EvidenceDescription" name="navi-mobilephysicalcountdetail-field-021" />
                                 </label>
 
                                 <h3>Evidencias existentes</h3>
@@ -473,32 +481,32 @@
                             <div class="mph-form-grid">
                                 <label>
                                     <span>Nombre del accesorio</span>
-                                    <input @bind="newAccessory.Name" placeholder="Ej: CARGADOR" disabled="@(!CanReportPhysicalCounts)" />
+                                    <input @bind="newAccessory.Name" placeholder="Ej: CARGADOR" disabled="@(!CanReportPhysicalCounts)" name="navi-mobilephysicalcountdetail-field-022" />
                                 </label>
 
                                 <label>
                                     <span>Cantidad</span>
-                                    <input type="number" min="1" step="1" @bind="newAccessory.Quantity" disabled="@(!CanReportPhysicalCounts)" />
+                                    <input type="number" min="1" step="1" @bind="newAccessory.Quantity" disabled="@(!CanReportPhysicalCounts)" name="navi-mobilephysicalcountdetail-field-023" />
                                 </label>
 
                                 <label class="mph-check">
-                                    <input type="checkbox" @bind="newAccessory.RequiresMaintenance" disabled="@(!CanReportPhysicalCounts)" />
+                                    <input type="checkbox" @bind="newAccessory.RequiresMaintenance" disabled="@(!CanReportPhysicalCounts)" name="navi-mobilephysicalcountdetail-field-024" />
                                     Requiere mantenimiento
                                 </label>
 
                                 <label class="mph-check">
-                                    <input type="checkbox" @bind="newAccessory.IsMeasurementEquipment" disabled="@(!CanReportPhysicalCounts)" />
+                                    <input type="checkbox" @bind="newAccessory.IsMeasurementEquipment" disabled="@(!CanReportPhysicalCounts)" name="navi-mobilephysicalcountdetail-field-025" />
                                     Equipo de medición
                                 </label>
                             </div>
 
                             <label>
                                 <span>Observación</span>
-                                <textarea rows="2" @bind="newAccessory.Observation" disabled="@(!CanReportPhysicalCounts)"></textarea>
+                                <textarea rows="2" @bind="newAccessory.Observation" disabled="@(!CanReportPhysicalCounts)" name="navi-mobilephysicalcountdetail-field-026"></textarea>
                             </label>
 
                             <div class="mph-action-row">
-                                <button type="button" class="primary" @onclick="AddAccessoryFromValidation" disabled="@(!CanReportPhysicalCounts)" data-ntx-tone="primary" >
+                                <button type="button" class="primary" @onclick="AddAccessoryFromValidation" disabled="@(!CanReportPhysicalCounts)" data-ntx-tone="operation" >
                                     Crear accesorio
                                 </button>
                             </div>
@@ -555,14 +563,14 @@
                                         }
                                     </button>
 
-                                    <button type="button" @onclick="() => SetRejectMode(false)" data-ntx-tone="danger" >
+                                    <button type="button" @onclick="() => SetRejectMode(false)" data-ntx-tone="affirmative" >
                                         <span>Cambiar</span>
                                         <small>a confirmar</small>
                                     </button>
                                 }
                                 else
                                 {
-                                    <button type="button" class="success" @onclick="ConfirmToolAsync" disabled="@(!CanSaveValidation)" data-ntx-tone="primary" >
+                                    <button type="button" class="success" @onclick="ConfirmToolAsync" disabled="@(!CanSaveValidation)" data-ntx-tone="affirmative" >
                                         @if (isSaving)
                                         {
                                             <span>Guardando...</span>

@@ -10,91 +10,251 @@
 
 <PermissionGuard Permission="TechnicalLifeRecord.View" ModuleName="Hoja de Vida de Herramientas y AF">
 
+<section class="technical-life-records-web-v31">
+
+@* NAVI LIFE RECORDS WEB V31 TOP START *@
+
 <NaviPageHero
     Pill="ACTIVOS FIJOS"
     Title="Hoja de Vida de Herramientas y AF"
-    Description="Consulta consolidada de hojas de vida con datos generales, técnicos, ubicación, responsable, documentos, mantenimientos y trazabilidad.">
+    Description="Consulta consolidada de hojas de vida con datos generales, técnicos, ubicación, responsable, documentos, mantenimientos y trazabilidad." />
 
-    <button type="button" @onclick="LoadAsync" data-ntx-tone="secondary" >
-        Actualizar
-    </button>
+<NaviKpiToolbar
+    Class="life-records-kpi-row-v31"
+    Refresh="LoadAsync"
+    IsRefreshing="isLoading"
+    RefreshTitle="Actualizar hojas de vida"
+    RefreshAriaLabel="Actualizar hojas de vida">
 
-</NaviPageHero>
+    <NaviKpiGrid
+        Columns="5"
+        Compact="true"
+        Dividers="true"
+        Class="life-records-kpis-v31">
 
+        <NaviKpiCard
+            Title="Total herramientas y AF"
+            Description="Según filtros activos"
+            Tone="neutral">
 
-<section class="life-kpi-grid">
-    <article class="life-kpi total">
-        <span>Total herramientas y AF</span>
-        <strong>@FilteredTools.Count()</strong>
-        <small>Según filtros activos</small>
-    </article>
+            <IconContent>
+                <NaviKpiIcon Name="inventory" />
+            </IconContent>
 
-    <article class="life-kpi success">
-        <span>Con mantenimiento</span>
-        <strong>@FilteredTools.Count(x => x.RequiresMaintenance)</strong>
-        <small>Control técnico</small>
-    </article>
+            <ValueContent>
+                @FilteredTools.Count()
+            </ValueContent>
 
-    <article class="life-kpi neutral">
-        <span>Especializados</span>
-        <strong>@FilteredTools.Count(x => x.IsSpecialized)</strong>
-        <small>Herramientas críticas</small>
-    </article>
+        </NaviKpiCard>
 
-    <article class="life-kpi warning">
-        <span>Certificación</span>
-        <strong>@FilteredTools.Count(x => x.RequiresCertification)</strong>
-        <small>Requieren control</small>
-    </article>
+        <NaviKpiCard
+            Title="Con mantenimiento"
+            Description="Control técnico"
+            Tone="warning">
 
-    <article class="life-kpi danger">
-        <span>Preoperacional</span>
-        <strong>@FilteredTools.Count(x => x.RequiresPreOperationalCheck)</strong>
-        <small>Validación previa</small>
-    </article>
+            <IconContent>
+                <NaviKpiIcon Name="wrench" />
+            </IconContent>
+
+            <ValueContent>
+                @FilteredTools.Count(
+                    item => item.RequiresMaintenance)
+            </ValueContent>
+
+        </NaviKpiCard>
+
+        <NaviKpiCard
+            Title="Especializados"
+            Description="Herramientas críticas"
+            Tone="soft">
+
+            <IconContent>
+                <NaviKpiIcon Name="document" />
+            </IconContent>
+
+            <ValueContent>
+                @FilteredTools.Count(
+                    item => item.IsSpecialized)
+            </ValueContent>
+
+        </NaviKpiCard>
+
+        <NaviKpiCard
+            Title="Certificación"
+            Description="Requieren control"
+            Tone="warning">
+
+            <IconContent>
+                <NaviKpiIcon Name="calendar" />
+            </IconContent>
+
+            <ValueContent>
+                @FilteredTools.Count(
+                    item => item.RequiresCertification)
+            </ValueContent>
+
+        </NaviKpiCard>
+
+        <NaviKpiCard
+            Title="Preoperacional"
+            Description="Validación previa"
+            Tone="danger">
+
+            <IconContent>
+                <NaviKpiIcon Name="alert" />
+            </IconContent>
+
+            <ValueContent>
+                @FilteredTools.Count(
+                    item => item.RequiresPreOperationalCheck)
+            </ValueContent>
+
+        </NaviKpiCard>
+
+    </NaviKpiGrid>
+
+</NaviKpiToolbar>
+
+@* NAVI LIFE RECORDS WEB V31 TOP END *@
+
+@* NAVI LIFE RECORDS FILTERS V32 START *@
+
+<section class="life-page-filters life-page-filters-v32"
+         aria-label="Filtros de hojas de vida">
+
+    <label class="life-filter-field-v32 life-filter-search-v32">
+
+        <span>Buscar activo</span>
+
+        <div class="life-filter-search-control-v32">
+
+            <svg viewBox="0 0 24 24"
+                 aria-hidden="true"
+                 focusable="false">
+
+                <circle cx="10.5"
+                        cy="10.5"
+                        r="6.5">
+                </circle>
+
+                <path d="M15.5 15.5L21 21"></path>
+
+            </svg>
+
+            <input class="form-control form-control-sm"
+                   placeholder="Código, nombre, serial, activo fijo, sede, ubicación o responsable..."
+                   @bind="search"
+                   @bind:event="oninput"
+                   name="navi-technicalliferecordsindex-field-001" />
+
+        </div>
+
+    </label>
+
+    <label class="life-filter-field-v32">
+
+        <span>Sede</span>
+
+        <select class="form-select form-select-sm"
+                @bind="selectedBranchCode"
+                name="navi-technicalliferecordsindex-field-002">
+
+            <option value="">
+                @(AccessScope.IsAllBranchScope()
+                    ? "Todas las sedes visibles"
+                    : AccessScope.GetDefaultBranchFilterText())
+            </option>
+
+            @foreach (var branch in BranchFilterOptions)
+            {
+                <option value="@branch.Code">
+                    @branch.Code
+                </option>
+            }
+
+        </select>
+
+    </label>
+
+    <label class="life-filter-field-v32">
+
+        <span>Tipo general</span>
+
+        <select class="form-select form-select-sm"
+                @bind="selectedType"
+                name="navi-technicalliferecordsindex-field-003">
+
+            <option value="">Todos</option>
+
+            @foreach (var type in LifeTypeOptions)
+            {
+                <option value="@type">
+                    @type
+                </option>
+            }
+
+        </select>
+
+    </label>
+
 </section>
 
-<section class="life-status-filters life-status-filters-modern" aria-label="Estados de hoja de vida">
-    <button type="button"
-            class="@GetLifeStatusFilterChipClass(string.Empty)"
-            @onclick="@(() => SelectLifeStatus(string.Empty))" data-ntx-tone="secondary" >
-        Todos
-        <span>@LifeBaseFilteredTools.Count()</span>
-    </button>
+@* NAVI LIFE RECORDS FILTERS V32 END *@
 
-    @foreach (var status in LifeStatusFilterOptions)
-    {
+@* NAVI LIFE RECORDS WEB V31 STATUS START *@
+
+<section class="life-status-filters-modern life-status-card-v31"
+         aria-label="Estados de hoja de vida">
+
+    <header>
+        <div>
+            <strong>Estado operativo</strong>
+
+            <small>
+                Selecciona un estado para limitar el listado.
+            </small>
+        </div>
+
+        <span>
+            @FilteredTools.Count() resultados
+        </span>
+    </header>
+
+    <div class="life-status-list-v31">
+
         <button type="button"
-                class="@GetLifeStatusFilterChipClass(status.Value)"
-                @onclick="@(() => SelectLifeStatus(status.Value))" data-ntx-tone="secondary" >
-            @status.Label
-            <span>@status.Count</span>
+                class="@GetLifeStatusFilterChipClass(string.Empty)"
+                @onclick="@(() => SelectLifeStatus(string.Empty))"
+                data-ntx-tone="ghost">
+
+            <i aria-hidden="true"></i>
+
+            <span>Todos</span>
+
+            <strong>
+                @LifeBaseFilteredTools.Count()
+            </strong>
         </button>
-    }
+
+        @foreach (var status in LifeStatusFilterOptions)
+        {
+            <button type="button"
+                    class="@GetLifeStatusFilterChipClass(status.Value)"
+                    @onclick="@(() => SelectLifeStatus(status.Value))"
+                    data-ntx-tone="ghost">
+
+                <i aria-hidden="true"></i>
+
+                <span>@status.Label</span>
+
+                <strong>@status.Count</strong>
+            </button>
+        }
+
+    </div>
 </section>
 
-<section class="life-page-filters" aria-label="Filtros de hojas de vida">
-    <input class="form-control form-control-sm"
-           placeholder="Buscar código, nombre, serial, activo fijo, sede, ubicación, responsable, tipo o categoría..."
-           @bind="search"
-           @bind:event="oninput" />
-
-    <select class="form-select form-select-sm" @bind="selectedBranchCode">
-        <option value="">@(AccessScope.IsAllBranchScope() ? "Todas las sedes" : AccessScope.GetDefaultBranchFilterText())</option>
-        @foreach (var branch in BranchFilterOptions)
-        {
-            <option value="@branch.Code">@branch.Code</option>
-        }
-    </select>
-
-    <select class="form-select form-select-sm" @bind="selectedType">
-        <option value="">Todos los tipos</option>
-        @foreach (var type in LifeTypeOptions)
-        {
-            <option value="@type">@type</option>
-        }
-    </select>
-</section>
+@* NAVI LIFE RECORDS WEB V31 STATUS END *@
 
 <section class="af-card">
     <div class="af-table-header">
@@ -106,7 +266,7 @@
 
     @if (isLoading)
     {
-        <p>Cargando hojas de vida...</p>
+        <p role="status" aria-busy="true">Cargando hojas de vida...</p>
     }
     else if (!FilteredTools.Any())
     {
@@ -114,7 +274,8 @@
     }
     else
     {
-        <table class="table table-hover align-middle af-table">
+        <div class="ntx-table-scroll">
+            <table class="table table-hover align-middle af-table">
             <thead>
                 <tr>
                     <th>Código</th>
@@ -187,7 +348,7 @@
                         </td>
 
                         <td class="text-end">
-                            <a class="btn-life-main" href="@($"/tools/{tool.Id}/technical-life-record?from=life-records")" data-ntx-tone="secondary" >
+                            <a class="btn-life-main" href="@($"/tools/{tool.Id}/technical-life-record?from=life-records")" data-ntx-tone="operation" >
                                 <span>Ver hoja de vida</span>
                                 <strong>↗</strong>
                             </a>
@@ -196,7 +357,10 @@
                 }
             </tbody>
         </table>
+        </div>
     }
+</section>
+
 </section>
 
 </PermissionGuard>
@@ -241,9 +405,13 @@
                         Contains(x.ToolCategoryName, search))
             .Where(x => string.IsNullOrWhiteSpace(selectedBranchCode) ||
                         string.Equals(x.BranchCode, selectedBranchCode, StringComparison.OrdinalIgnoreCase))
-            .Where(x => string.IsNullOrWhiteSpace(selectedType) ||
-                        string.Equals(x.ToolTypeName ?? string.Empty, selectedType, StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(x.ToolCategoryName ?? string.Empty, selectedType, StringComparison.OrdinalIgnoreCase));
+            .Where(x =>
+                string.IsNullOrWhiteSpace(selectedType)
+                ||
+                string.Equals(
+                    GetLifeAssetClass(x),
+                    selectedType,
+                    StringComparison.OrdinalIgnoreCase));
 
     private IEnumerable<ToolItem> FilteredTools =>
         LifeBaseFilteredTools
@@ -266,12 +434,56 @@
             .OrderBy(x => x.Label);
 
     private IEnumerable<string> LifeTypeOptions =>
-        LifeBaseFilteredTools
-            .SelectMany(x => new[] { x.ToolTypeName, x.ToolCategoryName })
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Select(x => x!)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(x => x);
+        ScopedTools
+            .Select(GetLifeAssetClass)
+            .Where(value =>
+                !string.IsNullOrWhiteSpace(value))
+            .Distinct(
+                StringComparer.OrdinalIgnoreCase)
+            .OrderBy(value =>
+                string.Equals(
+                    value,
+                    "Activo fijo",
+                    StringComparison.OrdinalIgnoreCase)
+                    ? 0
+                    : 1)
+            .ThenBy(value => value);
+
+    private static string GetLifeAssetClass(
+        ToolItem item)
+    {
+        var typeName =
+            item.ToolTypeName?.Trim()
+            ?? string.Empty;
+
+        /*
+         * Toda denominación relacionada directamente
+         * con herramienta se agrupa como Herramienta.
+         *
+         * Equipos, celulares, computadores, escáneres
+         * y demás activos quedan como Activo fijo.
+         */
+        if (
+            typeName.Contains(
+                "herramienta",
+                StringComparison.OrdinalIgnoreCase)
+            ||
+            string.Equals(
+                typeName,
+                "tool",
+                StringComparison.OrdinalIgnoreCase)
+            ||
+            string.Equals(
+                typeName,
+                "tools",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return "Herramienta";
+        }
+
+        return "Activo fijo";
+    }
+
 
     private void SelectLifeStatus(string status)
     {

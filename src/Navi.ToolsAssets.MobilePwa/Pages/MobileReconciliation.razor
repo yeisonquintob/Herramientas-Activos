@@ -12,14 +12,14 @@
 <section class="mobile-page mobile-reconciliation-page">
     @if (isLoading && !initialized)
     {
-        <div class="mobile-loading">Cargando conciliación...</div>
+        <div class="mobile-loading" role="status" aria-busy="true">Cargando conciliación...</div>
     }
     else if (!Auth.IsAuthenticated)
     {
         <div class="mobile-empty">
             <strong>Sesión requerida</strong>
             <span>Debes iniciar sesión para consultar conciliación.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="secondary" >Ir al login</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="ghost" >Ir al login</button>
         </div>
     }
     else if (!CanAccessReconciliation)
@@ -41,43 +41,51 @@
                              ShowHomeButton="true"
                              ShowBackButton="false" />
 
-        <section class="navi-mobile-reconciliation-kpi-board-v2">
-            <div class="navi-mobile-reconciliation-kpi-tile-v2 total">
+        <NaviMobileKpiOverflow PrimaryCount="3" OverflowCount="3" ButtonLabel="Mostrar indicadores adicionales">
+            <PrimaryContent>
+        <NaviMobileKpiGrid Class="navi-mobile-reconciliation-kpi-board-v2">
+            <NaviMobileKpiCard Class="navi-mobile-reconciliation-kpi-tile-v2 total">
                 <span>Total</span>
                 <strong>@FilteredItems.Count()</strong>
                 <small>Registros visibles</small>
-            </div>
+            </NaviMobileKpiCard>
 
-            <div class="navi-mobile-reconciliation-kpi-tile-v2 info">
+            <NaviMobileKpiCard Class="navi-mobile-reconciliation-kpi-tile-v2 info">
                 <span>No listadas</span>
                 <strong>@FilteredItems.Count(x => x.ReportType == "ExtraNotListed")</strong>
                 <small>Posible creación</small>
-            </div>
+            </NaviMobileKpiCard>
 
-            <div class="navi-mobile-reconciliation-kpi-tile-v2 warning">
+            <NaviMobileKpiCard Class="navi-mobile-reconciliation-kpi-tile-v2 warning">
                 <span>Pend. creación</span>
                 <strong>@FilteredItems.Count(IsPendingCreation)</strong>
                 <small>Aprobar o crear</small>
-            </div>
+            </NaviMobileKpiCard>
+        </NaviMobileKpiGrid>
+            </PrimaryContent>
+            <OverflowContent>
+        <NaviMobileKpiGrid Class="navi-mobile-reconciliation-kpi-board-v2">
 
-            <div class="navi-mobile-reconciliation-kpi-tile-v2 primary">
+            <NaviMobileKpiCard Class="navi-mobile-reconciliation-kpi-tile-v2 primary">
                 <span>Aclaración</span>
                 <strong>@FilteredItems.Count(x => x.RequiresUserClarification || Same(x.ReconciliationStatus, "RequiresUserClarification"))</strong>
                 <small>Contactar usuario</small>
-            </div>
+            </NaviMobileKpiCard>
 
-            <div class="navi-mobile-reconciliation-kpi-tile-v2 success">
+            <NaviMobileKpiCard Class="navi-mobile-reconciliation-kpi-tile-v2 success">
                 <span>Conciliados</span>
                 <strong>@FilteredItems.Count(x => Same(x.ReconciliationStatus, "Reconciled"))</strong>
                 <small>Completos</small>
-            </div>
+            </NaviMobileKpiCard>
 
-            <div class="navi-mobile-reconciliation-kpi-tile-v2 danger">
+            <NaviMobileKpiCard Class="navi-mobile-reconciliation-kpi-tile-v2 danger">
                 <span>Rechazados</span>
                 <strong>@FilteredItems.Count(x => x.Rejected || Same(x.ReconciliationStatus, "Rejected"))</strong>
                 <small>No proceden</small>
-            </div>
-        </section>
+            </NaviMobileKpiCard>
+        </NaviMobileKpiGrid>
+            </OverflowContent>
+        </NaviMobileKpiOverflow>
 
         @if (!string.IsNullOrWhiteSpace(errorMessage))
         {
@@ -92,7 +100,7 @@
         <section class="mrec-filter-card mrec-filter-card-compact-v2">
             <label>
                 <span>Toma física</span>
-                <select value="@selectedCountIdText" @onchange="OnSelectedCountChangedAsync">
+                <select value="@selectedCountIdText" @onchange="OnSelectedCountChangedAsync" name="navi-mobilereconciliation-field-001">
                     <option value="">Seleccione toma...</option>
                     @foreach (var count in physicalCounts)
                     {
@@ -103,7 +111,7 @@
 
             <label>
                 <span>Estado</span>
-                <select @bind="filterReconciliationStatus">
+                <select @bind="filterReconciliationStatus" name="navi-mobilereconciliation-field-002">
                     <option value="">Todos los estados</option>
                     <option value="PendingReview">Pendiente revisión</option>
                     <option value="NotFoundInSystem">Pendiente creación</option>
@@ -117,7 +125,7 @@
 
             <label>
                 <span>Tipo reporte</span>
-                <select @bind="filterReportType">
+                <select @bind="filterReportType" name="navi-mobilereconciliation-field-003">
                     <option value="">Todos</option>
                     <option value="Found">Encontrada / validada</option>
                     <option value="NotFound">No encontrada</option>
@@ -129,7 +137,7 @@
 
             <label>
                 <span>Sede</span>
-                <select @bind="filterBranch">
+                <select @bind="filterBranch" name="navi-mobilereconciliation-field-004">
                     <option value="">Todas</option>
                     @foreach (var branch in BranchOptions)
                     {
@@ -140,7 +148,7 @@
 
             <label>
                 <span>Usuario / participante</span>
-                <select @bind="filterParticipant">
+                <select @bind="filterParticipant" name="navi-mobilereconciliation-field-005">
                     <option value="">Todos</option>
                     @foreach (var participant in ParticipantOptions)
                     {
@@ -151,7 +159,7 @@
 
             <label>
                 <span>Datos mínimos</span>
-                <select @bind="filterMinimumData">
+                <select @bind="filterMinimumData" name="navi-mobilereconciliation-field-006">
                     <option value="">Todos</option>
                     <option value="Complete">Completos</option>
                     <option value="Missing">Sin mínimos</option>
@@ -160,23 +168,23 @@
 
             <label>
                 <span>Desde</span>
-                <input @bind="filterFromDateText" placeholder="yyyy-MM-dd" />
+                <input @bind="filterFromDateText" placeholder="yyyy-MM-dd" name="navi-mobilereconciliation-field-007" />
             </label>
 
             <label>
                 <span>Hasta</span>
-                <input @bind="filterToDateText" placeholder="yyyy-MM-dd" />
+                <input @bind="filterToDateText" placeholder="yyyy-MM-dd" name="navi-mobilereconciliation-field-008" />
             </label>
 
             <label class="mrec-full">
                 <span>Buscar</span>
                 <input @bind="searchText"
                        @bind:event="oninput"
-                       placeholder="Código, nombre, serial, usuario, categoría, observación..." />
+                       placeholder="Código, nombre, serial, usuario, categoría, observación..." name="navi-mobilereconciliation-field-009" />
             </label>
 
             <label class="mrec-check">
-                <input type="checkbox" @bind="onlyPending" />
+                <input type="checkbox" @bind="onlyPending" name="navi-mobilereconciliation-field-010" />
                 Mostrar solo pendientes de decisión
             </label>
 
@@ -200,7 +208,7 @@
 
             @if (isLoading)
             {
-                <div class="mobile-empty compact">Cargando registros...</div>
+                <div class="mobile-empty compact" role="status" aria-busy="true">Cargando registros...</div>
             }
             else if (!physicalCounts.Any())
             {
@@ -309,35 +317,35 @@
                             <div class="mrec-actions">
                                 @if (CanRequestClarification(item))
                                 {
-                                    <button type="button" class="warn" @onclick="() => RequestClarificationAsync(item.Id)" data-ntx-tone="warning" >
+                                    <button type="button" class="warn" @onclick="() => RequestClarificationAsync(item.Id)" data-ntx-tone="ghost" >
                                         Aclarar
                                     </button>
                                 }
 
                                 @if (CanResolveClarification(item))
                                 {
-                                    <button type="button" class="neutral" @onclick="() => ResolveClarificationAsync(item.Id)" data-ntx-tone="positive" >
+                                    <button type="button" class="neutral" @onclick="() => ResolveClarificationAsync(item.Id)" data-ntx-tone="ghost" >
                                         Aclarado
                                     </button>
                                 }
 
                                 @if (CanApproveCreation(item))
                                 {
-                                    <button type="button" class="ok" @onclick="() => ApproveCreationAsync(item.Id)" data-ntx-tone="positive" >
+                                    <button type="button" class="ok" @onclick="() => ApproveCreationAsync(item.Id)" data-ntx-tone="affirmative" >
                                         Aprobar creación
                                     </button>
                                 }
 
                                 @if (CanCreateInventoryAsset(item))
                                 {
-                                    <button type="button" class="ok-fill" @onclick="() => CreateInventoryAssetAsync(item.Id)" data-ntx-tone="primary" >
+                                    <button type="button" class="ok-fill" @onclick="() => CreateInventoryAssetAsync(item.Id)" data-ntx-tone="operation" >
                                         Crear activo
                                     </button>
                                 }
 
                                 @if (CanReconcile(item))
                                 {
-                                    <button type="button" class="neutral" @onclick="() => ReconcileAsync(item.Id)" data-ntx-tone="danger" >
+                                    <button type="button" class="neutral" @onclick="() => ReconcileAsync(item.Id)" data-ntx-tone="ghost" >
                                         Conciliar
                                     </button>
                                 }

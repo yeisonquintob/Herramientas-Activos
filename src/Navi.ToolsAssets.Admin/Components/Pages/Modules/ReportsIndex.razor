@@ -5,55 +5,58 @@
 
 <PageTitle>Reportes - NAVI</PageTitle>
 
+<section class="navi-reference-toolbar">
 <NaviPageHero
+    Class="navi-reference-toolbar__actions"
     Pill="REPORTES"
     Title="Centro de reportes"
     Description="Consulta reportes ejecutivos y operativos de inventario, documentos, mantenimiento, compras, toma física y conciliación.">
 
-    <button type="button" @onclick="LoadAsync" disabled="@isLoading" data-ntx-tone="secondary" >
+    <button type="button" @onclick="LoadAsync" disabled="@isLoading" data-ntx-tone="refresh" >
         @(isLoading ? "Actualizando..." : "Actualizar")
     </button>
 
 </NaviPageHero>
+
+<NaviKpiGrid Class="reports-kpis navi-final-kpi-row">
+    <NaviKpiCard>
+        <span>Inventario</span>
+        <strong>@assets.Count</strong>
+        <small>Activos / herramientas</small>
+    </NaviKpiCard>
+
+    <NaviKpiCard Class="success">
+        <span>Documentos</span>
+        <strong>@documents.Count</strong>
+        <small>Soportes cargados</small>
+    </NaviKpiCard>
+
+    <NaviKpiCard Class="warning">
+        <span>Mantenimientos</span>
+        <strong>@TotalMaintenance</strong>
+        <small>Registros y solicitudes</small>
+    </NaviKpiCard>
+
+    <NaviKpiCard Class="primary">
+        <span>Tomas físicas</span>
+        <strong>@physicalCounts.Count</strong>
+        <small>Campañas creadas</small>
+    </NaviKpiCard>
+</NaviKpiGrid>
+</section>
 
 @if (!string.IsNullOrWhiteSpace(message))
 {
     <div class="@messageClass reports-message">@message</div>
 }
 
-<section class="reports-kpis navi-final-kpi-row">
-    <article>
-        <span>Inventario</span>
-        <strong>@assets.Count</strong>
-        <small>Activos / herramientas</small>
-    </article>
-
-    <article class="success">
-        <span>Documentos</span>
-        <strong>@documents.Count</strong>
-        <small>Soportes cargados</small>
-    </article>
-
-    <article class="warning">
-        <span>Mantenimientos</span>
-        <strong>@TotalMaintenance</strong>
-        <small>Registros y solicitudes</small>
-    </article>
-
-    <article class="primary">
-        <span>Tomas físicas</span>
-        <strong>@physicalCounts.Count</strong>
-        <small>Campañas creadas</small>
-    </article>
-</section>
-
 <section class="reports-page-filters" aria-label="Filtros de reportes">
     <input class="form-control form-control-sm"
            placeholder="Buscar código, nombre, sede, responsable, estado..."
            @bind="searchText"
-           @bind:event="oninput" />
+           @bind:event="oninput" name="navi-reportsindex-field-001" />
 
-    <select class="form-select form-select-sm" @bind="branchFilter">
+    <select class="form-select form-select-sm" @bind="branchFilter" name="navi-reportsindex-field-002">
         <option value="">Todas las sedes</option>
         @foreach (var branch in BranchOptions)
         {
@@ -61,7 +64,7 @@
         }
     </select>
 
-    <select class="form-select form-select-sm" @bind="periodFilter">
+    <select class="form-select form-select-sm" @bind="periodFilter" name="navi-reportsindex-field-003">
         <option value="all">Todo el periodo</option>
         <option value="today">Hoy</option>
         <option value="7">Últimos 7 días</option>
@@ -69,7 +72,7 @@
         <option value="90">Últimos 90 días</option>
     </select>
 
-    <select class="form-select form-select-sm" @bind="statusFilter">
+    <select class="form-select form-select-sm" @bind="statusFilter" name="navi-reportsindex-field-004">
         <option value="">Todos los estados</option>
         @foreach (var status in StatusOptions)
         {
@@ -131,7 +134,7 @@
 
             @if (isLoading)
             {
-                <div class="reports-empty">Cargando información del reporte...</div>
+                <div class="reports-empty" role="status" aria-busy="true">Cargando información del reporte...</div>
             }
             else if (FilteredRows.Count == 0)
             {
@@ -140,7 +143,8 @@
             else
             {
                 <div class="reports-table-wrapper">
-                    <table class="reports-table">
+                    <div class="ntx-table-scroll">
+                        <table class="reports-table">
                         <thead>
                             <tr>
                                 @foreach (var header in CurrentHeaders)
@@ -171,6 +175,7 @@
                             }
                         </tbody>
                     </table>
+                    </div>
                 </div>
             }
         </article>
@@ -216,7 +221,7 @@
             }
             else
             {
-                <button type="button" class="reports-disabled-export" disabled data-ntx-tone="secondary" >
+                <button type="button" class="reports-disabled-export" disabled data-ntx-tone="consult" >
                     Exportación restringida
                 </button>
             }

@@ -1,0 +1,169 @@
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<section @attributes="AdditionalAttributes"
+         @ref="RootElement"
+         class="@CssClass"
+         data-ntx-component="mobile-kpi-overflow"
+         data-primary-count="@PrimaryCount"
+         @onkeydown="HandleKeyDownAsync">
+    <div class="navi-mobile-kpi-overflow__primary">
+        @PrimaryContent
+    </div>
+
+    @if (HasOverflow)
+    {
+        <div class="navi-mobile-kpi-overflow__more">
+            <button type="button"
+                    class="navi-mobile-kpi-overflow__tab"
+                    data-ntx-tone="expand"
+                    aria-label="@ButtonAriaLabel"
+                    aria-expanded="@AriaExpanded"
+                    aria-controls="@PanelId"
+                    @onclick="ToggleAsync">
+                <svg viewBox="0 0 24 24"
+                     focusable="false"
+                     aria-hidden="true">
+                    <path d="M4 8h16M4 12h16M4 16h16" />
+                </svg>
+                <span>@OverflowCount</span>
+            </button>
+
+            @if (IsOpen)
+            {
+                <div id="@PanelId"
+                     class="navi-mobile-kpi-overflow__panel"
+                     role="region"
+                     aria-label="@PanelLabel">
+                    @OverflowContent
+                </div>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public int PrimaryCount { get; set; } = 3;
+
+    [Parameter]
+    public int OverflowCount { get; set; }
+
+    [Parameter]
+    public string ButtonLabel { get; set; } =
+        "Mostrar indicadores adicionales";
+
+    [Parameter]
+    public string PanelLabel { get; set; } =
+        "Indicadores adicionales";
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? PrimaryContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? OverflowContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>?
+        AdditionalAttributes { get; set; }
+
+    private readonly string InstanceId =
+        $"navi-mobile-kpi-{Guid.NewGuid():N}";
+
+    private ElementReference RootElement;
+    private DotNetObjectReference<NaviMobileKpiOverflow>?
+        DotNetReference;
+    private bool ListenerRegistered;
+    private bool IsOpen;
+
+    private bool HasOverflow =>
+        OverflowCount > 0 && OverflowContent is not null;
+
+    private string PanelId => $"{InstanceId}-panel";
+
+    private string AriaExpanded =>
+        IsOpen ? "true" : "false";
+
+    private string ButtonAriaLabel =>
+        IsOpen
+            ? "Ocultar indicadores adicionales"
+            : $"{ButtonLabel}: {OverflowCount}";
+
+    private string CssClass =>
+        string.IsNullOrWhiteSpace(Class)
+            ? "navi-mobile-kpi-overflow"
+            : $"navi-mobile-kpi-overflow {Class.Trim()}";
+
+    protected override async Task OnAfterRenderAsync(
+        bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        DotNetReference =
+            DotNetObjectReference.Create(this);
+
+        await JS.InvokeVoidAsync(
+            "naviMobileKpiOverflow.register",
+            InstanceId,
+            RootElement,
+            DotNetReference);
+
+        ListenerRegistered = true;
+    }
+
+    private Task ToggleAsync()
+    {
+        IsOpen = !IsOpen;
+        return Task.CompletedTask;
+    }
+
+    private Task HandleKeyDownAsync(
+        KeyboardEventArgs args)
+    {
+        if (args.Key == "Escape" && IsOpen)
+        {
+            IsOpen = false;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public Task CloseFromOutside()
+    {
+        if (IsOpen)
+        {
+            IsOpen = false;
+            StateHasChanged();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (ListenerRegistered)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync(
+                    "naviMobileKpiOverflow.unregister",
+                    InstanceId);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        DotNetReference?.Dispose();
+    }
+}

@@ -39,7 +39,7 @@
 
 @if (isLoading)
 {
-    <div class="validation-card">Cargando información del activo y hoja de vida.</div>
+    <div class="validation-card" role="status" aria-busy="true">Cargando información del activo y hoja de vida.</div>
 }
 else if (tool is null)
 {
@@ -62,8 +62,8 @@ else
                     </div>
                 </div>
 
-                <label class="form-label">Ubicación encontrada</label>
-                <select class="form-select" @bind="form.LocationId" disabled="@(!CanReportPhysicalCount || IsRejectMode)">
+                <label class="form-label" for="navi-physicalcountpendingtooldetail-control-001">Ubicación encontrada</label>
+                <select class="form-select" @bind="form.LocationId" disabled="@(!CanReportPhysicalCount || IsRejectMode)" id="navi-physicalcountpendingtooldetail-control-001">
                     <option value="">Seleccione ubicación...</option>
                     @foreach (var location in locations)
                     {
@@ -71,16 +71,16 @@ else
                     }
                 </select>
 
-                <label class="form-label mt-2">Estado físico observado</label>
-                <select class="form-select" @bind="form.PhysicalStatus" disabled="@(!CanReportPhysicalCount || IsRejectMode)">
+                <label class="form-label mt-2" for="navi-physicalcountpendingtooldetail-control-002">Estado físico observado</label>
+                <select class="form-select" @bind="form.PhysicalStatus" disabled="@(!CanReportPhysicalCount || IsRejectMode)" id="navi-physicalcountpendingtooldetail-control-002">
                     <option value="Good">Bueno</option>
                     <option value="Damaged">Dañado</option>
                     <option value="Lost">No localizado</option>
                     <option value="NotSuitable">No apto</option>
                 </select>
 
-                <label class="form-label mt-2">Estado operativo observado</label>
-                <select class="form-select" @bind="form.OperationalStatus" disabled="@(!CanReportPhysicalCount || IsRejectMode)">
+                <label class="form-label mt-2" for="navi-physicalcountpendingtooldetail-control-003">Estado operativo observado</label>
+                <select class="form-select" @bind="form.OperationalStatus" disabled="@(!CanReportPhysicalCount || IsRejectMode)" id="navi-physicalcountpendingtooldetail-control-003">
                     <option value="Available">Disponible</option>
                     <option value="Assigned">Asignado</option>
                     <option value="InUse">En uso</option>
@@ -89,13 +89,13 @@ else
                     <option value="PendingValidation">Pendiente validación</option>
                 </select>
 
-                <label class="form-label mt-2">
+                <label class="form-label mt-2" for="navi-physicalcountpendingtooldetail-control-004">
                     @(IsRejectMode ? "Comentario del rechazo" : "Comentario de validación")
                 </label>
                 <textarea class="form-control"
                           rows="6"
                           @bind="form.Observation"
-                          placeholder="@ObservationPlaceholder" disabled="@(!CanReportPhysicalCount)"></textarea>
+                          placeholder="@ObservationPlaceholder" disabled="@(!CanReportPhysicalCount)" id="navi-physicalcountpendingtooldetail-control-004"></textarea>
 
                 @if (IsRejectMode)
                 {
@@ -113,8 +113,8 @@ else
                         <p>El usuario puede agregar evidencias nuevas, pero no eliminar documentos existentes.</p>
                     </div>
                 </div>
-                <label class="form-label">Agregar evidencia nueva</label>
-                <InputFile OnChange="OnEvidenceSelected" multiple disabled="@(!CanUploadEvidence)" />
+                <label class="form-label" for="navi-physicalcountpendingtooldetail-control-005">Agregar evidencia nueva</label>
+                <InputFile OnChange="OnEvidenceSelected" multiple disabled="@(!CanUploadEvidence)" id="navi-physicalcountpendingtooldetail-control-005" />
 
                 <small class="evidence-help">
                     Puedes seleccionar hasta @MaxEvidenceFiles archivos. Las evidencias existentes solo se pueden ver o descargar, no eliminar desde esta vista.
@@ -147,7 +147,7 @@ else
                                 </div>
 
                                 <button type="button"
-                                        class="btn btn-sm btn-outline-danger"
+                                        class="btn btn-sm ntx-btn--danger"
                                         disabled="@(!CanUploadEvidence)" @onclick="() => RemoveSelectedEvidence(index)" data-ntx-tone="danger" >
                                     Quitar
                                 </button>
@@ -156,10 +156,10 @@ else
                     </div>
                 }
 
-                <label class="form-label mt-2">Descripción de las evidencias</label>
+                <label class="form-label mt-2" for="navi-physicalcountpendingtooldetail-control-006">Descripción de las evidencias</label>
                 <input class="form-control"
                        @bind="form.EvidenceDescription"
-                       placeholder="Ej: Fotos tomadas durante la validación física de la herramienta y sus accesorios." disabled="@(!CanUploadEvidence)" />
+                       placeholder="Ej: Fotos tomadas durante la validación física de la herramienta y sus accesorios." disabled="@(!CanUploadEvidence)" id="navi-physicalcountpendingtooldetail-control-006" />
 
                 <hr />
 
@@ -181,7 +181,7 @@ else
                                     <small>@Display(document.Description)</small>
                                 </div>
 
-                                <a class="btn btn-sm btn-outline-primary" href="@GetDocumentUrl(document)" target="_blank" data-ntx-tone="primary" >
+                                <a class="btn btn-sm ntx-btn--operation" href="@GetDocumentUrl(document)" target="_blank" data-ntx-tone="operation" >
                                     Ver / Descargar
                                 </a>
                             </div>
@@ -207,41 +207,41 @@ else
 
                     <div class="accessory-form-grid">
                         <div>
-                            <label>Nombre del accesorio</label>
+                            <label for="navi-physicalcountpendingtooldetail-control-007">Nombre del accesorio</label>
                             <input class="form-control"
                                    placeholder="Ej: CARGADOR"
-                                   @bind="newAccessory.Name" />
+                                   @bind="newAccessory.Name" id="navi-physicalcountpendingtooldetail-control-007" />
                         </div>
 
                         <div>
-                            <label>Cantidad</label>
+                            <label for="navi-physicalcountpendingtooldetail-control-008">Cantidad</label>
                             <input type="number"
                                    min="1"
                                    step="1"
                                    class="form-control"
-                                   @bind="newAccessory.Quantity" />
+                                   @bind="newAccessory.Quantity" id="navi-physicalcountpendingtooldetail-control-008" />
                         </div>
 
                         <div class="check-box-like">
                             <label class="checkbox-inline">
-                                <input type="checkbox" @bind="newAccessory.RequiresMaintenance" />
+                                <input type="checkbox" @bind="newAccessory.RequiresMaintenance" name="navi-physicalcountpendingtooldetail-field-001" />
                                 Requiere mantenimiento
                             </label>
                         </div>
 
                         <div class="check-box-like">
                             <label class="checkbox-inline">
-                                <input type="checkbox" @bind="newAccessory.IsMeasurementEquipment" />
+                                <input type="checkbox" @bind="newAccessory.IsMeasurementEquipment" name="navi-physicalcountpendingtooldetail-field-002" />
                                 Equipo de medición
                             </label>
                         </div>
 
                         <div class="full-width">
-                            <label>Observación</label>
+                            <label for="navi-physicalcountpendingtooldetail-control-009">Observación</label>
                             <textarea class="form-control"
                                       rows="3"
                                       placeholder="Observación del accesorio..."
-                                      @bind="newAccessory.Observation"></textarea>
+                                      @bind="newAccessory.Observation" id="navi-physicalcountpendingtooldetail-control-009"></textarea>
                         </div>
                     </div>
 
@@ -254,8 +254,8 @@ else
 
                     <div class="accessory-action-row">
                         <button type="button"
-                                class="btn btn-primary"
-                                disabled="@(!CanReportPhysicalCount)" @onclick="AddAccessoryFromValidation" data-ntx-tone="primary" >
+                                class="btn ntx-btn--operation"
+                                disabled="@(!CanReportPhysicalCount)" @onclick="AddAccessoryFromValidation" data-ntx-tone="operation" >
                             Crear accesorio
                         </button>
                     </div>
@@ -325,22 +325,22 @@ else
                 <div class="final-actions">
                     @if (IsRejectMode)
                     {
-                        <button class="btn btn-danger" disabled="@(!CanReportPhysicalCount || isSaving)" @onclick="RejectToolAsync" data-ntx-tone="danger" >
+                        <button class="btn ntx-btn--danger" disabled="@(!CanReportPhysicalCount || isSaving)" @onclick="RejectToolAsync" data-ntx-tone="danger" >
                             Rechazar / No es mía
                         </button>
 
-                        <a class="btn btn-outline-primary"
-                           href="@($"/physical-counts/{CountId}/participants/{ParticipantId}/pending-tools/{ToolAssetId}")" data-ntx-tone="primary" >
+                        <a class="btn ntx-btn--operation"
+                           href="@($"/physical-counts/{CountId}/participants/{ParticipantId}/pending-tools/{ToolAssetId}")" data-ntx-tone="operation" >
                             Cambiar a confirmar
                         </a>
                     }
                     else
                     {
-                        <button class="btn btn-success" disabled="@(!CanReportPhysicalCount || isSaving)" @onclick="ConfirmToolAsync" data-ntx-tone="danger" >
+                        <button class="btn ntx-btn--affirmative" disabled="@(!CanReportPhysicalCount || isSaving)" @onclick="ConfirmToolAsync" data-ntx-tone="affirmative" >
                             Confirmar / Reportar correcto
                         </button>
 
-                        <a class="btn btn-outline-danger"
+                        <a class="btn ntx-btn--danger"
                            href="@($"/physical-counts/{CountId}/participants/{ParticipantId}/pending-tools/{ToolAssetId}?mode=reject")" data-ntx-tone="danger" >
                             Cambiar a rechazar
                         </a>

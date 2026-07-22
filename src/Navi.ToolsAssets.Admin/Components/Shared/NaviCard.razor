@@ -1,0 +1,185 @@
+@using System.Collections.Generic
+@using Microsoft.AspNetCore.Components
+
+<article @attributes="AdditionalAttributes"
+         class="@CssClass"
+         data-ntx-component="card"
+         data-ntx-tone="@NormalizedTone"
+         data-ntx-accent="@(Accent ? "true" : null)"
+         data-ntx-selected="@(Selected ? "true" : null)">
+    @if (HasHeader)
+    {
+        <header class="navi-card__header">
+            <div class="navi-card__heading">
+                @if (!string.IsNullOrWhiteSpace(Eyebrow))
+                {
+                    <span class="navi-card__eyebrow">
+                        @Eyebrow
+                    </span>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(Title))
+                {
+                    <h2 class="navi-card__title">
+                        @Title
+                    </h2>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(Description))
+                {
+                    <p class="navi-card__description">
+                        @Description
+                    </p>
+                }
+
+                @if (HeaderContent is not null)
+                {
+                    <div class="navi-card__header-content">
+                        @HeaderContent
+                    </div>
+                }
+            </div>
+
+            @if (HeaderActions is not null)
+            {
+                <div class="navi-card__header-actions">
+                    @HeaderActions
+                </div>
+            }
+        </header>
+    }
+
+    @if (ChildContent is not null)
+    {
+        <div class="navi-card__body">
+            @ChildContent
+        </div>
+    }
+
+    @if (FooterContent is not null)
+    {
+        <footer class="navi-card__footer">
+            @FooterContent
+        </footer>
+    }
+</article>
+
+@code {
+    [Parameter]
+    public string? Eyebrow { get; set; }
+
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public string? Description { get; set; }
+
+    [Parameter]
+    public string Tone { get; set; } = "neutral";
+
+    [Parameter]
+    public bool Accent { get; set; }
+
+    [Parameter]
+    public bool Compact { get; set; }
+
+    [Parameter]
+    public bool Flush { get; set; }
+
+    [Parameter]
+    public bool Interactive { get; set; }
+
+    [Parameter]
+    public bool Selected { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public RenderFragment? HeaderContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? HeaderActions { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? FooterContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>?
+        AdditionalAttributes { get; set; }
+
+    private bool HasHeader =>
+        !string.IsNullOrWhiteSpace(Eyebrow) ||
+        !string.IsNullOrWhiteSpace(Title) ||
+        !string.IsNullOrWhiteSpace(Description) ||
+        HeaderContent is not null ||
+        HeaderActions is not null;
+
+    private string NormalizedTone =>
+        Tone?.Trim().ToLowerInvariant() switch
+        {
+            "primary" or "action" => "primary",
+            "positive" or "success" => "positive",
+            "warning" => "warning",
+            "danger" or "error" => "danger",
+            "dark" => "dark",
+            _ => "neutral"
+        };
+
+    private string CssClass
+    {
+        get
+        {
+            var classes = new List<string>
+            {
+                "navi-card",
+                $"navi-card--{NormalizedTone}"
+            };
+
+            if (Accent)
+            {
+                classes.Add("navi-card--accent");
+            }
+
+            if (Compact)
+            {
+                classes.Add("navi-card--compact");
+            }
+
+            if (Flush)
+            {
+                classes.Add("navi-card--flush");
+            }
+
+            if (Interactive)
+            {
+                classes.Add("navi-card--interactive");
+            }
+
+            if (Selected)
+            {
+                classes.Add("is-selected");
+            }
+
+            if (!HasHeader)
+            {
+                classes.Add("navi-card--without-header");
+            }
+
+            if (ChildContent is null)
+            {
+                classes.Add("navi-card--without-body");
+            }
+
+            if (!string.IsNullOrWhiteSpace(Class))
+            {
+                classes.Add(Class.Trim());
+            }
+
+            return string.Join(" ", classes);
+        }
+    }
+}

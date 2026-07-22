@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Navi.ToolsAssets.Api.Security;
+using Navi.ToolsAssets.Application.Documents;
 using Navi.ToolsAssets.Domain.Entities.Inventory;
 using Navi.ToolsAssets.Domain.Entities.LifeCycles;
 using Navi.ToolsAssets.Domain.Entities.Organization;
@@ -13,11 +15,21 @@ namespace Navi.ToolsAssets.Api.Controllers;
 [Route("api/physical-counts")]
 public class PhysicalCountsController : ControllerBase
 {
-    private readonly NaviToolsAssetsDbContext _context;
+    private const long MaxReportedItemEvidenceBytes =
+        50L * 1024L * 1024L;
 
-    public PhysicalCountsController(NaviToolsAssetsDbContext context)
+    private const long MaxReportedItemEvidenceRequestBytes =
+        55L * 1024L * 1024L;
+
+    private readonly NaviToolsAssetsDbContext _context;
+    private readonly IDocumentStorageService _documentStorage;
+
+    public PhysicalCountsController(
+        NaviToolsAssetsDbContext context,
+        IDocumentStorageService documentStorage)
     {
         _context = context;
+        _documentStorage = documentStorage;
     }
 
     [HttpGet]
@@ -163,6 +175,54 @@ public class PhysicalCountsController : ControllerBase
             return BadRequest(new { Message = $"No existe la sede {branchCode}." });
         }
 
+        // NAVI V194-CORR1 - UNA TOMA ABIERTA POR SEDE
+        await using var createTransactionV194 =
+            await _context.Database.BeginTransactionAsync(
+                System.Data.IsolationLevel.Serializable
+            );
+
+        var blockingCountV194 = await _context.PhysicalCounts
+            .AsNoTracking()
+            .Where(item =>
+                item.BranchId == branch.Id
+                && item.Status != PhysicalCountStatus.Completed
+                && item.Status != PhysicalCountStatus.Reconciled
+                && item.Status != PhysicalCountStatus.Cancelled
+            )
+            .Select(item => new
+            {
+                item.Id,
+                item.CountNumber,
+                item.Status
+            })
+            .FirstOrDefaultAsync();
+
+        if (blockingCountV194 is not null)
+        {
+            var blockingStatusV194 =
+                GetPhysicalCountStatusLabel(
+                    blockingCountV194.Status
+                );
+
+            return Conflict(new
+            {
+                Code = "OpenPhysicalCountExists",
+                Message =
+                    $"La sede {branch.Code} ya tiene la toma física "
+                    + $"{blockingCountV194.CountNumber} en estado "
+                    + $"{blockingStatusV194}. Debe completarla, "
+                    + "conciliarla/cerrarla o cancelarla antes de "
+                    + "crear una nueva.",
+                BranchId = branch.Id,
+                BranchCode = branch.Code,
+                PhysicalCountId = blockingCountV194.Id,
+                CountNumber = blockingCountV194.CountNumber,
+                Status = blockingCountV194.Status.ToString(),
+                StatusLabel = blockingStatusV194
+            });
+        }
+
+
         var createdBy = string.IsNullOrWhiteSpace(request.ResponsibleBy)
             ? "api"
             : request.ResponsibleBy.Trim();
@@ -183,6 +243,8 @@ public class PhysicalCountsController : ControllerBase
 
         await _context.SaveChangesAsync();
 
+        await createTransactionV194.CommitAsync();
+
         return CreatedAtAction(nameof(GetPhysicalCountById), new { id = count.Id }, new
         {
             count.Id,
@@ -199,10 +261,12 @@ public class PhysicalCountsController : ControllerBase
     }
 
     [HttpPatch("{id:guid}/start")]
-    public async Task<IActionResult> StartPhysicalCount(Guid id, [FromBody] PhysicalCountActionRequest request)
+    public async Task<IActionResult> StartPhysicalCount(Guid id, [FromBody] PhysicalCountActionRequest request, CancellationToken cancellationToken)
     {
+        await EnsurePhysicalCountParticipantSchemaAsync(cancellationToken);
+
         var count = await _context.PhysicalCounts
-            .FirstOrDefaultAsync(x => x.Id == id);
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
         if (count is null)
         {
@@ -214,11 +278,21 @@ public class PhysicalCountsController : ControllerBase
             return BadRequest(new { Message = $"Solo se puede iniciar una toma física en borrador. Estado actual: {count.Status}." });
         }
 
+        var participants = await _context.Set<PhysicalCountParticipant>()
+            .Where(x => !x.IsDeleted && x.PhysicalCountId == id)
+            .ToListAsync(cancellationToken);
+
+        if (!participants.Any())
+        {
+            return BadRequest(new { Message = "Debe generar participantes antes de iniciar la toma física." });
+        }
+
         var changedBy = GetActionUser(request);
+        var now = DateTime.UtcNow;
 
         count.Status = PhysicalCountStatus.InProgress;
-        count.StartedAt = DateTime.UtcNow;
-        count.UpdatedAt = DateTime.UtcNow;
+        count.StartedAt = now;
+        count.UpdatedAt = now;
         count.UpdatedBy = changedBy;
 
         if (!string.IsNullOrWhiteSpace(request.Notes))
@@ -226,7 +300,17 @@ public class PhysicalCountsController : ControllerBase
             count.Notes = request.Notes.Trim();
         }
 
-        await _context.SaveChangesAsync();
+        foreach (var participant in participants)
+        {
+            participant.Status = "InProgress";
+            participant.StartedAt = now;
+            participant.FinishedAt = null;
+            participant.LastActivityAt = now;
+            participant.UpdatedAt = now;
+            participant.UpdatedBy = changedBy;
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
 
         return Ok(new
         {
@@ -235,6 +319,7 @@ public class PhysicalCountsController : ControllerBase
             Status = count.Status.ToString(),
             StatusLabel = GetPhysicalCountStatusLabel(count.Status),
             count.StartedAt,
+            Participants = participants.Count,
             count.UpdatedBy
         });
     }
@@ -484,8 +569,13 @@ public class PhysicalCountsController : ControllerBase
                 x.BranchId,
                 x.ZoneId,
                 x.LocationId,
-                x.Status,
-                StatusLabel = GetParticipantStatusLabel(x.Status),
+                Status = count.Status == PhysicalCountStatus.InProgress && x.Status == "NotStarted"
+                    ? "InProgress"
+                    : x.Status,
+                StatusLabel = GetParticipantStatusLabel(
+                    count.Status == PhysicalCountStatus.InProgress && x.Status == "NotStarted"
+                        ? "InProgress"
+                        : x.Status),
                 x.ExpectedItems,
                 x.CountedItems,
                 x.PendingItems,
@@ -495,7 +585,9 @@ public class PhysicalCountsController : ControllerBase
                 x.DamagedItems,
                 x.ExtraItems,
                 Progress = x.ExpectedItems == 0 ? 0 : Math.Round((decimal)x.CountedItems * 100 / x.ExpectedItems, 2),
-                x.StartedAt,
+                StartedAt = count.Status == PhysicalCountStatus.Draft
+                    ? x.StartedAt
+                    : count.StartedAt,
                 x.FinishedAt,
                 x.LastActivityAt,
                 x.Observation,
@@ -602,9 +694,12 @@ public class PhysicalCountsController : ControllerBase
             return NotFound(new { Message = $"No se encontró la toma física con Id {id}." });
         }
 
-        if (count.Status is PhysicalCountStatus.Completed or PhysicalCountStatus.Reconciled or PhysicalCountStatus.Cancelled)
+        if (count.Status != PhysicalCountStatus.Draft)
         {
-            return BadRequest(new { Message = $"No se pueden generar participantes para una toma en estado {count.Status}." });
+            return BadRequest(new
+            {
+                Message = $"Los participantes solo pueden generarse antes de activar la toma física. Estado actual: {count.Status}."
+            });
         }
 
         var actionBy = string.IsNullOrWhiteSpace(request.ActionBy)
@@ -853,7 +948,12 @@ public class PhysicalCountsController : ControllerBase
             return NotFound(new { Message = $"No se encontró la toma física con Id {id}." });
         }
 
-        if (count.Status == PhysicalCountStatus.Completed || count.Status == PhysicalCountStatus.Reconciled || count.Status == PhysicalCountStatus.Cancelled)
+        if (count.Status == PhysicalCountStatus.InProgress)
+        {
+            return BadRequest(new { Message = "La toma física ya se encuentra activa." });
+        }
+
+        if (count.Status != PhysicalCountStatus.Draft)
         {
             return BadRequest(new { Message = $"No se puede activar una toma física en estado {count.Status}." });
         }
@@ -868,15 +968,26 @@ public class PhysicalCountsController : ControllerBase
         }
 
         var actionBy = GetActionUser(request);
+        var now = DateTime.UtcNow;
 
         count.Status = PhysicalCountStatus.InProgress;
-        count.StartedAt = DateTime.UtcNow;
-        count.UpdatedAt = DateTime.UtcNow;
+        count.StartedAt = now;
+        count.UpdatedAt = now;
         count.UpdatedBy = actionBy;
 
         if (!string.IsNullOrWhiteSpace(request.Notes))
         {
             count.Notes = request.Notes.Trim();
+        }
+
+        foreach (var participant in participants)
+        {
+            participant.Status = "InProgress";
+            participant.StartedAt = now;
+            participant.FinishedAt = null;
+            participant.LastActivityAt = now;
+            participant.UpdatedAt = now;
+            participant.UpdatedBy = actionBy;
         }
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -988,11 +1099,32 @@ public class PhysicalCountsController : ControllerBase
             return NotFound(new { Message = $"No se encontró el participante {participantId}." });
         }
 
+        var count = await _context.PhysicalCounts
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == participant.PhysicalCountId, cancellationToken);
+
+        if (count is null)
+        {
+            return NotFound(new { Message = "No se encontró la toma física asociada." });
+        }
+
+        if (count.Status != PhysicalCountStatus.InProgress)
+        {
+            return BadRequest(new { Message = $"La toma física debe estar activa/en progreso. Estado actual: {count.Status}." });
+        }
+
+        if (participant.Status is "Finished" or "FinishedWithDifferences" or "Expired")
+        {
+            return BadRequest(new { Message = "El participante ya se encuentra finalizado y no puede iniciarse nuevamente." });
+        }
+
         var now = DateTime.UtcNow;
-        var actionBy = string.IsNullOrWhiteSpace(request.ActionBy) ? participant.UserName : request.ActionBy.Trim();
+        var actionBy = string.IsNullOrWhiteSpace(request.ActionBy)
+            ? participant.UserName
+            : request.ActionBy.Trim();
 
         participant.Status = "InProgress";
-        participant.StartedAt ??= now;
+        participant.StartedAt = count.StartedAt;
         participant.LastActivityAt = now;
         participant.UpdatedAt = now;
         participant.UpdatedBy = actionBy;
@@ -1219,6 +1351,7 @@ public class PhysicalCountsController : ControllerBase
     public async Task<IActionResult> FinishParticipant(Guid participantId, [FromBody] ParticipantActionRequest request, CancellationToken cancellationToken)
     {
         await EnsurePhysicalCountParticipantSchemaAsync(cancellationToken);
+        await EnsurePhysicalCountReportedItemsSchemaAsync(cancellationToken);
 
         var participant = await _context.Set<PhysicalCountParticipant>()
             .FirstOrDefaultAsync(x => !x.IsDeleted && x.Id == participantId, cancellationToken);
@@ -1228,19 +1361,206 @@ public class PhysicalCountsController : ControllerBase
             return NotFound(new { Message = $"No se encontró el participante {participantId}." });
         }
 
+        var count = await _context.PhysicalCounts
+            .FirstOrDefaultAsync(x => x.Id == participant.PhysicalCountId, cancellationToken);
+
+        if (count is null)
+        {
+            return NotFound(new { Message = "No se encontró la toma física asociada." });
+        }
+
+        if (count.Status != PhysicalCountStatus.InProgress)
+        {
+            return BadRequest(new { Message = $"La toma física debe estar activa/en progreso. Estado actual: {count.Status}." });
+        }
+
+        if (participant.Status is "Finished" or "FinishedWithDifferences" or "Expired")
+        {
+            return BadRequest(new { Message = "El participante ya se encuentra finalizado." });
+        }
+
         var now = DateTime.UtcNow;
-        var actionBy = string.IsNullOrWhiteSpace(request.ActionBy) ? participant.UserName : request.ActionBy.Trim();
+        var actionBy = string.IsNullOrWhiteSpace(request.ActionBy)
+            ? participant.UserName
+            : request.ActionBy.Trim();
 
-        participant.CountedItems = await CountParticipantItemsAsync(participant.PhysicalCountId, participant.ResponsiblePersonId, participant.UserName, cancellationToken);
-        participant.PendingItems = Math.Max(participant.ExpectedItems - participant.CountedItems, 0);
+        var createdFromThisCountIds = await _context.Set<PhysicalCountReportedItem>()
+            .AsNoTracking()
+            .Where(x =>
+                !x.IsDeleted
+                && x.PhysicalCountId == participant.PhysicalCountId
+                && x.CreatedToolAssetId.HasValue)
+            .Select(x => x.CreatedToolAssetId!.Value)
+            .ToListAsync(cancellationToken);
 
-        participant.Status = participant.PendingItems == 0
-            ? (participant.DifferentItems > 0 || participant.MissingItems > 0 || participant.DamagedItems > 0 || participant.ExtraItems > 0 ? "FinishedWithDifferences" : "Finished")
-            : "InProgress";
+        var alreadyCountedIds = await _context.PhysicalCountItems
+            .AsNoTracking()
+            .Where(x => x.PhysicalCountId == participant.PhysicalCountId)
+            .Select(x => x.ToolAssetId)
+            .ToListAsync(cancellationToken);
 
-        participant.FinishedAt = participant.PendingItems == 0 ? now : null;
+        var existingParticipantItemsQuery = _context.PhysicalCountItems
+            .AsNoTracking()
+            .Include(x => x.ToolAsset)
+            .Where(x => x.PhysicalCountId == participant.PhysicalCountId);
+
+        if (participant.ResponsiblePersonId.HasValue)
+        {
+            existingParticipantItemsQuery = existingParticipantItemsQuery
+                .Where(x =>
+                    x.ToolAsset != null
+                    && x.ToolAsset.ResponsiblePersonId == participant.ResponsiblePersonId.Value);
+        }
+        else
+        {
+            existingParticipantItemsQuery = existingParticipantItemsQuery
+                .Where(x => x.ToolAsset != null && !x.ToolAsset.ResponsiblePersonId.HasValue);
+        }
+
+        var existingParticipantItems = await existingParticipantItemsQuery
+            .ToListAsync(cancellationToken);
+
+        var pendingToolsQuery = _context.ToolAssets
+            .Include(x => x.Branch)
+            .Include(x => x.Location)
+            .Include(x => x.ResponsiblePerson)
+            .Include(x => x.ToolType)
+            .Include(x => x.ToolCategory)
+            .Where(x =>
+                !x.IsDeleted
+                && x.BranchId == participant.BranchId
+                && !alreadyCountedIds.Contains(x.Id)
+                && !createdFromThisCountIds.Contains(x.Id)
+                && (x.Description == null || !x.Description.Contains(count.CountNumber)));
+
+        if (participant.ResponsiblePersonId.HasValue)
+        {
+            pendingToolsQuery = pendingToolsQuery
+                .Where(x => x.ResponsiblePersonId == participant.ResponsiblePersonId.Value);
+        }
+        else
+        {
+            pendingToolsQuery = pendingToolsQuery
+                .Where(x => !x.ResponsiblePersonId.HasValue);
+        }
+
+        var pendingTools = await pendingToolsQuery
+            .OrderBy(x => x.InternalCode)
+            .ToListAsync(cancellationToken);
+
+        var pendingToolIds = pendingTools
+            .Select(x => x.Id)
+            .ToList();
+
+        var existingReports = await _context.Set<PhysicalCountReportedItem>()
+            .Where(x =>
+                !x.IsDeleted
+                && x.PhysicalCountId == participant.PhysicalCountId
+                && x.PhysicalCountParticipantId == participant.Id
+                && x.MatchedToolAssetId.HasValue
+                && pendingToolIds.Contains(x.MatchedToolAssetId.Value))
+            .ToListAsync(cancellationToken);
+
+        var reportsByToolId = existingReports
+            .Where(x => x.MatchedToolAssetId.HasValue)
+            .GroupBy(x => x.MatchedToolAssetId!.Value)
+            .ToDictionary(x => x.Key, x => x.First());
+
+        var automaticObservation = string.IsNullOrWhiteSpace(request.Observation)
+            ? "Registrada automáticamente como encontrada al finalizar el participante."
+            : request.Observation.Trim();
+
+        foreach (var tool in pendingTools)
+        {
+            var countItem = new PhysicalCountItem
+            {
+                PhysicalCountId = participant.PhysicalCountId,
+                ToolAssetId = tool.Id,
+                WasFound = true,
+                ExpectedLocation = tool.Location?.Name,
+                FoundLocation = tool.Location?.Name,
+                Observation = automaticObservation,
+                CountedAt = now,
+                CreatedAt = now,
+                CreatedBy = actionBy
+            };
+
+            _context.PhysicalCountItems.Add(countItem);
+
+            if (!reportsByToolId.TryGetValue(tool.Id, out var report))
+            {
+                report = new PhysicalCountReportedItem
+                {
+                    PhysicalCountId = participant.PhysicalCountId,
+                    PhysicalCountParticipantId = participant.Id,
+                    MatchedToolAssetId = tool.Id,
+                    ToolAssetId = tool.Id,
+                    CreatedAt = now,
+                    CreatedBy = actionBy
+                };
+
+                _context.Set<PhysicalCountReportedItem>().Add(report);
+            }
+            else
+            {
+                report.UpdatedAt = now;
+                report.UpdatedBy = actionBy;
+            }
+
+            report.ReportType = "Found";
+            report.ToolAssetId = tool.Id;
+            report.MatchedToolAssetId = tool.Id;
+            report.ReportedCode = tool.InternalCode;
+            report.ReportedName = tool.Name;
+            report.SerialNumber = tool.SerialNumber;
+            report.Brand = tool.Brand;
+            report.Model = tool.Model;
+            report.AssetTypeId = tool.ToolTypeId;
+            report.AssetTypeName = tool.ToolType?.Name;
+            report.CategoryId = tool.ToolCategoryId;
+            report.CategoryName = tool.ToolCategory?.Name;
+            report.BranchId = tool.BranchId;
+            report.BranchCode = tool.Branch?.Code;
+            report.LocationId = tool.LocationId;
+            report.FoundLocation = tool.Location?.Name;
+            report.ResponsiblePersonId = participant.ResponsiblePersonId ?? tool.ResponsiblePersonId;
+            report.ResponsibleName = tool.ResponsiblePerson?.FullName ?? participant.DisplayName;
+            report.PhysicalStatus = tool.PhysicalStatus.ToString();
+            report.OperationalStatus = tool.OperationalStatus.ToString();
+            report.Observation = automaticObservation;
+            report.ReportedBy = actionBy;
+            report.ReportedAt = now;
+            report.ReconciliationStatus = "Reconciled";
+            report.ReconciliationObservation = "Herramienta pendiente registrada automáticamente como encontrada al finalizar el participante, conservando la información actual del activo.";
+            report.RequiresUserClarification = false;
+            report.MinimumDataCompleted = true;
+            report.MissingRequiredData = null;
+            report.Rejected = false;
+            report.RejectedAt = null;
+            report.RejectedBy = null;
+            report.RejectionReason = null;
+            report.ReconciledAt = now;
+            report.ReconciledBy = actionBy;
+            report.SuggestedAction = "Validación completa";
+        }
+
+        var existingFoundItems = existingParticipantItems.Count(x => x.WasFound);
+        var finalCountedItems = existingParticipantItems.Count + pendingTools.Count;
+
+        participant.ExpectedItems = Math.Max(participant.ExpectedItems, finalCountedItems);
+        participant.CountedItems = finalCountedItems;
+        participant.PendingItems = 0;
+        participant.FoundItems = existingFoundItems + pendingTools.Count;
+        participant.Status = participant.DifferentItems > 0
+            || participant.MissingItems > 0
+            || participant.DamagedItems > 0
+            || participant.ExtraItems > 0
+                ? "FinishedWithDifferences"
+                : "Finished";
+        participant.StartedAt = count.StartedAt;
+        participant.FinishedAt = now;
         participant.LastActivityAt = now;
-        participant.Observation = request.Observation;
+        participant.Observation = automaticObservation;
         participant.UpdatedAt = now;
         participant.UpdatedBy = actionBy;
 
@@ -1248,6 +1568,9 @@ public class PhysicalCountsController : ControllerBase
 
         return Ok(new
         {
+            Message = pendingTools.Count == 0
+                ? "Participante finalizado. No tenía herramientas pendientes."
+                : $"Participante finalizado. Se registraron automáticamente {pendingTools.Count} herramientas pendientes como encontradas.",
             participant.Id,
             participant.DisplayName,
             participant.Status,
@@ -1255,6 +1578,9 @@ public class PhysicalCountsController : ControllerBase
             participant.ExpectedItems,
             participant.CountedItems,
             participant.PendingItems,
+            participant.FoundItems,
+            AutoReportedItems = pendingTools.Count,
+            participant.StartedAt,
             participant.FinishedAt
         });
     }
@@ -2478,6 +2804,302 @@ END;
         });
     }
 
+    // =========================================================
+    // NAVI REPORTED ITEM MODAL EVIDENCE V155 START
+    // =========================================================
+
+    [RequirePermission("PhysicalCounts.Evidence.Upload")]
+    [HttpPost("reported-items/{reportedItemId:guid}/evidences")]
+    [RequestSizeLimit(MaxReportedItemEvidenceRequestBytes)]
+    public async Task<IActionResult> UploadReportedItemEvidence(
+        Guid reportedItemId,
+        [FromForm] IFormFile file,
+        [FromForm] string? description,
+        [FromForm] string? uploadedBy,
+        CancellationToken cancellationToken)
+    {
+        await EnsurePhysicalCountReportedItemEvidencesSchemaAsync(
+            cancellationToken);
+
+        if (file is null || file.Length <= 0)
+        {
+            return BadRequest(new
+            {
+                Message = "Debe seleccionar una evidencia física."
+            });
+        }
+
+        if (file.Length > MaxReportedItemEvidenceBytes)
+        {
+            return BadRequest(new
+            {
+                Message =
+                    "La evidencia supera el tamaño máximo de 50 MB."
+            });
+        }
+
+        if (!IsAllowedReportedItemEvidence(
+                file.FileName,
+                file.ContentType))
+        {
+            return BadRequest(new
+            {
+                Message =
+                    "Solo se permiten fotografías o archivos PDF."
+            });
+        }
+
+        var reportedItem = await _context
+            .Set<PhysicalCountReportedItem>()
+            .FirstOrDefaultAsync(
+                x =>
+                    !x.IsDeleted &&
+                    x.Id == reportedItemId,
+                cancellationToken);
+
+        if (reportedItem is null)
+        {
+            return NotFound(new
+            {
+                Message =
+                    $"No se encontró el registro reportado "
+                    + $"{reportedItemId}."
+            });
+        }
+
+        var actor =
+            NormalizeOptional(uploadedBy)
+            ?? NormalizeOptional(
+                Request.Headers["X-Navi-User"]
+                    .FirstOrDefault())
+            ?? NormalizeOptional(
+                Request.Headers["X-Navi-UserName"]
+                    .FirstOrDefault())
+            ?? "admin";
+
+        var safeFileName =
+            SanitizeReportedItemEvidenceFileName(
+                file.FileName);
+
+        var objectKey =
+            $"physical-counts/reported-items/"
+            + $"{reportedItem.PhysicalCountId:N}/"
+            + $"{reportedItem.Id:N}/"
+            + $"{Guid.NewGuid():N}_{safeFileName}";
+
+        var contentType =
+            string.IsNullOrWhiteSpace(file.ContentType)
+                ? "application/octet-stream"
+                : file.ContentType.Trim();
+
+        string storedObjectKey;
+
+        await using (var stream = file.OpenReadStream())
+        {
+            storedObjectKey =
+                await _documentStorage.UploadAsync(
+                    objectKey,
+                    stream,
+                    contentType,
+                    cancellationToken);
+        }
+
+        var now = DateTime.UtcNow;
+
+        var evidence =
+            new PhysicalCountReportedItemEvidence
+            {
+                Id = Guid.NewGuid(),
+                PhysicalCountReportedItemId =
+                    reportedItem.Id,
+                FileName = safeFileName,
+                ObjectKey = storedObjectKey,
+                ContentType = contentType,
+                SizeBytes = file.Length,
+                Description =
+                    NormalizeOptional(description),
+                UploadedBy = actor,
+                UploadedAt = now,
+                CreatedAt = now,
+                CreatedBy = actor
+            };
+
+        try
+        {
+            _context
+                .PhysicalCountReportedItemEvidences
+                .Add(evidence);
+
+            // Conserva compatibilidad con el campo existente.
+            // Cuando hay varias evidencias, apunta a la última.
+            reportedItem.EvidenceDocumentId = evidence.Id;
+            reportedItem.UpdatedAt = now;
+            reportedItem.UpdatedBy = actor;
+
+            await _context.SaveChangesAsync(
+                cancellationToken);
+        }
+        catch
+        {
+            try
+            {
+                await _documentStorage.DeleteAsync(
+                    storedObjectKey,
+                    cancellationToken);
+            }
+            catch
+            {
+                // El error original de base de datos
+                // debe conservarse.
+            }
+
+            throw;
+        }
+
+        return Ok(new
+        {
+            evidence.Id,
+            evidence.PhysicalCountReportedItemId,
+            evidence.FileName,
+            evidence.ContentType,
+            evidence.SizeBytes,
+            evidence.Description,
+            evidence.UploadedBy,
+            evidence.UploadedAt,
+            DownloadUrl =
+                $"/api/physical-counts/"
+                + $"reported-items/evidences/"
+                + $"{evidence.Id}/download",
+            Message =
+                "Evidencia física guardada correctamente."
+        });
+    }
+
+
+    [RequirePermission(
+        "PhysicalCounts.View",
+        "PhysicalCounts.Report",
+        "PhysicalCounts.Evidence.Upload")]
+    [HttpGet("reported-items/{reportedItemId:guid}/evidences")]
+    public async Task<IActionResult> GetReportedItemEvidences(
+        Guid reportedItemId,
+        CancellationToken cancellationToken)
+    {
+        await EnsurePhysicalCountReportedItemEvidencesSchemaAsync(
+            cancellationToken);
+
+        var reportedItemExists = await _context
+            .Set<PhysicalCountReportedItem>()
+            .AsNoTracking()
+            .AnyAsync(
+                x =>
+                    !x.IsDeleted &&
+                    x.Id == reportedItemId,
+                cancellationToken);
+
+        if (!reportedItemExists)
+        {
+            return NotFound(new
+            {
+                Message =
+                    $"No se encontró el registro reportado "
+                    + $"{reportedItemId}."
+            });
+        }
+
+        var evidences = await _context
+            .PhysicalCountReportedItemEvidences
+            .AsNoTracking()
+            .Where(
+                x =>
+                    !x.IsDeleted &&
+                    x.PhysicalCountReportedItemId ==
+                        reportedItemId)
+            .OrderByDescending(x => x.UploadedAt)
+            .Select(x => new
+            {
+                x.Id,
+                x.PhysicalCountReportedItemId,
+                x.FileName,
+                x.ContentType,
+                x.SizeBytes,
+                x.Description,
+                x.UploadedBy,
+                x.UploadedAt,
+                DownloadUrl =
+                    $"/api/physical-counts/"
+                    + $"reported-items/evidences/"
+                    + $"{x.Id}/download"
+            })
+            .ToListAsync(cancellationToken);
+
+        return Ok(evidences);
+    }
+
+
+    [RequirePermission(
+        "PhysicalCounts.View",
+        "PhysicalCounts.Report",
+        "PhysicalCounts.Evidence.Upload")]
+    [HttpGet("reported-items/evidences/{evidenceId:guid}/download")]
+    public async Task<IActionResult> DownloadReportedItemEvidence(
+        Guid evidenceId,
+        CancellationToken cancellationToken)
+    {
+        await EnsurePhysicalCountReportedItemEvidencesSchemaAsync(
+            cancellationToken);
+
+        var evidence = await _context
+            .PhysicalCountReportedItemEvidences
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                x =>
+                    !x.IsDeleted &&
+                    x.Id == evidenceId,
+                cancellationToken);
+
+        if (evidence is null)
+        {
+            return NotFound(new
+            {
+                Message =
+                    "No se encontró la evidencia física."
+            });
+        }
+
+        var exists =
+            await _documentStorage.ExistsAsync(
+                evidence.ObjectKey,
+                cancellationToken);
+
+        if (!exists)
+        {
+            return NotFound(new
+            {
+                Message =
+                    "El archivo de evidencia no se encuentra "
+                    + "en el almacenamiento."
+            });
+        }
+
+        var stream =
+            await _documentStorage.DownloadAsync(
+                evidence.ObjectKey,
+                cancellationToken);
+
+        return File(
+            stream,
+            evidence.ContentType
+                ?? "application/octet-stream",
+            evidence.FileName,
+            enableRangeProcessing: true);
+    }
+
+    // =========================================================
+    // NAVI REPORTED ITEM MODAL EVIDENCE V155 END
+    // =========================================================
+
+
     [HttpPatch("reported-items/{reportedItemId:guid}/request-clarification")]
     public async Task<IActionResult> RequestReportedItemClarification(Guid reportedItemId, [FromBody] ReportedItemActionRequest request, CancellationToken cancellationToken)
     {
@@ -2795,6 +3417,154 @@ END;
             _ => string.IsNullOrWhiteSpace(status) ? "Pendiente de revisión" : status
         };
     }
+
+    private static bool IsAllowedReportedItemEvidence(
+        string? fileName,
+        string? contentType)
+    {
+        var normalizedContentType =
+            contentType?.Trim()
+            ?? string.Empty;
+
+        if (normalizedContentType.StartsWith(
+                "image/",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (normalizedContentType.Equals(
+                "application/pdf",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var extension =
+            Path.GetExtension(fileName)
+                ?.Trim()
+                .ToLowerInvariant();
+
+        return extension is
+            ".jpg"
+            or ".jpeg"
+            or ".png"
+            or ".webp"
+            or ".gif"
+            or ".heic"
+            or ".heif"
+            or ".pdf";
+    }
+
+
+    private static string
+        SanitizeReportedItemEvidenceFileName(
+            string? fileName)
+    {
+        var original =
+            Path.GetFileName(
+                string.IsNullOrWhiteSpace(fileName)
+                    ? "evidencia"
+                    : fileName.Trim());
+
+        var characters = original
+            .Select(
+                character =>
+                    char.IsLetterOrDigit(character)
+                    || character is '.' or '-' or '_'
+                        ? character
+                        : '_')
+            .ToArray();
+
+        var cleaned = new string(characters);
+
+        if (string.IsNullOrWhiteSpace(cleaned))
+        {
+            cleaned = "evidencia";
+        }
+
+        return cleaned.Length <= 180
+            ? cleaned
+            : cleaned[..180];
+    }
+
+
+    private async Task
+        EnsurePhysicalCountReportedItemEvidencesSchemaAsync(
+            CancellationToken cancellationToken)
+    {
+        await EnsurePhysicalCountReportedItemsSchemaAsync(
+            cancellationToken);
+
+        var sql = @"
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.schemas
+    WHERE name = 'PhysicalCounts'
+)
+BEGIN
+    EXEC('CREATE SCHEMA PhysicalCounts');
+END;
+
+IF OBJECT_ID(
+    N'[PhysicalCounts].[PhysicalCountReportedItemEvidences]',
+    N'U'
+) IS NULL
+BEGIN
+    CREATE TABLE
+        [PhysicalCounts].[PhysicalCountReportedItemEvidences]
+    (
+        [Id] uniqueidentifier NOT NULL
+            CONSTRAINT [PK_PhysicalCountReportedItemEvidences]
+            PRIMARY KEY,
+
+        [PhysicalCountReportedItemId]
+            uniqueidentifier NOT NULL,
+
+        [FileName] nvarchar(260) NOT NULL,
+        [ObjectKey] nvarchar(600) NOT NULL,
+        [ContentType] nvarchar(180) NULL,
+        [SizeBytes] bigint NOT NULL,
+        [Description] nvarchar(1000) NULL,
+        [UploadedBy] nvarchar(180) NULL,
+        [UploadedAt] datetime2 NOT NULL,
+
+        [CreatedAt] datetime2 NOT NULL,
+        [CreatedBy] nvarchar(180) NULL,
+        [UpdatedAt] datetime2 NULL,
+        [UpdatedBy] nvarchar(180) NULL,
+
+        [IsDeleted] bit NOT NULL
+            CONSTRAINT
+            [DF_PhysicalCountReportedItemEvidences_IsDeleted]
+            DEFAULT 0,
+
+        CONSTRAINT
+            [FK_PhysicalCountReportedItemEvidences_ReportedItem]
+        FOREIGN KEY ([PhysicalCountReportedItemId])
+        REFERENCES
+            [PhysicalCounts].[PhysicalCountReportedItems]([Id])
+    );
+
+    CREATE INDEX
+        [IX_PhysicalCountReportedItemEvidences_ReportedItemId]
+    ON
+        [PhysicalCounts].[PhysicalCountReportedItemEvidences]
+        ([PhysicalCountReportedItemId]);
+
+    CREATE INDEX
+        [IX_PhysicalCountReportedItemEvidences_UploadedAt]
+    ON
+        [PhysicalCounts].[PhysicalCountReportedItemEvidences]
+        ([UploadedAt]);
+END;
+";
+
+        await _context.Database.ExecuteSqlRawAsync(
+            sql,
+            cancellationToken);
+    }
+
 
     private async Task EnsurePhysicalCountReportedItemsSchemaAsync(CancellationToken cancellationToken)
     {

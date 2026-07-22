@@ -8,7 +8,9 @@ public sealed class MobileAuthSessionService
 {
     private const string StorageKey = "navi-mobile-auth-session";
     private readonly IJSRuntime _js;
-    private bool _initialized;
+    private Task? _initializationTask;
+
+    public event Action? OnChange;
 
     public MobileAuthSessionService(IJSRuntime js)
     {
@@ -21,30 +23,54 @@ public sealed class MobileAuthSessionService
 
     public string AuditUser => CurrentUser?.UserName ?? "mobile";
 
-    public async Task InitializeAsync()
+    public Task InitializeAsync()
     {
-        if (_initialized)
-        {
-            return;
-        }
+        /*
+         * MainLayout, encabezado y página pueden solicitar
+         * la restauración al mismo tiempo.
+         *
+         * Todos deben esperar la misma tarea para evitar que
+         * alguno reciba una sesión temporalmente vacía.
+         */
+        return _initializationTask ??=
+            InitializeCoreAsync();
+    }
 
-        _initialized = true;
-
+    private async Task InitializeCoreAsync()
+    {
         try
         {
-            var json = await _js.InvokeAsync<string?>("localStorage.getItem", StorageKey);
+            var json =
+                await _js.InvokeAsync<string?>(
+                    "localStorage.getItem",
+                    StorageKey);
 
             if (!string.IsNullOrWhiteSpace(json))
             {
-                CurrentUser = JsonSerializer.Deserialize<MobileUser>(
-                    json,
-                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                CurrentUser =
+                    JsonSerializer.Deserialize<MobileUser>(
+                        json,
+                        new JsonSerializerOptions
+                        {
+                            PropertyNameCaseInsensitive = true
+                        });
+            }
+            else
+            {
+                CurrentUser = null;
             }
         }
         catch
         {
             CurrentUser = null;
-            await _js.InvokeVoidAsync("localStorage.removeItem", StorageKey);
+
+            await _js.InvokeVoidAsync(
+                "localStorage.removeItem",
+                StorageKey);
+        }
+        finally
+        {
+            OnChange?.Invoke();
         }
     }
 
@@ -52,15 +78,32 @@ public sealed class MobileAuthSessionService
     {
         CurrentUser = user;
 
-        var json = JsonSerializer.Serialize(user);
+        var json =
+            JsonSerializer.Serialize(user);
 
-        await _js.InvokeVoidAsync("localStorage.setItem", StorageKey, json);
+        await _js.InvokeVoidAsync(
+            "localStorage.setItem",
+            StorageKey,
+            json);
+
+        _initializationTask =
+            Task.CompletedTask;
+
+        OnChange?.Invoke();
     }
 
     public async Task LogoutAsync()
     {
         CurrentUser = null;
-        await _js.InvokeVoidAsync("localStorage.removeItem", StorageKey);
+
+        await _js.InvokeVoidAsync(
+            "localStorage.removeItem",
+            StorageKey);
+
+        _initializationTask =
+            Task.CompletedTask;
+
+        OnChange?.Invoke();
     }
 
     public bool HasPermission(string permission)

@@ -1,0 +1,349 @@
+@using Microsoft.JSInterop
+@using Navi.ToolsAssets.MobilePwa.Components.Shared
+
+@inject IJSRuntime JS
+
+<div class="mappearance-content">
+    @if (!isReady)
+    {
+        <div class="mappearance-loading" role="status" aria-busy="true">Cargando preferencias visuales...</div>
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(message))
+        {
+            <div class="@messageClass"
+                 role="@messageRole"
+                 aria-live="@messageLiveRegion">@message</div>
+        }
+
+        <section class="mappearance-group">
+            <header class="mappearance-group__header">
+                <span>TIPOGRAFÍA</span>
+                <h3>Tamaño del texto</h3>
+                <p>Ajusta la lectura de toda la aplicación en este dispositivo.</p>
+            </header>
+
+            <div class="mappearance-options"
+                 role="group"
+                 aria-label="Tamaño del texto">
+                @foreach (var option in FontOptions)
+                {
+                    <button type="button"
+                            @key="option.Code"
+                            class="@GetOptionClass(preferences.FontScale, option.Code)"
+                            data-ntx-tone="ghost"
+                            data-font-sample="@option.Code"
+                            aria-pressed="@IsSelected(preferences.FontScale, option.Code)"
+                            disabled="@isApplying"
+                            @onclick="() => SetFontAsync(option.Code)">
+                        <span class="mappearance-option__heading">
+                            <strong>@option.Name</strong>
+                            <b>Aa</b>
+                        </span>
+                        <small>@option.Description</small>
+                    </button>
+                }
+            </div>
+        </section>
+
+        <section class="mappearance-group">
+            <header class="mappearance-group__header">
+                <span>COLORES</span>
+                <h3>Tema visual</h3>
+                <p>Cambia la paleta sin modificar la información ni los permisos.</p>
+            </header>
+
+            <div class="mappearance-options"
+                 role="group"
+                 aria-label="Tema visual">
+                @foreach (var option in ThemeOptions)
+                {
+                    <button type="button"
+                            @key="option.Code"
+                            class="@GetOptionClass(preferences.ColorTheme, option.Code)"
+                            data-ntx-tone="ghost"
+                            aria-pressed="@IsSelected(preferences.ColorTheme, option.Code)"
+                            disabled="@isApplying"
+                            @onclick="() => SetThemeAsync(option.Code)">
+                        <span class="mappearance-theme-preview"
+                              data-theme-preview="@option.Code"
+                              aria-hidden="true">
+                            <i></i><i></i><i></i><i></i>
+                        </span>
+                        <span class="mappearance-option__heading">
+                            <strong>@option.Name</strong>
+                        </span>
+                        <small>@option.Description</small>
+                    </button>
+                }
+            </div>
+        </section>
+
+        <section class="mappearance-preview">
+            <header class="mappearance-group__header">
+                <span>VISTA PREVIA</span>
+                <h3>Estándar móvil NAVI</h3>
+                <p>Componentes compartidos reales con tres KPI principales.</p>
+            </header>
+
+            @* NAVI MOBILE APPEARANCE KPI STANDARD V79 START *@
+
+            <NaviMobileKpiOverflow
+                PrimaryCount="3"
+                OverflowCount="3"
+                Class="navi-mobile-kpi-standard-overflow mappearance-kpi-standard"
+                ButtonLabel="Mostrar indicadores adicionales">
+
+                <PrimaryContent>
+
+                    <NaviMobileKpiGrid
+                        Columns="3"
+                        Compact="true"
+                        Dividers="true"
+                        Class="navi-mobile-kpi-standard-grid mappearance-kpi-standard-primary">
+
+                        <NaviMobileKpiCard
+                            Title="Inventario"
+                            Description="Activos visibles"
+                            Value="183"
+                            IconKey="inventory"
+                            Tone="neutral" />
+
+                        <NaviMobileKpiCard
+                            Title="Disponibles"
+                            Description="Para asignación"
+                            Value="4"
+                            IconKey="check"
+                            Tone="positive" />
+
+                        <NaviMobileKpiCard
+                            Title="En uso"
+                            Description="Asignadas"
+                            Value="163"
+                            IconKey="transfer"
+                            Tone="soft" />
+
+                    </NaviMobileKpiGrid>
+
+                </PrimaryContent>
+
+                <OverflowContent>
+
+                    <NaviMobileKpiGrid
+                        Columns="3"
+                        Compact="true"
+                        Dividers="true"
+                        Class="navi-mobile-kpi-standard-grid navi-mobile-kpi-standard-grid--overflow mappearance-kpi-standard-overflow-grid">
+
+                        <NaviMobileKpiCard
+                            Title="Mantenimiento"
+                            Description="Proceso técnico"
+                            Value="5"
+                            IconKey="wrench"
+                            Tone="warning" />
+
+                        <NaviMobileKpiCard
+                            Title="Por validar"
+                            Description="Pendientes"
+                            Value="1"
+                            IconKey="clock"
+                            Tone="warning" />
+
+                        <NaviMobileKpiCard
+                            Title="Alertas"
+                            Description="Requieren atención"
+                            Value="10"
+                            IconKey="alert"
+                            Tone="danger" />
+
+                    </NaviMobileKpiGrid>
+
+                </OverflowContent>
+
+            </NaviMobileKpiOverflow>
+
+@* NAVI MOBILE APPEARANCE KPI STANDARD V79 END *@
+
+            <div class="mappearance-preview__field">
+                <label for="mappearance-search">Buscar activo</label>
+                <input id="mappearance-search"
+                       name="mappearance-search"
+                       type="text"
+                       value="AGU-CEL-HER-AGU"
+                       readonly />
+            </div>
+
+            <div class="mappearance-preview__actions">
+                <NaviMobileActionButton Tone="affirmative">Guardar</NaviMobileActionButton>
+                <NaviMobileActionButton Tone="operation">Editar</NaviMobileActionButton>
+                <NaviMobileActionButton Tone="consult">Consultar</NaviMobileActionButton>
+                <NaviMobileActionButton Tone="warning">Regresar</NaviMobileActionButton>
+                <NaviMobileActionButton Tone="danger">Rechazar</NaviMobileActionButton>
+                <NaviMobileActionButton Tone="secondary">Volver</NaviMobileActionButton>
+            </div>
+        </section>
+
+        <footer class="mappearance-footer">
+            <div class="mappearance-current">
+                <span>Texto <strong>@GetFontName()</strong></span>
+                <span>Tema <strong>@GetThemeName()</strong></span>
+            </div>
+
+            <NaviMobileActionButton Tone="secondary"
+                                    Class="mappearance-reset"
+                                    Disabled="isApplying"
+                                    OnClick="ResetAsync">
+                Restablecer configuración
+            </NaviMobileActionButton>
+        </footer>
+    }
+</div>
+
+@code {
+    private bool isReady;
+    private bool isApplying;
+    private string? message;
+    private string messageClass =
+        "mappearance-message mappearance-message--success";
+    private string messageRole = "status";
+    private string messageLiveRegion = "polite";
+    private MobileUiPreferences preferences = new();
+
+    private static IReadOnlyList<VisualOption> FontOptions { get; } =
+        new List<VisualOption>
+        {
+            new("compact", "Compacto", "Muestra más contenido."),
+            new("normal", "Normal", "Tamaño móvil recomendado."),
+            new("large", "Grande", "Aumenta la lectura."),
+            new("extra-large", "Muy grande", "Mayor accesibilidad.")
+        };
+
+    private static IReadOnlyList<VisualOption> ThemeOptions { get; } =
+        new List<VisualOption>
+        {
+            new("normal", "Normal", "Paleta corporativa NAVI."),
+            new("cold", "Frío", "Grises y azules neutros."),
+            new("warm", "Cálido", "Tonos tierra controlados."),
+            new("dark", "Oscuro", "Superficies oscuras.")
+        };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        try
+        {
+            var loaded = await JS.InvokeAsync<MobileUiPreferences>(
+                "naviMobileUiPreferences.get");
+            preferences = loaded ?? new MobileUiPreferences();
+            message = null;
+        }
+        catch
+        {
+            preferences = new MobileUiPreferences();
+            message = "No fue posible cargar las preferencias visuales.";
+            messageClass = "mappearance-message mappearance-message--error";
+            messageRole = "alert";
+            messageLiveRegion = "assertive";
+        }
+        finally
+        {
+            isReady = true;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private Task SetFontAsync(string value) =>
+        ApplyAsync(
+            "naviMobileUiPreferences.setFontScale",
+            value,
+            $"Texto configurado como {GetName(FontOptions, value)}.");
+
+    private Task SetThemeAsync(string value) =>
+        ApplyAsync(
+            "naviMobileUiPreferences.setColorTheme",
+            value,
+            $"Tema configurado como {GetName(ThemeOptions, value)}.");
+
+    private async Task ApplyAsync(string method, string value, string successMessage)
+    {
+        try
+        {
+            isApplying = true;
+            message = null;
+            var updated = await JS.InvokeAsync<MobileUiPreferences>(method, value);
+            preferences = updated ?? new MobileUiPreferences();
+            message = successMessage;
+            messageClass = "mappearance-message mappearance-message--success";
+            messageRole = "status";
+            messageLiveRegion = "polite";
+        }
+        catch
+        {
+            message = "No fue posible aplicar la preferencia.";
+            messageClass = "mappearance-message mappearance-message--error";
+            messageRole = "alert";
+            messageLiveRegion = "assertive";
+        }
+        finally
+        {
+            isApplying = false;
+        }
+    }
+
+    private async Task ResetAsync()
+    {
+        try
+        {
+            isApplying = true;
+            message = null;
+            var updated = await JS.InvokeAsync<MobileUiPreferences>(
+                "naviMobileUiPreferences.reset");
+            preferences = updated ?? new MobileUiPreferences();
+            message = "La apariencia fue restablecida.";
+            messageClass = "mappearance-message mappearance-message--success";
+            messageRole = "status";
+            messageLiveRegion = "polite";
+        }
+        catch
+        {
+            message = "No fue posible restablecer la apariencia.";
+            messageClass = "mappearance-message mappearance-message--error";
+            messageRole = "alert";
+            messageLiveRegion = "assertive";
+        }
+        finally
+        {
+            isApplying = false;
+        }
+    }
+
+    private static bool IsSelected(string? current, string? value) =>
+        string.Equals(current, value, StringComparison.OrdinalIgnoreCase);
+
+    private static string GetOptionClass(string? current, string value) =>
+        IsSelected(current, value)
+            ? "mappearance-option selected"
+            : "mappearance-option";
+
+    private string GetFontName() => GetName(FontOptions, preferences.FontScale);
+    private string GetThemeName() => GetName(ThemeOptions, preferences.ColorTheme);
+
+    private static string GetName(
+        IReadOnlyList<VisualOption> options,
+        string? value) =>
+        options.FirstOrDefault(option => IsSelected(option.Code, value))?.Name
+        ?? "Normal";
+
+    public sealed class MobileUiPreferences
+    {
+        public string FontScale { get; set; } = "normal";
+        public string ColorTheme { get; set; } = "normal";
+    }
+
+    private sealed record VisualOption(
+        string Code,
+        string Name,
+        string Description);
+}

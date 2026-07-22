@@ -6,197 +6,692 @@
 @inject MobileAuthSessionService Auth
 @inject NavigationManager Navigation
 
-<PageTitle>Historial móvil - NAVI Herramientas y AF</PageTitle>
+<PageTitle>Historial de asignaciones - NAVI Herramientas y AF</PageTitle>
 
-<section class="mobile-page mobile-page-compact navi-mobile-history-v1">
+<section class="mobile-page mobile-page-compact mobile-assignment-history-v25">
+
+    @*
+        El banner publica el título y la descripción en el
+        encabezado estándar del MainLayout.
+
+        No se crea un segundo encabezado dentro de la página.
+    *@
+    <NaviMobileAppBanner
+        Class="mobile-history-v25-header-publisher"
+        Pill="ACTIVOS FIJOS"
+        Title="Historial de asignaciones"
+        Description="Consulta préstamos, asignaciones, devoluciones y movimientos según tu alcance."
+        HomeUrl="/"
+        ShowHomeButton="false"
+        ShowBackButton="false" />
+
     @if (isLoading)
     {
-        <div class="mobile-loading">Cargando historial móvil...</div>
+        <section class="mobile-history-v25-loading"
+                 aria-live="polite">
+
+            <span aria-hidden="true">
+
+                <svg viewBox="0 0 24 24"
+                     focusable="false">
+
+                    <path d="M20 12a8 8 0 1 1-2.35-5.65"></path>
+                    <path d="M20 4V10H14"></path>
+                </svg>
+            </span>
+
+            <div>
+                <strong>Cargando historial</strong>
+
+                <small>
+                    Consultando movimientos visibles para tu usuario.
+                </small>
+            </div>
+        </section>
     }
     else if (!Auth.IsAuthenticated)
     {
-        <div class="mobile-empty">
+        <section class="mobile-history-v25-empty">
+
+            <svg viewBox="0 0 24 24"
+                 aria-hidden="true"
+                 focusable="false">
+
+                <path d="M7 11V8A5 5 0 0 1 17 8V11"></path>
+
+                <rect x="5"
+                      y="11"
+                      width="14"
+                      height="10"
+                      rx="2">
+                </rect>
+            </svg>
+
             <strong>Sesión requerida</strong>
-            <span>Debes iniciar sesión para consultar el historial.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="secondary" >Ir al login</button>
-        </div>
+
+            <span>
+                Debes iniciar sesión para consultar el historial.
+            </span>
+
+            <button type="button"
+                    class="mobile-history-v25-secondary"
+                    @onclick="GoLogin" data-ntx-tone="consult">
+
+                Ir al login
+            </button>
+        </section>
     }
     else if (!CanViewHistory)
     {
-        <div class="mobile-empty">
+        <section class="mobile-history-v25-empty">
+
+            <svg viewBox="0 0 24 24"
+                 aria-hidden="true"
+                 focusable="false">
+
+                <circle cx="12"
+                        cy="12"
+                        r="9">
+                </circle>
+
+                <path d="M8 8L16 16"></path>
+            </svg>
+
             <strong>Sin permiso</strong>
-            <span>Tu usuario no tiene permiso para consultar el historial de asignaciones.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoHome" data-ntx-tone="warning" >Volver al inicio</button>
-        </div>
+
+            <span>
+                Tu usuario no tiene permiso para consultar
+                el historial de asignaciones.
+            </span>
+
+            <button type="button"
+                    class="mobile-history-v25-secondary"
+                    @onclick="GoHome" data-ntx-tone="secondary">
+
+                Volver al inicio
+            </button>
+        </section>
     }
     else if (!string.IsNullOrWhiteSpace(errorMessage))
     {
-        <div class="mobile-alert error">@errorMessage</div>
+        <section class="mobile-history-v25-error"
+                 role="alert">
 
-        <button class="mobile-primary-button" type="button" @onclick="LoadAsync" data-ntx-tone="warning" >
-            Reintentar
-        </button>
+            <strong>No se pudo cargar el historial</strong>
+
+            <span>@errorMessage</span>
+
+            <button type="button"
+                    class="mobile-history-v25-secondary"
+                    @onclick="LoadAsync" data-ntx-tone="refresh">
+
+                Reintentar
+            </button>
+        </section>
     }
     else
     {
-        <NaviMobileAppBanner Class="navi-mobile-history-app-banner mhis-standard-banner-v4 navi-mobile-app-banner--home-only"
-                             Pill="ACTIVOS FIJOS · HISTORIAL"
-                             Title="Historial móvil"
-                             Description="Consulta préstamos, devoluciones y movimientos según tu alcance."
-                             HomeUrl="/"
-                             ShowHomeButton="true"
-                             ShowBackButton="false" />
 
-        <section class="mhist-board">
+<NaviMobileKpiOverflow
+    PrimaryCount="3"
+    OverflowCount="2"
+    Class="navi-mobile-kpi-standard-overflow navi-mobile-history-kpi-standard"
+    ButtonLabel="Mostrar indicadores adicionales">
 
-            <section class="mhist-kpis mhist-kpis-compact-v2">
-                <article>
-                    <span>Mostrando</span>
-                    <strong>@FilteredHistory.Count()</strong>
-                    <small>Filtros</small>
-                </article>
+    <PrimaryContent>
 
-                <article>
-                    <span>Total</span>
-                    <strong>@VisibleHistory.Count()</strong>
-                    <small>@ScopeLabel</small>
-                </article>
+        <NaviMobileKpiGrid
+            Columns="3"
+            Compact="true"
+            Dividers="true"
+            Class="navi-mobile-kpi-standard-grid">
 
-                <article>
-                    <span>Sedes</span>
-                    <strong>@VisibleBranchCount</strong>
-                    <small>Alcance</small>
-                </article>
-            </section>
+            <NaviMobileKpiCard
+                Title="Movimientos"
+                Description="Según filtros"
+                IconKey="document"
+                Tone="neutral">
 
-            <section class="mhist-filter-card">
-                <div class="mhist-filter-grid">
-                    <label>
-                        <span>Buscar</span>
-                        <input @bind="searchText"
-                               @bind:event="oninput"
-                               placeholder="Préstamo, activo, usuario, código..." />
-                    </label>
+                <ValueContent>
+                    @HistoryMovementCount
+                </ValueContent>
 
-                    <label>
-                        <span>Usuario / Responsable</span>
-                        <select @bind="selectedResponsibleId">
-                            <option value="">Todos los usuarios</option>
+            </NaviMobileKpiCard>
+
+            <NaviMobileKpiCard
+                Title="En curso"
+                Description="Activas"
+                IconKey="transfer"
+                Tone="soft">
+
+                <ValueContent>
+                    @HistoryInProgressCount
+                </ValueContent>
+
+            </NaviMobileKpiCard>
+
+            <NaviMobileKpiCard
+                Title="Regresos"
+                Description="Devueltas"
+                IconKey="check"
+                Tone="positive">
+
+                <ValueContent>
+                    @HistoryReturnedCount
+                </ValueContent>
+
+            </NaviMobileKpiCard>
+
+        </NaviMobileKpiGrid>
+
+    </PrimaryContent>
+
+    <OverflowContent>
+
+        <NaviMobileKpiGrid
+            Columns="2"
+            Compact="true"
+            Dividers="true"
+            Class="navi-mobile-kpi-standard-grid navi-mobile-history-kpi-overflow-grid">
+
+            <NaviMobileKpiCard
+                Title="Sedes"
+                Description="En el alcance"
+                IconKey="location"
+                Tone="warning">
+
+                <ValueContent>
+                    @VisibleBranchCount
+                </ValueContent>
+
+            </NaviMobileKpiCard>
+
+            <NaviMobileKpiCard
+                Title="Responsables"
+                Description="Usuarios visibles"
+                IconKey="users"
+                Tone="neutral">
+
+                <ValueContent>
+                    @HistoryResponsibleCount
+                </ValueContent>
+
+            </NaviMobileKpiCard>
+
+        </NaviMobileKpiGrid>
+
+    </OverflowContent>
+
+</NaviMobileKpiOverflow>
+
+        <section class="mobile-history-v25-filter-card mobile-history-v27-filters"
+                 aria-label="Filtros del historial">
+
+            <div class="mobile-history-v27-filter-title">
+
+                <strong>Filtrar historial</strong>
+
+                <button type="button"
+                        class="mobile-history-v27-clear"
+                        title="Limpiar filtros"
+                        aria-label="Limpiar filtros"
+                        @onclick="ClearHistoryFilters" data-ntx-tone="secondary">
+
+                    <svg viewBox="0 0 24 24"
+                         aria-hidden="true"
+                         focusable="false">
+
+                        <path d="M5 5L19 19"></path>
+                        <path d="M19 5L5 19"></path>
+                    </svg>
+
+                    <span>Limpiar</span>
+                </button>
+            </div>
+
+            <label class="mobile-history-v25-field
+                          mobile-history-v25-search
+                          mobile-history-v27-search">
+
+                <span>Buscar</span>
+
+                <div>
+                    <svg viewBox="0 0 24 24"
+                         aria-hidden="true"
+                         focusable="false">
+
+                        <circle cx="10.5"
+                                cy="10.5"
+                                r="6.5">
+                        </circle>
+
+                        <path d="M15.5 15.5L21 21"></path>
+                    </svg>
+
+                    <input id="mobile-history-search"
+                           name="mobile-history-search"
+                           type="search"
+                           autocomplete="off"
+                           @bind="searchText"
+                           @bind:event="oninput"
+                           placeholder="Préstamo, activo, código, usuario o sede..." />
+                </div>
+            </label>
+
+            <div class="mobile-history-v27-filter-row">
+
+                <label class="mobile-history-v25-field">
+
+                    <span>Responsable</span>
+
+                    <select id="mobile-history-responsible"
+                            name="mobile-history-responsible"
+                            aria-label="Responsable"
+                            @bind="selectedResponsibleId"
+                            disabled="@ShouldForceOwnHistory">
+
+                        <option value="">
+                            @(ShouldForceOwnHistory
+                                ? SelectedResponsibleLabel
+                                : "Todos los usuarios")
+                        </option>
+
+                        @if (!ShouldForceOwnHistory)
+                        {
                             @foreach (var responsible in VisibleResponsibles)
                             {
-                                <option value="@responsible.Id">@responsible.FullName</option>
+                                <option value="@responsible.Id">
+                                    @responsible.FullName
+                                </option>
                             }
-                        </select>
-                    </label>
-
-                    @if (UserCanSeeAllBranches())
-                    {
-                        <label>
-                            <span>Sede</span>
-                            <select @bind="selectedBranchCode">
-                                <option value="">Todas las sedes</option>
-                                @foreach (var branch in BranchOptions)
-                                {
-                                    <option value="@branch.Code">@branch.Code - @branch.Name</option>
-                                }
-                            </select>
-                        </label>
-                    }
-                    else
-                    {
-                        <label>
-                            <span>Sede</span>
-                            <input value="@ScopeLabel" disabled />
-                        </label>
-                    }
-                </div>
-
-                <label class="mhist-status-select-v2">
-                    <span>Estado</span>
-                    <select @bind="SelectedStatusValue">
-                        <option value="">Todos los estados</option>
-                        @foreach (var status in StatusOptions)
-                        {
-                            <option value="@status.Value">@status.Text</option>
                         }
                     </select>
                 </label>
-            </section>
 
-            @if (!FilteredHistory.Any())
-            {
-                <section class="mobile-empty compact">
-                    <strong>Sin movimientos</strong>
-                    <span>No hay historial visible para tu usuario, sede, permisos o filtros actuales.</span>
-                </section>
-            }
-            else
-            {
-                <section class="mhist-list">
-                    @foreach (var item in FilteredHistory.Take(60))
+                @if (UserCanSeeAllBranches())
+                {
+                    <label class="mobile-history-v25-field">
+
+                        <span>Sede</span>
+
+                        <select id="mobile-history-branch"
+                                name="mobile-history-branch"
+                                aria-label="Sede"
+                                @bind="selectedBranchCode">
+
+                            <option value="">
+                                Todas las sedes
+                            </option>
+
+                            @foreach (var branch in BranchOptions)
+                            {
+                                <option value="@branch.Code">
+                                    @branch.Code - @branch.Name
+                                </option>
+                            }
+                        </select>
+                    </label>
+                }
+                else
+                {
+                    <label class="mobile-history-v25-field">
+
+                        <span>Sede</span>
+
+                        <input id="mobile-history-branch"
+                               name="mobile-history-branch"
+                               aria-label="Sede asignada"
+                               value="@ScopeLabel"
+                               disabled />
+                    </label>
+                }
+
+            </div>
+
+            <label class="mobile-history-v25-field
+                          mobile-history-v27-status">
+
+                <span>Estado</span>
+
+                <select id="mobile-history-status"
+                        name="mobile-history-status"
+                        aria-label="Estado"
+                        @bind="SelectedStatusValue">
+
+                    <option value="">
+                        Todos (@HistoryBaseFilterCount)
+                    </option>
+
+                    @foreach (var status in StatusOptions)
                     {
-                        var firstItem = item.Items.FirstOrDefault();
-                        var firstTool = GetFirstVisibleTool(item);
-                        var branchText = GetRequestBranchText(item);
-
-                        <article class="mhist-card">
-                            <div class="mhist-card-head">
-                                <div>
-                                    <span>@item.LoanNumber</span>
-                                    <strong>@Display(firstItem?.ToolInternalCode) - @Display(firstItem?.ToolName)</strong>
-                                </div>
-
-                                <em class="@GetStatusClass(item.Status)">
-                                    @GetStatusText(item.Status)
-                                </em>
-                            </div>
-
-                            <div class="mhist-info-grid">
-                                <div>
-                                    <span>Sede</span>
-                                    <strong>@branchText</strong>
-                                </div>
-
-                                <div>
-                                    <span>Solicitante</span>
-                                    <strong>@Display(GetRequesterName(item))</strong>
-                                </div>
-
-                                <div>
-                                    <span>Ubicación</span>
-                                    <strong>@Display(firstTool?.LocationName)</strong>
-                                </div>
-
-                                <div>
-                                    <span>Fecha</span>
-                                    <strong>@ShowDate(GetMovementDate(item))</strong>
-                                </div>
-                            </div>
-
-                            @if (item.Items.Count > 1)
-                            {
-                                <div class="mhist-items-count">
-                                    @item.Items.Count activos relacionados
-                                </div>
-                            }
-
-                            @if (!string.IsNullOrWhiteSpace(item.Notes))
-                            {
-                                <p class="mhist-notes">@item.Notes</p>
-                            }
-                        </article>
+                        <option value="@status.Value">
+                            @status.Text (@CountHistoryStatus(status.Value))
+                        </option>
                     }
-                </section>
-            }
+                </select>
+            </label>
+
         </section>
+
+        <section class="mobile-history-v25-results-header">
+
+            <div>
+                <span>TRAZABILIDAD DE ACTIVOS</span>
+
+                <strong>Resultado del historial</strong>
+
+                <small>
+                    @ScopeLabel · @SelectedResponsibleLabel
+                </small>
+            </div>
+
+            <b>@HistoryMovementCount</b>
+        </section>
+
+        @if (!FilteredHistory.Any())
+        {
+            <section class="mobile-history-v25-empty">
+
+                <svg viewBox="0 0 24 24"
+                     aria-hidden="true"
+                     focusable="false">
+
+                    <path d="M5 4H19V20H5Z"></path>
+                    <path d="M8 9H16"></path>
+                    <path d="M8 13H13"></path>
+                </svg>
+
+                <strong>Sin movimientos</strong>
+
+                <span>
+                    No hay historial visible para tu usuario,
+                    sede o filtros actuales.
+                </span>
+
+                <button type="button"
+                        class="mobile-history-v25-secondary"
+                        @onclick="ClearHistoryFilters" data-ntx-tone="secondary">
+
+                    Limpiar filtros
+                </button>
+            </section>
+        }
+        else
+        {
+            <section class="mobile-history-v25-list">
+
+                @foreach (var item in FilteredHistory.Take(60))
+                {
+                    var firstItem =
+                        item.Items.FirstOrDefault();
+
+                    var firstTool =
+                        GetFirstVisibleTool(item);
+
+                    var branchText =
+                        GetRequestBranchText(item);
+
+                    <article class="mobile-history-v25-card">
+
+                        <header class="mobile-history-v25-card-header">
+
+                            <div>
+                                <span>@Display(item.LoanNumber)</span>
+
+                                <strong>
+                                    @Display(firstItem?.ToolInternalCode)
+                                    ·
+                                    @Display(firstItem?.ToolName)
+                                </strong>
+
+                                <small>
+                                    @Display(firstTool?.LocationName)
+                                </small>
+                            </div>
+
+                            <em class="@GetHistoryV25StatusClass(
+                                item.Status)">
+
+                                @GetStatusText(item.Status)
+                            </em>
+                        </header>
+
+                        <section class="mobile-history-v25-card-grid">
+
+                            <div>
+                                <svg viewBox="0 0 24 24"
+                                     aria-hidden="true"
+                                     focusable="false">
+
+                                    <circle cx="12"
+                                            cy="8"
+                                            r="3">
+                                    </circle>
+
+                                    <path d="M5 20C5.8 15.8 8.2 14 12 14C15.8 14 18.2 15.8 19 20"></path>
+                                </svg>
+
+                                <span>
+                                    <small>Responsable</small>
+
+                                    <strong>
+                                        @Display(GetRequesterName(item))
+                                    </strong>
+                                </span>
+                            </div>
+
+                            <div>
+                                <svg viewBox="0 0 24 24"
+                                     aria-hidden="true"
+                                     focusable="false">
+
+                                    <path d="M12 21S18 15.5 18 10A6 6 0 1 0 6 10C6 15.5 12 21 12 21Z"></path>
+
+                                    <circle cx="12"
+                                            cy="10"
+                                            r="2">
+                                    </circle>
+                                </svg>
+
+                                <span>
+                                    <small>Sede</small>
+
+                                    <strong>@branchText</strong>
+                                </span>
+                            </div>
+
+                        </section>
+
+                        <section class="mobile-history-v25-dates">
+
+                            <div>
+                                <span>Entrega</span>
+
+                                <strong>
+                                    @ShowDate(
+                                        GetDeliveryReferenceDate(item))
+                                </strong>
+                            </div>
+
+                            <div>
+                                <span>Regreso</span>
+
+                                <strong>
+                                    @ShowDate(item.ReturnedAt)
+                                </strong>
+                            </div>
+
+                            <div>
+                                <span>Movimiento</span>
+
+                                <strong>
+                                    @ShowDate(GetMovementDate(item))
+                                </strong>
+                            </div>
+
+                        </section>
+
+                        @if (item.Items.Count > 1)
+                        {
+                            <div class="mobile-history-v25-related">
+
+                                <svg viewBox="0 0 24 24"
+                                     aria-hidden="true"
+                                     focusable="false">
+
+                                    <path d="M4 7H20V20H4Z"></path>
+                                    <path d="M8 7V4H16V7"></path>
+                                </svg>
+
+                                <span>
+                                    @item.Items.Count activos relacionados
+                                </span>
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(item.Notes))
+                        {
+                            <p class="mobile-history-v25-notes">
+                                @item.Notes
+                            </p>
+                        }
+
+                    </article>
+                }
+
+            </section>
+        }
     }
+
 </section>
 
 @code {
     private bool isLoading = true;
     private string? errorMessage;
 
-    private string searchText = string.Empty;
+    // NAVI MOBILE ASSIGNMENT HISTORY V25 UI START
+
+    private bool showSecondaryKpis;
+
+    private int HistoryMovementCount =>
+        FilteredHistory.Count();
+
+    private int HistoryInProgressCount =>
+        FilteredHistory.Count(item =>
+            !item.ReturnedAt.HasValue
+            &&
+            (
+                string.Equals(
+                    item.Status,
+                    "Approved",
+                    StringComparison.OrdinalIgnoreCase)
+                ||
+                string.Equals(
+                    item.Status,
+                    "Delivered",
+                    StringComparison.OrdinalIgnoreCase)
+            ));
+
+    private int HistoryReturnedCount =>
+        FilteredHistory.Count(item =>
+            item.ReturnedAt.HasValue
+            ||
+            string.Equals(
+                item.Status,
+                "Returned",
+                StringComparison.OrdinalIgnoreCase));
+
+    private int HistoryResponsibleCount =>
+        FilteredHistory
+            .Select(GetRequesterName)
+            .Where(value =>
+                !string.IsNullOrWhiteSpace(value))
+            .Distinct(
+                StringComparer.OrdinalIgnoreCase)
+            .Count();
+
+    private int HistoryBaseFilterCount =>
+        VisibleHistory
+            .Where(MatchesResponsibleFilter)
+            .Where(MatchesSearchFilter)
+            .Count();
+
+    private int CountHistoryStatus(
+        string status)
+    {
+        return VisibleHistory
+            .Where(MatchesResponsibleFilter)
+            .Where(MatchesSearchFilter)
+            .Count(item =>
+                string.Equals(
+                    item.Status,
+                    status,
+                    StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void ToggleSecondaryKpis()
+    {
+        showSecondaryKpis =
+            !showSecondaryKpis;
+    }
+
+    private void CloseSecondaryKpis()
+    {
+        showSecondaryKpis = false;
+    }
+
+    private static DateTime?
+        GetDeliveryReferenceDate(
+            MobileLoanRequestDto request)
+    {
+        return request.DeliveredAt
+            ?? request.ApprovedAt
+            ?? request.RequestedAt
+            ?? request.CreatedAt;
+    }
+
+    private static string
+        GetHistoryV25StatusClass(
+            string? status)
+    {
+        return status switch
+        {
+            "Requested" =>
+                "mobile-history-v25-status is-pending",
+
+            "PendingApproval" =>
+                "mobile-history-v25-status is-pending",
+
+            "Approved" =>
+                "mobile-history-v25-status is-approved",
+
+            "Delivered" =>
+                "mobile-history-v25-status is-delivered",
+
+            "Returned" =>
+                "mobile-history-v25-status is-returned",
+
+            "Rejected" =>
+                "mobile-history-v25-status is-denied",
+
+            "Denied" =>
+                "mobile-history-v25-status is-denied",
+
+            "Cancelled" =>
+                "mobile-history-v25-status is-cancelled",
+
+            "Canceled" =>
+                "mobile-history-v25-status is-cancelled",
+
+            _ =>
+                "mobile-history-v25-status is-neutral"
+        };
+    }
+
+    // NAVI MOBILE ASSIGNMENT HISTORY V25 UI END
+
+
+private string searchText = string.Empty;
     private string selectedResponsibleId = string.Empty;
     private string selectedBranchCode = string.Empty;
     private HashSet<string> selectedStatuses = new(StringComparer.OrdinalIgnoreCase);

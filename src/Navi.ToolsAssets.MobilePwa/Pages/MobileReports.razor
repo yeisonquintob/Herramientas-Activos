@@ -13,14 +13,14 @@
 <section class="mobile-page mobile-reports-web">
     @if (isLoading && !initialized)
     {
-        <div class="mobile-loading">Cargando centro de reportes...</div>
+        <div class="mobile-loading" role="status" aria-busy="true">Cargando centro de reportes...</div>
     }
     else if (!Auth.IsAuthenticated)
     {
         <div class="mobile-empty">
             <strong>Sesión requerida</strong>
             <span>Debes iniciar sesión para consultar reportes.</span>
-            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="secondary" >Ir al login</button>
+            <button class="mobile-primary-button" type="button" @onclick="GoLogin" data-ntx-tone="ghost" >Ir al login</button>
         </div>
     }
     else if (!CanViewReports)
@@ -42,16 +42,16 @@
                              ShowHomeButton="true"
                              ShowBackButton="false" />
 
-        <section class="navi-mobile-reports-kpi-board-v2">
+        <NaviMobileKpiGrid Class="navi-mobile-reports-kpi-board-v2">
             @foreach (var item in SelectedSummary)
             {
-                <div class="@GetReportTopKpiClass(item.CssClass)">
+                <NaviMobileKpiCard Class="@GetReportTopKpiClass(item.CssClass)">
                     <span>@item.Label</span>
                     <strong>@item.Value</strong>
                     <small>@item.Description</small>
-                </div>
+                </NaviMobileKpiCard>
             }
-        </section>
+        </NaviMobileKpiGrid>
 
         @if (!string.IsNullOrWhiteSpace(message))
         {
@@ -102,12 +102,12 @@
                             <span>Buscar</span>
                             <input placeholder="Buscar código, nombre, sede, responsable, estado..."
                                    @bind="searchText"
-                                   @bind:event="oninput" />
+                                   @bind:event="oninput" name="navi-mobilereports-field-001" />
                         </label>
 
                         <label>
                             <span>Sede</span>
-                            <select @bind="branchFilter">
+                            <select @bind="branchFilter" name="navi-mobilereports-field-002">
                                 @if (CanSeeAllBranches)
                                 {
                                     <option value="">Todas las sedes</option>
@@ -122,7 +122,7 @@
 
                         <label>
                             <span>Periodo</span>
-                            <select @bind="periodFilter">
+                            <select @bind="periodFilter" name="navi-mobilereports-field-003">
                                 <option value="all">Todo</option>
                                 <option value="today">Hoy</option>
                                 <option value="7">Últimos 7 días</option>
@@ -133,7 +133,7 @@
 
                         <label>
                             <span>Estado</span>
-                            <select @bind="statusFilter">
+                            <select @bind="statusFilter" name="navi-mobilereports-field-004">
                                 <option value="">Todos</option>
                                 @foreach (var status in StatusOptions)
                                 {
@@ -144,16 +144,16 @@
                     </div>
                 </article>
 
-                <section class="mrep-summary-grid">
+                <NaviMobileKpiGrid Class="mrep-summary-grid">
                     @foreach (var item in SelectedSummary)
                     {
-                        <article class="@item.CssClass">
+                        <NaviMobileKpiCard Class="@item.CssClass">
                             <span>@item.Label</span>
                             <strong>@item.Value</strong>
                             <small>@item.Description</small>
-                        </article>
+                        </NaviMobileKpiCard>
                     }
-                </section>
+                </NaviMobileKpiGrid>
 
                 <article class="mrep-card">
                     <div class="mrep-card-title">
@@ -169,7 +169,7 @@
 
                     @if (isLoading)
                     {
-                        <div class="mobile-empty compact">Cargando información del reporte...</div>
+                        <div class="mobile-empty compact" role="status" aria-busy="true">Cargando información del reporte...</div>
                     }
                     else if (FilteredRows.Count == 0)
                     {
@@ -240,13 +240,13 @@
 
                     @if (CanExportReports)
                     {
-                        <a class="mrep-generate-report-button-v4" href="@BuildCsvDataUrl()" download="@($"{SelectedReport.FileName}.csv")" data-ntx-tone="primary" >
+                        <a class="mrep-generate-report-button-v4" href="@BuildCsvDataUrl()" download="@($"{SelectedReport.FileName}.csv")" data-ntx-tone="operation" >
                             Descargar reporte
                         </a>
                     }
                     else
                     {
-                        <button type="button" class="mrep-generate-report-button-v4" disabled data-ntx-tone="secondary" >
+                        <button type="button" class="mrep-generate-report-button-v4" disabled data-ntx-tone="consult" >
                             Exportación restringida
                         </button>
                     }

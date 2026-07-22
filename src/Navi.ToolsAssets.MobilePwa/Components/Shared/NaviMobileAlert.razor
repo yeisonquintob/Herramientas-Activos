@@ -1,0 +1,213 @@
+@using System.Collections.Generic
+@using Microsoft.AspNetCore.Components
+
+<section @attributes="AdditionalAttributes"
+         class="@CssClass"
+         role="@ResolvedRole"
+         aria-live="@ResolvedLive"
+         aria-atomic="true"
+         data-ntx-component="mobile-alert"
+         data-ntx-tone="@NormalizedTone">
+    @if (ShowIcon)
+    {
+        <span class="navi-mobile-alert__icon"
+              aria-hidden="true">
+            @ResolvedIcon
+        </span>
+    }
+
+    <div class="navi-mobile-alert__content">
+        @if (!string.IsNullOrWhiteSpace(Title))
+        {
+            <h3 class="navi-mobile-alert__title">
+                @Title
+            </h3>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(Message))
+        {
+            <p class="navi-mobile-alert__message">
+                @Message
+            </p>
+        }
+
+        @if (ChildContent is not null)
+        {
+            <div class="navi-mobile-alert__body">
+                @ChildContent
+            </div>
+        }
+
+        @if (Actions is not null)
+        {
+            <div class="navi-mobile-alert__actions">
+                @Actions
+            </div>
+        }
+    </div>
+
+    @if (ShowDismissButton)
+    {
+        <button type="button"
+                class="navi-mobile-alert__dismiss"
+                aria-label="@DismissLabel"
+                title="@DismissLabel"
+                @onclick="DismissAsync" data-ntx-tone="ghost">
+            <span aria-hidden="true">×</span>
+        </button>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public string? Message { get; set; }
+
+    [Parameter]
+    public string Tone { get; set; } = "info";
+
+    [Parameter]
+    public string? Icon { get; set; }
+
+    [Parameter]
+    public bool ShowIcon { get; set; } = true;
+
+    [Parameter]
+    public bool Compact { get; set; } = true;
+
+    [Parameter]
+    public bool Dismissible { get; set; }
+
+    [Parameter]
+    public string DismissLabel { get; set; } =
+        "Cerrar mensaje";
+
+    [Parameter]
+    public string? Role { get; set; }
+
+    [Parameter]
+    public string? Live { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public EventCallback OnDismiss { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? Actions { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>?
+        AdditionalAttributes { get; set; }
+
+    private string NormalizedTone =>
+        Tone?.Trim().ToLowerInvariant() switch
+        {
+            "success" or
+            "positive" or
+            "ok"
+                => "success",
+
+            "warning" or
+            "caution" or
+            "pending"
+                => "warning",
+
+            "danger" or
+            "error" or
+            "failed"
+                => "danger",
+
+            "neutral" or
+            "secondary"
+                => "neutral",
+
+            _ => "info"
+        };
+
+    private string ResolvedIcon =>
+        !string.IsNullOrWhiteSpace(Icon)
+            ? Icon.Trim()
+            : NormalizedTone switch
+            {
+                "success" => "✓",
+                "warning" => "!",
+                "danger" => "×",
+                "neutral" => "·",
+                _ => "i"
+            };
+
+    private string ResolvedRole =>
+        !string.IsNullOrWhiteSpace(Role)
+            ? Role.Trim()
+            : NormalizedTone is "danger" or "warning"
+                ? "alert"
+                : "status";
+
+    private string ResolvedLive =>
+        !string.IsNullOrWhiteSpace(Live)
+            ? Live.Trim()
+            : NormalizedTone == "danger"
+                ? "assertive"
+                : "polite";
+
+    private bool ShowDismissButton =>
+        Dismissible && OnDismiss.HasDelegate;
+
+    private string CssClass
+    {
+        get
+        {
+            var classes = new List<string>
+            {
+                "navi-mobile-alert",
+                $"navi-mobile-alert--{NormalizedTone}"
+            };
+
+            if (Compact)
+            {
+                classes.Add(
+                    "navi-mobile-alert--compact");
+            }
+
+            if (!ShowIcon)
+            {
+                classes.Add(
+                    "navi-mobile-alert--without-icon");
+            }
+
+            if (!ShowDismissButton)
+            {
+                classes.Add(
+                    "navi-mobile-alert--without-dismiss");
+            }
+
+            if (!ShowIcon && !ShowDismissButton)
+            {
+                classes.Add(
+                    "navi-mobile-alert--content-only");
+            }
+
+            if (!string.IsNullOrWhiteSpace(Class))
+            {
+                classes.Add(Class.Trim());
+            }
+
+            return string.Join(" ", classes);
+        }
+    }
+
+    private async Task DismissAsync()
+    {
+        if (OnDismiss.HasDelegate)
+        {
+            await OnDismiss.InvokeAsync();
+        }
+    }
+}
