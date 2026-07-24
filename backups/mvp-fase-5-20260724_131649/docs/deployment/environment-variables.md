@@ -17,23 +17,10 @@ Cors__AllowedOrigins__0=https://admin.ejemplo
 Cors__AllowedOrigins__1=https://mobile.ejemplo
 Tenancy__Enabled=false
 TenantDatabases__Company_EMPRESA1=<conexión operativa>
-Imports__MaximumFileSizeBytes=10485760
-Imports__MaximumRows=10000
-Imports__ApplyBatchSize=250
-ASPNETCORE_ENVIRONMENT=Production
 ```
 
 `TenantDatabases__*`, conexiones, JWT y MinIO deben proceder de un gestor de secretos. No deben
 guardarse en `appsettings.json`, imágenes Docker, compose ni logs.
-
-Para contenedores, `PUBLIC_API_BASE_URL` se usa como argumento de build de
-Mobile porque la PWA se ejecuta en el navegador. Debe ser una URL HTTPS pública,
-no `http://api:8080/`.
-
-El compose productivo exige además nombres separados para la cuenta limitada de
-SQL y el usuario de aplicación MinIO. `.env.example` solo contiene marcadores;
-el archivo real debe residir fuera del repositorio o ser inyectado por el
-orquestador.
 
 ## Herramientas EF
 

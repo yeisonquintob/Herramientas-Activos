@@ -4,11 +4,9 @@ using Hangfire;
 using Hangfire.SqlServer;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
-using Navi.ToolsAssets.Api.Health;
 using Navi.ToolsAssets.Api.Security;
 using Navi.ToolsAssets.Api.Tenancy;
 using Navi.ToolsAssets.Domain.Entities.Security;
@@ -18,8 +16,6 @@ using Navi.ToolsAssets.Infrastructure.Seed;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddProblemDetails();
-builder.Services.AddHealthChecks()
-    .AddCheck<DatabaseHealthCheck>("operational-database", tags: new[] { "ready" });
 builder.Services.Configure<TenancyOptions>(
     builder.Configuration.GetSection(TenancyOptions.SectionName));
 builder.Services.AddHttpContextAccessor();
@@ -216,19 +212,14 @@ app.UseMiddleware<TenantResolutionMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapHealthChecks("/health/live", new HealthCheckOptions
-{
-    Predicate = _ => false
-}).AllowAnonymous();
-app.MapHealthChecks("/health/ready", new HealthCheckOptions
-{
-    Predicate = registration => registration.Tags.Contains("ready")
-}).AllowAnonymous();
 
 app.MapGet("/", () => Results.Ok(new
 {
     App = "NAVI Herramientas API",
-    Status = "Running"
+    Status = "Running",
+    Database = "NaviToolsAssetsDb",
+    Seed = "AGU / Zona Antioquia / Catálogos base",
+    Hangfire = app.Environment.IsDevelopment() ? "/hangfire" : "Disabled"
 })).AllowAnonymous();
 
 app.Run();
@@ -264,5 +255,3 @@ static bool IsAllowedCorsOrigin(string? origin, string[] allowedOrigins, bool al
            string.Equals(uri.Host, "127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
            string.Equals(uri.Host, "::1", StringComparison.OrdinalIgnoreCase);
 }
-
-public partial class Program;

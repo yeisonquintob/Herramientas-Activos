@@ -1,0 +1,31 @@
+name: navi-tools-assets-development
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?configure MSSQL_SA_PASSWORD}
+    ports:
+      - "1433:1433"
+    volumes:
+      - navi_sqlserver_development:/var/opt/mssql
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?configure MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?configure MINIO_ROOT_PASSWORD}
+    ports:
+      - "9100:9000"
+      - "9101:9001"
+    volumes:
+      - navi_minio_development:/data
+
+volumes:
+  navi_sqlserver_development:
+  navi_minio_development:

@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Minio;
 using Minio.DataModel.Args;
-using Navi.ToolsAssets.Api.Imports;
 using Navi.ToolsAssets.Api.Security;
 using Navi.ToolsAssets.Domain.Entities.Imports;
 using Navi.ToolsAssets.Domain.Entities.Inventory;
@@ -22,7 +21,15 @@ namespace Navi.ToolsAssets.Api.Controllers;
 [RequirePermission(PermissionCodes.ImportsView)]
 public class ImportsController : ControllerBase
 {
+    private const long DefaultMaximumFileSizeBytes = 10 * 1024 * 1024;
     private const int DefaultMaximumRows = 10_000;
+
+    private static readonly HashSet<string> AllowedExcelContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/octet-stream",
+        "application/zip"
+    };
 
     private readonly NaviToolsAssetsDbContext _context;
     private readonly IConfiguration _configuration;
@@ -190,21 +197,33 @@ public class ImportsController : ControllerBase
             return BadRequest(new { Message = "Debe adjuntar un archivo Excel." });
         }
 
-        var maximumFileSize = Math.Clamp(
-            _configuration.GetValue<long?>("Imports:MaximumFileSizeBytes")
-                ?? ImportFilePolicy.DefaultMaximumFileSizeBytes,
-            1,
-            ImportFilePolicy.HardMaximumFileSizeBytes);
+        var extension = Path.GetExtension(request.File.FileName).ToLowerInvariant();
 
-        var metadataValidation = ImportFilePolicy.ValidateMetadata(
-            request.File.FileName,
-            request.File.ContentType,
-            request.File.Length,
-            maximumFileSize);
-
-        if (!metadataValidation.IsValid)
+        if (extension != ".xlsx")
         {
-            return BadRequest(new { Message = metadataValidation.Error });
+            return BadRequest(new
+            {
+                Message = "Solo se permiten archivos .xlsx sin macros. Los formatos .xls y .xlsm se rechazan por seguridad."
+            });
+        }
+
+        var maximumFileSize = Math.Clamp(
+            _configuration.GetValue<long?>("Imports:MaximumFileSizeBytes") ?? DefaultMaximumFileSizeBytes,
+            1,
+            25 * 1024 * 1024);
+
+        if (request.File.Length > maximumFileSize)
+        {
+            return BadRequest(new
+            {
+                Message = $"El archivo supera el tamaño máximo permitido de {maximumFileSize / 1024 / 1024} MB."
+            });
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.File.ContentType)
+            && !AllowedExcelContentTypes.Contains(request.File.ContentType))
+        {
+            return BadRequest(new { Message = "El tipo de contenido del archivo no corresponde a un libro .xlsx." });
         }
 
         var processedBy = User.GetUserName() ?? "authenticated-user";
@@ -217,7 +236,7 @@ public class ImportsController : ControllerBase
         await request.File.CopyToAsync(excelStream, cancellationToken);
         excelStream.Position = 0;
 
-        if (!ImportFilePolicy.HasOpenXmlSignature(excelStream))
+        if (!IsOpenXmlPackage(excelStream))
         {
             return BadRequest(new { Message = "El contenido no corresponde a un archivo .xlsx válido." });
         }
@@ -1608,6 +1627,26 @@ public class ImportsController : ControllerBase
             .Trim()
             .Replace(" ", "_")
             .Replace("__", "_");
+    }
+
+    private static bool IsOpenXmlPackage(Stream stream)
+    {
+        if (!stream.CanSeek || stream.Length < 4)
+        {
+            return false;
+        }
+
+        var originalPosition = stream.Position;
+        Span<byte> signature = stackalloc byte[4];
+        stream.Position = 0;
+        var bytesRead = stream.Read(signature);
+        stream.Position = originalPosition;
+
+        return bytesRead == signature.Length
+            && signature[0] == 0x50
+            && signature[1] == 0x4B
+            && signature[2] is 0x03 or 0x05 or 0x07
+            && signature[3] is 0x04 or 0x06 or 0x08;
     }
 
     private static bool HasSupportedIdentifierHeader(IEnumerable<ExcelHeader> headers)
