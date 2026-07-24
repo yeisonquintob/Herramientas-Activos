@@ -35,7 +35,7 @@ integración MinIO, carga y pentest.
 | Fase 2 | `146e5f3` — `NAVI Fase 2 - seguridad` |
 | Fase 3 | `2df3dad` — `NAVI Fase 3 - multicompañía` |
 | Fase 4 | `64f65ab` — `NAVI Fase 4 - importación y calidad de datos` |
-| Fase 5 | Se registra en el commit `NAVI Fase 5 - pruebas y producción` |
+| Fase 5 | `fbc3869` — `NAVI Fase 5 - pruebas y producción` |
 
 No se crea el commit `NAVI MVP empresarial estable`, porque los criterios
 empresariales pendientes impiden sostener esa afirmación.
