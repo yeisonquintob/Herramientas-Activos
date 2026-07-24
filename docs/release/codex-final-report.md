@@ -36,6 +36,7 @@ integración MinIO, carga y pentest.
 | Fase 3 | `2df3dad` — `NAVI Fase 3 - multicompañía` |
 | Fase 4 | `64f65ab` — `NAVI Fase 4 - importación y calidad de datos` |
 | Fase 5 | `fbc3869` — `NAVI Fase 5 - pruebas y producción` |
+| Cierre | `NAVI cierre de seguridad - credenciales del navegador` |
 
 No se crea el commit `NAVI MVP empresarial estable`, porque los criterios
 empresariales pendientes impiden sostener esa afirmación.
@@ -78,6 +79,8 @@ Tests
 - CORS por ambiente.
 - Restricciones de archivo y neutralización CSV.
 - Cero dependencias vulnerables conocidas según NuGet al 24/07/2026.
+- Los logins no persisten contraseñas; Admin conserva solo el usuario y elimina
+  la clave heredada, mientras Mobile eliminó el código muerto asociado.
 
 Pendiente: cookie `HttpOnly`/BFF o estrategia equivalente para evitar conservar
 el token en almacenamiento del cliente; refresh/rotación según política; pentest

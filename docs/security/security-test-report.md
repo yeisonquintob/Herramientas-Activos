@@ -36,6 +36,8 @@ encabezados de seguridad con el API temporal en ambiente Testing.
 - CORS de Production no acepta orígenes locales arbitrarios.
 - La consulta de vulnerabilidades NuGet no reporta paquetes vulnerables; la
   dependencia transitiva `Newtonsoft.Json 11.0.1` fue resuelta a `13.0.3`.
+- Se eliminó código muerto Mobile que podía persistir contraseñas y Admin ya
+  solo recuerda el nombre de usuario; además elimina la clave heredada.
 
 ## Pendientes obligatorios
 

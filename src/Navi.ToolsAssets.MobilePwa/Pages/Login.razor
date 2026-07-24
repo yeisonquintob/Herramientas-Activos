@@ -3,7 +3,6 @@
 @inject NaviMobileApiClient Api
 @inject MobileAuthSessionService Auth
 @inject NavigationManager Navigation
-@inject IJSRuntime JS
 
 <PageTitle>Ingreso móvil - Navitrans Herramientas y Activos</PageTitle>
 
@@ -186,15 +185,6 @@
 </section>
 
 @code {
-    private const string RememberEnabledKey =
-        "navi-mobile-login-remember-enabled";
-
-    private const string RememberUserNameKey =
-        "navi-mobile-login-remember-username";
-
-    private const string RememberPasswordKey =
-        "navi-mobile-login-remember-password";
-
     private LoginForm model = new();
 
     private bool isLoading;
@@ -324,80 +314,6 @@
         {
             isLoading = false;
         }
-    }
-
-    private async Task LoadRememberedCredentialsAsync()
-    {
-        try
-        {
-            var remember =
-                await JS.InvokeAsync<string?>(
-                    "localStorage.getItem",
-                    RememberEnabledKey);
-
-            if (!string.Equals(
-                    remember,
-                    "true",
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
-
-            model.RememberCredentials = true;
-
-            model.UserName =
-                await JS.InvokeAsync<string?>(
-                    "localStorage.getItem",
-                    RememberUserNameKey);
-
-            model.Password =
-                await JS.InvokeAsync<string?>(
-                    "localStorage.getItem",
-                    RememberPasswordKey);
-        }
-        catch
-        {
-            model.RememberCredentials = false;
-            model.UserName = null;
-            model.Password = null;
-        }
-    }
-
-    private async Task SaveRememberedCredentialsAsync()
-    {
-        if (model.RememberCredentials)
-        {
-            await JS.InvokeVoidAsync(
-                "localStorage.setItem",
-                RememberEnabledKey,
-                "true");
-
-            await JS.InvokeVoidAsync(
-                "localStorage.setItem",
-                RememberUserNameKey,
-                model.UserName?.Trim()
-                    ?? string.Empty);
-
-            await JS.InvokeVoidAsync(
-                "localStorage.setItem",
-                RememberPasswordKey,
-                model.Password
-                    ?? string.Empty);
-
-            return;
-        }
-
-        await JS.InvokeVoidAsync(
-            "localStorage.removeItem",
-            RememberEnabledKey);
-
-        await JS.InvokeVoidAsync(
-            "localStorage.removeItem",
-            RememberUserNameKey);
-
-        await JS.InvokeVoidAsync(
-            "localStorage.removeItem",
-            RememberPasswordKey);
     }
 
     // NAVI MOBILE LOGIN ALERT HELPERS START
@@ -543,6 +459,5 @@
 
         public string? Password { get; set; }
 
-        public bool RememberCredentials { get; set; }
     }
 }

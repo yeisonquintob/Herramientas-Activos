@@ -53,6 +53,7 @@ aprovisionamiento multicompañía y validar recuperación de respaldos.
 - [x] Rate limiting y encabezados de seguridad.
 - [x] Cero paquetes vulnerables conocidos según NuGet al 24/07/2026.
 - [x] No se encontraron secretos reales en archivos de configuración versionados.
+- [x] Ningún flujo de login conserva contraseñas en almacenamiento del navegador.
 - [ ] Migrar el almacenamiento del token de los clientes a cookie `HttpOnly`
   segura o implementar una estrategia BFF equivalente.
 - [ ] Implementar rotación/refresh token si el tiempo de sesión lo requiere.

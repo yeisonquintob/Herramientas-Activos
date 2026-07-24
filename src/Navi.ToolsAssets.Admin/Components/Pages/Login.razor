@@ -227,7 +227,7 @@
     private const string RememberUserNameKey =
         "navi-login-remember-username";
 
-    private const string RememberPasswordKey =
+    private const string LegacyRememberPasswordKey =
         "navi-login-remember-password";
 
     private LoginFormModel loginModel = new();
@@ -268,6 +268,11 @@
 
         try
         {
+            // Limpia credenciales planas que pudieron guardar versiones antiguas.
+            await JS.InvokeVoidAsync(
+                "localStorage.removeItem",
+                LegacyRememberPasswordKey);
+
             var json =
                 await JS.InvokeAsync<string?>(
                     "localStorage.getItem",
@@ -314,11 +319,6 @@
                     await JS.InvokeAsync<string?>(
                         "localStorage.getItem",
                         RememberUserNameKey);
-
-                loginModel.Password =
-                    await JS.InvokeAsync<string?>(
-                        "localStorage.getItem",
-                        RememberPasswordKey);
 
                 StateHasChanged();
             }
@@ -450,7 +450,7 @@
              */
             await JS.InvokeVoidAsync(
                 "localStorage.removeItem",
-                "navi-login-remember-password");
+                LegacyRememberPasswordKey);
 
             var json =
                 JsonSerializer.Serialize(
