@@ -886,7 +886,7 @@ public sealed class PurchaseRequestsController : ControllerBase
             return normalized;
         }
 
-        return (Path.GetExtension(fileName) ?? string.Empty).ToLowerInvariant() switch
+        return Path.GetExtension(fileName).ToLowerInvariant() switch
         {
             ".jpg" or ".jpeg" => "image/jpeg",
             ".png" => "image/png",

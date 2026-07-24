@@ -12,9 +12,7 @@ var apiBaseUrl = builder.Configuration["NaviApi:BaseUrl"] ?? "http://localhost:5
 
 builder.Services.AddScoped(_ => new HttpClient
 {
-    BaseAddress = new Uri(apiBaseUrl),
-    Timeout = TimeSpan.FromSeconds(
-        builder.Configuration.GetValue("NaviApi:TimeoutSeconds", 30))
+    BaseAddress = new Uri(apiBaseUrl)
 });
 
 builder.Services.AddScoped<MobileAuthSessionService>();

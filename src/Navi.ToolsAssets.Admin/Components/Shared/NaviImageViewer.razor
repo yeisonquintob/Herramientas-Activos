@@ -1,0 +1,35 @@
+@using Microsoft.AspNetCore.Components
+
+<figure class="@CssClass">
+    @if (string.IsNullOrWhiteSpace(Source))
+    {
+        <NaviEmptyState Icon="▧"
+                        Title="Imagen no disponible"
+                        Message="@EmptyMessage" />
+    }
+    else
+    {
+        <img src="@Source"
+             alt="@Alt"
+             loading="@Loading"
+             decoding="async" />
+        @if (!string.IsNullOrWhiteSpace(Caption))
+        {
+            <figcaption>@Caption</figcaption>
+        }
+    }
+</figure>
+
+@code {
+    [Parameter] public string? Source { get; set; }
+    [Parameter] public string Alt { get; set; } = "Imagen";
+    [Parameter] public string? Caption { get; set; }
+    [Parameter] public string EmptyMessage { get; set; } = "No se encontró una imagen para mostrar.";
+    [Parameter] public string Loading { get; set; } = "lazy";
+    [Parameter] public string? Class { get; set; }
+
+    private string CssClass =>
+        string.IsNullOrWhiteSpace(Class)
+            ? "navi-image-viewer"
+            : $"navi-image-viewer {Class.Trim()}";
+}

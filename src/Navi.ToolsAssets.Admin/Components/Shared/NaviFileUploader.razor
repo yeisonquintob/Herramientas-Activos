@@ -1,0 +1,31 @@
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Forms
+
+<label class="@CssClass">
+    <span class="navi-file-uploader__label">@Label</span>
+    <InputFile OnChange="@OnChange"
+               accept="@Accept"
+               disabled="@Disabled"
+               aria-label="@AriaLabel"
+               multiple="@Multiple" />
+    @if (!string.IsNullOrWhiteSpace(Hint))
+    {
+        <small>@Hint</small>
+    }
+</label>
+
+@code {
+    [Parameter] public string Label { get; set; } = "Seleccionar archivo";
+    [Parameter] public string AriaLabel { get; set; } = "Seleccionar archivo";
+    [Parameter] public string? Hint { get; set; }
+    [Parameter] public string? Accept { get; set; }
+    [Parameter] public bool Multiple { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public EventCallback<InputFileChangeEventArgs> OnChange { get; set; }
+
+    private string CssClass =>
+        string.IsNullOrWhiteSpace(Class)
+            ? "navi-file-uploader"
+            : $"navi-file-uploader {Class.Trim()}";
+}

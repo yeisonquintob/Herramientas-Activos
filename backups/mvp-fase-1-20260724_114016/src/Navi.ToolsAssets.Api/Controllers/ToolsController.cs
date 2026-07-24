@@ -301,11 +301,11 @@ public class ToolsController : ControllerBase
         var assignmentEvents = await _context.ToolLifeCycleEvents
             .AsNoTracking()
             .Include(x => x.ToolAsset)
-                .ThenInclude(x => x!.Branch)
+                .ThenInclude(x => x.Branch)
             .Include(x => x.ToolAsset)
-                .ThenInclude(x => x!.Location)
+                .ThenInclude(x => x.Location)
             .Include(x => x.ToolAsset)
-                .ThenInclude(x => x!.ResponsiblePerson)
+                .ThenInclude(x => x.ResponsiblePerson)
             .Where(x =>
                 !x.IsDeleted &&
                 x.EventType == "FixedAssetAssignedToResponsible")

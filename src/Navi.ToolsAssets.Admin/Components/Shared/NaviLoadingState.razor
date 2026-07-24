@@ -1,0 +1,22 @@
+@using Microsoft.AspNetCore.Components
+
+<div @attributes="AdditionalAttributes"
+     class="@CssClass"
+     role="status"
+     aria-live="polite"
+     aria-busy="true">
+    <span class="navi-loading-state__indicator" aria-hidden="true"></span>
+    <span>@Message</span>
+</div>
+
+@code {
+    [Parameter] public string Message { get; set; } = "Cargando información…";
+    [Parameter] public string? Class { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string CssClass =>
+        string.IsNullOrWhiteSpace(Class)
+            ? "navi-loading-state"
+            : $"navi-loading-state {Class.Trim()}";
+}

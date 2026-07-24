@@ -35,27 +35,22 @@ public sealed class NaviMobileApiClient
         _auth = auth;
     }
 
-    public async Task<MobileUser> LoginAsync(
-        string userName,
-        string password,
-        CancellationToken cancellationToken = default)
+    public async Task<MobileUser> LoginAsync(string userName, string password)
     {
         var response = await _http.PostAsJsonAsync("api/auth/login", new MobileLoginRequest
         {
             UserName = userName,
             Password = password
-        }, cancellationToken);
+        });
 
         using (response)
         {
             if (!response.IsSuccessStatusCode)
             {
-                throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+                throw new InvalidOperationException(await ReadApiErrorAsync(response));
             }
 
-            var user = await response.Content.ReadFromJsonAsync<MobileUser>(
-                JsonOptions,
-                cancellationToken);
+            var user = await response.Content.ReadFromJsonAsync<MobileUser>(JsonOptions);
 
             if (user is null)
             {
@@ -70,8 +65,7 @@ public sealed class NaviMobileApiClient
         }
     }
 
-    public async Task<MobileUser?> RefreshCurrentSessionAsync(
-        CancellationToken cancellationToken = default)
+    public async Task<MobileUser?> RefreshCurrentSessionAsync()
     {
         var userName = _auth.CurrentUser?.UserName;
 
@@ -88,7 +82,7 @@ public sealed class NaviMobileApiClient
 
             ApplySecurityHeaders(request);
 
-            using var response = await _http.SendAsync(request, cancellationToken);
+            using var response = await _http.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -97,9 +91,7 @@ public sealed class NaviMobileApiClient
                 return null;
             }
 
-            var user = await response.Content.ReadFromJsonAsync<MobileUser>(
-                JsonOptions,
-                cancellationToken);
+            var user = await response.Content.ReadFromJsonAsync<MobileUser>(JsonOptions);
 
             if (user is null)
             {
@@ -119,7 +111,7 @@ public sealed class NaviMobileApiClient
             ClearCache();
             return null;
         }
-        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (TaskCanceledException)
         {
             await _auth.LogoutAsync();
             ClearCache();
@@ -131,8 +123,7 @@ public sealed class NaviMobileApiClient
         bool forceRefresh = false,
         string? branchCode = null,
         string? operationalStatus = null,
-        string? q = null,
-        CancellationToken cancellationToken = default)
+        string? q = null)
     {
         var hasFilters =
             !string.IsNullOrWhiteSpace(branchCode) ||
@@ -154,16 +145,14 @@ public sealed class NaviMobileApiClient
 
         ApplySecurityHeaders(request);
 
-        using var response = await _http.SendAsync(request, cancellationToken);
+        using var response = await _http.SendAsync(request);
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+            throw new InvalidOperationException(await ReadApiErrorAsync(response));
         }
 
-        var dashboard = await response.Content.ReadFromJsonAsync<MobileExecutiveDashboard>(
-            JsonOptions,
-            cancellationToken);
+        var dashboard = await response.Content.ReadFromJsonAsync<MobileExecutiveDashboard>(JsonOptions);
 
         if (dashboard is null)
         {
@@ -202,9 +191,7 @@ public sealed class NaviMobileApiClient
         query.Add($"{Uri.EscapeDataString(key)}={Uri.EscapeDataString(value.Trim())}");
     }
 
-    public async Task<List<MobileToolDto>> GetToolsAsync(
-        bool forceRefresh = false,
-        CancellationToken cancellationToken = default)
+    public async Task<List<MobileToolDto>> GetToolsAsync(bool forceRefresh = false)
     {
         if (!forceRefresh &&
             _toolsCache is not null &&
@@ -218,16 +205,14 @@ public sealed class NaviMobileApiClient
 
         ApplySecurityHeaders(request);
 
-        using var response = await _http.SendAsync(request, cancellationToken);
+        using var response = await _http.SendAsync(request);
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+            throw new InvalidOperationException(await ReadApiErrorAsync(response));
         }
 
-        var tools = await response.Content.ReadFromJsonAsync<List<MobileToolDto>>(
-            JsonOptions,
-            cancellationToken) ?? new();
+        var tools = await response.Content.ReadFromJsonAsync<List<MobileToolDto>>(JsonOptions) ?? new();
 
         _toolsCache = tools;
         _toolsCacheAt = DateTimeOffset.Now;
@@ -235,11 +220,9 @@ public sealed class NaviMobileApiClient
         return tools;
     }
 
-    public async Task<MobileToolDto> GetToolByIdAsync(
-        Guid id,
-        CancellationToken cancellationToken = default)
+    public async Task<MobileToolDto> GetToolByIdAsync(Guid id)
     {
-        var tools = await GetToolsAsync(cancellationToken: cancellationToken);
+        var tools = await GetToolsAsync();
 
         var tool = tools.FirstOrDefault(x => x.Id == id);
 
@@ -248,7 +231,7 @@ public sealed class NaviMobileApiClient
             return tool;
         }
 
-        tools = await GetToolsAsync(forceRefresh: true, cancellationToken);
+        tools = await GetToolsAsync(forceRefresh: true);
 
         tool = tools.FirstOrDefault(x => x.Id == id);
 
@@ -260,24 +243,20 @@ public sealed class NaviMobileApiClient
         return tool;
     }
 
-    public async Task<MobileToolDetailDto> GetToolDetailAsync(
-        Guid id,
-        CancellationToken cancellationToken = default)
+    public async Task<MobileToolDetailDto> GetToolDetailAsync(Guid id)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"api/tools/{id}");
 
         ApplySecurityHeaders(request);
 
-        using var response = await _http.SendAsync(request, cancellationToken);
+        using var response = await _http.SendAsync(request);
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+            throw new InvalidOperationException(await ReadApiErrorAsync(response));
         }
 
-        var tool = await response.Content.ReadFromJsonAsync<MobileToolDetailDto>(
-            JsonOptions,
-            cancellationToken);
+        var tool = await response.Content.ReadFromJsonAsync<MobileToolDetailDto>(JsonOptions);
 
         if (tool is null)
         {
@@ -287,44 +266,36 @@ public sealed class NaviMobileApiClient
         return tool;
     }
 
-    public async Task<List<MobileLifeCycleEventDto>> GetLifeCycleEventsAsync(
-        Guid id,
-        CancellationToken cancellationToken = default)
+    public async Task<List<MobileLifeCycleEventDto>> GetLifeCycleEventsAsync(Guid id)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"api/tools/{id}/life-cycle-events");
 
         ApplySecurityHeaders(request);
 
-        using var response = await _http.SendAsync(request, cancellationToken);
+        using var response = await _http.SendAsync(request);
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+            throw new InvalidOperationException(await ReadApiErrorAsync(response));
         }
 
-        return await response.Content.ReadFromJsonAsync<List<MobileLifeCycleEventDto>>(
-            JsonOptions,
-            cancellationToken) ?? new();
+        return await response.Content.ReadFromJsonAsync<List<MobileLifeCycleEventDto>>(JsonOptions) ?? new();
     }
 
-    public async Task<MobileTechnicalLifeRecordDto> GetTechnicalLifeRecordAsync(
-        Guid id,
-        CancellationToken cancellationToken = default)
+    public async Task<MobileTechnicalLifeRecordDto> GetTechnicalLifeRecordAsync(Guid id)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"api/tools/{id}/technical-life-record");
 
         ApplySecurityHeaders(request);
 
-        using var response = await _http.SendAsync(request, cancellationToken);
+        using var response = await _http.SendAsync(request);
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+            throw new InvalidOperationException(await ReadApiErrorAsync(response));
         }
 
-        var lifeRecord = await response.Content.ReadFromJsonAsync<MobileTechnicalLifeRecordDto>(
-            JsonOptions,
-            cancellationToken);
+        var lifeRecord = await response.Content.ReadFromJsonAsync<MobileTechnicalLifeRecordDto>(JsonOptions);
 
         if (lifeRecord is null)
         {
@@ -334,51 +305,39 @@ public sealed class NaviMobileApiClient
         return lifeRecord;
     }
 
-    public async Task<List<T>> GetListJsonAsync<T>(
-        string endpoint,
-        CancellationToken cancellationToken = default)
+    public async Task<List<T>> GetListJsonAsync<T>(string endpoint)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
 
         ApplySecurityHeaders(request);
 
-        using var response = await _http.SendAsync(request, cancellationToken);
+        using var response = await _http.SendAsync(request);
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+            throw new InvalidOperationException(await ReadApiErrorAsync(response));
         }
 
-        return await response.Content.ReadFromJsonAsync<List<T>>(
-            JsonOptions,
-            cancellationToken) ?? new();
+        return await response.Content.ReadFromJsonAsync<List<T>>(JsonOptions) ?? new();
     }
 
-    public async Task<T?> GetJsonAsync<T>(
-        string endpoint,
-        CancellationToken cancellationToken = default)
+    public async Task<T?> GetJsonAsync<T>(string endpoint)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
 
         ApplySecurityHeaders(request);
 
-        using var response = await _http.SendAsync(request, cancellationToken);
+        using var response = await _http.SendAsync(request);
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+            throw new InvalidOperationException(await ReadApiErrorAsync(response));
         }
 
-        return await response.Content.ReadFromJsonAsync<T>(
-            JsonOptions,
-            cancellationToken);
+        return await response.Content.ReadFromJsonAsync<T>(JsonOptions);
     }
 
-    public async Task SendJsonAsync(
-        HttpMethod method,
-        string endpoint,
-        object? body = null,
-        CancellationToken cancellationToken = default)
+    public async Task SendJsonAsync(HttpMethod method, string endpoint, object? body = null)
     {
         using var request = new HttpRequestMessage(method, endpoint);
 
@@ -389,11 +348,11 @@ public sealed class NaviMobileApiClient
             request.Content = JsonContent.Create(body);
         }
 
-        using var response = await _http.SendAsync(request, cancellationToken);
+        using var response = await _http.SendAsync(request);
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+            throw new InvalidOperationException(await ReadApiErrorAsync(response));
         }
 
         ClearCache();
@@ -405,8 +364,7 @@ public sealed class NaviMobileApiClient
         string documentType,
         string? description,
         string? uploadedBy,
-        long maxFileSize,
-        CancellationToken cancellationToken = default)
+        long maxFileSize)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, $"api/tools/{toolId}/documents");
 
@@ -429,19 +387,17 @@ public sealed class NaviMobileApiClient
 
         request.Content = form;
 
-        using var response = await _http.SendAsync(request, cancellationToken);
+        using var response = await _http.SendAsync(request);
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+            throw new InvalidOperationException(await ReadApiErrorAsync(response));
         }
 
         ClearCache();
     }
 
-    public async Task<MobileDamageReportResponse> ReportDamageAsync(
-        MobileDamageReportRequest body,
-        CancellationToken cancellationToken = default)
+    public async Task<MobileDamageReportResponse> ReportDamageAsync(MobileDamageReportRequest body)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "api/damages/report");
 
@@ -449,16 +405,14 @@ public sealed class NaviMobileApiClient
 
         request.Content = JsonContent.Create(body);
 
-        using var response = await _http.SendAsync(request, cancellationToken);
+        using var response = await _http.SendAsync(request);
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+            throw new InvalidOperationException(await ReadApiErrorAsync(response));
         }
 
-        var result = await response.Content.ReadFromJsonAsync<MobileDamageReportResponse>(
-            JsonOptions,
-            cancellationToken);
+        var result = await response.Content.ReadFromJsonAsync<MobileDamageReportResponse>(JsonOptions);
 
         if (result is null)
         {
@@ -470,48 +424,39 @@ public sealed class NaviMobileApiClient
         return result;
     }
 
-    public async Task<List<MobileAvailabilityToolDto>> GetAvailabilityToolsAsync(
-        CancellationToken cancellationToken = default)
+    public async Task<List<MobileAvailabilityToolDto>> GetAvailabilityToolsAsync()
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, "api/tools");
 
         ApplySecurityHeaders(request);
 
-        using var response = await _http.SendAsync(request, cancellationToken);
+        using var response = await _http.SendAsync(request);
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(
-                await ReadMobileAvailabilityApiErrorAsync(response, cancellationToken));
+            throw new InvalidOperationException(await ReadMobileAvailabilityApiErrorAsync(response));
         }
 
-        return await response.Content.ReadFromJsonAsync<List<MobileAvailabilityToolDto>>(
-            JsonOptions,
-            cancellationToken) ?? new();
+        return await response.Content.ReadFromJsonAsync<List<MobileAvailabilityToolDto>>(JsonOptions) ?? new();
     }
 
-    public async Task<List<MobileBranchDto>> GetBranchesAsync(
-        CancellationToken cancellationToken = default)
+    public async Task<List<MobileBranchDto>> GetBranchesAsync()
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, "api/settings/branches");
 
         ApplySecurityHeaders(request);
 
-        using var response = await _http.SendAsync(request, cancellationToken);
+        using var response = await _http.SendAsync(request);
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(
-                await ReadMobileAvailabilityApiErrorAsync(response, cancellationToken));
+            throw new InvalidOperationException(await ReadMobileAvailabilityApiErrorAsync(response));
         }
 
-        return await response.Content.ReadFromJsonAsync<List<MobileBranchDto>>(
-            JsonOptions,
-            cancellationToken) ?? new();
+        return await response.Content.ReadFromJsonAsync<List<MobileBranchDto>>(JsonOptions) ?? new();
     }
 
-    public async Task<List<MobileLocationDto>> GetLocationsAsync(
-        CancellationToken cancellationToken = default)
+    public async Task<List<MobileLocationDto>> GetLocationsAsync()
     {
         try
         {
@@ -519,13 +464,11 @@ public sealed class NaviMobileApiClient
 
             ApplySecurityHeaders(request);
 
-            using var response = await _http.SendAsync(request, cancellationToken);
+            using var response = await _http.SendAsync(request);
 
             if (response.IsSuccessStatusCode)
             {
-                return await response.Content.ReadFromJsonAsync<List<MobileLocationDto>>(
-                    JsonOptions,
-                    cancellationToken) ?? new();
+                return await response.Content.ReadFromJsonAsync<List<MobileLocationDto>>(JsonOptions) ?? new();
             }
         }
         catch
@@ -536,26 +479,17 @@ public sealed class NaviMobileApiClient
 
         ApplySecurityHeaders(fallbackRequest);
 
-        using var fallbackResponse = await _http.SendAsync(
-            fallbackRequest,
-            cancellationToken);
+        using var fallbackResponse = await _http.SendAsync(fallbackRequest);
 
         if (!fallbackResponse.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(
-                await ReadMobileAvailabilityApiErrorAsync(
-                    fallbackResponse,
-                    cancellationToken));
+            throw new InvalidOperationException(await ReadMobileAvailabilityApiErrorAsync(fallbackResponse));
         }
 
-        return await fallbackResponse.Content.ReadFromJsonAsync<List<MobileLocationDto>>(
-            JsonOptions,
-            cancellationToken) ?? new();
+        return await fallbackResponse.Content.ReadFromJsonAsync<List<MobileLocationDto>>(JsonOptions) ?? new();
     }
 
-    public async Task UpdateAvailabilityLocationAsync(
-        MobileAvailabilityLocationRequest body,
-        CancellationToken cancellationToken = default)
+    public async Task UpdateAvailabilityLocationAsync(MobileAvailabilityLocationRequest body)
     {
         if (body.ToolId == Guid.Empty)
         {
@@ -580,58 +514,49 @@ public sealed class NaviMobileApiClient
             changedBy = body.ChangedBy
         });
 
-        using var response = await _http.SendAsync(request, cancellationToken);
+        using var response = await _http.SendAsync(request);
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(
-                await ReadMobileAvailabilityApiErrorAsync(response, cancellationToken));
+            throw new InvalidOperationException(await ReadMobileAvailabilityApiErrorAsync(response));
         }
 
         ClearCache();
     }
 
-    public async Task<List<MobileLoanRequestDto>> GetLoanRequestsAsync(
-        CancellationToken cancellationToken = default)
+    public async Task<List<MobileLoanRequestDto>> GetLoanRequestsAsync()
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, "api/loans");
 
         ApplySecurityHeaders(request);
 
-        using var response = await _http.SendAsync(request, cancellationToken);
+        using var response = await _http.SendAsync(request);
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+            throw new InvalidOperationException(await ReadApiErrorAsync(response));
         }
 
-        return await response.Content.ReadFromJsonAsync<List<MobileLoanRequestDto>>(
-            JsonOptions,
-            cancellationToken) ?? new();
+        return await response.Content.ReadFromJsonAsync<List<MobileLoanRequestDto>>(JsonOptions) ?? new();
     }
 
-    public async Task<List<MobileResponsibleDto>> GetResponsiblesAsync(
-        CancellationToken cancellationToken = default)
+    public async Task<List<MobileResponsibleDto>> GetResponsiblesAsync()
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, "api/settings/responsibles");
 
         ApplySecurityHeaders(request);
 
-        using var response = await _http.SendAsync(request, cancellationToken);
+        using var response = await _http.SendAsync(request);
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+            throw new InvalidOperationException(await ReadApiErrorAsync(response));
         }
 
-        return await response.Content.ReadFromJsonAsync<List<MobileResponsibleDto>>(
-            JsonOptions,
-            cancellationToken) ?? new();
+        return await response.Content.ReadFromJsonAsync<List<MobileResponsibleDto>>(JsonOptions) ?? new();
     }
 
-    public async Task CreateLoanRequestAsync(
-        MobileLoanRequestCreateDto body,
-        CancellationToken cancellationToken = default)
+    public async Task CreateLoanRequestAsync(MobileLoanRequestCreateDto body)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "api/loans/request");
 
@@ -639,20 +564,17 @@ public sealed class NaviMobileApiClient
 
         request.Content = JsonContent.Create(body);
 
-        using var response = await _http.SendAsync(request, cancellationToken);
+        using var response = await _http.SendAsync(request);
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+            throw new InvalidOperationException(await ReadApiErrorAsync(response));
         }
 
         ClearCache();
     }
 
-    public async Task ApproveAndAssignLoanAsync(
-        Guid loanId,
-        MobileLoanActionDto body,
-        CancellationToken cancellationToken = default)
+    public async Task ApproveAndAssignLoanAsync(Guid loanId, MobileLoanActionDto body)
     {
         using var request = new HttpRequestMessage(HttpMethod.Patch, $"api/loans/{loanId}/approve-assign");
 
@@ -660,20 +582,17 @@ public sealed class NaviMobileApiClient
 
         request.Content = JsonContent.Create(body);
 
-        using var response = await _http.SendAsync(request, cancellationToken);
+        using var response = await _http.SendAsync(request);
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+            throw new InvalidOperationException(await ReadApiErrorAsync(response));
         }
 
         ClearCache();
     }
 
-    public async Task RejectLoanRequestAsync(
-        Guid loanId,
-        MobileLoanActionDto body,
-        CancellationToken cancellationToken = default)
+    public async Task RejectLoanRequestAsync(Guid loanId, MobileLoanActionDto body)
     {
         using var request = new HttpRequestMessage(HttpMethod.Patch, $"api/loans/{loanId}/reject");
 
@@ -681,20 +600,17 @@ public sealed class NaviMobileApiClient
 
         request.Content = JsonContent.Create(body);
 
-        using var response = await _http.SendAsync(request, cancellationToken);
+        using var response = await _http.SendAsync(request);
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+            throw new InvalidOperationException(await ReadApiErrorAsync(response));
         }
 
         ClearCache();
     }
 
-    public async Task AssignFixedAssetAsync(
-        Guid toolId,
-        MobileDirectAssignmentRequest body,
-        CancellationToken cancellationToken = default)
+    public async Task AssignFixedAssetAsync(Guid toolId, MobileDirectAssignmentRequest body)
     {
         using var request = new HttpRequestMessage(HttpMethod.Patch, $"api/tools/{toolId}/assign-fixed-asset");
 
@@ -702,11 +618,11 @@ public sealed class NaviMobileApiClient
 
         request.Content = JsonContent.Create(body);
 
-        using var response = await _http.SendAsync(request, cancellationToken);
+        using var response = await _http.SendAsync(request);
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+            throw new InvalidOperationException(await ReadApiErrorAsync(response));
         }
 
         ClearCache();
@@ -775,11 +691,9 @@ public sealed class NaviMobileApiClient
         }
     }
 
-    private static async Task<string> ReadApiErrorAsync(
-        HttpResponseMessage response,
-        CancellationToken cancellationToken)
+    private static async Task<string> ReadApiErrorAsync(HttpResponseMessage response)
     {
-        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        var content = await response.Content.ReadAsStringAsync();
 
         if (string.IsNullOrWhiteSpace(content))
         {
@@ -808,11 +722,9 @@ public sealed class NaviMobileApiClient
         return content;
     }
 
-    private static async Task<string> ReadMobileAvailabilityApiErrorAsync(
-        HttpResponseMessage response,
-        CancellationToken cancellationToken)
+    private static async Task<string> ReadMobileAvailabilityApiErrorAsync(HttpResponseMessage response)
     {
-        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        var content = await response.Content.ReadAsStringAsync();
 
         if (string.IsNullOrWhiteSpace(content))
         {

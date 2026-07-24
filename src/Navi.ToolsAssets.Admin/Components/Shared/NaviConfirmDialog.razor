@@ -1,0 +1,41 @@
+@using Microsoft.AspNetCore.Components
+
+<NaviModal IsOpen="@IsOpen"
+           Title="@Title"
+           Description="@Message"
+           OnClose="@OnCancel"
+           Class="@Class">
+    <ChildContent>
+        @if (Details is not null)
+        {
+            @Details
+        }
+    </ChildContent>
+
+    <Footer>
+        <NaviActionButton Tone="secondary" OnClick="@OnCancel">
+            @CancelText
+        </NaviActionButton>
+        <NaviActionButton Tone="@ConfirmTone"
+                          Loading="@Loading"
+                          LoadingText="@LoadingText"
+                          OnClick="@OnConfirm">
+            @ConfirmText
+        </NaviActionButton>
+    </Footer>
+</NaviModal>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public string Title { get; set; } = "Confirmar acción";
+    [Parameter] public string Message { get; set; } = "¿Deseas continuar?";
+    [Parameter] public string ConfirmText { get; set; } = "Confirmar";
+    [Parameter] public string CancelText { get; set; } = "Cancelar";
+    [Parameter] public string ConfirmTone { get; set; } = "affirmative";
+    [Parameter] public bool Loading { get; set; }
+    [Parameter] public string LoadingText { get; set; } = "Procesando…";
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public RenderFragment? Details { get; set; }
+}

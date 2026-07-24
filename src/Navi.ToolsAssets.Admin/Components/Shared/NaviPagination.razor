@@ -1,0 +1,52 @@
+@using Microsoft.AspNetCore.Components
+
+<nav class="@CssClass" aria-label="@AriaLabel">
+    <NaviActionButton Tone="secondary"
+                      Size="compact"
+                      Disabled="@(!CanGoPrevious)"
+                      OnClick="@GoPreviousAsync">
+        Anterior
+    </NaviActionButton>
+
+    <span class="navi-pagination__summary" aria-live="polite">
+        Página @NormalizedPage de @TotalPages
+    </span>
+
+    <NaviActionButton Tone="secondary"
+                      Size="compact"
+                      Disabled="@(!CanGoNext)"
+                      OnClick="@GoNextAsync">
+        Siguiente
+    </NaviActionButton>
+</nav>
+
+@code {
+    [Parameter] public int Page { get; set; } = 1;
+    [Parameter] public int PageSize { get; set; } = 20;
+    [Parameter] public long TotalCount { get; set; }
+    [Parameter] public EventCallback<int> PageChanged { get; set; }
+    [Parameter] public string AriaLabel { get; set; } = "Paginación";
+    [Parameter] public string? Class { get; set; }
+
+    private int TotalPages =>
+        Math.Max(1, (int)Math.Ceiling(TotalCount / (double)Math.Max(1, PageSize)));
+
+    private int NormalizedPage => Math.Clamp(Page, 1, TotalPages);
+    private bool CanGoPrevious => NormalizedPage > 1;
+    private bool CanGoNext => NormalizedPage < TotalPages;
+
+    private string CssClass =>
+        string.IsNullOrWhiteSpace(Class)
+            ? "navi-pagination"
+            : $"navi-pagination {Class.Trim()}";
+
+    private Task GoPreviousAsync() =>
+        CanGoPrevious
+            ? PageChanged.InvokeAsync(NormalizedPage - 1)
+            : Task.CompletedTask;
+
+    private Task GoNextAsync() =>
+        CanGoNext
+            ? PageChanged.InvokeAsync(NormalizedPage + 1)
+            : Task.CompletedTask;
+}

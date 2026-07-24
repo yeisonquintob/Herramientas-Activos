@@ -12,8 +12,6 @@ builder.Services.AddTransient<NaviPermissionHttpMessageHandler>();
 builder.Services.AddHttpClient("NaviApi", client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["NaviApi:BaseUrl"] ?? "http://localhost:5218");
-    client.Timeout = TimeSpan.FromSeconds(
-        builder.Configuration.GetValue("NaviApi:TimeoutSeconds", 30));
 }).AddHttpMessageHandler<NaviPermissionHttpMessageHandler>();
 
 builder.Services.AddScoped<WebAuthSessionService>();

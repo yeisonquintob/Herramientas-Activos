@@ -1,0 +1,64 @@
+@using Microsoft.AspNetCore.Components
+
+@if (IsOpen)
+{
+    <div class="navi-modal-backdrop"
+         data-ntx-component="modal"
+         role="presentation">
+        <section @attributes="AdditionalAttributes"
+                 class="@CssClass"
+                 role="dialog"
+                 aria-modal="true"
+                 aria-labelledby="@TitleId"
+                 aria-describedby="@DescriptionId">
+            <header class="navi-modal__header">
+                <div>
+                    <h2 id="@TitleId">@Title</h2>
+                    @if (!string.IsNullOrWhiteSpace(Description))
+                    {
+                        <p id="@DescriptionId">@Description</p>
+                    }
+                </div>
+
+                <NaviActionButton Tone="ghost"
+                                  Size="compact"
+                                  IconOnly="true"
+                                  OnClick="@OnClose"
+                                  aria-label="Cerrar">
+                    ×
+                </NaviActionButton>
+            </header>
+
+            <div class="navi-modal__body">
+                @ChildContent
+            </div>
+
+            @if (Footer is not null)
+            {
+                <footer class="navi-modal__footer">
+                    @Footer
+                </footer>
+            }
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public string Title { get; set; } = "Detalle";
+    [Parameter] public string? Description { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? Footer { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private readonly string instanceId = $"navi-modal-{Guid.NewGuid():N}";
+    private string TitleId => $"{instanceId}-title";
+    private string DescriptionId => $"{instanceId}-description";
+    private string CssClass =>
+        string.IsNullOrWhiteSpace(Class)
+            ? "navi-modal"
+            : $"navi-modal {Class.Trim()}";
+}

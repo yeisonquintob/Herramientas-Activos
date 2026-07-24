@@ -3,7 +3,6 @@ using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Navi.ToolsAssets.Infrastructure.Persistence.Context;
-using Navi.ToolsAssets.Shared.Security;
 
 namespace Navi.ToolsAssets.Api.Controllers;
 
@@ -353,7 +352,7 @@ public sealed class AuthController : ControllerBase
     [HttpGet("permissions")]
     public IActionResult GetPermissions()
     {
-        return Ok(PermissionCatalog.All);
+        return Ok(SecurityPermissions.All);
     }
 
     private async Task EnsureSecurityUsersPasswordSchemaAsync(CancellationToken cancellationToken)
@@ -588,9 +587,9 @@ END
         var value = permission.Trim();
         var code = value.ToUpperInvariant();
 
-        if (PermissionCatalog.All.Any(x => string.Equals(x.Code, value, StringComparison.OrdinalIgnoreCase)))
+        if (SecurityPermissions.All.Any(x => string.Equals(x.Code, value, StringComparison.OrdinalIgnoreCase)))
         {
-            yield return PermissionCatalog.All
+            yield return SecurityPermissions.All
                 .First(x => string.Equals(x.Code, value, StringComparison.OrdinalIgnoreCase))
                 .Code;
 
@@ -702,7 +701,7 @@ END
 
         if (code is "ADMIN" or "ADMINISTRADOR")
         {
-            return PermissionCatalog.All.Select(x => x.Code).ToList();
+            return SecurityPermissions.All.Select(x => x.Code).ToList();
         }
 
         if (code is "GERENCIAL" or "GERENCIA" or "AUDITOR" or "AUDITORIA")
@@ -925,4 +924,64 @@ public sealed class LoginResponse
     public List<string> Permissions { get; set; } = new();
 
     public DateTime? LastLoginAt { get; set; }
+}
+
+public sealed record PermissionInfo(string Code, string Module, string Action, string Description);
+
+public static class SecurityPermissions
+{
+    public static readonly List<PermissionInfo> All = new()
+    {
+        new("Dashboard.View", "Dashboard", "Ver", "Ver dashboard ejecutivo."),
+
+        new("Tools.View", "Inventario AF", "Ver", "Ver inventario de herramientas y activos."),
+        new("Tools.Create", "Inventario AF", "Crear", "Crear herramientas o activos."),
+        new("Tools.Edit", "Inventario AF", "Editar", "Editar herramientas o activos."),
+        new("Tools.Delete", "Inventario AF", "Eliminar", "Eliminar herramientas o activos."),
+
+        new("AssetAvailability.View", "Disponible y ubicación", "Ver", "Ver disponibilidad y ubicación."),
+        new("AssetAvailability.Edit", "Disponible y ubicación", "Editar", "Cambiar disponibilidad, sede o ubicación."),
+
+        new("AssetAssignment.View", "Asignar AF", "Ver", "Ver módulo de asignaciones."),
+        new("AssetAssignment.Assign", "Asignar AF", "Asignar", "Asignar activos a responsables."),
+        new("AssetAssignment.Return", "Asignar AF", "Regresar", "Regresar activos a almacén/taller."),
+        new("AssetAssignment.History", "Asignar AF", "Historial", "Ver historial de asignaciones."),
+
+        new("TechnicalLifeRecord.View", "Hoja de vida", "Ver", "Ver hoja de vida técnica."),
+        new("TechnicalLifeRecord.Edit", "Hoja de vida", "Editar", "Editar datos técnicos de hoja de vida."),
+        new("TechnicalLifeRecord.Export", "Hoja de vida", "Exportar", "Exportar hoja de vida a PDF o Excel."),
+
+        new("Documents.View", "Documentos", "Ver", "Ver documentos y evidencias."),
+        new("Documents.Upload", "Documentos", "Cargar", "Cargar documentos y evidencias."),
+        new("Documents.Download", "Documentos", "Descargar", "Descargar documentos."),
+        new("Documents.Delete", "Documentos", "Eliminar", "Eliminar documentos."),
+
+        new("Maintenance.View", "Mantenimiento", "Ver", "Ver mantenimientos."),
+        new("Maintenance.Request", "Mantenimiento", "Solicitar", "Solicitar mantenimiento."),
+        new("Maintenance.Execute", "Mantenimiento", "Ejecutar", "Registrar ejecución de mantenimiento."),
+        new("Maintenance.Close", "Mantenimiento", "Cerrar", "Cerrar mantenimiento."),
+
+        new("Purchases.View", "Compras AF", "Ver", "Ver solicitudes de compra."),
+        new("Purchases.Request", "Compras AF", "Solicitar", "Solicitar compra de activo fijo."),
+        new("Purchases.Approve", "Compras AF", "Aprobar", "Aprobar compra de activo fijo."),
+        new("Purchases.Reject", "Compras AF", "Rechazar", "Rechazar compra de activo fijo."),
+
+        new("PhysicalCounts.View", "Tomas físicas", "Ver", "Ver tomas físicas."),
+        new("PhysicalCounts.Create", "Tomas físicas", "Crear", "Crear toma física."),
+        new("PhysicalCounts.Close", "Tomas físicas", "Cerrar", "Cerrar toma física."),
+
+        new("SafePractices.View", "Prácticas seguras", "Ver", "Ver prácticas seguras."),
+        new("SafePractices.Manage", "Prácticas seguras", "Administrar", "Administrar prácticas seguras."),
+
+        new("Reports.View", "Reportes", "Ver", "Ver reportes."),
+
+        new("Reconciliation.View", "Conciliación", "Ver", "Ver conciliación administrativa."),
+        new("Reconciliation.Manage", "Conciliación", "Gestionar", "Aclarar, aprobar creación, conciliar o rechazar."),
+
+        new("Settings.View", "Configuración", "Ver", "Ver configuración."),
+        new("Settings.Manage", "Configuración", "Administrar", "Administrar configuración base."),
+
+        new("Security.Users", "Seguridad", "Usuarios", "Administrar usuarios."),
+        new("Security.Roles", "Seguridad", "Roles", "Administrar roles y permisos.")
+    };
 }
