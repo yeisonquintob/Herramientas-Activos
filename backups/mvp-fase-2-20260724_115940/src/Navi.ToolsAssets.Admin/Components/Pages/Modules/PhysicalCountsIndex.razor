@@ -1,0 +1,1334 @@
+@page "/physical-counts"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@using Navi.ToolsAssets.Admin.Components.Security
+@using Navi.ToolsAssets.Admin.Components.Shared
+@using Navi.ToolsAssets.Admin.Services.Auth
+@inject IHttpClientFactory HttpClientFactory
+@inject WebAuthSessionService AuthSession
+@inject NavigationManager NavigationManager
+
+<PageTitle>Tomas Físicas</PageTitle>
+
+<PermissionGuard Permission="PhysicalCounts.View" ModuleName="Tomas Físicas">
+
+<section class="navi-reference-toolbar physical-counts-kpi-toolbar">
+<NaviPageHero
+    Class="navi-reference-toolbar__actions"
+    Pill="CONTROL"
+    Title="Tomas físicas"
+    Description="Programa campañas, habilita inventario por sede y controla el avance por usuario desde escritorio y móvil.">
+
+    <button type="button"
+            title="Actualizar tomas físicas"
+            aria-label="Actualizar tomas físicas"
+            data-ntx-icon-only="true"
+            @onclick="LoadAsync"
+            data-ntx-tone="refresh">
+        Actualizar
+    </button>
+
+</NaviPageHero>
+
+<NaviKpiGrid Columns="5"
+             Class="tf-reference-kpis physical-counts-kpis-standard">
+
+    <NaviKpiCard Title="Campañas"
+                 Description="Según búsqueda actual"
+                 Tone="neutral">
+        <IconContent>
+            <NaviKpiIcon Name="calendar" />
+        </IconContent>
+
+        <ValueContent>
+            @FilteredCounts.Count()
+        </ValueContent>
+    </NaviKpiCard>
+
+    <NaviKpiCard Title="En progreso"
+                 Description="Inventario activo"
+                 Tone="soft">
+        <IconContent>
+            <NaviKpiIcon Name="progress" />
+        </IconContent>
+
+        <ValueContent>
+            @FilteredCounts.Count(
+                x => string.Equals(
+                    x.Status,
+                    "InProgress",
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+        </ValueContent>
+    </NaviKpiCard>
+
+    <NaviKpiCard Title="Herramientas"
+                 Description="Activos programados"
+                 Tone="positive">
+        <IconContent>
+            <NaviKpiIcon Name="inventory" />
+        </IconContent>
+
+        <ValueContent>
+            @FilteredCounts.Sum(x => x.TotalItems)
+        </ValueContent>
+    </NaviKpiCard>
+
+    <NaviKpiCard Title="Encontradas"
+                 Description="Registros validados"
+                 Tone="warning">
+        <IconContent>
+            <NaviKpiIcon Name="check" />
+        </IconContent>
+
+        <ValueContent>
+            @FilteredCounts.Sum(x => x.FoundItems)
+        </ValueContent>
+    </NaviKpiCard>
+
+    <NaviKpiCard Title="Pendientes"
+                 Description="Por conciliar"
+                 Tone="danger">
+        <IconContent>
+            <NaviKpiIcon Name="alert" />
+        </IconContent>
+
+        <ValueContent>
+            @FilteredCounts.Sum(x => x.MissingItems)
+        </ValueContent>
+    </NaviKpiCard>
+
+</NaviKpiGrid>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(successMessage))
+{
+    <div class="alert alert-success">@successMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+<section class="tf-layout">
+    @if (CanCreatePhysicalCount)
+    {
+        <article class="tf-form-card">
+                <h3>Programar toma física</h3>
+                <p>Crea una campaña por sede. Luego, en el detalle, generas participantes y activas la toma.</p>
+
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="navi-physicalcountsindex-control-001">Sede</label>
+                        <select class="form-select tf-branch-select"
+                                @bind="newCount.BranchCode"
+                                id="navi-physicalcountsindex-control-001">
+                            <option value="">Seleccione una sede</option>
+                            @foreach (var branch in branches)
+                            {
+                                <option value="@branch.Code">@branch.Code - @branch.Name</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="navi-physicalcountsindex-control-002">Responsable / creador</label>
+                        <input class="form-control" @bind="newCount.ResponsibleBy" id="navi-physicalcountsindex-control-002" />
+                    </div>
+
+                    <div class="form-group full">
+                        <label for="navi-physicalcountsindex-control-003">Notas / alcance</label>
+                        <textarea class="form-control" rows="3" @bind="newCount.Notes" id="navi-physicalcountsindex-control-003"></textarea>
+                    </div>
+                </div>
+
+                @* NAVI V194-CORR1 - UNA TOMA ABIERTA POR SEDE *@
+                @if (BlockingPhysicalCountForSelectedBranchV194 is { } blockingCountV194)
+                {
+                    <div class="alert alert-warning py-2 mb-2"
+                         role="alert">
+                        <strong>
+                            No se puede crear otra toma en esta sede.
+                        </strong>
+                        <div>
+                            @BuildBlockingPhysicalCountMessageV194(
+                                blockingCountV194
+                            )
+                        </div>
+                    </div>
+                }
+
+                <button class="btn ntx-btn--affirmative w-100 mt-2" @onclick="CreateAsync" data-ntx-tone="operation" 
+                        disabled="@HasBlockingPhysicalCountForSelectedBranchV194">
+                    Crear toma física
+                </button>
+            </article>
+    }
+    else
+    {
+        <article class="tf-form-card">
+            <h3>Programar toma física</h3>
+            <p>Tu rol no tiene permiso para crear campañas. Solo puedes consultar tus tomas y tus pendientes.</p>
+            <div class="tf-empty">Permiso requerido para crear: PhysicalCounts.Create</div>
+        </article>
+    }
+
+    <article class="tf-list-card">
+        <div class="tf-card-title">
+            <div>
+                <h3>Campañas registradas</h3>
+                <p>Ingresa a cada toma para ver usuarios, avance, pendientes y conciliación.</p>
+            </div>
+
+                        @* NAVI V192-CORR1 - FILTROS SEDE Y ESTADO *@
+            <div class="pc-v192-campaign-filters">
+                <div class="pc-v192-campaign-search">
+                <input class="form-control tf-search"
+                                   placeholder="Buscar toma, sede, responsable..."
+                                   @bind="searchText"
+                                   @bind:event="oninput" name="navi-physicalcountsindex-field-001" />
+                </div>
+
+                <select class="pc-v192-filter-select"
+                        @bind="physicalCountSiteFilterV192"
+                        aria-label="Filtrar tomas físicas por sede">
+                    <option value="">Todas las sedes</option>
+
+                    @foreach (var option in GetPhysicalCountSiteOptionsV192(FilteredCounts))
+                    {
+                        <option value="@option.Value">
+                            @option.Text
+                        </option>
+                    }
+                </select>
+
+                <select class="pc-v192-filter-select"
+                        @bind="physicalCountStateFilterV192"
+                        aria-label="Filtrar tomas físicas por estado">
+                    <option value="">Todos los estados</option>
+
+                    @foreach (var option in GetPhysicalCountStateOptionsV192(FilteredCounts))
+                    {
+                        <option value="@option.Value">
+                            @option.Text
+                        </option>
+                    }
+                </select>
+            </div>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="tf-empty" role="status" aria-busy="true">Cargando tomas físicas...</div>
+        }
+        else if (!FilteredCounts.Any())
+        {
+            <div class="tf-empty">No hay tomas físicas registradas.</div>
+        }
+        else
+        {
+            <div class="tf-table-wrapper">
+                <div class="ntx-table-scroll">
+                    <table class="tf-table tf-table-v152-corr1">
+                    <thead>
+                        <tr>
+                            <th>Toma</th>
+                            <th>Sede</th>
+                            <th>Estado</th>
+                            <th>Fecha inicio</th>
+                            <th>Fecha cierre</th>
+                            <th>Responsable</th>
+                            <th>Herramientas</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in ApplyPhysicalCountDropdownFiltersV192(FilteredCounts))
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@item.CountNumber</strong>
+                                    <small>@item.Notes</small>
+                                </td>
+
+                                <td>
+                                    <strong>@item.BranchCode</strong>
+                                    <small>@item.BranchName</small>
+                                </td>
+
+                                <td>
+                                    <span class="@GetStatusClass(item.Status)">
+                                        @item.StatusLabel
+                                    </span>
+                                </td>
+
+                                <td>@FormatDate(item.StartedAt)</td>
+                                <td>@FormatDate(item.FinishedAt)</td>
+                                <td>@item.ResponsibleBy</td>
+
+                                <td>
+                                    <small>Total: @item.TotalItems</small>
+                                    <small>Encontradas: @item.FoundItems</small>
+                                    <small>Faltantes: @item.MissingItems</small>
+                                </td>
+
+                                <td>
+                                    @* NAVI PHYSICAL COUNTS ACTIONS V152 CORR1 START *@
+
+                                    <div class="row-actions tf-actions-v152-corr1">
+
+                                        <a class="tf-action
+                                                  tf-action-primary
+                                                  tf-action-detail
+                                                  tf-action-v152-corr1
+                                                  tf-action-v152-corr1--detail"
+                                           href="@($"/physical-counts/{item.Id}")"
+                                           data-ntx-tone="operation">
+
+                                            Detalle
+
+                                        </a>
+
+                                        <button class="tf-action
+                                                       tf-action-danger
+                                                       tf-action-cancel
+                                                       tf-action-v152-corr1
+                                                       tf-action-v152-corr1--cancel"
+                                                type="button"
+                                                disabled="@(!CanCancelPhysicalCountItem(item))"
+                                                @onclick="() => CancelAsync(item.Id)"
+                                                data-ntx-tone="secondary">
+
+                                            Cancelar
+
+                                        </button>
+
+                                        <button class="tf-action
+                                                       tf-action-success
+                                                       tf-action-start
+                                                       tf-action-v152-corr1
+                                                       tf-action-v152-corr1--start"
+                                                type="button"
+                                                disabled="@(!CanStartPhysicalCountItem(item))"
+                                                @onclick="() => StartAsync(item.Id)"
+                                                data-ntx-tone="affirmative">
+
+                                            Iniciar
+
+                                        </button>
+
+                                        <button class="tf-action
+                                                       tf-action-neutral
+                                                       tf-action-close
+                                                       tf-action-v152-corr1
+                                                       tf-action-v152-corr1--close"
+                                                type="button"
+                                                disabled="@(!CanClosePhysicalCountItem(item))"
+                                                @onclick="() => CompleteAsync(item.Id)"
+                                                data-ntx-tone="danger">
+
+                                            Cerrar
+
+                                        </button>
+
+                                    </div>
+
+                                    @* NAVI PHYSICAL COUNTS ACTIONS V152 CORR1 END *@
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                </div>
+            </div>
+        }
+    </article>
+</section>
+
+</PermissionGuard>
+
+
+
+@code {
+
+    // NAVI V194-CORR1 - Una toma no terminada por sede.
+    private PhysicalCountItem?
+        BlockingPhysicalCountForSelectedBranchV194
+    {
+        get
+        {
+            var selectedBranchCode =
+                newCount.BranchCode?.Trim();
+
+            if (string.IsNullOrWhiteSpace(
+                selectedBranchCode
+            ))
+            {
+                return null;
+            }
+
+            return counts.FirstOrDefault(item =>
+                string.Equals(
+                    item.BranchCode?.Trim(),
+                    selectedBranchCode,
+                    StringComparison.OrdinalIgnoreCase
+                )
+                && !IsTerminalPhysicalCountStatusV194(
+                    item.Status
+                )
+            );
+        }
+    }
+
+    private bool
+        HasBlockingPhysicalCountForSelectedBranchV194 =>
+            BlockingPhysicalCountForSelectedBranchV194
+            is not null;
+
+    private static bool IsTerminalPhysicalCountStatusV194(
+        object? status
+    )
+    {
+        var normalized = Convert.ToString(
+                status,
+                System.Globalization.CultureInfo
+                    .InvariantCulture
+            )
+            ?.Trim()
+            .Replace("_", string.Empty)
+            .Replace("-", string.Empty)
+            .Replace(" ", string.Empty)
+            .ToLowerInvariant()
+            ?? string.Empty;
+
+        return normalized is
+            "completed"
+            or "complete"
+            or "completada"
+            or "finalizada"
+            or "reconciled"
+            or "conciliada"
+            or "closed"
+            or "close"
+            or "cerrada"
+            or "cancelled"
+            or "canceled"
+            or "cancelada";
+    }
+
+    private static string
+        FormatPhysicalCountStatusV194(
+            object? status
+        )
+    {
+        var normalized = Convert.ToString(
+                status,
+                System.Globalization.CultureInfo
+                    .InvariantCulture
+            )
+            ?.Trim()
+            .Replace("_", string.Empty)
+            .Replace("-", string.Empty)
+            .Replace(" ", string.Empty)
+            .ToLowerInvariant()
+            ?? string.Empty;
+
+        return normalized switch
+        {
+            "draft" or "created" or "new"
+                or "scheduled" or "programmed"
+                => "Programada",
+
+            "started" or "active" or "open"
+                or "inprogress"
+                => "En progreso",
+
+            "completed" or "complete"
+                => "Completada",
+
+            "reconciled"
+                => "Conciliada",
+
+            "closed" or "close"
+                => "Cerrada",
+
+            "cancelled" or "canceled"
+                => "Cancelada",
+
+            _ => string.IsNullOrWhiteSpace(normalized)
+                ? "abierta"
+                : Convert.ToString(
+                    status,
+                    System.Globalization.CultureInfo
+                        .InvariantCulture
+                ) ?? "abierta"
+        };
+    }
+
+    private static string
+        BuildBlockingPhysicalCountMessageV194(
+            PhysicalCountItem count
+        )
+    {
+        var branchCode =
+            string.IsNullOrWhiteSpace(count.BranchCode)
+                ? "seleccionada"
+                : count.BranchCode.Trim();
+
+        var countNumber =
+            string.IsNullOrWhiteSpace(count.CountNumber)
+                ? "pendiente"
+                : count.CountNumber.Trim();
+
+        var status =
+            FormatPhysicalCountStatusV194(
+                count.Status
+            );
+
+        return
+            $"La sede {branchCode} ya tiene la toma física "
+            + $"{countNumber} en estado {status}. "
+            + "Debe completarla, conciliarla/cerrarla "
+            + "o cancelarla antes de crear una nueva.";
+    }
+
+
+    // NAVI V192-CORR1 - Filtros por sede y estado.
+    private string physicalCountSiteFilterV192 = string.Empty;
+    private string physicalCountStateFilterV192 = string.Empty;
+
+    private sealed class PhysicalCountFilterOptionV192
+    {
+        public PhysicalCountFilterOptionV192(
+            string value,
+            string text
+        )
+        {
+            Value = value;
+            Text = text;
+        }
+
+        public string Value { get; }
+
+        public string Text { get; }
+    }
+
+    private IEnumerable<T> ApplyPhysicalCountDropdownFiltersV192<T>(
+        IEnumerable<T>? source
+    )
+    {
+        var result = source ?? Array.Empty<T>();
+
+        if (!string.IsNullOrWhiteSpace(
+            physicalCountSiteFilterV192
+        ))
+        {
+            result = result.Where(item =>
+            {
+                var option = BuildPhysicalCountSiteOptionV192(
+                    item
+                );
+
+                return option is not null
+                    && string.Equals(
+                        option.Value,
+                        physicalCountSiteFilterV192,
+                        StringComparison.OrdinalIgnoreCase
+                    );
+            });
+        }
+
+        if (!string.IsNullOrWhiteSpace(
+            physicalCountStateFilterV192
+        ))
+        {
+            result = result.Where(item =>
+            {
+                var option = BuildPhysicalCountStateOptionV192(
+                    item
+                );
+
+                return option is not null
+                    && string.Equals(
+                        option.Value,
+                        physicalCountStateFilterV192,
+                        StringComparison.OrdinalIgnoreCase
+                    );
+            });
+        }
+
+        return result;
+    }
+
+    private IReadOnlyList<PhysicalCountFilterOptionV192>
+        GetPhysicalCountSiteOptionsV192<T>(
+            IEnumerable<T>? source
+        )
+    {
+        var options = new Dictionary<
+            string,
+            PhysicalCountFilterOptionV192
+        >(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var item in source ?? Array.Empty<T>())
+        {
+            var option = BuildPhysicalCountSiteOptionV192(
+                item
+            );
+
+            if (
+                option is not null
+                && !options.ContainsKey(option.Value)
+            )
+            {
+                options.Add(
+                    option.Value,
+                    option
+                );
+            }
+        }
+
+        return options.Values
+            .OrderBy(option => option.Text)
+            .ToList();
+    }
+
+    private IReadOnlyList<PhysicalCountFilterOptionV192>
+        GetPhysicalCountStateOptionsV192<T>(
+            IEnumerable<T>? source
+        )
+    {
+        var options = new Dictionary<
+            string,
+            PhysicalCountFilterOptionV192
+        >(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var item in source ?? Array.Empty<T>())
+        {
+            var option = BuildPhysicalCountStateOptionV192(
+                item
+            );
+
+            if (
+                option is not null
+                && !options.ContainsKey(option.Value)
+            )
+            {
+                options.Add(
+                    option.Value,
+                    option
+                );
+            }
+        }
+
+        return options.Values
+            .OrderBy(option =>
+                GetPhysicalCountStateOrderV192(option.Text)
+            )
+            .ThenBy(option => option.Text)
+            .ToList();
+    }
+
+    private static PhysicalCountFilterOptionV192?
+        BuildPhysicalCountSiteOptionV192(
+            object? item
+        )
+    {
+        if (item is null)
+        {
+            return null;
+        }
+
+        var code = ReadPhysicalCountScalarV192(
+            item,
+            new[]
+            {
+                "SiteCode",
+                "SedeCode",
+                "BranchCode",
+                "LocationCode",
+                "OfficeCode",
+                "SiteId",
+                "SedeId"
+            }
+        );
+
+        var name = ReadPhysicalCountScalarV192(
+            item,
+            new[]
+            {
+                "SiteName",
+                "SiteDisplayName",
+                "SedeName",
+                "SedeNombre",
+                "BranchName",
+                "LocationName",
+                "OfficeName"
+            }
+        );
+
+        var container = ReadPhysicalCountPropertyV192(
+            item,
+            new[]
+            {
+                "Site",
+                "Sede",
+                "Branch",
+                "Location",
+                "Office"
+            }
+        );
+
+        if (container is string containerText)
+        {
+            code ??= string.IsNullOrWhiteSpace(containerText)
+                ? null
+                : containerText.Trim();
+        }
+        else if (container is not null)
+        {
+            code ??= ReadPhysicalCountScalarV192(
+                container,
+                new[]
+                {
+                    "Code",
+                    "SiteCode",
+                    "SedeCode",
+                    "BranchCode",
+                    "LocationCode",
+                    "ShortName",
+                    "Id"
+                }
+            );
+
+            name ??= ReadPhysicalCountScalarV192(
+                container,
+                new[]
+                {
+                    "Name",
+                    "DisplayName",
+                    "SiteName",
+                    "SedeName",
+                    "BranchName",
+                    "LocationName"
+                }
+            );
+        }
+
+        var value = FirstPhysicalCountTextV192(
+            code,
+            name
+        );
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var text = (
+            !string.IsNullOrWhiteSpace(code)
+            && !string.IsNullOrWhiteSpace(name)
+            && !string.Equals(
+                code,
+                name,
+                StringComparison.OrdinalIgnoreCase
+            )
+        )
+            ? $"{code} - {name}"
+            : value;
+
+        return new PhysicalCountFilterOptionV192(
+            value.Trim(),
+            text.Trim()
+        );
+    }
+
+    private static PhysicalCountFilterOptionV192?
+        BuildPhysicalCountStateOptionV192(
+            object? item
+        )
+    {
+        if (item is null)
+        {
+            return null;
+        }
+
+        var state = ReadPhysicalCountPropertyV192(
+            item,
+            new[]
+            {
+                "Status",
+                "StatusName",
+                "State",
+                "StateName",
+                "Estado",
+                "EstadoNombre",
+                "PhysicalCountStatus"
+            }
+        );
+
+        if (state is null)
+        {
+            return null;
+        }
+
+        string? rawValue;
+
+        if (
+            state is string
+            || state.GetType().IsEnum
+            || state.GetType().IsValueType
+        )
+        {
+            rawValue = Convert.ToString(
+                state,
+                System.Globalization.CultureInfo
+                    .InvariantCulture
+            );
+        }
+        else
+        {
+            rawValue = ReadPhysicalCountScalarV192(
+                state,
+                new[]
+                {
+                    "Code",
+                    "Name",
+                    "DisplayName",
+                    "Status",
+                    "State",
+                    "Estado"
+                }
+            );
+        }
+
+        if (string.IsNullOrWhiteSpace(rawValue))
+        {
+            return null;
+        }
+
+        return new PhysicalCountFilterOptionV192(
+            rawValue.Trim(),
+            FormatPhysicalCountStateV192(rawValue)
+        );
+    }
+
+    private static object? ReadPhysicalCountPropertyV192(
+        object instance,
+        IEnumerable<string> propertyNames
+    )
+    {
+        var type = instance.GetType();
+
+        foreach (var propertyName in propertyNames)
+        {
+            var property = type.GetProperty(
+                propertyName,
+                System.Reflection.BindingFlags.Instance
+                | System.Reflection.BindingFlags.Public
+                | System.Reflection.BindingFlags.IgnoreCase
+            );
+
+            if (property is null)
+            {
+                continue;
+            }
+
+            var value = property.GetValue(instance);
+
+            if (value is not null)
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? ReadPhysicalCountScalarV192(
+        object instance,
+        IEnumerable<string> propertyNames
+    )
+    {
+        var value = ReadPhysicalCountPropertyV192(
+            instance,
+            propertyNames
+        );
+
+        if (value is null)
+        {
+            return null;
+        }
+
+        var valueType = value.GetType();
+
+        if (
+            value is not string
+            && !valueType.IsEnum
+            && !valueType.IsValueType
+        )
+        {
+            return null;
+        }
+
+        var text = Convert.ToString(
+            value,
+            System.Globalization.CultureInfo.InvariantCulture
+        );
+
+        return string.IsNullOrWhiteSpace(text)
+            ? null
+            : text.Trim();
+    }
+
+    private static string? FirstPhysicalCountTextV192(
+        params string?[] values
+    )
+    {
+        return values.FirstOrDefault(
+            value => !string.IsNullOrWhiteSpace(value)
+        );
+    }
+
+    private static string FormatPhysicalCountStateV192(
+        string value
+    )
+    {
+        var normalized = value
+            .Trim()
+            .Replace("_", " ")
+            .Replace("-", " ")
+            .ToLowerInvariant();
+
+        return normalized switch
+        {
+            "draft" or "created" or "new"
+                or "programmed" or "scheduled"
+                or "programada"
+                => "Programada",
+
+            "active" or "started" or "in progress"
+                or "inprogress" or "open"
+                or "en progreso"
+                => "En progreso",
+
+            "completed" or "complete"
+                or "completada"
+                => "Completada",
+
+            "closed" or "close"
+                or "cerrada"
+                => "Cerrada",
+
+            "cancelled" or "canceled"
+                or "cancelada"
+                => "Cancelada",
+
+            "expired" or "overdue"
+                or "vencida"
+                => "Vencida",
+
+            _ => System.Globalization.CultureInfo
+                .CurrentCulture
+                .TextInfo
+                .ToTitleCase(normalized)
+        };
+    }
+
+    private static int GetPhysicalCountStateOrderV192(
+        string state
+    )
+    {
+        return state.ToLowerInvariant() switch
+        {
+            "programada" => 1,
+            "en progreso" => 2,
+            "completada" => 3,
+            "cerrada" => 4,
+            "cancelada" => 5,
+            "vencida" => 6,
+            _ => 99
+        };
+    }
+
+
+    private bool IsAdmin =>
+        string.Equals(AuthSession.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(AuthSession.RoleCode, "SUPERADMIN", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(AuthSession.RoleName, "Administrador", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(AuthSession.RoleName, "Administrador NAVI", StringComparison.OrdinalIgnoreCase);
+
+    private bool CanCreatePhysicalCount => HasPermission("PhysicalCounts.Create");
+    private bool CanStartPhysicalCount => HasPermission("PhysicalCounts.Start");
+    private bool CanClosePhysicalCount => HasPermission("PhysicalCounts.Close");
+    private bool CanCancelPhysicalCount => HasPermission("PhysicalCounts.Cancel");
+    private bool CanReportPhysicalCount => HasPermission("PhysicalCounts.Report");
+ 
+    // NAVI V167: reglas definitivas por permiso y estado.
+    // La matriz de roles y permisos se conserva sin modificaciones.
+    // Detalle continúa siendo un enlace siempre disponible.
+    private bool CanStartPhysicalCountItem(PhysicalCountItem item) =>
+        CanStartPhysicalCount
+        && !IsPhysicalCountFinal(item);
+
+    private bool CanCancelPhysicalCountItem(PhysicalCountItem item) =>
+        CanCancelPhysicalCount
+        && HasPhysicalCountStarted(item)
+        && !IsPhysicalCountFinal(item);
+
+    private bool CanClosePhysicalCountItem(PhysicalCountItem item) =>
+        CanClosePhysicalCount
+        && HasPhysicalCountStarted(item)
+        && !IsPhysicalCountFinal(item);
+
+    private static bool HasPhysicalCountStarted(PhysicalCountItem item) =>
+        item.StartedAt > DateTime.MinValue;
+
+    private static bool IsPhysicalCountFinal(PhysicalCountItem item) =>
+        string.Equals(
+            item.Status,
+            "Completed",
+            StringComparison.OrdinalIgnoreCase
+        )
+        || string.Equals(
+            item.Status,
+            "Reconciled",
+            StringComparison.OrdinalIgnoreCase
+        )
+        || string.Equals(
+            item.Status,
+            "Cancelled",
+            StringComparison.OrdinalIgnoreCase
+        );
+
+    private bool CanSeeAllPhysicalCounts => IsAdmin || CanCreatePhysicalCount;
+
+    private bool HasPermission(string permission)
+    {
+        return AuthSession.Permissions?.Contains(permission, StringComparer.OrdinalIgnoreCase) == true
+            || string.Equals(AuthSession.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(AuthSession.RoleCode, "SUPERADMIN", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool IsOwnPhysicalCount(PhysicalCountItem item)
+    {
+        if (CanSeeAllPhysicalCounts)
+        {
+            return true;
+        }
+
+        var userName = AuthSession.UserName ?? string.Empty;
+        var displayName = AuthSession.DisplayName ?? AuthSession.UserName ?? string.Empty;
+
+        return SameUser(item.ResponsibleBy, userName)
+            || SameUser(item.ResponsibleBy, displayName)
+            || ContainsUser(item.Notes, userName)
+            || ContainsUser(item.Notes, displayName);
+    }
+
+    private static bool SameUser(string? left, string? right)
+    {
+        return !string.IsNullOrWhiteSpace(left)
+            && !string.IsNullOrWhiteSpace(right)
+            && left.Trim().Equals(right.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ContainsUser(string? text, string? user)
+    {
+        return !string.IsNullOrWhiteSpace(text)
+            && !string.IsNullOrWhiteSpace(user)
+            && text.Contains(user.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+
+    private List<PhysicalCountItem> counts = new();
+    private List<BranchOption> branches = new();
+    private CreatePhysicalCountRequest newCount = new();
+    private bool isLoading;
+    private string searchText = string.Empty;
+    private string? successMessage;
+    private string? errorMessage;
+
+    private IEnumerable<PhysicalCountItem> FilteredCounts =>
+        counts.Where(x => string.IsNullOrWhiteSpace(searchText) ||
+                        Contains(x.CountNumber, searchText) ||
+                        Contains(x.BranchCode, searchText) ||
+                        Contains(x.BranchName, searchText) ||
+                        Contains(x.ResponsibleBy, searchText));
+
+    protected override async Task OnInitializedAsync()
+    {
+        newCount.ResponsibleBy = string.IsNullOrWhiteSpace(AuthSession.UserName) ? "admin" : AuthSession.UserName;
+        await LoadBranchesAsync();
+        await LoadAsync();
+    }
+
+    private HttpClient CreateApiClient()
+    {
+        var api = HttpClientFactory.CreateClient("NaviApi");
+
+        api.DefaultRequestHeaders.Remove("X-Navi-User");
+        api.DefaultRequestHeaders.Remove("X-Navi-Role");
+        api.DefaultRequestHeaders.Remove("X-Navi-Role-Code");
+        api.DefaultRequestHeaders.Remove("X-Navi-Permissions");
+
+        api.DefaultRequestHeaders.Add("X-Navi-User", string.IsNullOrWhiteSpace(AuthSession.UserName) ? "admin" : AuthSession.UserName);
+        api.DefaultRequestHeaders.Add("X-Navi-Role", string.IsNullOrWhiteSpace(AuthSession.RoleName) ? "Administrador" : AuthSession.RoleName);
+        api.DefaultRequestHeaders.Add("X-Navi-Role-Code", string.IsNullOrWhiteSpace(AuthSession.RoleCode) ? "ADMIN" : AuthSession.RoleCode);
+        api.DefaultRequestHeaders.Add("X-Navi-Permissions", string.Join(";", AuthSession.Permissions ?? new List<string>()));
+
+        return api;
+    }
+
+    private async Task LoadBranchesAsync()
+    {
+        try
+        {
+            var api = CreateApiClient();
+            branches = await api.GetFromJsonAsync<List<BranchOption>>("api/settings/branches") ?? new();
+        }
+        catch
+        {
+            branches = new();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var api = CreateApiClient();
+            counts = await api.GetFromJsonAsync<List<PhysicalCountItem>>("api/physical-counts") ?? new();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudieron cargar las tomas físicas: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+private async Task CreateAsync()
+    {
+
+        var blockingCountV194 =
+            BlockingPhysicalCountForSelectedBranchV194;
+
+        if (blockingCountV194 is not null)
+        {
+            errorMessage =
+                BuildBlockingPhysicalCountMessageV194(
+                    blockingCountV194
+                );
+
+            return;
+        }
+
+        successMessage = null;
+        errorMessage = null;
+
+        if (!CanCreatePhysicalCount)
+        {
+            errorMessage = "No tienes permiso para crear tomas físicas.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(newCount.BranchCode))
+        {
+            errorMessage = "Seleccione una sede.";
+            return;
+        }
+
+        try
+        {
+            var api = CreateApiClient();
+            var response = await api.PostAsJsonAsync("api/physical-counts", newCount);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                errorMessage = await response.Content.ReadAsStringAsync();
+                return;
+            }
+
+            successMessage = "Toma física creada correctamente.";
+            newCount = new CreatePhysicalCountRequest
+            {
+                ResponsibleBy = string.IsNullOrWhiteSpace(AuthSession.UserName) ? "admin" : AuthSession.UserName
+            };
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+private async Task StartAsync(Guid id)
+    {
+        if (!CanStartPhysicalCount)
+        {
+            errorMessage = "No tienes permiso para iniciar tomas físicas.";
+            return;
+        }
+
+        var item = counts.FirstOrDefault(count => count.Id == id);
+
+        if (item is null)
+        {
+            errorMessage = "No se encontró la toma física seleccionada.";
+            return;
+        }
+
+        if (!CanStartPhysicalCountItem(item))
+        {
+            errorMessage = "Una toma cerrada, conciliada o cancelada no puede iniciarse.";
+            return;
+        }
+
+        await PatchAsync(
+            $"api/physical-counts/{id}/start",
+            "Toma física iniciada."
+        );
+    }
+
+private async Task CompleteAsync(Guid id)
+    {
+        if (!CanClosePhysicalCount)
+        {
+            errorMessage = "No tienes permiso para cerrar tomas físicas.";
+            return;
+        }
+
+        var item = counts.FirstOrDefault(count => count.Id == id);
+
+        if (item is null)
+        {
+            errorMessage = "No se encontró la toma física seleccionada.";
+            return;
+        }
+
+        if (!CanClosePhysicalCountItem(item))
+        {
+            errorMessage = "Solo se puede cerrar una toma física que ya fue iniciada y continúa activa.";
+            return;
+        }
+
+        await PatchAsync(
+            $"api/physical-counts/{id}/complete",
+            "Toma física cerrada."
+        );
+    }
+
+private async Task CancelAsync(Guid id)
+    {
+        if (!CanCancelPhysicalCount)
+        {
+            errorMessage = "No tienes permiso para cancelar tomas físicas.";
+            return;
+        }
+
+        var item = counts.FirstOrDefault(count => count.Id == id);
+
+        if (item is null)
+        {
+            errorMessage = "No se encontró la toma física seleccionada.";
+            return;
+        }
+
+        if (!CanCancelPhysicalCountItem(item))
+        {
+            errorMessage = "Solo se puede cancelar una toma física que ya fue iniciada y continúa activa.";
+            return;
+        }
+
+        await PatchAsync(
+            $"api/physical-counts/{id}/cancel",
+            "Toma física cancelada."
+        );
+    }
+
+
+    private async Task PatchAsync(string endpoint, string success)
+    {
+        successMessage = null;
+        errorMessage = null;
+
+        try
+        {
+            var api = CreateApiClient();
+            var response = await api.PatchAsJsonAsync(endpoint, new
+            {
+                ActionBy = AuthSession.UserName ?? "admin",
+                Notes = success
+            });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                errorMessage = await response.Content.ReadAsStringAsync();
+                return;
+            }
+
+            successMessage = success;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private static bool Contains(string? value, string search) =>
+        !string.IsNullOrWhiteSpace(value) &&
+        value.Contains(search.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    private static string FormatDate(DateTime? value) =>
+        value.HasValue ? value.Value.ToString("dd/MM/yyyy HH:mm") : "—";
+
+    private static string GetStatusClass(string status) => status switch
+    {
+        "Draft" => "tf-status draft",
+        "InProgress" => "tf-status progress",
+        "Completed" => "tf-status completed",
+        "Reconciled" => "tf-status completed",
+        "Cancelled" => "tf-status cancelled",
+        _ => "tf-status draft"
+    };
+
+    private sealed class PhysicalCountItem
+    {
+        public Guid Id { get; set; }
+        public string CountNumber { get; set; } = string.Empty;
+        public Guid BranchId { get; set; }
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public string StatusLabel { get; set; } = string.Empty;
+        public DateTime StartedAt { get; set; }
+        public DateTime? FinishedAt { get; set; }
+        public string? ResponsibleBy { get; set; }
+        public string? Notes { get; set; }
+        public int TotalItems { get; set; }
+        public int FoundItems { get; set; }
+        public int MissingItems { get; set; }
+    }
+
+    private sealed class BranchOption
+    {
+        public Guid Id { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class CreatePhysicalCountRequest
+    {
+        public string? BranchCode { get; set; }
+        public string? ResponsibleBy { get; set; }
+        public string? Notes { get; set; }
+    }
+}

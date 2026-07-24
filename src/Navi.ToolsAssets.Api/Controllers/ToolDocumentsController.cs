@@ -260,9 +260,7 @@ public class ToolDocumentsController : ControllerBase
             });
         }
 
-        var user = string.IsNullOrWhiteSpace(uploadedBy)
-            ? "yquinto"
-            : uploadedBy.Trim();
+        var user = User.GetUserName() ?? "authenticated-user";
 
         var safeFileName = Path.GetFileName(file.FileName);
         var contentType = string.IsNullOrWhiteSpace(file.ContentType)

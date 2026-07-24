@@ -908,9 +908,15 @@ public class ImportsController : ControllerBase
     private async Task<string> UploadToMinioAsync(IFormFile file, string sourceType, CancellationToken cancellationToken)
     {
         var endpoint = _configuration["Minio:Endpoint"] ?? "localhost:9100";
-        var accessKey = _configuration["Minio:AccessKey"] ?? "naviadmin";
-        var secretKey = _configuration["Minio:SecretKey"] ?? "Navitrans_2026*Minio!";
+        var accessKey = _configuration["Minio:AccessKey"];
+        var secretKey = _configuration["Minio:SecretKey"];
         var bucketName = _configuration["Minio:BucketName"] ?? "navi-tools-documents";
+
+        if (string.IsNullOrWhiteSpace(accessKey) || string.IsNullOrWhiteSpace(secretKey))
+        {
+            throw new InvalidOperationException(
+                "Configure Minio:AccessKey y Minio:SecretKey mediante secretos externos.");
+        }
 
         var useSsl = bool.TryParse(_configuration["Minio:UseSsl"], out var parsedUseSsl) && parsedUseSsl;
 
@@ -1059,6 +1065,5 @@ public sealed class ImportExcelRequest
 
     public string? ProcessedBy { get; set; }
 }
-
 
 

@@ -297,19 +297,7 @@
 
     private HttpClient CreateApiClient()
     {
-        var api = HttpClientFactory.CreateClient("NaviApi");
-
-        api.DefaultRequestHeaders.Remove("X-Navi-User");
-        api.DefaultRequestHeaders.Remove("X-Navi-Role");
-        api.DefaultRequestHeaders.Remove("X-Navi-Role-Code");
-        api.DefaultRequestHeaders.Remove("X-Navi-Permissions");
-
-        api.DefaultRequestHeaders.Add("X-Navi-User", string.IsNullOrWhiteSpace(AuthSession.UserName) ? "admin-web" : AuthSession.UserName);
-        api.DefaultRequestHeaders.Add("X-Navi-Role", string.IsNullOrWhiteSpace(AuthSession.RoleName) ? "Administrador" : AuthSession.RoleName);
-        api.DefaultRequestHeaders.Add("X-Navi-Role-Code", string.IsNullOrWhiteSpace(AuthSession.RoleCode) ? "ADMIN" : AuthSession.RoleCode);
-        api.DefaultRequestHeaders.Add("X-Navi-Permissions", string.Join(";", AuthSession.Permissions ?? new List<string>()));
-
-        return api;
+        return HttpClientFactory.CreateClient("NaviApi");
     }
 
     private void ShowSuccess(string text)

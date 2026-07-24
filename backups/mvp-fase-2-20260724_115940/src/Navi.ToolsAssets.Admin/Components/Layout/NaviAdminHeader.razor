@@ -1,0 +1,1508 @@
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.JSInterop
+@using Navi.ToolsAssets.Admin.Services.Auth
+@using Navi.ToolsAssets.Admin.Services.Ui
+
+@inject WebAuthSessionService AuthSession
+@inject NaviAdminPageHeaderState PageHeader
+@inject NaviAdminNotificationState NotificationState
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<header id="navi-admin-header-root"
+        class="navi-admin-topbar
+               navi-admin-topbar--page-title"
+        aria-label="Encabezado principal del aplicativo">
+
+    <div class="navi-admin-topbar__left">
+        <label class="navi-admin-sidebar-toggle"
+               for="@ToggleInputId"
+               aria-controls="navi-admin-sidebar"
+               title="Abrir o contraer el menú">
+
+            <span class="navi-admin-sidebar-toggle__icon"
+                  aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+            </span>
+
+            <span class="navi-admin-sidebar-toggle__label">
+                Menú
+            </span>
+        </label>
+
+        <div class="navi-admin-topbar__brand"
+             aria-label="Navitrans 40 años">
+
+            <div class="navi-admin-topbar__anniversary"
+                 aria-hidden="true">
+                <strong>40</strong>
+                <span>años</span>
+            </div>
+
+            <span class="navi-admin-topbar__brand-divider"
+                  aria-hidden="true">
+            </span>
+
+            <div class="navi-admin-topbar__brand-copy">
+                <strong>Navitrans</strong>
+            </div>
+        </div>
+    </div>
+
+    <section class="navi-admin-topbar__page"
+             aria-label="Página actual">
+        <h1>@PageHeader.Title</h1>
+        <p>@PageHeader.Description</p>
+    </section>
+
+    <div class="navi-admin-topbar__actions">
+        @if (CanViewHeaderNotifications)
+        {
+            <div class="navi-admin-notification-menu"
+                 data-navi-header-menu>
+
+                <button type="button"
+                        id="navi-admin-notification-trigger"
+                        class="navi-admin-notification-menu__trigger"
+                        aria-haspopup="dialog"
+                        aria-expanded="@isNotificationMenuOpen"
+                        aria-controls="navi-admin-notification-dropdown"
+                        aria-label="@NotificationButtonLabel"
+                        title="@NotificationButtonLabel"
+                        @onclick="ToggleNotificationMenuAsync" data-ntx-tone="expand">
+
+                    <svg class="navi-admin-notification-menu__bell"
+                         viewBox="0 0 24 24"
+                         aria-hidden="true">
+                        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path>
+                        <path d="M10 21h4"></path>
+                    </svg>
+
+                    @if (PendingNotificationCount > 0)
+                    {
+                        <span class="navi-admin-notification-menu__badge">
+                            @NotificationCountText
+                        </span>
+                    }
+                </button>
+
+                @if (isNotificationMenuOpen)
+                {
+                    <section id="navi-admin-notification-dropdown"
+                             class="navi-admin-notification-menu__dropdown"
+                             role="dialog"
+                             aria-labelledby="navi-admin-notification-title">
+
+                        <header class="navi-admin-notification-menu__header">
+                            <div>
+                                <span>NOTIFICACIONES</span>
+
+                                <h2 id="navi-admin-notification-title">
+                                    Pendientes por atender
+                                </h2>
+                            </div>
+
+                            <strong>
+                                @PendingNotificationCount
+                            </strong>
+                        </header>
+
+                        <div class="navi-admin-notification-menu__body">
+
+                            @if (
+                                isLoadingNotifications
+                                &&
+                                PendingNotificationCount == 0)
+                            {
+                                <div class="navi-admin-notification-menu__state">
+
+                                    <span class="navi-admin-notification-menu__state-icon"
+                                          aria-hidden="true">
+                                        ·
+                                    </span>
+
+                                    <div>
+                                        <strong>Actualizando</strong>
+
+                                        <span>
+                                            Consultando notificaciones pendientes.
+                                        </span>
+                                    </div>
+
+                                </div>
+                            }
+                            else
+                            {
+                                @if (
+                                    !string.IsNullOrWhiteSpace(
+                                        notificationError))
+                                {
+                                    <div class="navi-admin-notification-menu__state
+                                                navi-admin-notification-menu__state--error">
+
+                                        <span class="navi-admin-notification-menu__state-icon"
+                                              aria-hidden="true">
+                                            !
+                                        </span>
+
+                                        <div>
+                                            <strong>
+                                                Actualización parcial
+                                            </strong>
+
+                                            <span>
+                                                @notificationError
+                                            </span>
+                                        </div>
+
+                                    </div>
+                                }
+
+                                @if (
+                                    PendingNotificationCount == 0
+                                    &&
+                                    string.IsNullOrWhiteSpace(
+                                        notificationError))
+                                {
+                                    <div class="navi-admin-notification-menu__state
+                                                navi-admin-notification-menu__state--empty">
+
+                                        <span class="navi-admin-notification-menu__state-icon"
+                                              aria-hidden="true">
+                                            ✓
+                                        </span>
+
+                                        <div>
+                                            <strong>
+                                                Sin pendientes
+                                            </strong>
+
+                                            <span>
+                                                No tienes notificaciones pendientes.
+                                            </span>
+                                        </div>
+
+                                    </div>
+                                }
+                                else if (PendingNotificationCount > 0)
+                                {
+                                    <div class="navi-admin-notification-menu__sections">
+
+                                        @if (pendingPhysicalCounts.Count > 0)
+                                        {
+                                            <section class="navi-admin-notification-menu__section"
+                                                     aria-labelledby="navi-admin-physical-count-notifications">
+
+                                                <header class="navi-admin-notification-menu__section-title">
+
+                                                    <span id="navi-admin-physical-count-notifications">
+                                                        TOMAS FÍSICAS
+                                                    </span>
+
+                                                    <strong>
+                                                        @pendingPhysicalCounts.Count
+                                                    </strong>
+
+                                                </header>
+
+                                                <div class="navi-admin-notification-menu__list">
+
+                                                    @foreach (
+                                                        var notification in
+                                                        pendingPhysicalCounts.Take(8))
+                                                    {
+                                                        <button type="button"
+                                                                class="navi-admin-notification-menu__item
+                                                                       navi-admin-notification-menu__item--action
+                                                                       navi-admin-notification-menu__item--physical-count"
+                                                                @onclick="() => OpenPhysicalCount(notification.CountId)">
+
+                                                            <div class="navi-admin-notification-menu__item-top">
+
+                                                                <strong>
+                                                                    @notification.CountNumber
+                                                                </strong>
+
+                                                                <span>
+                                                                    @FormatProgress(
+                                                                        notification.Progress)
+                                                                </span>
+
+                                                            </div>
+
+                                                            <h3>
+                                                                Tienes una toma con registros pendientes por completar
+                                                            </h3>
+
+                                                            <p>
+                                                                @notification.BranchLabel
+                                                            </p>
+
+                                                            <div class="navi-admin-notification-menu__progress"
+                                                                 aria-label="@GetProgressAriaLabel(notification.Progress)">
+
+                                                                <span style="@GetProgressStyle(notification.Progress)">
+                                                                </span>
+
+                                                            </div>
+
+                                                            <small>
+                                                                @notification.CountedItems de
+                                                                @notification.ExpectedItems registrados ·
+                                                                @notification.PendingItems pendientes
+                                                            </small>
+
+                                                            @if (
+                                                                notification.StartedAt.HasValue)
+                                                            {
+                                                                <small>
+                                                                    Iniciada:
+                                                                    @FormatDate(
+                                                                        notification.StartedAt.Value)
+                                                                </small>
+                                                            }
+
+                                                        </button>
+                                                    }
+
+                                                </div>
+
+                                            </section>
+                                        }
+
+                                        @if (pendingLoanRequests.Count > 0)
+                                        {
+                                            <section class="navi-admin-notification-menu__section"
+                                                     aria-labelledby="navi-admin-loan-notifications">
+
+                                                <header class="navi-admin-notification-menu__section-title">
+
+                                                    <span id="navi-admin-loan-notifications">
+                                                        APROBACIONES
+                                                    </span>
+
+                                                    <strong>
+                                                        @pendingLoanRequests.Count
+                                                    </strong>
+
+                                                </header>
+
+                                                <div class="navi-admin-notification-menu__list">
+
+                                                    @foreach (
+                                                        var request in
+                                                        pendingLoanRequests.Take(8))
+                                                    {
+                                                        <article class="navi-admin-notification-menu__item">
+
+                                                            <div class="navi-admin-notification-menu__item-top">
+
+                                                                <strong>
+                                                                    @request.LoanNumber
+                                                                </strong>
+
+                                                                <span>
+                                                                    @FormatDate(
+                                                                        request.RequestedAt
+                                                                        ?? request.CreatedAt)
+                                                                </span>
+
+                                                            </div>
+
+                                                            <h3>
+                                                                @GetRequesterName(request)
+                                                            </h3>
+
+                                                            <p>
+                                                                @GetToolSummary(request)
+                                                            </p>
+
+                                                            @if (
+                                                                request.ExpectedReturnAt.HasValue)
+                                                            {
+                                                                <small>
+                                                                    Regreso esperado:
+                                                                    @FormatDate(
+                                                                        request.ExpectedReturnAt.Value)
+                                                                </small>
+                                                            }
+
+                                                        </article>
+                                                    }
+
+                                                </div>
+
+                                            </section>
+                                        }
+
+                                    </div>
+                                }
+                            }
+
+                        </div>
+
+                        @if (PendingNotificationCount > 0)
+                        {
+                            <footer class="navi-admin-notification-menu__footer">
+
+                                @if (pendingPhysicalCounts.Count > 0)
+                                {
+                                    <button type="button"
+                                            class="navi-admin-notification-menu__open
+                                                   navi-admin-notification-menu__open--physical-count"
+                                            @onclick="OpenFirstPendingPhysicalCount"
+                                            data-ntx-tone="ghost">
+
+                                        Ir a toma pendiente
+
+                                    </button>
+                                }
+
+                                @if (pendingLoanRequests.Count > 0)
+                                {
+                                    <button type="button"
+                                            class="navi-admin-notification-menu__open"
+                                            @onclick="OpenPendingRequests"
+                                            data-ntx-tone="ghost">
+
+                                        Ir a solicitudes pendientes
+
+                                    </button>
+                                }
+
+                            </footer>
+                        }
+
+                    </section>
+                }
+            </div>
+        }
+
+        <div class="navi-admin-user-menu"
+             data-navi-header-menu>
+
+            <button type="button"
+                    id="navi-admin-user-trigger"
+                    class="navi-admin-user-menu__trigger"
+                    aria-haspopup="menu"
+                    aria-expanded="@isUserMenuOpen"
+                    aria-controls="navi-admin-user-dropdown"
+                    title="Abrir menú del usuario"
+                    @onclick="ToggleUserMenu" data-ntx-tone="expand">
+
+                <span class="navi-admin-user-menu__name">
+                    @DisplayName
+                </span>
+
+                <span class="navi-admin-topbar__avatar"
+                      aria-hidden="true">
+                    @GetInitials()
+                </span>
+            </button>
+
+            @if (isUserMenuOpen)
+            {
+                <section id="navi-admin-user-dropdown"
+                         class="navi-admin-user-menu__dropdown"
+                         role="menu"
+                         aria-labelledby="navi-admin-user-trigger">
+
+                    <header class="navi-admin-user-menu__profile">
+                        <span class="navi-admin-user-menu__avatar"
+                              aria-hidden="true">
+                            @GetInitials()
+                        </span>
+
+                        <span class="navi-admin-user-menu__profile-copy">
+                            <strong>@DisplayName</strong>
+
+                            @if (!string.IsNullOrWhiteSpace(UserName))
+                            {
+                                <small>@UserName</small>
+                            }
+                        </span>
+                    </header>
+
+                    <div class="navi-admin-user-menu__details">
+                        <div>
+                            <span>Perfil</span>
+                            <strong>@RoleName</strong>
+                        </div>
+
+                        <div>
+                            <span>Sede</span>
+                            <strong>@BranchName</strong>
+                        </div>
+                    </div>
+
+                    <div class="navi-admin-user-menu__actions">
+                        <button type="button"
+                                class="navi-admin-user-menu__logout"
+                                role="menuitem"
+                                aria-label="Cerrar sesión"
+                                @onclick="LogoutAsync" data-ntx-tone="secondary">
+                            <span aria-hidden="true">
+                                ↪
+                            </span>
+
+                            <span>
+                                Cerrar sesión
+                            </span>
+                        </button>
+                    </div>
+                </section>
+            }
+        </div>
+    </div>
+</header>
+
+@code {
+    private const string StorageKey =
+        "navi-auth-session";
+
+    private const string HeaderRootId =
+        "navi-admin-header-root";
+
+    private readonly CancellationTokenSource disposeToken =
+        new();
+
+    private readonly SemaphoreSlim notificationRefreshLock =
+        new(1, 1);
+
+    private DotNetObjectReference<NaviAdminHeader>?
+        dotNetReference;
+
+    private Task? notificationRefreshLoopTask;
+
+    private bool isDisposed;
+    private bool isUserMenuOpen;
+    private bool isNotificationMenuOpen;
+    private bool isLoadingNotifications;
+
+    private string? notificationError;
+
+    private List<LoanNotificationItem>
+        pendingLoanRequests = new();
+
+    // NAVI V177: pendientes de toma física del usuario autenticado.
+    private List<PhysicalCountNotificationItem>
+        pendingPhysicalCounts = new();
+
+    [Parameter]
+    public string ToggleInputId { get; set; } =
+        "navi-sidebar-state";
+
+    private bool CanViewApprovalNotifications =>
+        AuthSession.IsAuthenticated &&
+        AuthSession.HasPermission(
+            "AssetAssignment.Approve");
+
+    private bool CanViewPhysicalCountNotifications =>
+        AuthSession.IsAuthenticated &&
+        AuthSession.HasPermission(
+            "PhysicalCounts.View");
+
+    private bool CanViewHeaderNotifications =>
+        CanViewApprovalNotifications ||
+        CanViewPhysicalCountNotifications;
+
+    private int PendingNotificationCount =>
+        pendingLoanRequests.Count +
+        pendingPhysicalCounts.Count;
+
+    private string NotificationCountText =>
+        PendingNotificationCount > 99
+            ? "99+"
+            : PendingNotificationCount.ToString();
+
+    private string NotificationButtonLabel =>
+        PendingNotificationCount == 0
+            ? "No hay notificaciones pendientes"
+            : PendingNotificationCount == 1
+                ? "Hay una notificación pendiente"
+                : $"Hay {PendingNotificationCount} notificaciones pendientes";
+
+    private string DisplayName =>
+        string.IsNullOrWhiteSpace(
+            AuthSession.DisplayName)
+            ? string.IsNullOrWhiteSpace(
+                AuthSession.UserName)
+                ? "Usuario NAVI"
+                : AuthSession.UserName
+            : AuthSession.DisplayName;
+
+    private string UserName =>
+        string.IsNullOrWhiteSpace(
+            AuthSession.UserName)
+            ? string.Empty
+            : AuthSession.UserName;
+
+    private string RoleName =>
+        string.IsNullOrWhiteSpace(
+            AuthSession.RoleName)
+            ? "Usuario"
+            : AuthSession.RoleName;
+
+    private string BranchName =>
+        string.IsNullOrWhiteSpace(
+            AuthSession.BranchCode)
+            ? "Todas"
+            : AuthSession.BranchCode;
+
+    private bool CanSeeAllBranches =>
+        string.IsNullOrWhiteSpace(
+            AuthSession.BranchCode) ||
+        AuthSession.BranchCode.Equals(
+            "TODAS",
+            StringComparison.OrdinalIgnoreCase) ||
+        AuthSession.BranchCode.Equals(
+            "ALL",
+            StringComparison.OrdinalIgnoreCase);
+
+    protected override void OnInitialized()
+    {
+        AuthSession.OnChange += HandleAuthChanged;
+        PageHeader.OnChange += HandlePageHeaderChanged;
+
+        NotificationState.OnRefreshRequested +=
+            HandleNotificationRefreshRequested;
+
+        Navigation.LocationChanged +=
+            HandleLocationChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(
+        bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        dotNetReference =
+            DotNetObjectReference.Create(this);
+
+        try
+        {
+            await JS.InvokeAsync<bool>(
+                "naviAdminHeaderMenus.register",
+                dotNetReference,
+                HeaderRootId);
+        }
+        catch
+        {
+            // El encabezado continúa funcionando sin el helper.
+        }
+
+        await RefreshHeaderNotificationsAsync();
+
+        notificationRefreshLoopTask =
+            RunNotificationRefreshLoopAsync(
+                disposeToken.Token);
+    }
+
+    private void ToggleUserMenu()
+    {
+        isNotificationMenuOpen = false;
+        isUserMenuOpen = !isUserMenuOpen;
+    }
+
+    private async Task ToggleNotificationMenuAsync()
+    {
+        isUserMenuOpen = false;
+
+        var opening =
+            !isNotificationMenuOpen;
+
+        isNotificationMenuOpen = opening;
+
+        if (opening)
+        {
+            await RefreshHeaderNotificationsAsync();
+        }
+    }
+
+    [JSInvokable]
+    public Task CloseHeaderMenus()
+    {
+        if (!isUserMenuOpen &&
+            !isNotificationMenuOpen)
+        {
+            return Task.CompletedTask;
+        }
+
+        isUserMenuOpen = false;
+        isNotificationMenuOpen = false;
+
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task RefreshHeaderNotifications()
+    {
+        return RefreshHeaderNotificationsAsync();
+    }
+
+    private async Task RefreshHeaderNotificationsAsync()
+    {
+        if (isDisposed)
+        {
+            return;
+        }
+
+        if (!CanViewHeaderNotifications)
+        {
+            pendingLoanRequests = new();
+            pendingPhysicalCounts = new();
+            notificationError = null;
+            isNotificationMenuOpen = false;
+
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        var acquired =
+            await notificationRefreshLock.WaitAsync(
+                0,
+                disposeToken.Token);
+
+        if (!acquired)
+        {
+            return;
+        }
+
+        try
+        {
+            isLoadingNotifications = true;
+            notificationError = null;
+
+            await InvokeAsync(StateHasChanged);
+
+            var api =
+                HttpClientFactory.CreateClient(
+                    "NaviApi");
+
+            var errors = new List<string>();
+
+            if (CanViewApprovalNotifications)
+            {
+                try
+                {
+                    pendingLoanRequests =
+                        await LoadPendingLoanNotificationsAsync(
+                            api);
+                }
+                catch (Exception ex)
+                {
+                    pendingLoanRequests = new();
+
+                    errors.Add(
+                        BuildNotificationError(
+                            "No se pudieron cargar las aprobaciones",
+                            ex));
+                }
+            }
+            else
+            {
+                pendingLoanRequests = new();
+            }
+
+            if (CanViewPhysicalCountNotifications)
+            {
+                try
+                {
+                    pendingPhysicalCounts =
+                        await LoadPendingPhysicalCountNotificationsAsync(
+                            api);
+                }
+                catch (Exception ex)
+                {
+                    pendingPhysicalCounts = new();
+
+                    errors.Add(
+                        BuildNotificationError(
+                            "No se pudieron cargar las tomas físicas pendientes",
+                            ex));
+                }
+            }
+            else
+            {
+                pendingPhysicalCounts = new();
+            }
+
+            notificationError =
+                errors.Count == 0
+                    ? null
+                    : string.Join(
+                        " ",
+                        errors);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            notificationError =
+                BuildNotificationError(
+                    "No se pudieron actualizar las notificaciones",
+                    ex);
+        }
+        finally
+        {
+            isLoadingNotifications = false;
+            notificationRefreshLock.Release();
+
+            if (!isDisposed)
+            {
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+
+
+    private async Task<List<LoanNotificationItem>>
+        LoadPendingLoanNotificationsAsync(
+            HttpClient api)
+    {
+        var loans =
+            await api.GetFromJsonAsync<
+                List<LoanNotificationItem>>(
+                "api/loans",
+                disposeToken.Token)
+            ?? new();
+
+        Guid? currentBranchId = null;
+
+        if (!CanSeeAllBranches)
+        {
+            var branches =
+                await api.GetFromJsonAsync<
+                    List<BranchLookupItem>>(
+                    "api/settings/branches",
+                    disposeToken.Token)
+                ?? new();
+
+            currentBranchId = branches
+                .FirstOrDefault(x =>
+                    x.Code.Equals(
+                        AuthSession.BranchCode,
+                        StringComparison.OrdinalIgnoreCase))
+                ?.Id;
+        }
+
+        return loans
+            .Where(x =>
+                IsPendingStatus(x.Status))
+            .Where(x =>
+                x.Items.Any(item =>
+                    !item.Returned))
+            .Where(x =>
+                CanSeeAllBranches ||
+                (
+                    currentBranchId.HasValue &&
+                    x.BranchId.HasValue &&
+                    x.BranchId.Value ==
+                        currentBranchId.Value
+                ))
+            .OrderByDescending(x =>
+                x.RequestedAt ??
+                x.CreatedAt)
+            .ToList();
+    }
+
+
+    private async Task<List<PhysicalCountNotificationItem>>
+        LoadPendingPhysicalCountNotificationsAsync(
+            HttpClient api)
+    {
+        var counts =
+            await api.GetFromJsonAsync<
+                List<PhysicalCountNotificationSource>>(
+                "api/physical-counts",
+                disposeToken.Token)
+            ?? new();
+
+        var activeCounts = counts
+            .Where(count =>
+                string.Equals(
+                    count.Status,
+                    "InProgress",
+                    StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (activeCounts.Count == 0)
+        {
+            return new();
+        }
+
+        var boardTasks = activeCounts
+            .Select(count =>
+                LoadPhysicalCountBoardAsync(
+                    api,
+                    count))
+            .ToArray();
+
+        var boards =
+            await Task.WhenAll(
+                boardTasks);
+
+        var notifications =
+            new List<PhysicalCountNotificationItem>();
+
+        foreach (var board in boards)
+        {
+            if (
+                board is null
+                ||
+                !string.Equals(
+                    board.Status,
+                    "InProgress",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var participant =
+                board.Participants
+                    .FirstOrDefault(
+                        IsCurrentUserParticipant);
+
+            if (
+                participant is null
+                ||
+                participant.PendingItems <= 0
+                ||
+                participant.Progress >= 100m
+                ||
+                IsParticipantFinalStatus(
+                    participant.Status))
+            {
+                continue;
+            }
+
+            notifications.Add(
+                new PhysicalCountNotificationItem
+                {
+                    CountId = board.Id,
+                    ParticipantId = participant.Id,
+                    CountNumber = board.CountNumber,
+                    BranchCode = board.BranchCode,
+                    BranchName = board.BranchName,
+                    ExpectedItems =
+                        participant.ExpectedItems,
+                    CountedItems =
+                        participant.CountedItems,
+                    PendingItems =
+                        participant.PendingItems,
+                    Progress =
+                        participant.Progress,
+                    StartedAt =
+                        board.StartedAt
+                });
+        }
+
+        return notifications
+            .OrderByDescending(item =>
+                item.StartedAt
+                ?? DateTime.MinValue)
+            .ThenBy(item =>
+                item.CountNumber)
+            .ToList();
+    }
+
+
+    private async Task<PhysicalCountNotificationBoard?>
+        LoadPhysicalCountBoardAsync(
+            HttpClient api,
+            PhysicalCountNotificationSource count)
+    {
+        try
+        {
+            using var response =
+                await api.GetAsync(
+                    $"api/physical-counts/{count.Id}/participants-board",
+                    disposeToken.Token);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            return await response.Content
+                .ReadFromJsonAsync<
+                    PhysicalCountNotificationBoard>(
+                    cancellationToken:
+                        disposeToken.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+
+    private bool IsCurrentUserParticipant(
+        PhysicalCountParticipantNotification participant)
+    {
+        return
+            SameNotificationUser(
+                participant.UserId,
+                AuthSession.UserId?.ToString())
+            ||
+            SameNotificationUser(
+                participant.UserName,
+                AuthSession.UserName)
+            ||
+            SameNotificationUser(
+                participant.DisplayName,
+                AuthSession.DisplayName)
+            ||
+            (
+                participant.ResponsiblePersonId.HasValue
+                &&
+                AuthSession.ResponsiblePersonId.HasValue
+                &&
+                participant.ResponsiblePersonId.Value
+                    ==
+                    AuthSession.ResponsiblePersonId.Value
+            );
+    }
+
+
+    private static bool SameNotificationUser(
+        string? left,
+        string? right)
+    {
+        return
+            !string.IsNullOrWhiteSpace(left)
+            &&
+            !string.IsNullOrWhiteSpace(right)
+            &&
+            left.Trim().Equals(
+                right.Trim(),
+                StringComparison.OrdinalIgnoreCase);
+    }
+
+
+    private static bool IsParticipantFinalStatus(
+        string? status)
+    {
+        return
+            string.Equals(
+                status,
+                "Finished",
+                StringComparison.OrdinalIgnoreCase)
+            ||
+            string.Equals(
+                status,
+                "FinishedWithDifferences",
+                StringComparison.OrdinalIgnoreCase)
+            ||
+            string.Equals(
+                status,
+                "Expired",
+                StringComparison.OrdinalIgnoreCase);
+    }
+
+
+    private static string BuildNotificationError(
+        string prefix,
+        Exception exception)
+    {
+        return
+            string.IsNullOrWhiteSpace(
+                exception.Message)
+                ? $"{prefix}."
+                : $"{prefix}: {exception.Message}";
+    }
+
+
+    private async Task RunNotificationRefreshLoopAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var timer =
+                new PeriodicTimer(
+                    TimeSpan.FromSeconds(20));
+
+            while (await timer.WaitForNextTickAsync(
+                       cancellationToken))
+            {
+                await RefreshHeaderNotificationsAsync();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void OpenPendingRequests()
+    {
+        isNotificationMenuOpen = false;
+        isUserMenuOpen = false;
+
+        Navigation.NavigateTo(
+            "/asset-assignment#solicitudes-pendientes");
+    }
+
+
+    private void OpenPhysicalCount(
+        Guid countId)
+    {
+        isNotificationMenuOpen = false;
+        isUserMenuOpen = false;
+
+        Navigation.NavigateTo(
+            $"/physical-counts/{countId}");
+    }
+
+
+    private void OpenFirstPendingPhysicalCount()
+    {
+        var notification =
+            pendingPhysicalCounts.FirstOrDefault();
+
+        if (notification is null)
+        {
+            return;
+        }
+
+        OpenPhysicalCount(
+            notification.CountId);
+    }
+
+    private async Task LogoutAsync()
+    {
+        isUserMenuOpen = false;
+        isNotificationMenuOpen = false;
+
+        AuthSession.Logout();
+
+        try
+        {
+            await JS.InvokeVoidAsync(
+                "localStorage.removeItem",
+                StorageKey);
+        }
+        catch
+        {
+            // La sesión principal ya fue cerrada.
+        }
+
+        Navigation.NavigateTo(
+            "/login",
+            forceLoad: true);
+    }
+
+    private void HandleAuthChanged()
+    {
+        _ = InvokeAsync(
+            async () =>
+            {
+                if (!AuthSession.IsAuthenticated)
+                {
+                    isUserMenuOpen = false;
+                    isNotificationMenuOpen = false;
+                    pendingLoanRequests = new();
+                    pendingPhysicalCounts = new();
+                }
+                else
+                {
+                    await RefreshHeaderNotificationsAsync();
+                }
+
+                StateHasChanged();
+            });
+    }
+
+    private void HandlePageHeaderChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleNotificationRefreshRequested()
+    {
+        _ = InvokeAsync(
+            RefreshHeaderNotificationsAsync);
+    }
+
+    private void HandleLocationChanged(
+        object? sender,
+        LocationChangedEventArgs args)
+    {
+        _ = InvokeAsync(
+            async () =>
+            {
+                isUserMenuOpen = false;
+                isNotificationMenuOpen = false;
+
+                await RefreshHeaderNotificationsAsync();
+
+                StateHasChanged();
+            });
+    }
+
+    private static bool IsPendingStatus(
+        string? status)
+    {
+        return status is not null &&
+               (
+                   status.Equals(
+                       "Draft",
+                       StringComparison.OrdinalIgnoreCase) ||
+                   status.Equals(
+                       "Requested",
+                       StringComparison.OrdinalIgnoreCase) ||
+                   status.Equals(
+                       "PendingApproval",
+                       StringComparison.OrdinalIgnoreCase)
+               );
+    }
+
+    private static string GetRequesterName(
+        LoanNotificationItem request)
+    {
+        if (!string.IsNullOrWhiteSpace(
+                request.RequestedByResponsiblePersonName))
+        {
+            return request
+                .RequestedByResponsiblePersonName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(
+                request.RequestedByPersonName))
+        {
+            return request.RequestedByPersonName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(
+                request.CreatedBy))
+        {
+            return request.CreatedBy;
+        }
+
+        return "Solicitante sin identificar";
+    }
+
+    private static string GetToolSummary(
+        LoanNotificationItem request)
+    {
+        var activeItems = request.Items
+            .Where(x => !x.Returned)
+            .ToList();
+
+        var first = activeItems.FirstOrDefault();
+
+        if (first is null)
+        {
+            return "Solicitud sin activos asociados";
+        }
+
+        var code =
+            string.IsNullOrWhiteSpace(
+                first.ToolInternalCode)
+                ? "Activo"
+                : first.ToolInternalCode;
+
+        var name =
+            string.IsNullOrWhiteSpace(
+                first.ToolName)
+                ? string.Empty
+                : $" · {first.ToolName}";
+
+        var remaining =
+            activeItems.Count > 1
+                ? $" · +{activeItems.Count - 1} más"
+                : string.Empty;
+
+        return $"{code}{name}{remaining}";
+    }
+
+    private static string FormatDate(
+        DateTime value)
+    {
+        return value
+            .ToLocalTime()
+            .ToString("dd/MM/yyyy HH:mm");
+    }
+
+
+    private static string FormatProgress(
+        decimal progress)
+    {
+        return
+            $"{Math.Clamp(progress, 0m, 100m):0.##}%";
+    }
+
+
+    private static string GetProgressStyle(
+        decimal progress)
+    {
+        return
+            $"width: {Math.Clamp(progress, 0m, 100m):0.##}%;";
+    }
+
+
+    private static string GetProgressAriaLabel(
+        decimal progress)
+    {
+        return
+            $"Avance {FormatProgress(progress)}";
+    }
+
+    private string GetInitials()
+    {
+        var parts = DisplayName.Split(
+            ' ',
+            StringSplitOptions.RemoveEmptyEntries);
+
+        if (parts.Length == 0)
+        {
+            return "N";
+        }
+
+        if (parts.Length == 1)
+        {
+            return parts[0]
+                .Substring(
+                    0,
+                    Math.Min(
+                        2,
+                        parts[0].Length))
+                .ToUpperInvariant();
+        }
+
+        return string.Concat(
+                parts[0][0],
+                parts[^1][0])
+            .ToUpperInvariant();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (isDisposed)
+        {
+            return;
+        }
+
+        isDisposed = true;
+
+        AuthSession.OnChange -= HandleAuthChanged;
+        PageHeader.OnChange -= HandlePageHeaderChanged;
+
+        NotificationState.OnRefreshRequested -=
+            HandleNotificationRefreshRequested;
+
+        Navigation.LocationChanged -=
+            HandleLocationChanged;
+
+        disposeToken.Cancel();
+
+        if (notificationRefreshLoopTask is not null)
+        {
+            try
+            {
+                await notificationRefreshLoopTask;
+            }
+            catch
+            {
+            }
+        }
+
+        try
+        {
+            await JS.InvokeVoidAsync(
+                "naviAdminHeaderMenus.unregister",
+                HeaderRootId);
+        }
+        catch
+        {
+        }
+
+        dotNetReference?.Dispose();
+        notificationRefreshLock.Dispose();
+        disposeToken.Dispose();
+    }
+
+    private sealed class PhysicalCountNotificationSource
+    {
+        public Guid Id { get; set; }
+
+        public string CountNumber { get; set; } =
+            string.Empty;
+
+        public string Status { get; set; } =
+            string.Empty;
+
+        public DateTime? StartedAt { get; set; }
+    }
+
+
+    private sealed class PhysicalCountNotificationBoard
+    {
+        public Guid Id { get; set; }
+
+        public string CountNumber { get; set; } =
+            string.Empty;
+
+        public string? BranchCode { get; set; }
+
+        public string? BranchName { get; set; }
+
+        public string Status { get; set; } =
+            string.Empty;
+
+        public DateTime? StartedAt { get; set; }
+
+        public List<PhysicalCountParticipantNotification>
+            Participants { get; set; } = new();
+    }
+
+
+    private sealed class PhysicalCountParticipantNotification
+    {
+        public Guid Id { get; set; }
+
+        public Guid? ResponsiblePersonId { get; set; }
+
+        public string? UserId { get; set; }
+
+        public string? UserName { get; set; }
+
+        public string? DisplayName { get; set; }
+
+        public string? Status { get; set; }
+
+        public int ExpectedItems { get; set; }
+
+        public int CountedItems { get; set; }
+
+        public int PendingItems { get; set; }
+
+        public decimal Progress { get; set; }
+    }
+
+
+    private sealed class PhysicalCountNotificationItem
+    {
+        public Guid CountId { get; set; }
+
+        public Guid ParticipantId { get; set; }
+
+        public string CountNumber { get; set; } =
+            string.Empty;
+
+        public string? BranchCode { get; set; }
+
+        public string? BranchName { get; set; }
+
+        public int ExpectedItems { get; set; }
+
+        public int CountedItems { get; set; }
+
+        public int PendingItems { get; set; }
+
+        public decimal Progress { get; set; }
+
+        public DateTime? StartedAt { get; set; }
+
+
+        public string BranchLabel
+        {
+            get
+            {
+                if (
+                    !string.IsNullOrWhiteSpace(
+                        BranchCode)
+                    &&
+                    !string.IsNullOrWhiteSpace(
+                        BranchName))
+                {
+                    return
+                        $"{BranchCode} · {BranchName}";
+                }
+
+                if (
+                    !string.IsNullOrWhiteSpace(
+                        BranchCode))
+                {
+                    return BranchCode;
+                }
+
+                if (
+                    !string.IsNullOrWhiteSpace(
+                        BranchName))
+                {
+                    return BranchName;
+                }
+
+                return "Sede sin identificar";
+            }
+        }
+    }
+
+
+    private sealed class BranchLookupItem
+    {
+        public Guid Id { get; set; }
+
+        public string Code { get; set; } =
+            string.Empty;
+    }
+
+    private sealed class LoanNotificationItem
+    {
+        public Guid Id { get; set; }
+
+        public string LoanNumber { get; set; } =
+            string.Empty;
+
+        public string Status { get; set; } =
+            string.Empty;
+
+        public Guid? BranchId { get; set; }
+
+        public Guid? RequestedByPersonId { get; set; }
+
+        public string? RequestedByPersonName { get; set; }
+
+        public string?
+            RequestedByResponsiblePersonName { get; set; }
+
+        public DateTime? RequestedAt { get; set; }
+
+        public DateTime? ExpectedReturnAt { get; set; }
+
+        public DateTime CreatedAt { get; set; }
+
+        public string? CreatedBy { get; set; }
+
+        public List<LoanNotificationToolItem>
+            Items { get; set; } = new();
+    }
+
+    private sealed class LoanNotificationToolItem
+    {
+        public Guid Id { get; set; }
+
+        public Guid ToolAssetId { get; set; }
+
+        public string? ToolInternalCode { get; set; }
+
+        public string? ToolName { get; set; }
+
+        public bool Returned { get; set; }
+    }
+}

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Navi.ToolsAssets.Shared.Security;
 
 namespace Navi.ToolsAssets.Api.Security;
 
@@ -20,28 +21,28 @@ public sealed class RequirePermissionAttribute : Attribute, IActionFilter
             return;
         }
 
-        var headers = context.HttpContext.Request.Headers;
+        var user = context.HttpContext.User;
 
-        var roleCode = headers.TryGetValue("X-Navi-Role-Code", out var roleCodeValue)
-            ? roleCodeValue.ToString()
-            : string.Empty;
+        if (user.Identity?.IsAuthenticated != true)
+        {
+            context.Result = new UnauthorizedObjectResult(new
+            {
+                Message = "Debe iniciar sesión para ejecutar esta acción."
+            });
+            return;
+        }
 
-        var roleName = headers.TryGetValue("X-Navi-Role", out var roleNameValue)
-            ? roleNameValue.ToString()
-            : string.Empty;
+        var roleCode = user.GetRoleCode() ?? string.Empty;
 
-        if (string.Equals(roleCode, "ADMIN", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(roleName, "Administrador", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(roleCode, "ADMIN", StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
 
-        var permissionsHeader = headers.TryGetValue("X-Navi-Permissions", out var value)
-            ? value.ToString()
-            : string.Empty;
-
-        var permissions = permissionsHeader
-            .Split(new[] { ',', ';', '|', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var permissions = user.Claims
+            .Where(x => x.Type == NaviClaimTypes.Permission)
+            .Select(x => x.Value)
+            .ToArray();
 
         var isAllowed = _permissions.Any(required =>
             permissions.Any(current =>
@@ -54,7 +55,6 @@ public sealed class RequirePermissionAttribute : Attribute, IActionFilter
                 Message = "No tienes permiso para ejecutar esta acción.",
                 RequiredPermissions = _permissions,
                 CurrentRoleCode = roleCode,
-                CurrentRoleName = roleName,
                 CurrentPermissions = permissions
             })
             {

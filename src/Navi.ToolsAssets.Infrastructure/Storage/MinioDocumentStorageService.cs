@@ -13,8 +13,8 @@ public sealed class MinioDocumentStorageService : IDocumentStorageService
     public MinioDocumentStorageService(IConfiguration configuration)
     {
         var endpoint = ReadConfigurationValue(configuration, "Minio:Endpoint", "localhost:9100");
-        var accessKey = ReadConfigurationValue(configuration, "Minio:AccessKey", "naviadmin");
-        var secretKey = ReadConfigurationValue(configuration, "Minio:SecretKey", "Navitrans_2026*Minio!");
+        var accessKey = ReadRequiredConfigurationValue(configuration, "Minio:AccessKey");
+        var secretKey = ReadRequiredConfigurationValue(configuration, "Minio:SecretKey");
         var useSsl = bool.TryParse(configuration["Minio:UseSsl"], out var ssl) && ssl;
 
         _bucketName = ReadConfigurationValue(configuration, "Minio:BucketName", "navi-tools-documents").Trim().ToLowerInvariant();
@@ -32,6 +32,16 @@ public sealed class MinioDocumentStorageService : IDocumentStorageService
 
         return string.IsNullOrWhiteSpace(value)
             ? fallback
+            : value.Trim();
+    }
+
+    private static string ReadRequiredConfigurationValue(IConfiguration configuration, string key)
+    {
+        var value = configuration[key];
+
+        return string.IsNullOrWhiteSpace(value)
+            ? throw new InvalidOperationException(
+                $"Configure '{key}' mediante una variable de entorno o un almacén de secretos.")
             : value.Trim();
     }
 

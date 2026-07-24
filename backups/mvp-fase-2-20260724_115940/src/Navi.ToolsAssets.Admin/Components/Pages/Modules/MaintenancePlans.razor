@@ -1,0 +1,497 @@
+@page "/maintenance-plans"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@using Navi.ToolsAssets.Admin.Components.Security
+@using Navi.ToolsAssets.Admin.Components.Shared
+@using Navi.ToolsAssets.Admin.Services.Auth
+@inject IHttpClientFactory HttpClientFactory
+@inject WebAuthSessionService AuthSession
+
+<PageTitle>Planes de Mantenimiento</PageTitle>
+
+<PermissionGuard Permission="MaintenancePlans.View" ModuleName="Planes de Mantenimiento">
+
+<section class="navi-reference-toolbar maintenance-plans-kpi-toolbar">
+<NaviPageHero
+    Class="navi-reference-toolbar__actions"
+    Pill="OPERACIONES"
+    Title="Planes de mantenimiento"
+    Description="Controla vencimientos, cobertura, solicitudes pendientes, cronograma y relación con solicitudes de mantenimiento.">
+
+    <button type="button"
+            title="Actualizar planes de mantenimiento"
+            aria-label="Actualizar planes de mantenimiento"
+            data-ntx-icon-only="true"
+            @onclick="LoadAsync"
+            data-ntx-tone="refresh">
+        Actualizar
+    </button>
+
+</NaviPageHero>
+
+<NaviKpiGrid Columns="6"
+             Class="plans-kpis plans-kpis-inline plans-kpis-standard">
+    <NaviKpiCard Title="Total activos"
+                 Description="Según filtros activos"
+                 Tone="neutral">
+        <IconContent><NaviKpiIcon Name="inventory" /></IconContent>
+        <ValueContent>@FilteredPlans.Count()</ValueContent>
+    </NaviKpiCard>
+
+    <NaviKpiCard Title="Al día"
+                 Description="Sin vencimiento"
+                 Tone="positive">
+        <IconContent><NaviKpiIcon Name="check" /></IconContent>
+        <ValueContent>@FilteredPlans.Count(x => x.PlanStatus == "OnTime")</ValueContent>
+    </NaviKpiCard>
+
+    <NaviKpiCard Title="Por vencer"
+                 Description="Próximos 30 días"
+                 Tone="warning">
+        <IconContent><NaviKpiIcon Name="clock" /></IconContent>
+        <ValueContent>@FilteredPlans.Count(x => x.PlanStatus == "DueSoon")</ValueContent>
+    </NaviKpiCard>
+
+    <NaviKpiCard Title="Vencidos"
+                 Description="Requieren atención"
+                 Tone="danger">
+        <IconContent><NaviKpiIcon Name="alert" /></IconContent>
+        <ValueContent>@FilteredPlans.Count(x => x.PlanStatus == "Overdue")</ValueContent>
+    </NaviKpiCard>
+
+    <NaviKpiCard Title="Solicitudes"
+                 Description="Pendientes abiertas"
+                 Tone="soft">
+        <IconContent><NaviKpiIcon Name="document" /></IconContent>
+        <ValueContent>@FilteredPlans.Sum(x => x.PendingRequests)</ValueContent>
+    </NaviKpiCard>
+
+    <NaviKpiCard Title="Completados"
+                 Description="Registros cerrados"
+                 Tone="positive">
+        <IconContent><NaviKpiIcon Name="progress" /></IconContent>
+        <ValueContent>@FilteredPlans.Sum(x => x.CompletedMaintenances)</ValueContent>
+    </NaviKpiCard>
+</NaviKpiGrid>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+
+
+<section class="plans-page-filters" aria-label="Filtros de planes de mantenimiento">
+    <input class="form-control form-control-sm"
+           placeholder="Buscar código, activo, ubicación, responsable, proveedor o técnico..."
+           @bind="searchText"
+           @bind:event="oninput" name="navi-maintenanceplans-field-001" />
+
+    <select class="form-select form-select-sm" @bind="selectedBranchCode" name="navi-maintenanceplans-field-002">
+        <option value="">Todas las sedes</option>
+        @foreach (var branch in PlanBranchOptions)
+        {
+            <option value="@branch">@branch</option>
+        }
+    </select>
+
+    <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="ClearPlanFilters" data-ntx-tone="secondary" >
+        Limpiar
+    </button>
+</section>
+
+<section class="plans-status-filters plans-status-filters-modern" aria-label="Estados de planes de mantenimiento">
+    <button type="button"
+            class="@GetPlanStatusFilterChipClass(string.Empty)"
+            @onclick="@(() => SelectPlanStatus(string.Empty))" data-ntx-tone="ghost" >
+        Todos
+        <span>@PlanBaseFilteredPlans.Count()</span>
+    </button>
+
+    @foreach (var status in PlanStatusOptions)
+    {
+        <button type="button"
+                class="@GetPlanStatusFilterChipClass(status.Value)"
+                @onclick="@(() => SelectPlanStatus(status.Value))" data-ntx-tone="ghost" >
+            @status.Text
+            <span>@PlanBaseFilteredPlans.Count(x => x.PlanStatus == status.Value)</span>
+        </button>
+    }
+</section>
+
+
+
+
+
+<section class="plans-card">
+    <div class="plans-card-title">
+        <div>
+            <h3>Tablero de planes</h3>
+            <p>Consulta el cronograma por activo. Las acciones visibles dependen de la matriz de permisos.</p>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="plans-empty" role="status" aria-busy="true">Cargando planes...</div>
+    }
+    else if (!FilteredPlans.Any())
+    {
+        <div class="plans-empty">No hay planes con los filtros aplicados.</div>
+    }
+    else
+    {
+        <div class="plans-table-wrapper">
+            <div class="ntx-table-scroll">
+                <table class="plans-table">
+                <thead>
+                    <tr>
+                        <th>Activo</th>
+                        <th>Sede / ubicación</th>
+                        <th>Responsable</th>
+                        <th>Periodicidad</th>
+                        <th>Último mantenimiento</th>
+                        <th>Próximo mantenimiento</th>
+                        <th>Estado</th>
+                        <th>Indicadores</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in FilteredPlans)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@item.InternalCode</strong>
+                                <small>@item.Name</small>
+                            </td>
+
+                            <td>
+                                <strong>@(item.BranchCode ?? "—")</strong>
+                                <small>@(item.LocationName ?? item.BranchName ?? "Sin ubicación")</small>
+                            </td>
+
+                            <td>@(item.ResponsibleName ?? "—")</td>
+
+                            <td>
+                                <strong>@item.PeriodMonths mes(es)</strong>
+                                <small>Periodicidad base</small>
+                            </td>
+
+                            <td>
+                                <strong>@FormatDate(item.LastMaintenanceAt)</strong>
+                                <small>@(item.LastMaintenanceNumber ?? "Sin registro previo")</small>
+                                <small>@(item.LastProvider ?? "Sin proveedor")</small>
+                            </td>
+
+                            <td>
+                                <strong>@FormatDate(item.NextMaintenanceAt)</strong>
+                                <small>@GetDaysText(item.DaysRemaining)</small>
+                            </td>
+
+                            <td>
+                                <span class="@GetPlanClass(item.PlanStatus)">
+                                    @GetPlanLabel(item.PlanStatus)
+                                </span>
+                            </td>
+
+                            <td>
+                                <small>Total: @item.TotalMaintenances</small>
+                                <small>Completados: @item.CompletedMaintenances</small>
+                                <small>Programados: @item.ScheduledMaintenances</small>
+                                <small>Solicitudes abiertas: @item.PendingRequests</small>
+                            </td>
+
+                            <td>
+                                <div class="plans-actions">
+    @if (CanOpenMaintenanceSchedule)
+    {
+        <a class="plans-action primary" href="@($"/tools/{item.ToolAssetId}/maintenance-schedule")" data-ntx-tone="operation" >
+            Cronograma
+        </a>
+    }
+
+    @if (CanRequestMaintenance)
+    {
+        <a class="plans-action success" href="/maintenance-request" data-ntx-tone="operation" >
+            Solicitud
+        </a>
+    }
+</div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            </div>
+        </div>
+    }
+</section>
+
+</PermissionGuard>
+
+
+
+@code {
+
+    private bool CanViewPlans => PlanHasPermission("MaintenancePlans.View");
+    private bool CanCreatePlan => PlanHasPermission("MaintenancePlans.Create");
+    private bool CanEditPlan => PlanHasPermission("MaintenancePlans.Edit");
+    private bool CanDeletePlan => PlanHasPermission("MaintenancePlans.Delete");
+
+    private bool CanOpenMaintenanceSchedule =>
+        CanViewPlans || CanCreatePlan || CanEditPlan || CanDeletePlan ||
+        PlanHasPermission("TechnicalLifeRecord.Maintenance");
+
+    private bool CanOpenLifeRecord =>
+        PlanHasPermission("TechnicalLifeRecord.View") ||
+        PlanHasPermission("ToolDetail.LifeRecord.Open") ||
+        PlanHasPermission("ToolDetail.View");
+
+    private bool CanRequestMaintenance =>
+        PlanHasPermission("Maintenance.Request") ||
+        CanCreatePlan ||
+        CanEditPlan;
+
+    private bool PlanHasPermission(string permission)
+    {
+        return AuthSession.HasPermission(permission)
+            || string.Equals(AuthSession.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(AuthSession.RoleCode, "SUPERADMIN", StringComparison.OrdinalIgnoreCase);
+    }
+
+
+
+
+
+
+
+
+
+
+
+    private List<MaintenancePlanItem> plans = new();
+    private bool isLoading;
+    private string selectedStatus = string.Empty;
+    private string selectedBranchCode = string.Empty;
+    private string searchText = string.Empty;
+    private string? errorMessage;
+
+    private readonly (string Value, string Text)[] PlanStatusOptions =
+    {
+        ("OnTime", "Al día"),
+        ("DueSoon", "Por vencer"),
+        ("Overdue", "Vencido")
+    };
+
+
+
+
+    private IEnumerable<string> PlanBranchOptions =>
+        plans
+            .Select(x => x.BranchCode)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x);
+
+    private IEnumerable<MaintenancePlanItem> PlanBaseFilteredPlans =>
+        plans
+            .Where(MatchesSearch)
+            .Where(MatchesBranchFilter);
+
+    private IEnumerable<MaintenancePlanItem> FilteredPlans =>
+        PlanBaseFilteredPlans
+            .Where(x => string.IsNullOrWhiteSpace(selectedStatus) || x.PlanStatus == selectedStatus)
+            .OrderBy(x => x.DaysRemaining);
+
+
+    private void SelectPlanStatus(string status)
+    {
+        selectedStatus = status;
+    }
+
+    private void ClearPlanFilters()
+    {
+        selectedStatus = string.Empty;
+        selectedBranchCode = string.Empty;
+        searchText = string.Empty;
+    }
+
+    private string GetPlanStatusFilterChipClass(string? status)
+    {
+        var value = status ?? string.Empty;
+
+        var selected = string.Equals(selectedStatus ?? string.Empty, value, StringComparison.OrdinalIgnoreCase)
+            ? " active"
+            : string.Empty;
+
+        var css = string.IsNullOrWhiteSpace(value)
+            ? "all"
+            : value switch
+            {
+                "OnTime" => "ontime",
+                "DueSoon" => "duesoon",
+                "Overdue" => "overdue",
+                _ => "other"
+            };
+
+        return $"plans-status-filter-chip plans-status-{css}{selected}";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private HttpClient CreateApiClient()
+    {
+        var api = HttpClientFactory.CreateClient("NaviApi");
+
+        api.DefaultRequestHeaders.Remove("X-Navi-User");
+        api.DefaultRequestHeaders.Remove("X-Navi-Role");
+        api.DefaultRequestHeaders.Remove("X-Navi-Role-Code");
+        api.DefaultRequestHeaders.Remove("X-Navi-Permissions");
+
+        api.DefaultRequestHeaders.Add("X-Navi-User", string.IsNullOrWhiteSpace(AuthSession.UserName) ? "admin" : AuthSession.UserName);
+        api.DefaultRequestHeaders.Add("X-Navi-Role", string.IsNullOrWhiteSpace(AuthSession.RoleName) ? "Administrador" : AuthSession.RoleName);
+        api.DefaultRequestHeaders.Add("X-Navi-Role-Code", string.IsNullOrWhiteSpace(AuthSession.RoleCode) ? "ADMIN" : AuthSession.RoleCode);
+        api.DefaultRequestHeaders.Add("X-Navi-Permissions", string.Join(";", AuthSession.Permissions ?? new List<string>()));
+
+        return api;
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var api = CreateApiClient();
+            plans = await api.GetFromJsonAsync<List<MaintenancePlanItem>>("api/maintenance-requests/plans-board") ?? new();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudieron cargar los planes: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+
+    private bool MatchesBranchFilter(MaintenancePlanItem item)
+    {
+        return string.IsNullOrWhiteSpace(selectedBranchCode) ||
+               string.Equals(item.BranchCode ?? string.Empty, selectedBranchCode, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool MatchesSearch(MaintenancePlanItem item)
+    {
+        if (string.IsNullOrWhiteSpace(searchText)) return true;
+
+        var value = searchText.Trim();
+
+        return Contains(item.InternalCode, value) ||
+               Contains(item.Name, value) ||
+               Contains(item.BranchCode, value) ||
+               Contains(item.BranchName, value) ||
+               Contains(item.LocationName, value) ||
+               Contains(item.ResponsibleName, value) ||
+               Contains(item.LastProvider, value) ||
+               Contains(item.LastTechnician, value);
+    }
+
+    private static bool Contains(string? source, string value) =>
+        !string.IsNullOrWhiteSpace(source) && source.Contains(value, StringComparison.OrdinalIgnoreCase);
+
+    private static string FormatDate(DateTime? value) => value.HasValue ? value.Value.ToString("dd/MM/yyyy") : "—";
+
+    private static string GetDaysText(int days)
+    {
+        if (days < 0) return $"Vencido hace {Math.Abs(days)} día(s)";
+        if (days == 0) return "Vence hoy";
+        return $"Faltan {days} día(s)";
+    }
+
+    private static string GetPlanClass(string status) => status switch
+    {
+        "OnTime" => "plan-pill ontime",
+        "DueSoon" => "plan-pill duesoon",
+        "Overdue" => "plan-pill overdue",
+        _ => "plan-pill"
+    };
+
+    private static string GetPlanLabel(string status) => status switch
+    {
+        "OnTime" => "Al día",
+        "DueSoon" => "Por vencer",
+        "Overdue" => "Vencido",
+        _ => NaviStatusLabels.ToSpanish(status)
+    };
+
+    private string GetPlanDonutStyle()
+    {
+        var total = plans.Count;
+
+        if (total <= 0)
+        {
+            return "background: var(--navi-color-surface);";
+        }
+
+        var onTime = plans.Count(x => x.PlanStatus == "OnTime");
+        var dueSoon = plans.Count(x => x.PlanStatus == "DueSoon");
+        var overdue = plans.Count(x => x.PlanStatus == "Overdue");
+
+        var onTimeEnd = PercentEnd(onTime, total, 0);
+        var dueSoonEnd = PercentEnd(dueSoon, total, onTimeEnd);
+
+        return "background: var(--navi-color-surface);";
+    }
+
+    private static decimal PercentEnd(int value, int total, decimal start)
+    {
+        if (value <= 0 || total <= 0)
+        {
+            return start;
+        }
+
+        return Math.Min(100, start + Math.Round((decimal)value / total * 100, 2));
+    }
+
+    private static string GetPercentLabel(int value, int total)
+    {
+        if (value <= 0 || total <= 0)
+        {
+            return "0%";
+        }
+
+        return $"{Math.Round((decimal)value / total * 100, 1)}%";
+    }
+
+    private sealed class MaintenancePlanItem
+    {
+        public Guid ToolAssetId { get; set; }
+        public string InternalCode { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? BranchCode { get; set; }
+        public string? BranchName { get; set; }
+        public string? LocationName { get; set; }
+        public string? ResponsibleName { get; set; }
+        public int PeriodMonths { get; set; }
+        public DateTime? LastMaintenanceAt { get; set; }
+        public DateTime NextMaintenanceAt { get; set; }
+        public int DaysRemaining { get; set; }
+        public string PlanStatus { get; set; } = string.Empty;
+        public int TotalMaintenances { get; set; }
+        public int CompletedMaintenances { get; set; }
+        public int ScheduledMaintenances { get; set; }
+        public int PendingRequests { get; set; }
+        public string? LastMaintenanceNumber { get; set; }
+        public string? LastTechnician { get; set; }
+        public string? LastProvider { get; set; }
+    }
+}

@@ -4,7 +4,6 @@ using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Components.Forms;
@@ -739,40 +738,15 @@ public sealed class NaviMobileApiClient
 
     private void ApplySecurityHeaders(HttpRequestMessage request)
     {
-        var user = _auth.CurrentUser;
+        var token = _auth.CurrentUser?.AccessToken;
 
-        if (user is null)
+        if (string.IsNullOrWhiteSpace(token))
         {
             return;
         }
 
-        request.Headers.Remove("X-Navi-UserName");
-        request.Headers.Remove("X-Navi-RoleCode");
-        request.Headers.Remove("X-Navi-Permissions");
-        request.Headers.Remove("X-Navi-BranchId");
-        request.Headers.Remove("X-Navi-ResponsiblePersonId");
-        request.Headers.Remove("X-Navi-ResponsiblePersonName");
-        request.Headers.Remove("X-Navi-ResponsiblePersonName-B64");
-
-        request.Headers.Add("X-Navi-UserName", user.UserName);
-        request.Headers.Add("X-Navi-RoleCode", user.RoleCode);
-        request.Headers.Add("X-Navi-Permissions", string.Join(";", user.Permissions ?? new()));
-
-        if (user.BranchId.HasValue)
-        {
-            request.Headers.Add("X-Navi-BranchId", user.BranchId.Value.ToString());
-        }
-
-        if (user.ResponsiblePersonId.HasValue)
-        {
-            request.Headers.Add("X-Navi-ResponsiblePersonId", user.ResponsiblePersonId.Value.ToString());
-        }
-
-        if (!string.IsNullOrWhiteSpace(user.ResponsiblePersonName))
-        {
-            var encodedName = Convert.ToBase64String(Encoding.UTF8.GetBytes(user.ResponsiblePersonName));
-            request.Headers.Add("X-Navi-ResponsiblePersonName-B64", encodedName);
-        }
+        request.Headers.Authorization =
+            new AuthenticationHeaderValue("Bearer", token);
     }
 
     private static async Task<string> ReadApiErrorAsync(

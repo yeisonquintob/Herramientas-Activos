@@ -1,7 +1,13 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Navi.ToolsAssets.Api.Security;
+using Navi.ToolsAssets.Domain.Entities.Security;
 using Navi.ToolsAssets.Infrastructure.Persistence.Context;
 using Navi.ToolsAssets.Shared.Security;
 
@@ -12,17 +18,27 @@ namespace Navi.ToolsAssets.Api.Controllers;
 public sealed class AuthController : ControllerBase
 {
     private readonly NaviToolsAssetsDbContext _context;
+    private readonly IPasswordHasher<AppUser> _passwordHasher;
+    private readonly JwtTokenService _tokenService;
+    private readonly JwtOptions _jwtOptions;
 
-    public AuthController(NaviToolsAssetsDbContext context)
+    public AuthController(
+        NaviToolsAssetsDbContext context,
+        IPasswordHasher<AppUser> passwordHasher,
+        JwtTokenService tokenService,
+        IOptions<JwtOptions> jwtOptions)
     {
         _context = context;
+        _passwordHasher = passwordHasher;
+        _tokenService = tokenService;
+        _jwtOptions = jwtOptions.Value;
     }
 
     [HttpPost("login")]
+    [AllowAnonymous]
+    [EnableRateLimiting("authentication")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
     {
-        await EnsureAppUserPasswordHashColumnAsync(cancellationToken);
-
         var userName = request.UserName?.Trim();
 
         if (string.IsNullOrWhiteSpace(userName))
@@ -46,18 +62,73 @@ public sealed class AuthController : ControllerBase
 
         if (user is null)
         {
+            await WriteAuditAsync(
+                "LoginFailed",
+                "Failure",
+                null,
+                userName,
+                "InvalidCredentials",
+                cancellationToken);
             return Unauthorized(new { Message = "Usuario o contraseña inválidos." });
         }
 
         if (!user.IsActive)
         {
+            await WriteAuditAsync(
+                "LoginFailed",
+                "Failure",
+                user.Id,
+                user.UserName,
+                "InactiveUser",
+                cancellationToken);
             return Unauthorized(new { Message = "El usuario está inactivo o bloqueado." });
         }
 
-        if (!string.IsNullOrWhiteSpace(user.PasswordHash) &&
-            !VerifyUserPassword(request.Password, user.PasswordHash))
+        if (user.LockoutEndAt.HasValue && user.LockoutEndAt.Value > DateTime.UtcNow)
         {
-            return Unauthorized(new { Message = "Usuario o contraseña inválidos." });
+            await WriteAuditAsync(
+                "LoginFailed",
+                "Failure",
+                user.Id,
+                user.UserName,
+                "TemporarilyLocked",
+                cancellationToken);
+            return Unauthorized(new
+            {
+                Message = "El usuario está temporalmente bloqueado. Intente más tarde."
+            });
+        }
+
+        var verification = VerifyPassword(user, request.Password);
+
+        if (!verification.IsValid)
+        {
+            user.FailedLoginAttempts++;
+
+            if (user.FailedLoginAttempts >= 5)
+            {
+                user.LockoutEndAt = DateTime.UtcNow.AddMinutes(15);
+                user.FailedLoginAttempts = 0;
+            }
+
+            await WriteAuditAsync(
+                "LoginFailed",
+                "Failure",
+                user.Id,
+                user.UserName,
+                string.IsNullOrWhiteSpace(user.PasswordHash)
+                    ? "PasswordResetRequired"
+                    : "InvalidCredentials",
+                cancellationToken,
+                saveChanges: false);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return Unauthorized(new
+            {
+                Message = string.IsNullOrWhiteSpace(user.PasswordHash)
+                    ? "El usuario requiere restablecer su contraseña antes de ingresar."
+                    : "Usuario o contraseña inválidos."
+            });
         }
 
         if (user.AppRole is null || !user.AppRole.IsActive)
@@ -65,13 +136,44 @@ public sealed class AuthController : ControllerBase
             return Unauthorized(new { Message = "El usuario no tiene un rol activo asignado." });
         }
 
-        user.LastLoginAt = DateTime.UtcNow;
-        user.UpdatedAt = DateTime.UtcNow;
+        var now = DateTime.UtcNow;
+        user.FailedLoginAttempts = 0;
+        user.LockoutEndAt = null;
+        user.LastLoginAt = now;
+        user.UpdatedAt = now;
         user.UpdatedBy = "auth-login";
 
-        await _context.SaveChangesAsync(cancellationToken);
+        if (verification.NeedsRehash)
+        {
+            user.PasswordHash = _passwordHasher.HashPassword(user, request.Password);
+            user.PasswordChangedAt ??= now;
+        }
 
         var permissions = BuildPermissions(user.AppRole.Code, user.AppRole.Permissions);
+        var session = new UserSession
+        {
+            AppUserId = user.Id,
+            SecurityStamp = user.SecurityStamp,
+            LastActivityAtUtc = now,
+            AbsoluteExpiresAtUtc = now.AddHours(
+                Math.Clamp(_jwtOptions.AbsoluteSessionHours, 1, 72)),
+            UserAgent = Limit(Request.Headers.UserAgent.ToString(), 300),
+            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+            CreatedBy = user.UserName
+        };
+
+        _context.UserSessions.Add(session);
+        await WriteAuditAsync(
+            "Login",
+            "Success",
+            user.Id,
+            user.UserName,
+            null,
+            cancellationToken,
+            saveChanges: false);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var issuedToken = _tokenService.CreateAccessToken(user, session, permissions);
 
         return Ok(new LoginResponse
         {
@@ -92,7 +194,10 @@ public sealed class AuthController : ControllerBase
             ResponsiblePersonId = user.ResponsiblePersonId,
             ResponsiblePersonName = user.ResponsiblePerson?.FullName,
             Permissions = permissions,
-            LastLoginAt = user.LastLoginAt
+            LastLoginAt = user.LastLoginAt,
+            AccessToken = issuedToken.AccessToken,
+            TokenExpiresAtUtc = issuedToken.ExpiresAtUtc,
+            SessionId = issuedToken.SessionId
         });
     }
 
@@ -111,11 +216,23 @@ public sealed class AuthController : ControllerBase
         CancellationToken cancellationToken)
     {
         var normalizedUserName = (queryUserName ?? userName)?.Trim();
+        var authenticatedUserName = User.GetUserName();
 
-        if (string.IsNullOrWhiteSpace(normalizedUserName))
+        if (string.IsNullOrWhiteSpace(authenticatedUserName))
         {
-            return BadRequest(new { Message = "Debe enviar el usuario de la sesión móvil." });
+            return Unauthorized(new { Message = "La sesión autenticada no contiene un usuario válido." });
         }
+
+        if (!string.IsNullOrWhiteSpace(normalizedUserName) &&
+            !string.Equals(
+                normalizedUserName,
+                authenticatedUserName,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return Forbid();
+        }
+
+        normalizedUserName = authenticatedUserName;
 
         var user = await _context.AppUsers
             .Include(x => x.AppRole)
@@ -162,7 +279,10 @@ public sealed class AuthController : ControllerBase
             ResponsiblePersonId = user.ResponsiblePersonId,
             ResponsiblePersonName = user.ResponsiblePerson?.FullName,
             Permissions = permissions,
-            LastLoginAt = user.LastLoginAt
+            LastLoginAt = user.LastLoginAt,
+            AccessToken = GetCurrentBearerToken(),
+            TokenExpiresAtUtc = GetCurrentTokenExpiration(),
+            SessionId = User.GetSessionId()
         });
     }
 
@@ -295,15 +415,16 @@ public sealed class AuthController : ControllerBase
             ResponsiblePersonId = user.ResponsiblePersonId,
             ResponsiblePersonName = user.ResponsiblePerson?.FullName,
             Permissions = permissions,
-            LastLoginAt = user.LastLoginAt
+            LastLoginAt = user.LastLoginAt,
+            AccessToken = GetCurrentBearerToken(),
+            TokenExpiresAtUtc = GetCurrentTokenExpiration(),
+            SessionId = User.GetSessionId()
         });
     }
 
     [HttpPut("mobile-password")]
     public async Task<IActionResult> ChangeMobilePassword([FromBody] MobilePasswordChangeRequest request, CancellationToken cancellationToken)
     {
-        await EnsureAppUserPasswordHashColumnAsync(cancellationToken);
-
         var currentUserName = GetCurrentMobileUserName();
 
         if (string.IsNullOrWhiteSpace(currentUserName))
@@ -322,9 +443,12 @@ public sealed class AuthController : ControllerBase
             return Unauthorized(new { Message = "La sesión móvil no corresponde a un usuario activo." });
         }
 
-        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Trim().Length < 4)
+        if (!IsPasswordPolicyValid(request.NewPassword))
         {
-            return BadRequest(new { Message = "La nueva contraseña debe tener mínimo 4 caracteres." });
+            return BadRequest(new
+            {
+                Message = "La nueva contraseña debe tener mínimo 8 caracteres, mayúscula, minúscula y número."
+            });
         }
 
         if (string.Equals(request.NewPassword, request.ConfirmPassword) is false)
@@ -332,22 +456,43 @@ public sealed class AuthController : ControllerBase
             return BadRequest(new { Message = "La confirmación de contraseña no coincide." });
         }
 
-        if (!string.IsNullOrWhiteSpace(user.PasswordHash))
+        if (!VerifyPassword(user, request.CurrentPassword).IsValid)
         {
-            if (string.IsNullOrWhiteSpace(request.CurrentPassword) ||
-                !VerifyUserPassword(request.CurrentPassword, user.PasswordHash))
-            {
-                return BadRequest(new { Message = "La contraseña actual no es correcta." });
-            }
+            return BadRequest(new { Message = "La contraseña actual no es correcta." });
         }
 
-        user.PasswordHash = HashUserPassword(request.NewPassword);
+        user.PasswordHash = _passwordHasher.HashPassword(user, request.NewPassword!);
+        user.PasswordChangedAt = DateTime.UtcNow;
+        user.SecurityStamp = Guid.NewGuid();
         user.UpdatedAt = DateTime.UtcNow;
         user.UpdatedBy = currentUserName;
 
+        var sessions = await _context.UserSessions
+            .Where(x => x.AppUserId == user.Id && !x.RevokedAtUtc.HasValue)
+            .ToListAsync(cancellationToken);
+
+        foreach (var session in sessions)
+        {
+            session.RevokedAtUtc = DateTime.UtcNow;
+            session.RevokedReason = "PasswordChanged";
+            session.UpdatedAt = DateTime.UtcNow;
+            session.UpdatedBy = currentUserName;
+        }
+
+        await WriteAuditAsync(
+            "PasswordChanged",
+            "Success",
+            user.Id,
+            user.UserName,
+            null,
+            cancellationToken,
+            saveChanges: false);
         await _context.SaveChangesAsync(cancellationToken);
 
-        return Ok(new { Message = "Contraseña actualizada correctamente." });
+        return Ok(new
+        {
+            Message = "Contraseña actualizada. Debe iniciar sesión nuevamente."
+        });
     }
 
     [HttpGet("permissions")]
@@ -356,101 +501,171 @@ public sealed class AuthController : ControllerBase
         return Ok(PermissionCatalog.All);
     }
 
-    private async Task EnsureSecurityUsersPasswordSchemaAsync(CancellationToken cancellationToken)
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout(CancellationToken cancellationToken)
     {
-        var sql = @"
-IF COL_LENGTH('Security.AppUsers', 'PasswordHash') IS NULL
-BEGIN
-    ALTER TABLE [Security].[AppUsers] ADD [PasswordHash] nvarchar(500) NULL;
-END
-";
+        var sessionId = User.GetSessionId();
+        var session = sessionId.HasValue
+            ? await _context.UserSessions.FirstOrDefaultAsync(
+                x => x.Id == sessionId.Value,
+                cancellationToken)
+            : null;
 
-        await _context.Database.ExecuteSqlRawAsync(sql, cancellationToken);
-    }
-
-    private static string HashPassword(string password)
-    {
-        var value = password.Trim();
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
-        return Convert.ToHexString(bytes);
-    }
-
-    private static bool VerifyPassword(string? password, string hash)
-    {
-        if (string.IsNullOrWhiteSpace(password))
+        if (session is not null && !session.RevokedAtUtc.HasValue)
         {
-            return false;
+            session.RevokedAtUtc = DateTime.UtcNow;
+            session.RevokedReason = "Logout";
+            session.UpdatedAt = DateTime.UtcNow;
+            session.UpdatedBy = User.GetUserName();
         }
 
-        return string.Equals(HashPassword(password), hash, StringComparison.OrdinalIgnoreCase);
+        await WriteAuditAsync(
+            "Logout",
+            "Success",
+            User.GetUserId(),
+            User.GetUserName(),
+            null,
+            cancellationToken,
+            saveChanges: false);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return NoContent();
     }
 
-    private async Task EnsureAppUserPasswordHashColumnAsync(CancellationToken cancellationToken)
+    [HttpPost("sessions/revoke-all")]
+    [RequirePermission("Security.Users")]
+    public async Task<IActionResult> RevokeAllSessions(
+        [FromQuery] Guid userId,
+        CancellationToken cancellationToken)
     {
-        var entityType = _context.Model.FindEntityType(typeof(Navi.ToolsAssets.Domain.Entities.Security.AppUser));
+        var sessions = await _context.UserSessions
+            .Where(x => x.AppUserId == userId && !x.RevokedAtUtc.HasValue)
+            .ToListAsync(cancellationToken);
 
-        var tableName = entityType?.GetTableName();
-
-        if (string.IsNullOrWhiteSpace(tableName))
+        foreach (var session in sessions)
         {
-            tableName = "AppUsers";
+            session.RevokedAtUtc = DateTime.UtcNow;
+            session.RevokedReason = "AdministrativeRevocation";
+            session.UpdatedAt = DateTime.UtcNow;
+            session.UpdatedBy = User.GetUserName();
         }
 
-        var schema = entityType?.GetSchema();
+        await _context.SaveChangesAsync(cancellationToken);
+        return Ok(new { RevokedSessions = sessions.Count });
+    }
 
-        static string SqlValue(string? value)
+    private PasswordCheckResult VerifyPassword(AppUser user, string? password)
+    {
+        if (string.IsNullOrWhiteSpace(password) ||
+            string.IsNullOrWhiteSpace(user.PasswordHash))
         {
-            return (value ?? string.Empty).Replace("'", "''");
+            return PasswordCheckResult.Invalid;
         }
 
-        var schemaValue = SqlValue(schema);
-        var tableValue = SqlValue(tableName);
-
-        var sql = $@"
-DECLARE @SchemaName sysname = NULLIF(N'{schemaValue}', N'');
-DECLARE @TableName sysname = N'{tableValue}';
-
-IF @SchemaName IS NULL
-BEGIN
-    SELECT TOP(1) @SchemaName = s.name
-    FROM sys.tables t
-    INNER JOIN sys.schemas s ON s.schema_id = t.schema_id
-    WHERE t.name = @TableName;
-END
-
-IF @SchemaName IS NULL
-BEGIN
-    THROW 50000, 'No se encontro la tabla AppUsers en la base de datos.', 1;
-END
-
-DECLARE @QualifiedTable nvarchar(300) = QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@TableName);
-
-IF COL_LENGTH(@QualifiedTable, N'PasswordHash') IS NULL
-BEGIN
-    DECLARE @AlterSql nvarchar(max) = N'ALTER TABLE ' + @QualifiedTable + N' ADD [PasswordHash] nvarchar(500) NULL;';
-    EXEC sp_executesql @AlterSql;
-END
-";
-
-        await _context.Database.ExecuteSqlRawAsync(sql, cancellationToken);
-    }
-
-    private static string HashUserPassword(string password)
-    {
-        var value = password.Trim();
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
-        return Convert.ToHexString(bytes);
-    }
-
-    private static bool VerifyUserPassword(string? password, string hash)
-    {
-        if (string.IsNullOrWhiteSpace(password))
+        if (IsLegacySha256Hash(user.PasswordHash))
         {
-            return false;
+            var candidate = Convert.ToHexString(
+                SHA256.HashData(Encoding.UTF8.GetBytes(password.Trim())));
+            var isValid = CryptographicOperations.FixedTimeEquals(
+                Encoding.ASCII.GetBytes(candidate),
+                Encoding.ASCII.GetBytes(user.PasswordHash.ToUpperInvariant()));
+
+            return isValid
+                ? PasswordCheckResult.ValidWithRehash
+                : PasswordCheckResult.Invalid;
         }
 
-        return string.Equals(HashUserPassword(password), hash, StringComparison.OrdinalIgnoreCase);
+        try
+        {
+            var result = _passwordHasher.VerifyHashedPassword(
+                user,
+                user.PasswordHash,
+                password);
+
+            return result switch
+            {
+                PasswordVerificationResult.Success => PasswordCheckResult.Valid,
+                PasswordVerificationResult.SuccessRehashNeeded => PasswordCheckResult.ValidWithRehash,
+                _ => PasswordCheckResult.Invalid
+            };
+        }
+        catch (FormatException)
+        {
+            return PasswordCheckResult.Invalid;
+        }
     }
+
+    private static bool IsLegacySha256Hash(string hash) =>
+        hash.Length == 64 && hash.All(Uri.IsHexDigit);
+
+    private static bool IsPasswordPolicyValid(string? password) =>
+        !string.IsNullOrWhiteSpace(password) &&
+        password.Length >= 8 &&
+        password.Any(char.IsUpper) &&
+        password.Any(char.IsLower) &&
+        password.Any(char.IsDigit);
+
+    private async Task WriteAuditAsync(
+        string action,
+        string result,
+        Guid? userId,
+        string? userName,
+        string? reason,
+        CancellationToken cancellationToken,
+        bool saveChanges = true)
+    {
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = userId,
+            UserName = userName,
+            BranchId = User.GetBranchId(),
+            CompanyId = User.GetCompanyId(),
+            Action = action,
+            Module = "Authentication",
+            EntityType = nameof(AppUser),
+            EntityId = userId?.ToString(),
+            Result = result,
+            CorrelationId = HttpContext.TraceIdentifier,
+            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+            UserAgent = Limit(Request.Headers.UserAgent.ToString(), 300),
+            Reason = reason,
+            CreatedBy = userName ?? "anonymous"
+        });
+
+        if (saveChanges)
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    private string? GetCurrentBearerToken()
+    {
+        var value = Request.Headers.Authorization.ToString();
+        return value.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+            ? value["Bearer ".Length..].Trim()
+            : null;
+    }
+
+    private DateTime? GetCurrentTokenExpiration()
+    {
+        var value = User.FindFirst("exp")?.Value;
+        return long.TryParse(value, out var seconds)
+            ? DateTimeOffset.FromUnixTimeSeconds(seconds).UtcDateTime
+            : null;
+    }
+
+    private static string? Limit(string? value, int length) =>
+        string.IsNullOrEmpty(value)
+            ? value
+            : value[..Math.Min(value.Length, length)];
+
+    private sealed record PasswordCheckResult(bool IsValid, bool NeedsRehash)
+    {
+        public static readonly PasswordCheckResult Invalid = new(false, false);
+        public static readonly PasswordCheckResult Valid = new(true, false);
+        public static readonly PasswordCheckResult ValidWithRehash = new(true, true);
+    }
+
     private static List<string> BuildPermissions(string roleCode, string? permissions)
     {
         var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -681,19 +896,7 @@ END
 
     private string? GetCurrentMobileUserName()
     {
-        if (Request.Headers.TryGetValue("X-Navi-UserName", out var userName) &&
-            !string.IsNullOrWhiteSpace(userName.FirstOrDefault()))
-        {
-            return userName.FirstOrDefault()?.Trim();
-        }
-
-        if (Request.Headers.TryGetValue("X-Navi-User", out var legacyUserName) &&
-            !string.IsNullOrWhiteSpace(legacyUserName.FirstOrDefault()))
-        {
-            return legacyUserName.FirstOrDefault()?.Trim();
-        }
-
-        return null;
+        return User.GetUserName();
     }
 
     private static List<string> GetDefaultPermissionsByRole(string roleCode)
@@ -925,4 +1128,10 @@ public sealed class LoginResponse
     public List<string> Permissions { get; set; } = new();
 
     public DateTime? LastLoginAt { get; set; }
+
+    public string? AccessToken { get; set; }
+
+    public DateTime? TokenExpiresAtUtc { get; set; }
+
+    public Guid? SessionId { get; set; }
 }

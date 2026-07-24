@@ -2868,14 +2868,8 @@ END;
         }
 
         var actor =
-            NormalizeOptional(uploadedBy)
-            ?? NormalizeOptional(
-                Request.Headers["X-Navi-User"]
-                    .FirstOrDefault())
-            ?? NormalizeOptional(
-                Request.Headers["X-Navi-UserName"]
-                    .FirstOrDefault())
-            ?? "admin";
+            NormalizeOptional(User.GetUserName())
+            ?? "authenticated-user";
 
         var safeFileName =
             SanitizeReportedItemEvidenceFileName(

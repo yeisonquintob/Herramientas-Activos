@@ -26,6 +26,9 @@ public sealed class MobileUser
     public string? ResponsiblePersonName { get; set; }
     public List<string> Permissions { get; set; } = new();
     public DateTime? LastLoginAt { get; set; }
+    public string? AccessToken { get; set; }
+    public DateTime? TokenExpiresAtUtc { get; set; }
+    public Guid? SessionId { get; set; }
 }
 
 public sealed class MobileToolDto

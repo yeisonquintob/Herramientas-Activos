@@ -25,6 +25,8 @@ public class NaviToolsAssetsDbContext : DbContext
 
     public DbSet<AppRole> AppRoles => Set<AppRole>();
     public DbSet<AppUser> AppUsers => Set<AppUser>();
+    public DbSet<UserSession> UserSessions => Set<UserSession>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     public DbSet<SystemParameter> SystemParameters => Set<SystemParameter>();
     public DbSet<SettingCatalogItem> SettingCatalogItems => Set<SettingCatalogItem>();
@@ -180,6 +182,55 @@ public class NaviToolsAssetsDbContext : DbContext
         ConfigurePurchases(modelBuilder);
         ConfigureMaintenanceRequests(modelBuilder);
         ConfigureSync(modelBuilder);
+        ConfigureSecurity(modelBuilder);
+    }
+
+    private static void ConfigureSecurity(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<AppUser>(entity =>
+        {
+            entity.Property(x => x.UserName).HasMaxLength(150);
+            entity.Property(x => x.PasswordHash).HasMaxLength(500);
+            entity.HasIndex(x => x.UserName).IsUnique();
+            entity.HasIndex(x => new { x.IsActive, x.LockoutEndAt });
+        });
+
+        modelBuilder.Entity<UserSession>(entity =>
+        {
+            entity.ToTable("UserSessions", "Security");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.UserAgent).HasMaxLength(300);
+            entity.Property(x => x.IpAddress).HasMaxLength(64);
+            entity.Property(x => x.RevokedReason).HasMaxLength(300);
+            entity.HasIndex(x => new { x.AppUserId, x.RevokedAtUtc });
+            entity.HasIndex(x => x.AbsoluteExpiresAtUtc);
+            entity.HasOne(x => x.AppUser)
+                .WithMany()
+                .HasForeignKey(x => x.AppUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasQueryFilter(x => !x.IsDeleted);
+        });
+
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.ToTable("AuditLogs", "Security");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.UserName).HasMaxLength(150);
+            entity.Property(x => x.Action).HasMaxLength(150).IsRequired();
+            entity.Property(x => x.Module).HasMaxLength(150).IsRequired();
+            entity.Property(x => x.EntityType).HasMaxLength(150);
+            entity.Property(x => x.EntityId).HasMaxLength(150);
+            entity.Property(x => x.Result).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.CorrelationId).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.IpAddress).HasMaxLength(64);
+            entity.Property(x => x.UserAgent).HasMaxLength(300);
+            entity.Property(x => x.ErrorCode).HasMaxLength(100);
+            entity.Property(x => x.Reason).HasMaxLength(1000);
+            entity.HasIndex(x => x.TimestampUtc);
+            entity.HasIndex(x => new { x.UserId, x.TimestampUtc });
+            entity.HasIndex(x => new { x.CompanyId, x.TimestampUtc });
+            entity.HasQueryFilter(x => !x.IsDeleted);
+        });
     }
 
     private static void ConfigureOrganization(ModelBuilder modelBuilder)
@@ -776,6 +827,7 @@ public class NaviToolsAssetsDbContext : DbContext
             entity.Property(x => x.CanceledBy).HasMaxLength(150);
             entity.Property(x => x.CancellationReason).HasMaxLength(1000);
             entity.Property(x => x.EstimatedCostText).HasMaxLength(120);
+            entity.Property(x => x.EstimatedDowntimeHours).HasPrecision(18, 2);
             entity.Property(x => x.VendorSuggestion).HasMaxLength(300);
             entity.Property(x => x.Notes).HasMaxLength(2000);
             entity.Property(x => x.CreatedBy).HasMaxLength(150);

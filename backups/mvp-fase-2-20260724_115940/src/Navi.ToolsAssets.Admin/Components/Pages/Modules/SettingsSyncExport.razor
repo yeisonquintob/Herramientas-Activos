@@ -1,0 +1,365 @@
+@page "/settings/sync-export"
+@rendermode InteractiveServer
+@using System.Net.Http.Headers
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.Components.Forms
+@using Navi.ToolsAssets.Admin.Services.Auth
+@inject IHttpClientFactory HttpClientFactory
+@inject WebAuthSessionService AuthSession
+
+<PageTitle>Sincronización y exportación - Configuración</PageTitle>
+
+<PermissionGuard Permission="Settings.Manage" ModuleName="Sincronización y exportación">
+    <NaviPageHero
+        Pill="SISTEMA · BACKUP · EXPORTACIÓN"
+        Title="Sincronización y exportación"
+        Description="Carga backups de base de datos para procesos controlados de sincronización. La exportación de backup queda preparada para la siguiente fase.">
+        <a class="navi-ui-action secondary" href="/settings" data-ntx-tone="secondary" >
+            Volver a Configuración
+        </a>
+    </NaviPageHero>
+
+    <NaviKpiGrid Class="navi-kpi-grid sync-export-kpis">
+        <NaviKpiCard
+            Title="Backups cargados"
+            Value="@backups.Count.ToString()"
+            Description="Archivos recibidos por configuración"
+            Tone="neutral" />
+    </NaviKpiGrid>
+
+    <section class="sync-export-layout">
+        <article class="sync-export-card upload">
+            <div class="sync-export-card-head">
+                <div>
+                    <h3>Cargar backup</h3>
+                    <p>Seleccione un archivo de backup de base de datos. Se almacenará de forma controlada; no se restaura automáticamente.</p>
+                </div>
+
+                <span>Settings.Manage</span>
+            </div>
+
+            <div class="sync-export-warning">
+                Esta fase solo carga el archivo. La restauración, sincronización real y exportación de backup quedan pendientes para cuando confirmes el flujo final.
+            </div>
+
+            <label class="sync-export-file-box">
+                <span>Archivo backup</span>
+                <InputFile OnChange="OnBackupSelected" accept=".bak,.bacpac,.zip,.7z" name="navi-settingssyncexport-field-001" />
+                <small>Formatos permitidos: .bak, .bacpac, .zip, .7z. Tamaño máximo: 5 GB.</small>
+            </label>
+
+            @if (selectedBackup is not null)
+            {
+                <div class="sync-export-selected">
+                    <strong>@selectedBackup.Name</strong>
+                    <span>@FormatBytes(selectedBackup.Size)</span>
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(message))
+            {
+                <div class="@messageClass">@message</div>
+            }
+
+            <div class="sync-export-actions">
+                <button class="btn ntx-btn--operation" type="button" @onclick="UploadBackupAsync" disabled="@(selectedBackup is null || isUploading)" data-ntx-tone="ghost" >
+                    @(isUploading ? "Cargando..." : "Cargar backup")
+                </button>
+
+                <button class="btn btn-outline-secondary" type="button" @onclick="ClearSelection" disabled="@isUploading" data-ntx-tone="secondary" >
+                    Limpiar
+                </button>
+            </div>
+        </article>
+
+        <article class="sync-export-card">
+            <div class="sync-export-card-head">
+                <div>
+                    <h3>Backups cargados</h3>
+                    <p>Histórico local de archivos recibidos por el módulo.</p>
+                </div>
+
+                <button class="btn btn-sm ntx-btn--operation" type="button" @onclick="LoadAsync" disabled="@isLoading" data-ntx-tone="refresh" >
+                    Actualizar
+                </button>
+            </div>
+
+            @if (isLoading)
+            {
+                <div class="alert alert-info" role="status" aria-busy="true">Cargando backups...</div>
+            }
+            else if (backups.Count == 0)
+            {
+                <div class="alert alert-info">No hay backups cargados.</div>
+            }
+            else
+            {
+                <div class="sync-export-table-wrapper">
+                    <div class="ntx-table-scroll">
+                        <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Archivo</th>
+                                <th>Tipo</th>
+                                <th>Tamaño</th>
+                                <th>Fecha</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var item in backups)
+                            {
+                                <tr>
+                                    <td>
+                                        <strong>@item.FileName</strong>
+                                        <small>@item.StoragePath</small>
+                                    </td>
+                                    <td>@item.Extension</td>
+                                    <td>@FormatBytes(item.SizeBytes)</td>
+                                    <td>@item.UploadedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                                    <td><span class="badge navi-bg-affirmative">Cargado</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    </div>
+                </div>
+            }
+        </article>
+
+        <article class="sync-export-card export-pending">
+            <div class="sync-export-card-head">
+                <div>
+                    <h3>Exportar backup</h3>
+                    <p>Función reservada para la siguiente fase.</p>
+                </div>
+
+                <span>Pendiente</span>
+            </div>
+
+            <div class="sync-export-export-box">
+                <strong>Exportación de base de datos</strong>
+                <p>Queda visible para mantener el flujo funcional, pero todavía no ejecuta generación ni descarga del backup.</p>
+
+                <button class="btn btn-outline-secondary" type="button" disabled data-ntx-tone="consult" >
+                    Exportar backup próximamente
+                </button>
+            </div>
+        </article>
+    </section>
+</PermissionGuard>
+
+
+
+@code {
+    private const long MaxBackupSizeBytes = 5L * 1024L * 1024L * 1024L;
+
+    private static readonly string[] AllowedExtensions =
+    {
+        ".bak",
+        ".bacpac",
+        ".zip",
+        ".7z"
+    };
+
+    private IBrowserFile? selectedBackup;
+    private List<BackupFileItem> backups = new();
+
+    private bool isLoading;
+    private bool isUploading;
+    private string message = string.Empty;
+    private string messageClass = "alert alert-info";
+
+    private bool IsAdmin =>
+        string.Equals(AuthSession.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(AuthSession.RoleCode, "SUPERADMIN", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(AuthSession.RoleName, "Administrador", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(AuthSession.RoleName, "Administrador NAVI", StringComparison.OrdinalIgnoreCase);
+
+    private bool CanManageSettings =>
+        IsAdmin || AuthSession.HasPermission("Settings.Manage");
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        message = string.Empty;
+
+        try
+        {
+            var api = CreateApiClient();
+
+            backups = await api.GetFromJsonAsync<List<BackupFileItem>>("api/settings/sync-export/backups") ?? new();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"No se pudieron cargar los backups: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OnBackupSelected(InputFileChangeEventArgs args)
+    {
+        selectedBackup = args.File;
+        message = string.Empty;
+
+        if (selectedBackup is null)
+        {
+            return;
+        }
+
+        var extension = Path.GetExtension(selectedBackup.Name).ToLowerInvariant();
+
+        if (!AllowedExtensions.Contains(extension))
+        {
+            ShowError("Formato no permitido. Use .bak, .bacpac, .zip o .7z.");
+            selectedBackup = null;
+            return;
+        }
+
+        if (selectedBackup.Size > MaxBackupSizeBytes)
+        {
+            ShowError("El backup supera el tamaño máximo permitido de 5 GB.");
+            selectedBackup = null;
+        }
+    }
+
+    private async Task UploadBackupAsync()
+    {
+        if (!CanManageSettings)
+        {
+            ShowError("No tienes permiso para cargar backups.");
+            return;
+        }
+
+        if (selectedBackup is null)
+        {
+            ShowError("Debe seleccionar un archivo de backup.");
+            return;
+        }
+
+        isUploading = true;
+        message = string.Empty;
+
+        try
+        {
+            var api = CreateApiClient();
+
+            await using var stream = selectedBackup.OpenReadStream(MaxBackupSizeBytes);
+
+            using var content = new MultipartFormDataContent();
+            using var fileContent = new StreamContent(stream);
+
+            fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+
+            content.Add(fileContent, "file", selectedBackup.Name);
+            content.Add(new StringContent(AuthSession.UserName ?? "admin-web"), "uploadedBy");
+
+            using var response = await api.PostAsync("api/settings/sync-export/backups", content);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ShowError(await response.Content.ReadAsStringAsync());
+                return;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<BackupUploadResult>();
+
+            ShowSuccess(result?.Message ?? "Backup cargado correctamente.");
+
+            selectedBackup = null;
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"No se pudo cargar el backup: {ex.Message}");
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+
+    private void ClearSelection()
+    {
+        selectedBackup = null;
+        message = string.Empty;
+    }
+
+    private HttpClient CreateApiClient()
+    {
+        var api = HttpClientFactory.CreateClient("NaviApi");
+
+        api.DefaultRequestHeaders.Remove("X-Navi-User");
+        api.DefaultRequestHeaders.Remove("X-Navi-Role");
+        api.DefaultRequestHeaders.Remove("X-Navi-Role-Code");
+        api.DefaultRequestHeaders.Remove("X-Navi-Permissions");
+
+        api.DefaultRequestHeaders.Add("X-Navi-User", string.IsNullOrWhiteSpace(AuthSession.UserName) ? "admin-web" : AuthSession.UserName);
+        api.DefaultRequestHeaders.Add("X-Navi-Role", string.IsNullOrWhiteSpace(AuthSession.RoleName) ? "Administrador" : AuthSession.RoleName);
+        api.DefaultRequestHeaders.Add("X-Navi-Role-Code", string.IsNullOrWhiteSpace(AuthSession.RoleCode) ? "ADMIN" : AuthSession.RoleCode);
+        api.DefaultRequestHeaders.Add("X-Navi-Permissions", string.Join(";", AuthSession.Permissions ?? new List<string>()));
+
+        return api;
+    }
+
+    private void ShowSuccess(string text)
+    {
+        message = text;
+        messageClass = "alert alert-success";
+    }
+
+    private void ShowError(string text)
+    {
+        message = text;
+        messageClass = "alert alert-danger";
+    }
+
+    private static string FormatBytes(long value)
+    {
+        if (value >= 1024L * 1024L * 1024L)
+        {
+            return $"{value / 1024d / 1024d / 1024d:0.00} GB";
+        }
+
+        if (value >= 1024L * 1024L)
+        {
+            return $"{value / 1024d / 1024d:0.00} MB";
+        }
+
+        if (value >= 1024)
+        {
+            return $"{value / 1024d:0.00} KB";
+        }
+
+        return $"{value} bytes";
+    }
+
+    private sealed class BackupFileItem
+    {
+        public string FileName { get; set; } = string.Empty;
+        public string Extension { get; set; } = string.Empty;
+        public long SizeBytes { get; set; }
+        public DateTime UploadedAt { get; set; }
+        public DateTime ModifiedAt { get; set; }
+        public string StoragePath { get; set; } = string.Empty;
+    }
+
+    private sealed class BackupUploadResult
+    {
+        public string FileName { get; set; } = string.Empty;
+        public string OriginalFileName { get; set; } = string.Empty;
+        public long SizeBytes { get; set; }
+        public DateTime UploadedAt { get; set; }
+        public string Message { get; set; } = string.Empty;
+    }
+}

@@ -105,7 +105,7 @@ public sealed class SettingsSyncExportController : ControllerBase
             Archivo original: {originalName}
             Archivo almacenado: {safeName}
             Tamaño bytes: {file.Length}
-            Cargado por: {(string.IsNullOrWhiteSpace(uploadedBy) ? "admin-web" : uploadedBy)}
+            Cargado por: {User.GetUserName() ?? "authenticated-user"}
             Fecha UTC: {DateTime.UtcNow:O}
             Estado: Cargado. Restauración/exportación pendiente de implementación.
             """,

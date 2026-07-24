@@ -555,6 +555,9 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
+                    b.Property<string>("ShelfLocation")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("SyncStatus")
                         .IsRequired()
                         .HasMaxLength(80)
@@ -1007,6 +1010,303 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
                     b.ToTable("MaintenanceRecords", "Maintenance");
                 });
 
+            modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.Maintenance.ToolMaintenanceRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AccountingAccount")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("AccountingConcept")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("AccountingValidationComment")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("AccountingValidationStatus")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ApprovalComment")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ApprovedBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("AssignedTechnician")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<Guid?>("BranchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Brand")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("CanceledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CanceledBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ClosedBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("ClosingComment")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("EquipmentReference")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EstimatedCostText")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<decimal?>("EstimatedDowntimeHours")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("EvidenceReference")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ExcelReference")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("ExecutionFinishedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ExecutionFinishedBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<DateTime?>("ExecutionStartedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ExecutionStartedBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("FailureCause")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("FailureDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FailureDetail")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ImageEvidenceDescription")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsSafetyRisk")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("MaintenanceClassification")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("MaintenanceLocation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Model")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("MroCodeOrAccount")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("NeedDescription")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("PreparedBy")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("ProblemDescription")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("ProviderActivationCriteria")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PurchaseOrderNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PurchaseOrderStatus")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("QuotationCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("QuotationReferences")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("RejectedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RejectedBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("RequestChannel")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RequestNumber")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("RequestType")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTime>("RequestedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("RequestedByResponsiblePersonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RequestedByResponsiblePersonName")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<Guid?>("RequestedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RequestedByUserName")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<DateTime?>("RequiredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("RequiresAccountingValidation")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequiresPurchaseOrder")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequiresQuotation")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequiresStop")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("ScheduledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ScheduledBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("SelectedVendor")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SerialNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ServiceProvider")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ServiceType")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("SubmittedBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<Guid?>("ToolAssetId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("VendorSelectionReason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("VendorSuggestion")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<bool>("WarrantyApplies")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("WarrantyProvider")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("WorkDescription")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("RequestNumber")
+                        .IsUnique();
+
+                    b.HasIndex("ToolAssetId");
+
+                    b.ToTable("MaintenanceRequests", "Maintenance");
+                });
+
             modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.Organization.Branch", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1337,6 +1637,124 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
                     b.ToTable("PhysicalCounts", "PhysicalCounts");
                 });
 
+            modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.PhysicalCounts.PhysicalCountExtraItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("ApprovedForCreation")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("ApprovedForCreationAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ApprovedForCreationBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("ClarificationRequestedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ClarificationRequestedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FoundLocation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("MatchedToolAssetId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Observation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("PhysicalCountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("PhysicalCountParticipantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("PhysicalStatus")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("ReconciledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReconciledBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReconciliationObservation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReconciliationStatus")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("Rejected")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("RejectedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RejectedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RejectionReason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("ReportedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReportedBrand")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReportedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReportedCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReportedModel")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReportedName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReportedSerial")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("RequiresUserClarification")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("SuggestedAction")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatchedToolAssetId");
+
+                    b.HasIndex("PhysicalCountId");
+
+                    b.HasIndex("PhysicalCountParticipantId");
+
+                    b.ToTable("PhysicalCountExtraItems", "PhysicalCounts");
+                });
+
             modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.PhysicalCounts.PhysicalCountItem", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1391,6 +1809,734 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
                     b.HasIndex("ToolAssetId");
 
                     b.ToTable("PhysicalCountItems", "PhysicalCounts");
+                });
+
+            modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.PhysicalCounts.PhysicalCountParticipant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Area")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("BranchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("CountedItems")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("DamagedItems")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DifferentItems")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ExpectedItems")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ExtraItems")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("FinishedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("FoundItems")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LastActivityAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("LocationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("MissingItems")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Observation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("PendingItems")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("PhysicalCountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Position")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("ResponsiblePersonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("UserName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("ZoneId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("LocationId");
+
+                    b.HasIndex("PhysicalCountId");
+
+                    b.HasIndex("ResponsiblePersonId");
+
+                    b.HasIndex("ZoneId");
+
+                    b.ToTable("PhysicalCountParticipants", "PhysicalCounts");
+                });
+
+            modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.PhysicalCounts.PhysicalCountReportedItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("ApprovedForCreation")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("ApprovedForCreationAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ApprovedForCreationBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("AssetTypeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AssetTypeName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("BranchCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("BranchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Brand")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CategoryName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("ClarificationRequestedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ClarificationRequestedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("CreatedToolAssetId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("EvidenceDocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("FoundLocation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("LocationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("MatchedToolAssetId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("MinimumDataCompleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("MissingRequiredData")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Model")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Observation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("OperationalStatus")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("PhysicalCountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("PhysicalCountParticipantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("PhysicalStatus")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("ReconciledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReconciledBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReconciliationObservation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReconciliationStatus")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("Rejected")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("RejectedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RejectedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RejectionReason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReportType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("ReportedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReportedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReportedCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReportedName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("RequiresUserClarification")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ResponsibleName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("ResponsiblePersonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SerialNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SuggestedAction")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("ToolAssetId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("LocationId");
+
+                    b.HasIndex("MatchedToolAssetId");
+
+                    b.HasIndex("PhysicalCountId");
+
+                    b.HasIndex("PhysicalCountParticipantId");
+
+                    b.HasIndex("ResponsiblePersonId");
+
+                    b.HasIndex("ToolAssetId");
+
+                    b.ToTable("PhysicalCountReportedItems", "PhysicalCounts");
+                });
+
+            modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.PhysicalCounts.PhysicalCountReportedItemEvidence", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContentType")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ObjectKey")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("PhysicalCountReportedItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UploadedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("PhysicalCountReportedItemEvidences", "PhysicalCounts");
+                });
+
+            modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.Purchases.PurchaseRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AccountingAccount")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("AccountingConcept")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("AccountingValidationComment")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("AccountingValidationStatus")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("AmountRange")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ApprovalComment")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ApprovedBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<Guid?>("BranchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Capacity")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ClosedBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<bool>("CodeExists")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("CostCenter")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("DeliveryWarehouse")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Dimensions")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("DocumentSupportReference")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("DynamicsPurchaseRequisitionNumber")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("DynamicsStatus")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("EstimatedCostText")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("FailureDetail")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FixedAssetReason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("GenericCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("HasPhotoSupport")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("InventoryClassification")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("InvoiceReference")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsLocalLowAmountPurchase")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ItemCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ItemDescription")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ItemName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("ItemVariant")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Justification")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("LocationCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("MaintenanceTypeIfApplies")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("MroBuyer")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("MroValidationStatus")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("PhotoSupportDescription")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PlanningRequestReference")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PreparedBy")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("ProjectId")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<DateTime?>("PurchaseOrderDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PurchaseOrderNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PurchaseOrderStatus")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PurchasePurpose")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("PurchaseType")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("QuotationCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("QuotationReferences")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("ReceivedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReceivedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("RejectedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RejectedBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("RequestChannel")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RequestNumber")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<DateTime>("RequestedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("RequestedByResponsiblePersonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RequestedByResponsiblePersonName")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<Guid?>("RequestedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RequestedByUserName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<DateTime?>("RequiredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RequiredUse")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("RequiresAccountingValidation")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequiresCodeCreation")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequiresMroManagement")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequiresVariantCreation")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("SelectedVendor")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("SentToDynamics")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("SentToDynamicsAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("SerialReference")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("SubmittedBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("TechnicalSpecifications")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("ToolAssetId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("VariantDetail")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("VendorSelectionCriteria")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("VendorSuggestion")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("WarehouseCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("RequestNumber")
+                        .IsUnique();
+
+                    b.HasIndex("ToolAssetId");
+
+                    b.ToTable("PurchaseRequests", "Purchases");
+                });
+
+            modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.Purchases.PurchaseRequestEvidence", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("EvidenceType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<long>("FileSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ObjectKey")
+                        .IsRequired()
+                        .HasMaxLength(700)
+                        .HasColumnType("nvarchar(700)");
+
+                    b.Property<Guid?>("PurchaseRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ReferenceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ReferenceName")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UploadedBy")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PurchaseRequestId");
+
+                    b.HasIndex("WorkspaceId");
+
+                    b.HasIndex("WorkspaceId", "EvidenceType", "ReferenceId");
+
+                    b.ToTable("PurchaseRequestEvidences", "Purchases");
                 });
 
             modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.Safety.ToolSafePractice", b =>
@@ -1511,6 +2657,9 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
                     b.Property<string>("Email")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("FailedLoginAttempts")
+                        .HasColumnType("int");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -1520,10 +2669,23 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("LastLoginAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("LockoutEndAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("PasswordChangedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PasswordHash")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("Position")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid?>("ResponsiblePersonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("SecurityStamp")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("UpdatedAt")
@@ -1534,7 +2696,8 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("UserName")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
 
                     b.HasKey("Id");
 
@@ -1544,7 +2707,173 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ResponsiblePersonId");
 
+                    b.HasIndex("UserName")
+                        .IsUnique();
+
+                    b.HasIndex("IsActive", "LockoutEndAt");
+
                     b.ToTable("AppUsers");
+                });
+
+            modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.Security.AuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("AfterJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("BeforeJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("BranchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EntityId")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("EntityType")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("MetadataJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Module")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Result")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("TimestampUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("UserName")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TimestampUtc");
+
+                    b.HasIndex("CompanyId", "TimestampUtc");
+
+                    b.HasIndex("UserId", "TimestampUtc");
+
+                    b.ToTable("AuditLogs", "Security");
+                });
+
+            modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.Security.UserSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("AbsoluteExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("AppUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("LastActivityAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RevokedReason")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<Guid>("SecurityStamp")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AbsoluteExpiresAtUtc");
+
+                    b.HasIndex("AppUserId", "RevokedAtUtc");
+
+                    b.ToTable("UserSessions", "Security");
                 });
 
             modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.Sync.FenixReconciliationRecord", b =>
@@ -1767,6 +3096,23 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
                     b.Navigation("ToolAsset");
                 });
 
+            modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.Maintenance.ToolMaintenanceRequest", b =>
+                {
+                    b.HasOne("Navi.ToolsAssets.Domain.Entities.Organization.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Navi.ToolsAssets.Domain.Entities.Inventory.ToolAsset", "ToolAsset")
+                        .WithMany()
+                        .HasForeignKey("ToolAssetId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Branch");
+
+                    b.Navigation("ToolAsset");
+                });
+
             modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.Organization.Branch", b =>
                 {
                     b.HasOne("Navi.ToolsAssets.Domain.Entities.Organization.Zone", "Zone")
@@ -1800,6 +3146,29 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
                     b.Navigation("Branch");
                 });
 
+            modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.PhysicalCounts.PhysicalCountExtraItem", b =>
+                {
+                    b.HasOne("Navi.ToolsAssets.Domain.Entities.Inventory.ToolAsset", "MatchedToolAsset")
+                        .WithMany()
+                        .HasForeignKey("MatchedToolAssetId");
+
+                    b.HasOne("Navi.ToolsAssets.Domain.Entities.PhysicalCounts.PhysicalCount", "PhysicalCount")
+                        .WithMany()
+                        .HasForeignKey("PhysicalCountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Navi.ToolsAssets.Domain.Entities.PhysicalCounts.PhysicalCountParticipant", "Participant")
+                        .WithMany()
+                        .HasForeignKey("PhysicalCountParticipantId");
+
+                    b.Navigation("MatchedToolAsset");
+
+                    b.Navigation("Participant");
+
+                    b.Navigation("PhysicalCount");
+                });
+
             modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.PhysicalCounts.PhysicalCountItem", b =>
                 {
                     b.HasOne("Navi.ToolsAssets.Domain.Entities.PhysicalCounts.PhysicalCount", "PhysicalCount")
@@ -1817,6 +3186,115 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
                     b.Navigation("PhysicalCount");
 
                     b.Navigation("ToolAsset");
+                });
+
+            modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.PhysicalCounts.PhysicalCountParticipant", b =>
+                {
+                    b.HasOne("Navi.ToolsAssets.Domain.Entities.Organization.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId");
+
+                    b.HasOne("Navi.ToolsAssets.Domain.Entities.Organization.ToolLocation", "Location")
+                        .WithMany()
+                        .HasForeignKey("LocationId");
+
+                    b.HasOne("Navi.ToolsAssets.Domain.Entities.PhysicalCounts.PhysicalCount", "PhysicalCount")
+                        .WithMany()
+                        .HasForeignKey("PhysicalCountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Navi.ToolsAssets.Domain.Entities.Organization.ResponsiblePerson", "ResponsiblePerson")
+                        .WithMany()
+                        .HasForeignKey("ResponsiblePersonId");
+
+                    b.HasOne("Navi.ToolsAssets.Domain.Entities.Organization.Zone", "Zone")
+                        .WithMany()
+                        .HasForeignKey("ZoneId");
+
+                    b.Navigation("Branch");
+
+                    b.Navigation("Location");
+
+                    b.Navigation("PhysicalCount");
+
+                    b.Navigation("ResponsiblePerson");
+
+                    b.Navigation("Zone");
+                });
+
+            modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.PhysicalCounts.PhysicalCountReportedItem", b =>
+                {
+                    b.HasOne("Navi.ToolsAssets.Domain.Entities.Organization.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId");
+
+                    b.HasOne("Navi.ToolsAssets.Domain.Entities.Organization.ToolLocation", "Location")
+                        .WithMany()
+                        .HasForeignKey("LocationId");
+
+                    b.HasOne("Navi.ToolsAssets.Domain.Entities.Inventory.ToolAsset", "MatchedToolAsset")
+                        .WithMany()
+                        .HasForeignKey("MatchedToolAssetId");
+
+                    b.HasOne("Navi.ToolsAssets.Domain.Entities.PhysicalCounts.PhysicalCount", "PhysicalCount")
+                        .WithMany()
+                        .HasForeignKey("PhysicalCountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Navi.ToolsAssets.Domain.Entities.PhysicalCounts.PhysicalCountParticipant", "Participant")
+                        .WithMany()
+                        .HasForeignKey("PhysicalCountParticipantId");
+
+                    b.HasOne("Navi.ToolsAssets.Domain.Entities.Organization.ResponsiblePerson", "ResponsiblePerson")
+                        .WithMany()
+                        .HasForeignKey("ResponsiblePersonId");
+
+                    b.HasOne("Navi.ToolsAssets.Domain.Entities.Inventory.ToolAsset", "ToolAsset")
+                        .WithMany()
+                        .HasForeignKey("ToolAssetId");
+
+                    b.Navigation("Branch");
+
+                    b.Navigation("Location");
+
+                    b.Navigation("MatchedToolAsset");
+
+                    b.Navigation("Participant");
+
+                    b.Navigation("PhysicalCount");
+
+                    b.Navigation("ResponsiblePerson");
+
+                    b.Navigation("ToolAsset");
+                });
+
+            modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.Purchases.PurchaseRequest", b =>
+                {
+                    b.HasOne("Navi.ToolsAssets.Domain.Entities.Organization.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Navi.ToolsAssets.Domain.Entities.Inventory.ToolAsset", "ToolAsset")
+                        .WithMany()
+                        .HasForeignKey("ToolAssetId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Branch");
+
+                    b.Navigation("ToolAsset");
+                });
+
+            modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.Purchases.PurchaseRequestEvidence", b =>
+                {
+                    b.HasOne("Navi.ToolsAssets.Domain.Entities.Purchases.PurchaseRequest", "PurchaseRequest")
+                        .WithMany("Evidences")
+                        .HasForeignKey("PurchaseRequestId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("PurchaseRequest");
                 });
 
             modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.Safety.ToolSafePractice", b =>
@@ -1851,6 +3329,17 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
                     b.Navigation("Branch");
 
                     b.Navigation("ResponsiblePerson");
+                });
+
+            modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.Security.UserSession", b =>
+                {
+                    b.HasOne("Navi.ToolsAssets.Domain.Entities.Security.AppUser", "AppUser")
+                        .WithMany()
+                        .HasForeignKey("AppUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AppUser");
                 });
 
             modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.Sync.FenixReconciliationRecord", b =>
@@ -1930,6 +3419,11 @@ namespace Navi.ToolsAssets.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.PhysicalCounts.PhysicalCount", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.Purchases.PurchaseRequest", b =>
+                {
+                    b.Navigation("Evidences");
                 });
 
             modelBuilder.Entity("Navi.ToolsAssets.Domain.Entities.Security.AppRole", b =>

@@ -1,3 +1,5 @@
+using System.Net.Http.Json;
+
 namespace Navi.ToolsAssets.Admin.Services.Auth;
 
 public sealed class WebAuthSessionService
@@ -34,6 +36,12 @@ public sealed class WebAuthSessionService
 
     public string? ResponsiblePersonName { get; private set; }
 
+    public string? AccessToken { get; private set; }
+
+    public DateTime? TokenExpiresAtUtc { get; private set; }
+
+    public Guid? SessionId { get; private set; }
+
     public IReadOnlyCollection<string> Permissions => _permissions;
 
     public string AuditUser => string.IsNullOrWhiteSpace(UserName) ? "admin-web" : UserName;
@@ -65,13 +73,23 @@ public sealed class WebAuthSessionService
                 BranchName = BranchName,
                 ResponsiblePersonId = ResponsiblePersonId,
                 ResponsiblePersonName = ResponsiblePersonName,
-                Permissions = _permissions.ToList()
+                Permissions = _permissions.ToList(),
+                AccessToken = AccessToken,
+                TokenExpiresAtUtc = TokenExpiresAtUtc,
+                SessionId = SessionId
             };
         }
     }
 
     public void Login(AuthSessionUser user)
     {
+        if (user.TokenExpiresAtUtc is { } expiresAt &&
+            expiresAt <= DateTime.UtcNow)
+        {
+            Logout();
+            return;
+        }
+
         IsAuthenticated = true;
 
         UserId = user.UserId;
@@ -88,6 +106,9 @@ public sealed class WebAuthSessionService
         BranchName = string.IsNullOrWhiteSpace(user.BranchName) ? "Todas las sedes" : user.BranchName!;
         ResponsiblePersonId = user.ResponsiblePersonId;
         ResponsiblePersonName = user.ResponsiblePersonName;
+        AccessToken = user.AccessToken;
+        TokenExpiresAtUtc = user.TokenExpiresAtUtc;
+        SessionId = user.SessionId;
 
         _permissions.Clear();
 
@@ -120,10 +141,38 @@ public sealed class WebAuthSessionService
         BranchName = "Todas las sedes";
         ResponsiblePersonId = null;
         ResponsiblePersonName = null;
+        AccessToken = null;
+        TokenExpiresAtUtc = null;
+        SessionId = null;
 
         _permissions.Clear();
 
         NotifyStateChanged();
+    }
+
+    public async Task LogoutAsync(
+        IHttpClientFactory httpClientFactory,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (IsAuthenticated && !string.IsNullOrWhiteSpace(AccessToken))
+            {
+                var client = httpClientFactory.CreateClient("NaviApi");
+                using var response = await client.PostAsync(
+                    "api/auth/logout",
+                    content: null,
+                    cancellationToken);
+            }
+        }
+        catch (HttpRequestException)
+        {
+            // El cierre local siempre debe completarse aunque la API no esté disponible.
+        }
+        finally
+        {
+            Logout();
+        }
     }
 
     public bool HasRole(params string[] roles)
@@ -197,4 +246,10 @@ public sealed class AuthSessionUser
     public List<string> Permissions { get; set; } = new();
 
     public DateTime? LastLoginAt { get; set; }
+
+    public string? AccessToken { get; set; }
+
+    public DateTime? TokenExpiresAtUtc { get; set; }
+
+    public Guid? SessionId { get; set; }
 }

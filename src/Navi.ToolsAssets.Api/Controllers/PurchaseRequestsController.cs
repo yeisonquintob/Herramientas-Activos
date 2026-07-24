@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Text;
 using Navi.ToolsAssets.Api.Security;
 using Navi.ToolsAssets.Application.Documents;
 using Navi.ToolsAssets.Domain.Entities.Purchases;
@@ -925,57 +924,16 @@ public sealed class PurchaseRequestsController : ControllerBase
 
     private string GetUserName()
     {
-        return Request.Headers.TryGetValue("X-Navi-User", out var value) && !string.IsNullOrWhiteSpace(value)
-            ? value.ToString()
-            : "admin-web";
+        return User.GetUserName() ?? "authenticated-user";
     }
 
-    private Guid? GetUserId()
-    {
-        return TryGetGuidHeader("X-Navi-UserId");
-    }
+    private Guid? GetUserId() => User.GetUserId();
 
-    private Guid? GetBranchId()
-    {
-        return TryGetGuidHeader("X-Navi-BranchId");
-    }
+    private Guid? GetBranchId() => User.GetBranchId();
 
-    private Guid? GetResponsiblePersonId()
-    {
-        return TryGetGuidHeader("X-Navi-ResponsiblePersonId");
-    }
+    private Guid? GetResponsiblePersonId() => User.GetResponsiblePersonId();
 
-    private string? GetResponsiblePersonName()
-    {
-        if (Request.Headers.TryGetValue("X-Navi-ResponsiblePersonName-B64", out var encodedValue) &&
-            !string.IsNullOrWhiteSpace(encodedValue))
-        {
-            try
-            {
-                return Encoding.UTF8.GetString(Convert.FromBase64String(encodedValue.ToString()));
-            }
-            catch (FormatException)
-            {
-                return null;
-            }
-        }
-
-        return Request.Headers.TryGetValue("X-Navi-ResponsiblePersonName", out var value) && !string.IsNullOrWhiteSpace(value)
-            ? value.ToString()
-            : null;
-    }
-
-    private Guid? TryGetGuidHeader(string headerName)
-    {
-        if (!Request.Headers.TryGetValue(headerName, out var value))
-        {
-            return null;
-        }
-
-        return Guid.TryParse(value.ToString(), out var id)
-            ? id
-            : null;
-    }
+    private string? GetResponsiblePersonName() => User.GetResponsiblePersonName();
 
     private async Task EnsurePurchaseSchemaAsync(CancellationToken cancellationToken)
     {

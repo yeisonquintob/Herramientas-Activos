@@ -1,14 +1,112 @@
+using System.Security.Cryptography;
+using System.Text;
 using Hangfire;
 using Hangfire.SqlServer;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.IdentityModel.Tokens;
+using Navi.ToolsAssets.Api.Security;
+using Navi.ToolsAssets.Domain.Entities.Security;
 using Navi.ToolsAssets.Infrastructure.Extensions;
 using Navi.ToolsAssets.Infrastructure.Seed;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services.AddProblemDetails();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<AuditActionFilter>();
+builder.Services.AddControllers(options =>
+{
+    options.Filters.AddService<AuditActionFilter>();
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddAuthorization();
+
+var jwtOptions = builder.Configuration
+    .GetSection(JwtOptions.SectionName)
+    .Get<JwtOptions>() ?? new JwtOptions();
+
+if (string.IsNullOrWhiteSpace(jwtOptions.SigningKey))
+{
+    if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing"))
+    {
+        throw new InvalidOperationException(
+            "Configure Jwt:SigningKey mediante una variable de entorno o un almacén de secretos.");
+    }
+
+    jwtOptions.SigningKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+    builder.Logging.AddFilter("Navi.ToolsAssets.Api.Security", LogLevel.Information);
+}
+
+builder.Services.Configure<JwtOptions>(options =>
+{
+    options.Issuer = jwtOptions.Issuer;
+    options.Audience = jwtOptions.Audience;
+    options.SigningKey = jwtOptions.SigningKey;
+    options.AccessTokenMinutes = jwtOptions.AccessTokenMinutes;
+    options.AbsoluteSessionHours = jwtOptions.AbsoluteSessionHours;
+    options.InactivityMinutes = jwtOptions.InactivityMinutes;
+});
+builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddScoped<NaviSessionValidator>();
+builder.Services.AddScoped<IPasswordHasher<AppUser>, PasswordHasher<AppUser>>();
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.MapInboundClaims = false;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = jwtOptions.Issuer,
+            ValidateAudience = true,
+            ValidAudience = jwtOptions.Audience,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(jwtOptions.SigningKey)),
+            ValidateLifetime = true,
+            RequireExpirationTime = true,
+            RequireSignedTokens = true,
+            ClockSkew = TimeSpan.FromSeconds(30),
+            NameClaimType = System.Security.Claims.ClaimTypes.Name,
+            RoleClaimType = System.Security.Claims.ClaimTypes.Role
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var validator = context.HttpContext.RequestServices
+                    .GetRequiredService<NaviSessionValidator>();
+
+                if (!await validator.ValidateAsync(
+                        context.Principal!,
+                        context.HttpContext.RequestAborted))
+                {
+                    context.Fail("La sesión expiró, fue revocada o ya no es válida.");
+                }
+            }
+        };
+    });
+
+builder.Services.AddAuthorization(options =>
+{
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+});
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddFixedWindowLimiter("authentication", limiter =>
+    {
+        limiter.PermitLimit = 10;
+        limiter.Window = TimeSpan.FromMinutes(1);
+        limiter.QueueLimit = 0;
+    });
+});
 
 var defaultCorsOrigins = new[]
 {
@@ -75,13 +173,38 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 
-    app.UseHangfireDashboard("/hangfire");
+    app.UseHangfireDashboard(
+        "/hangfire",
+        new DashboardOptions
+        {
+            Authorization = new[] { new NaviHangfireAuthorizationFilter() }
+        });
 }
 
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler();
+    app.UseHsts();
+}
+
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    context.Response.Headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["Content-Security-Policy"] =
+        "default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'";
+
+    await next();
+});
+
+app.UseRateLimiter();
 app.UseCors("NaviMobileCors");
 
 app.UseHttpsRedirection();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
@@ -92,8 +215,8 @@ app.MapGet("/", () => Results.Ok(new
     Status = "Running",
     Database = "NaviToolsAssetsDb",
     Seed = "AGU / Zona Antioquia / Catálogos base",
-    Hangfire = "/hangfire"
-}));
+    Hangfire = app.Environment.IsDevelopment() ? "/hangfire" : "Disabled"
+})).AllowAnonymous();
 
 app.Run();
 

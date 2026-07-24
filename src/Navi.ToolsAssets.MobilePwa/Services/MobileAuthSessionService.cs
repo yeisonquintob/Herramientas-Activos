@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Net.Http.Headers;
 using Microsoft.JSInterop;
 using Navi.ToolsAssets.MobilePwa.Models;
 
@@ -8,13 +9,15 @@ public sealed class MobileAuthSessionService
 {
     private const string StorageKey = "navi-mobile-auth-session";
     private readonly IJSRuntime _js;
+    private readonly HttpClient _http;
     private Task? _initializationTask;
 
     public event Action? OnChange;
 
-    public MobileAuthSessionService(IJSRuntime js)
+    public MobileAuthSessionService(IJSRuntime js, HttpClient http)
     {
         _js = js;
+        _http = http;
     }
 
     public MobileUser? CurrentUser { get; private set; }
@@ -54,6 +57,15 @@ public sealed class MobileAuthSessionService
                         {
                             PropertyNameCaseInsensitive = true
                         });
+
+                if (CurrentUser?.TokenExpiresAtUtc is { } expiresAt &&
+                    expiresAt <= DateTime.UtcNow)
+                {
+                    CurrentUser = null;
+                    await _js.InvokeVoidAsync(
+                        "localStorage.removeItem",
+                        StorageKey);
+                }
             }
             else
             {
@@ -94,6 +106,25 @@ public sealed class MobileAuthSessionService
 
     public async Task LogoutAsync()
     {
+        var token = CurrentUser?.AccessToken;
+
+        if (!string.IsNullOrWhiteSpace(token))
+        {
+            try
+            {
+                using var request = new HttpRequestMessage(
+                    HttpMethod.Post,
+                    "api/auth/logout");
+                request.Headers.Authorization =
+                    new AuthenticationHeaderValue("Bearer", token);
+                using var response = await _http.SendAsync(request);
+            }
+            catch (HttpRequestException)
+            {
+                // La sesión local se elimina aunque la API no esté disponible.
+            }
+        }
+
         CurrentUser = null;
 
         await _js.InvokeVoidAsync(

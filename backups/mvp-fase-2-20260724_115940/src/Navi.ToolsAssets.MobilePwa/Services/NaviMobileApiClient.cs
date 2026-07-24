@@ -1,0 +1,824 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Components.Forms;
+using Navi.ToolsAssets.MobilePwa.Models;
+
+namespace Navi.ToolsAssets.MobilePwa.Services;
+
+public sealed class NaviMobileApiClient
+{
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
+    private readonly HttpClient _http;
+    private readonly MobileAuthSessionService _auth;
+
+    private List<MobileToolDto>? _toolsCache;
+    private DateTimeOffset? _toolsCacheAt;
+    private MobileExecutiveDashboard? _dashboardCache;
+    private DateTimeOffset? _dashboardCacheAt;
+
+    private readonly TimeSpan _cacheDuration = TimeSpan.FromMinutes(3);
+
+    public NaviMobileApiClient(HttpClient http, MobileAuthSessionService auth)
+    {
+        _http = http;
+        _auth = auth;
+    }
+
+    public async Task<MobileUser> LoginAsync(
+        string userName,
+        string password,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _http.PostAsJsonAsync("api/auth/login", new MobileLoginRequest
+        {
+            UserName = userName,
+            Password = password
+        }, cancellationToken);
+
+        using (response)
+        {
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+            }
+
+            var user = await response.Content.ReadFromJsonAsync<MobileUser>(
+                JsonOptions,
+                cancellationToken);
+
+            if (user is null)
+            {
+                throw new InvalidOperationException("No se recibió información de sesión.");
+            }
+
+            ClearCache();
+
+            await _auth.LoginAsync(user);
+
+            return user;
+        }
+    }
+
+    public async Task<MobileUser?> RefreshCurrentSessionAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var userName = _auth.CurrentUser?.UserName;
+
+        if (string.IsNullOrWhiteSpace(userName))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"api/auth/mobile-session/{Uri.EscapeDataString(userName)}");
+
+            ApplySecurityHeaders(request);
+
+            using var response = await _http.SendAsync(request, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                await _auth.LogoutAsync();
+                ClearCache();
+                return null;
+            }
+
+            var user = await response.Content.ReadFromJsonAsync<MobileUser>(
+                JsonOptions,
+                cancellationToken);
+
+            if (user is null)
+            {
+                await _auth.LogoutAsync();
+                ClearCache();
+                return null;
+            }
+
+            ClearCache();
+            await _auth.LoginAsync(user);
+
+            return user;
+        }
+        catch (HttpRequestException)
+        {
+            await _auth.LogoutAsync();
+            ClearCache();
+            return null;
+        }
+        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            await _auth.LogoutAsync();
+            ClearCache();
+            return null;
+        }
+    }
+
+    public async Task<MobileExecutiveDashboard> GetDashboardAsync(
+        bool forceRefresh = false,
+        string? branchCode = null,
+        string? operationalStatus = null,
+        string? q = null,
+        CancellationToken cancellationToken = default)
+    {
+        var hasFilters =
+            !string.IsNullOrWhiteSpace(branchCode) ||
+            !string.IsNullOrWhiteSpace(operationalStatus) ||
+            !string.IsNullOrWhiteSpace(q);
+
+        if (!hasFilters &&
+            !forceRefresh &&
+            _dashboardCache is not null &&
+            _dashboardCacheAt.HasValue &&
+            DateTimeOffset.Now - _dashboardCacheAt.Value < _cacheDuration)
+        {
+            return _dashboardCache;
+        }
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            BuildDashboardEndpoint(branchCode, operationalStatus, q));
+
+        ApplySecurityHeaders(request);
+
+        using var response = await _http.SendAsync(request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+        }
+
+        var dashboard = await response.Content.ReadFromJsonAsync<MobileExecutiveDashboard>(
+            JsonOptions,
+            cancellationToken);
+
+        if (dashboard is null)
+        {
+            throw new InvalidOperationException("No se recibió información del dashboard.");
+        }
+
+        if (!hasFilters)
+        {
+            _dashboardCache = dashboard;
+            _dashboardCacheAt = DateTimeOffset.Now;
+        }
+
+        return dashboard;
+    }
+
+    private static string BuildDashboardEndpoint(string? branchCode, string? operationalStatus, string? q)
+    {
+        var query = new List<string>();
+
+        AddQuery(query, "branchCode", branchCode);
+        AddQuery(query, "operationalStatus", operationalStatus);
+        AddQuery(query, "q", q);
+
+        return query.Count == 0
+            ? "api/dashboard/executive"
+            : $"api/dashboard/executive?{string.Join("&", query)}";
+    }
+
+    private static void AddQuery(List<string> query, string key, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        query.Add($"{Uri.EscapeDataString(key)}={Uri.EscapeDataString(value.Trim())}");
+    }
+
+    public async Task<List<MobileToolDto>> GetToolsAsync(
+        bool forceRefresh = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (!forceRefresh &&
+            _toolsCache is not null &&
+            _toolsCacheAt.HasValue &&
+            DateTimeOffset.Now - _toolsCacheAt.Value < _cacheDuration)
+        {
+            return _toolsCache;
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "api/tools");
+
+        ApplySecurityHeaders(request);
+
+        using var response = await _http.SendAsync(request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+        }
+
+        var tools = await response.Content.ReadFromJsonAsync<List<MobileToolDto>>(
+            JsonOptions,
+            cancellationToken) ?? new();
+
+        _toolsCache = tools;
+        _toolsCacheAt = DateTimeOffset.Now;
+
+        return tools;
+    }
+
+    public async Task<MobileToolDto> GetToolByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var tools = await GetToolsAsync(cancellationToken: cancellationToken);
+
+        var tool = tools.FirstOrDefault(x => x.Id == id);
+
+        if (tool is not null)
+        {
+            return tool;
+        }
+
+        tools = await GetToolsAsync(forceRefresh: true, cancellationToken);
+
+        tool = tools.FirstOrDefault(x => x.Id == id);
+
+        if (tool is null)
+        {
+            throw new InvalidOperationException("No se encontró el activo solicitado en el inventario visible.");
+        }
+
+        return tool;
+    }
+
+    public async Task<MobileToolDetailDto> GetToolDetailAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"api/tools/{id}");
+
+        ApplySecurityHeaders(request);
+
+        using var response = await _http.SendAsync(request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+        }
+
+        var tool = await response.Content.ReadFromJsonAsync<MobileToolDetailDto>(
+            JsonOptions,
+            cancellationToken);
+
+        if (tool is null)
+        {
+            throw new InvalidOperationException("No se recibió el detalle del activo.");
+        }
+
+        return tool;
+    }
+
+    public async Task<List<MobileLifeCycleEventDto>> GetLifeCycleEventsAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"api/tools/{id}/life-cycle-events");
+
+        ApplySecurityHeaders(request);
+
+        using var response = await _http.SendAsync(request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+        }
+
+        return await response.Content.ReadFromJsonAsync<List<MobileLifeCycleEventDto>>(
+            JsonOptions,
+            cancellationToken) ?? new();
+    }
+
+    public async Task<MobileTechnicalLifeRecordDto> GetTechnicalLifeRecordAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"api/tools/{id}/technical-life-record");
+
+        ApplySecurityHeaders(request);
+
+        using var response = await _http.SendAsync(request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+        }
+
+        var lifeRecord = await response.Content.ReadFromJsonAsync<MobileTechnicalLifeRecordDto>(
+            JsonOptions,
+            cancellationToken);
+
+        if (lifeRecord is null)
+        {
+            throw new InvalidOperationException("No se recibió la hoja de vida técnica.");
+        }
+
+        return lifeRecord;
+    }
+
+    public async Task<List<T>> GetListJsonAsync<T>(
+        string endpoint,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+
+        ApplySecurityHeaders(request);
+
+        using var response = await _http.SendAsync(request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+        }
+
+        return await response.Content.ReadFromJsonAsync<List<T>>(
+            JsonOptions,
+            cancellationToken) ?? new();
+    }
+
+    public async Task<T?> GetJsonAsync<T>(
+        string endpoint,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+
+        ApplySecurityHeaders(request);
+
+        using var response = await _http.SendAsync(request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+        }
+
+        return await response.Content.ReadFromJsonAsync<T>(
+            JsonOptions,
+            cancellationToken);
+    }
+
+    public async Task SendJsonAsync(
+        HttpMethod method,
+        string endpoint,
+        object? body = null,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(method, endpoint);
+
+        ApplySecurityHeaders(request);
+
+        if (body is not null)
+        {
+            request.Content = JsonContent.Create(body);
+        }
+
+        using var response = await _http.SendAsync(request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+        }
+
+        ClearCache();
+    }
+
+    public async Task UploadToolDocumentAsync(
+        Guid toolId,
+        IBrowserFile file,
+        string documentType,
+        string? description,
+        string? uploadedBy,
+        long maxFileSize,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"api/tools/{toolId}/documents");
+
+        ApplySecurityHeaders(request);
+
+        using var form = new MultipartFormDataContent();
+
+        await using var stream = file.OpenReadStream(maxFileSize);
+        using var fileContent = new StreamContent(stream);
+
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue(
+            string.IsNullOrWhiteSpace(file.ContentType)
+                ? "application/octet-stream"
+                : file.ContentType);
+
+        form.Add(fileContent, "file", file.Name);
+        form.Add(new StringContent(string.IsNullOrWhiteSpace(documentType) ? "Other" : documentType), "documentType");
+        form.Add(new StringContent(description ?? string.Empty), "description");
+        form.Add(new StringContent(string.IsNullOrWhiteSpace(uploadedBy) ? "mobile" : uploadedBy), "uploadedBy");
+
+        request.Content = form;
+
+        using var response = await _http.SendAsync(request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+        }
+
+        ClearCache();
+    }
+
+    public async Task<MobileDamageReportResponse> ReportDamageAsync(
+        MobileDamageReportRequest body,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "api/damages/report");
+
+        ApplySecurityHeaders(request);
+
+        request.Content = JsonContent.Create(body);
+
+        using var response = await _http.SendAsync(request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+        }
+
+        var result = await response.Content.ReadFromJsonAsync<MobileDamageReportResponse>(
+            JsonOptions,
+            cancellationToken);
+
+        if (result is null)
+        {
+            throw new InvalidOperationException("No se recibió respuesta del reporte.");
+        }
+
+        ClearCache();
+
+        return result;
+    }
+
+    public async Task<List<MobileAvailabilityToolDto>> GetAvailabilityToolsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, "api/tools");
+
+        ApplySecurityHeaders(request);
+
+        using var response = await _http.SendAsync(request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(
+                await ReadMobileAvailabilityApiErrorAsync(response, cancellationToken));
+        }
+
+        return await response.Content.ReadFromJsonAsync<List<MobileAvailabilityToolDto>>(
+            JsonOptions,
+            cancellationToken) ?? new();
+    }
+
+    public async Task<List<MobileBranchDto>> GetBranchesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, "api/settings/branches");
+
+        ApplySecurityHeaders(request);
+
+        using var response = await _http.SendAsync(request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(
+                await ReadMobileAvailabilityApiErrorAsync(response, cancellationToken));
+        }
+
+        return await response.Content.ReadFromJsonAsync<List<MobileBranchDto>>(
+            JsonOptions,
+            cancellationToken) ?? new();
+    }
+
+    public async Task<List<MobileLocationDto>> GetLocationsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, "api/organization/locations");
+
+            ApplySecurityHeaders(request);
+
+            using var response = await _http.SendAsync(request, cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<List<MobileLocationDto>>(
+                    JsonOptions,
+                    cancellationToken) ?? new();
+            }
+        }
+        catch
+        {
+        }
+
+        using var fallbackRequest = new HttpRequestMessage(HttpMethod.Get, "api/settings/warehouses");
+
+        ApplySecurityHeaders(fallbackRequest);
+
+        using var fallbackResponse = await _http.SendAsync(
+            fallbackRequest,
+            cancellationToken);
+
+        if (!fallbackResponse.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(
+                await ReadMobileAvailabilityApiErrorAsync(
+                    fallbackResponse,
+                    cancellationToken));
+        }
+
+        return await fallbackResponse.Content.ReadFromJsonAsync<List<MobileLocationDto>>(
+            JsonOptions,
+            cancellationToken) ?? new();
+    }
+
+    public async Task UpdateAvailabilityLocationAsync(
+        MobileAvailabilityLocationRequest body,
+        CancellationToken cancellationToken = default)
+    {
+        if (body.ToolId == Guid.Empty)
+        {
+            throw new InvalidOperationException("Debe seleccionar una herramienta o activo.");
+        }
+
+        if (body.BranchId == Guid.Empty)
+        {
+            throw new InvalidOperationException("Debe seleccionar una sede.");
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Patch, $"api/tools/{body.ToolId}/availability-location");
+
+        ApplySecurityHeaders(request);
+
+        request.Content = JsonContent.Create(new
+        {
+            branchId = body.BranchId,
+            locationId = body.LocationId,
+            operationalStatus = body.OperationalStatus,
+            observation = body.Observation,
+            changedBy = body.ChangedBy
+        });
+
+        using var response = await _http.SendAsync(request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(
+                await ReadMobileAvailabilityApiErrorAsync(response, cancellationToken));
+        }
+
+        ClearCache();
+    }
+
+    public async Task<List<MobileLoanRequestDto>> GetLoanRequestsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, "api/loans");
+
+        ApplySecurityHeaders(request);
+
+        using var response = await _http.SendAsync(request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+        }
+
+        return await response.Content.ReadFromJsonAsync<List<MobileLoanRequestDto>>(
+            JsonOptions,
+            cancellationToken) ?? new();
+    }
+
+    public async Task<List<MobileResponsibleDto>> GetResponsiblesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, "api/settings/responsibles");
+
+        ApplySecurityHeaders(request);
+
+        using var response = await _http.SendAsync(request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+        }
+
+        return await response.Content.ReadFromJsonAsync<List<MobileResponsibleDto>>(
+            JsonOptions,
+            cancellationToken) ?? new();
+    }
+
+    public async Task CreateLoanRequestAsync(
+        MobileLoanRequestCreateDto body,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "api/loans/request");
+
+        ApplySecurityHeaders(request);
+
+        request.Content = JsonContent.Create(body);
+
+        using var response = await _http.SendAsync(request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+        }
+
+        ClearCache();
+    }
+
+    public async Task ApproveAndAssignLoanAsync(
+        Guid loanId,
+        MobileLoanActionDto body,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Patch, $"api/loans/{loanId}/approve-assign");
+
+        ApplySecurityHeaders(request);
+
+        request.Content = JsonContent.Create(body);
+
+        using var response = await _http.SendAsync(request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+        }
+
+        ClearCache();
+    }
+
+    public async Task RejectLoanRequestAsync(
+        Guid loanId,
+        MobileLoanActionDto body,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Patch, $"api/loans/{loanId}/reject");
+
+        ApplySecurityHeaders(request);
+
+        request.Content = JsonContent.Create(body);
+
+        using var response = await _http.SendAsync(request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+        }
+
+        ClearCache();
+    }
+
+    public async Task AssignFixedAssetAsync(
+        Guid toolId,
+        MobileDirectAssignmentRequest body,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Patch, $"api/tools/{toolId}/assign-fixed-asset");
+
+        ApplySecurityHeaders(request);
+
+        request.Content = JsonContent.Create(body);
+
+        using var response = await _http.SendAsync(request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(await ReadApiErrorAsync(response, cancellationToken));
+        }
+
+        ClearCache();
+    }
+
+    public string ToApiUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return "#";
+        }
+
+        if (Uri.TryCreate(url, UriKind.Absolute, out var absolute))
+        {
+            return absolute.ToString();
+        }
+
+        var baseUri = _http.BaseAddress ?? new Uri("http://localhost:5218/");
+
+        return new Uri(baseUri, url.TrimStart('/')).ToString();
+    }
+
+    public void ClearCache()
+    {
+        _toolsCache = null;
+        _toolsCacheAt = null;
+        _dashboardCache = null;
+        _dashboardCacheAt = null;
+    }
+
+    private void ApplySecurityHeaders(HttpRequestMessage request)
+    {
+        var user = _auth.CurrentUser;
+
+        if (user is null)
+        {
+            return;
+        }
+
+        request.Headers.Remove("X-Navi-UserName");
+        request.Headers.Remove("X-Navi-RoleCode");
+        request.Headers.Remove("X-Navi-Permissions");
+        request.Headers.Remove("X-Navi-BranchId");
+        request.Headers.Remove("X-Navi-ResponsiblePersonId");
+        request.Headers.Remove("X-Navi-ResponsiblePersonName");
+        request.Headers.Remove("X-Navi-ResponsiblePersonName-B64");
+
+        request.Headers.Add("X-Navi-UserName", user.UserName);
+        request.Headers.Add("X-Navi-RoleCode", user.RoleCode);
+        request.Headers.Add("X-Navi-Permissions", string.Join(";", user.Permissions ?? new()));
+
+        if (user.BranchId.HasValue)
+        {
+            request.Headers.Add("X-Navi-BranchId", user.BranchId.Value.ToString());
+        }
+
+        if (user.ResponsiblePersonId.HasValue)
+        {
+            request.Headers.Add("X-Navi-ResponsiblePersonId", user.ResponsiblePersonId.Value.ToString());
+        }
+
+        if (!string.IsNullOrWhiteSpace(user.ResponsiblePersonName))
+        {
+            var encodedName = Convert.ToBase64String(Encoding.UTF8.GetBytes(user.ResponsiblePersonName));
+            request.Headers.Add("X-Navi-ResponsiblePersonName-B64", encodedName);
+        }
+    }
+
+    private static async Task<string> ReadApiErrorAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return $"Error HTTP {(int)response.StatusCode}: {response.ReasonPhrase}";
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(content);
+
+            if (doc.RootElement.TryGetProperty("message", out var message))
+            {
+                return message.GetString() ?? content;
+            }
+
+            if (doc.RootElement.TryGetProperty("Message", out var messageUpper))
+            {
+                return messageUpper.GetString() ?? content;
+            }
+        }
+        catch
+        {
+            return content;
+        }
+
+        return content;
+    }
+
+    private static async Task<string> ReadMobileAvailabilityApiErrorAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return $"Error HTTP {(int)response.StatusCode}: {response.ReasonPhrase}";
+        }
+
+        return content;
+    }
+}

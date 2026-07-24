@@ -208,53 +208,7 @@
 
     private HttpClient CreateApiClient()
     {
-        var api = HttpClientFactory.CreateClient("NaviApi");
-
-        api.DefaultRequestHeaders.Remove("X-Navi-User");
-        api.DefaultRequestHeaders.Remove("X-Navi-Role");
-        api.DefaultRequestHeaders.Remove("X-Navi-Role-Code");
-        api.DefaultRequestHeaders.Remove("X-Navi-Permissions");
-        api.DefaultRequestHeaders.Remove("X-Navi-BranchId");
-        api.DefaultRequestHeaders.Remove("X-Navi-ResponsiblePersonId");
-        api.DefaultRequestHeaders.Remove("X-Navi-ResponsiblePersonName");
-
-        api.DefaultRequestHeaders.Add("X-Navi-User", string.IsNullOrWhiteSpace(AuthSession.UserName) ? "admin" : AuthSession.UserName);
-        api.DefaultRequestHeaders.Add("X-Navi-Role", string.IsNullOrWhiteSpace(AuthSession.RoleName) ? "Administrador" : AuthSession.RoleName);
-        api.DefaultRequestHeaders.Add("X-Navi-Role-Code", string.IsNullOrWhiteSpace(AuthSession.RoleCode) ? "ADMIN" : AuthSession.RoleCode);
-
-        var permissions = AuthSession.Permissions ?? new List<string>();
-
-        if (!permissions.Any())
-        {
-            permissions = new List<string>
-            {
-                "Purchases.View",
-                "Purchases.Request",
-                "Purchases.Approve",
-                "Purchases.Reject"
-            };
-        }
-
-        api.DefaultRequestHeaders.Add(
-            "X-Navi-Permissions",
-            string.Join(";", permissions.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase)));
-
-        if (AuthSession.BranchId.HasValue)
-        {
-            api.DefaultRequestHeaders.Add("X-Navi-BranchId", AuthSession.BranchId.Value.ToString());
-        }
-
-        if (AuthSession.ResponsiblePersonId.HasValue)
-        {
-            api.DefaultRequestHeaders.Add("X-Navi-ResponsiblePersonId", AuthSession.ResponsiblePersonId.Value.ToString());
-        }
-
-        if (!string.IsNullOrWhiteSpace(AuthSession.ResponsiblePersonName))
-        {
-            api.DefaultRequestHeaders.Add("X-Navi-ResponsiblePersonName", AuthSession.ResponsiblePersonName);
-        }
-
-        return api;
+        return HttpClientFactory.CreateClient("NaviApi");
     }
 
     private static bool Contains(string? source, string value)

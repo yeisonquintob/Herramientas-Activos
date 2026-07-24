@@ -17,6 +17,14 @@ public class AppUser : BaseEntity
 
     public string? PasswordHash { get; set; }
 
+    public int FailedLoginAttempts { get; set; }
+
+    public DateTime? LockoutEndAt { get; set; }
+
+    public DateTime? PasswordChangedAt { get; set; }
+
+    public Guid SecurityStamp { get; set; } = Guid.NewGuid();
+
     public Guid AppRoleId { get; set; }
 
     public AppRole? AppRole { get; set; }

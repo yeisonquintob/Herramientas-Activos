@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Navi.ToolsAssets.Api.Security;
@@ -40,6 +41,7 @@ public sealed class LoginAppearanceController : ControllerBase
     /// No expone el objeto interno de MinIO.
     /// </summary>
     [HttpGet]
+    [AllowAnonymous]
     [ProducesResponseType<LoginAppearanceResponse>(
         StatusCodes.Status200OK)]
     public async Task<ActionResult<LoginAppearanceResponse>>
@@ -71,6 +73,7 @@ public sealed class LoginAppearanceController : ControllerBase
     /// El navegador únicamente conoce este endpoint.
     /// </summary>
     [HttpGet("image")]
+    [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetImage(
@@ -407,10 +410,7 @@ public sealed class LoginAppearanceController : ControllerBase
 
     private string GetCurrentUser()
     {
-        var value =
-            Request.Headers[
-                "X-Navi-User"
-            ].FirstOrDefault();
+        var value = User.GetUserName();
 
         if (string.IsNullOrWhiteSpace(value))
         {

@@ -913,9 +913,7 @@ public class ToolsController : ControllerBase
             });
         }
 
-        var user = string.IsNullOrWhiteSpace(uploadedBy)
-            ? "api"
-            : uploadedBy.Trim();
+        var user = User.GetUserName() ?? "authenticated-user";
 
         var safeFileName = Path.GetFileName(file.FileName);
         var objectName = $"tools/{tool.InternalCode}/documents/{DateTime.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}{extension}";
