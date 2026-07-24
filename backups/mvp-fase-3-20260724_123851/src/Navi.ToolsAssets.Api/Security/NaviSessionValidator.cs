@@ -1,16 +1,16 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using Navi.ToolsAssets.Infrastructure.Tenancy;
+using Navi.ToolsAssets.Infrastructure.Persistence.Context;
 
 namespace Navi.ToolsAssets.Api.Security;
 
 public sealed class NaviSessionValidator
 {
-    private readonly NaviSecurityDbContext _context;
+    private readonly NaviToolsAssetsDbContext _context;
     private readonly JwtOptions _options;
 
     public NaviSessionValidator(
-        NaviSecurityDbContext context,
+        NaviToolsAssetsDbContext context,
         IOptions<JwtOptions> options)
     {
         _context = context;

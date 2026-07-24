@@ -51,7 +51,6 @@ public sealed class JwtTokenService
 
         AddOptionalGuidClaim(claims, NaviClaimTypes.BranchId, user.BranchId);
         AddOptionalGuidClaim(claims, NaviClaimTypes.ResponsiblePersonId, user.ResponsiblePersonId);
-        AddOptionalGuidClaim(claims, NaviClaimTypes.CompanyId, session.CompanyId);
 
         if (!string.IsNullOrWhiteSpace(user.ResponsiblePerson?.FullName))
         {

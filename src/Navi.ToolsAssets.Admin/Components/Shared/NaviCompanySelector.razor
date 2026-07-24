@@ -1,0 +1,136 @@
+@using System.Net
+@using System.Net.Http.Json
+@using Navi.ToolsAssets.Admin.Services.Auth
+@inject IHttpClientFactory HttpClientFactory
+@inject WebAuthSessionService AuthSession
+@inject IJSRuntime JS
+
+@if (companies.Count > 1)
+{
+    <label class="navi-company-selector">
+        <span class="visually-hidden">Compañía activa</span>
+        <select value="@SelectedValue"
+                @onchange="SelectAsync"
+                disabled="@isBusy"
+                aria-label="Seleccionar compañía activa">
+            <option value="">Seleccionar compañía</option>
+            @foreach (var company in companies)
+            {
+                <option value="@company.Id">@company.Code · @company.Name</option>
+            }
+        </select>
+    </label>
+}
+
+@code {
+    private const string SessionStorageKey = "navi-auth-session";
+    private readonly List<CompanySummary> companies = [];
+    private bool isBusy;
+
+    private string SelectedValue => AuthSession.CompanyId?.ToString() ?? string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthSession.IsAuthenticated)
+        {
+            return;
+        }
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("NaviApi");
+            var response = await client.GetAsync("api/companies/available");
+            if (!response.IsSuccessStatusCode)
+            {
+                return;
+            }
+
+            companies.AddRange(
+                await response.Content.ReadFromJsonAsync<List<CompanySummary>>() ?? []);
+
+            if (!AuthSession.CompanyId.HasValue)
+            {
+                var defaultCompany = companies.FirstOrDefault(x => x.IsDefault && x.IsActive);
+                if (defaultCompany is not null)
+                {
+                    await SelectCompanyAsync(defaultCompany.Id);
+                }
+            }
+        }
+        catch (HttpRequestException)
+        {
+            // El selector no bloquea el resto del encabezado si la API no está disponible.
+        }
+    }
+
+    private async Task SelectAsync(ChangeEventArgs args)
+    {
+        if (Guid.TryParse(args.Value?.ToString(), out var companyId))
+        {
+            await SelectCompanyAsync(companyId);
+        }
+    }
+
+    private async Task SelectCompanyAsync(Guid companyId)
+    {
+        isBusy = true;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("NaviApi");
+            var response = await client.PostAsync($"api/companies/{companyId}/select", null);
+            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+            {
+                return;
+            }
+
+            response.EnsureSuccessStatusCode();
+            var selected = await response.Content.ReadFromJsonAsync<SelectCompanyResponse>();
+            if (selected is null)
+            {
+                return;
+            }
+
+            AuthSession.SelectCompany(
+                selected.CompanyId,
+                selected.CompanyCode,
+                selected.CompanyName,
+                selected.AccessToken,
+                selected.TokenExpiresAtUtc,
+                selected.SessionId);
+
+            if (AuthSession.CurrentUser is { } currentUser)
+            {
+                await JS.InvokeVoidAsync(
+                    "localStorage.setItem",
+                    SessionStorageKey,
+                    System.Text.Json.JsonSerializer.Serialize(currentUser));
+            }
+        }
+        catch (HttpRequestException)
+        {
+            // La selección previa permanece intacta si falla la red.
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private sealed record CompanySummary(
+        Guid Id,
+        string Code,
+        string Name,
+        string Status,
+        bool IsActive,
+        bool IsDefault,
+        string? DatabaseStatus,
+        string? SchemaVersion);
+
+    private sealed record SelectCompanyResponse(
+        Guid CompanyId,
+        string CompanyCode,
+        string CompanyName,
+        string AccessToken,
+        DateTime TokenExpiresAtUtc,
+        Guid SessionId);
+}

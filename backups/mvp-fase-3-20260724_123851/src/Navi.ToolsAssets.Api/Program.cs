@@ -8,7 +8,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Navi.ToolsAssets.Api.Security;
-using Navi.ToolsAssets.Api.Tenancy;
 using Navi.ToolsAssets.Domain.Entities.Security;
 using Navi.ToolsAssets.Infrastructure.Extensions;
 using Navi.ToolsAssets.Infrastructure.Seed;
@@ -16,8 +15,6 @@ using Navi.ToolsAssets.Infrastructure.Seed;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddProblemDetails();
-builder.Services.Configure<TenancyOptions>(
-    builder.Configuration.GetSection(TenancyOptions.SectionName));
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<AuditActionFilter>();
 builder.Services.AddControllers(options =>
@@ -208,7 +205,6 @@ app.UseCors("NaviMobileCors");
 app.UseHttpsRedirection();
 
 app.UseAuthentication();
-app.UseMiddleware<TenantResolutionMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();

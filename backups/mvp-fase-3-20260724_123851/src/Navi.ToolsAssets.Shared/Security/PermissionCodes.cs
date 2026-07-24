@@ -77,10 +77,6 @@ public static class PermissionCodes
     public const string SettingsManage = "Settings.Manage";
     public const string SecurityUsers = "Security.Users";
     public const string SecurityRoles = "Security.Roles";
-    public const string CompaniesView = "Companies.View";
-    public const string CompaniesManage = "Companies.Manage";
-    public const string CompaniesBackup = "Companies.Backup";
-    public const string CompaniesMigrate = "Companies.Migrate";
 
     public const string MobileAccess = "Mobile.Access";
     public const string MobileToolsView = "Mobile.Tools.View";

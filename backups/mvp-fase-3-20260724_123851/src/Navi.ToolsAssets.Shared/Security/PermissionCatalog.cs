@@ -93,10 +93,6 @@ public static class PermissionCatalog
             Define(PermissionCodes.SettingsManage, "Administrar configuración", "Configuración", "Administración", "Administrar configuración.", company, admin: true),
             Define(PermissionCodes.SecurityUsers, "Administrar usuarios", "Seguridad", "Administración", "Administrar usuarios.", company, admin: true),
             Define(PermissionCodes.SecurityRoles, "Administrar roles", "Seguridad", "Administración", "Administrar roles y permisos.", company, admin: true),
-            Define(PermissionCodes.CompaniesView, "Ver compañías", "Compañías", "Consulta", "Ver compañías autorizadas y estado de sus bases.", company, admin: true),
-            Define(PermissionCodes.CompaniesManage, "Administrar compañías", "Compañías", "Administración", "Crear y actualizar metadatos de compañías.", company, admin: true),
-            Define(PermissionCodes.CompaniesBackup, "Respaldar compañías", "Compañías", "Crítica", "Solicitar y descargar respaldos por compañía.", company, admin: true),
-            Define(PermissionCodes.CompaniesMigrate, "Migrar compañías", "Compañías", "Crítica", "Aplicar migraciones autorizadas por compañía.", company, admin: true),
 
             Define(PermissionCodes.MobileAccess, "Acceder a Mobile", "Mobile", "Acceso", "Acceder a Mobile PWA.", company, mobile: true),
             Define(PermissionCodes.MobileToolsView, "Ver activos en Mobile", "Mobile", "Consulta", "Ver activos en Mobile.", branch, mobile: true),

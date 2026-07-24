@@ -42,12 +42,6 @@ public sealed class WebAuthSessionService
 
     public Guid? SessionId { get; private set; }
 
-    public Guid? CompanyId { get; private set; }
-
-    public string? CompanyCode { get; private set; }
-
-    public string? CompanyName { get; private set; }
-
     public IReadOnlyCollection<string> Permissions => _permissions;
 
     public string AuditUser => string.IsNullOrWhiteSpace(UserName) ? "admin-web" : UserName;
@@ -82,10 +76,7 @@ public sealed class WebAuthSessionService
                 Permissions = _permissions.ToList(),
                 AccessToken = AccessToken,
                 TokenExpiresAtUtc = TokenExpiresAtUtc,
-                SessionId = SessionId,
-                CompanyId = CompanyId,
-                CompanyCode = CompanyCode,
-                CompanyName = CompanyName
+                SessionId = SessionId
             };
         }
     }
@@ -118,9 +109,6 @@ public sealed class WebAuthSessionService
         AccessToken = user.AccessToken;
         TokenExpiresAtUtc = user.TokenExpiresAtUtc;
         SessionId = user.SessionId;
-        CompanyId = user.CompanyId;
-        CompanyCode = user.CompanyCode;
-        CompanyName = user.CompanyName;
 
         _permissions.Clear();
 
@@ -156,9 +144,6 @@ public sealed class WebAuthSessionService
         AccessToken = null;
         TokenExpiresAtUtc = null;
         SessionId = null;
-        CompanyId = null;
-        CompanyCode = null;
-        CompanyName = null;
 
         _permissions.Clear();
 
@@ -200,29 +185,6 @@ public sealed class WebAuthSessionService
         return roles.Any(x =>
             string.Equals(x, RoleCode, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(x, RoleName, StringComparison.OrdinalIgnoreCase));
-    }
-
-    public void SelectCompany(
-        Guid companyId,
-        string companyCode,
-        string companyName,
-        string accessToken,
-        DateTime tokenExpiresAtUtc,
-        Guid sessionId)
-    {
-        if (!IsAuthenticated)
-        {
-            throw new InvalidOperationException(
-                "Debe existir una sesión autenticada para seleccionar compañía.");
-        }
-
-        CompanyId = companyId;
-        CompanyCode = companyCode;
-        CompanyName = companyName;
-        AccessToken = accessToken;
-        TokenExpiresAtUtc = tokenExpiresAtUtc;
-        SessionId = sessionId;
-        NotifyStateChanged();
     }
 
     public bool HasPermission(string permission)
@@ -290,10 +252,4 @@ public sealed class AuthSessionUser
     public DateTime? TokenExpiresAtUtc { get; set; }
 
     public Guid? SessionId { get; set; }
-
-    public Guid? CompanyId { get; set; }
-
-    public string? CompanyCode { get; set; }
-
-    public string? CompanyName { get; set; }
 }
