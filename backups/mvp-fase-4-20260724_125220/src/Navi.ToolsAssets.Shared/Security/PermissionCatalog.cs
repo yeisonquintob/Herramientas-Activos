@@ -84,11 +84,6 @@ public static class PermissionCatalog
             Define(PermissionCodes.ReportsView, "Ver reportes", "Reportes", "Consulta", "Ver reportes.", company),
             Define(PermissionCodes.ReportsExport, "Exportar reportes", "Reportes", "Exportación", "Exportar reportes.", company),
 
-            Define(PermissionCodes.ImportsView, "Ver importaciones", "Importaciones", "Consulta", "Ver lotes y reportes de calidad.", company),
-            Define(PermissionCodes.ImportsUpload, "Cargar importación", "Importaciones", "Gestión", "Cargar y analizar archivos Excel.", company),
-            Define(PermissionCodes.ImportsApply, "Aplicar importación", "Importaciones", "Crítica", "Crear activos validados desde una importación.", company, admin: true),
-            Define(PermissionCodes.ImportsReconcile, "Conciliar importación", "Importaciones", "Gestión", "Revisar, ignorar o asociar filas importadas.", company),
-
             Define(PermissionCodes.ReconciliationView, "Ver conciliación", "Conciliación", "Consulta", "Ver conciliación.", branch),
             Define(PermissionCodes.ReconciliationManage, "Gestionar conciliación", "Conciliación", "Gestión", "Gestionar decisiones.", branch),
             Define(PermissionCodes.ReconciliationClarify, "Solicitar aclaración", "Conciliación", "Gestión", "Solicitar aclaración.", branch),

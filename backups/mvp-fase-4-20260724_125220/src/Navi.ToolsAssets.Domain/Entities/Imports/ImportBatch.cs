@@ -20,10 +20,6 @@ public class ImportBatch : BaseEntity
 
     public int ErrorRows { get; set; }
 
-    public int WarningRows { get; set; }
-
-    public int IgnoredRows { get; set; }
-
     public int CreatedTools { get; set; }
 
     public int UpdatedTools { get; set; }

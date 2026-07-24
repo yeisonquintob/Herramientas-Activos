@@ -73,16 +73,3 @@ NAVI_MASTER_DB_CONNECTION='<conexión-segura>' dotnet ef migrations script \
   --startup-project src/Navi.ToolsAssets.Infrastructure \
   --idempotent
 ```
-
-## Seguimiento de calidad de importación
-
-Las migraciones operativas `20260724180238_AddImportQualityTracking` y
-`20260724180947_AddImportCompletionTracking` son aditivas:
-
-- agregan datos normalizados, errores, advertencias y clave de coincidencia;
-- registran activo destino, decisión, usuario, fecha e instante de importación;
-- agregan contadores de advertencias y omisiones por lote;
-- indexan lote/resultado y activo destino.
-
-No eliminan ni renombran columnas. Fueron inspeccionadas y generadas con la
-fábrica de diseño; no se aplicaron automáticamente a ninguna base.

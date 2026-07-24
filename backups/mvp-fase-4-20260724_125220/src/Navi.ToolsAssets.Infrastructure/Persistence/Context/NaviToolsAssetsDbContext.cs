@@ -167,19 +167,6 @@ public class NaviToolsAssetsDbContext : DbContext
             entity.Property(x => x.ResultStatus)
                 .HasMaxLength(50)
                 .IsRequired();
-
-            entity.Property(x => x.MatchKey)
-                .HasMaxLength(300);
-
-            entity.Property(x => x.Decision)
-                .HasMaxLength(50);
-
-            entity.Property(x => x.DecisionBy)
-                .HasMaxLength(150);
-
-            entity.HasIndex(x => new { x.ImportBatchId, x.ResultStatus });
-
-            entity.HasIndex(x => x.TargetToolAssetId);
         });
 
         base.OnModelCreating(modelBuilder);

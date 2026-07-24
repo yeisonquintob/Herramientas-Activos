@@ -68,11 +68,6 @@ public static class PermissionCodes
     public const string ReportsView = "Reports.View";
     public const string ReportsExport = "Reports.Export";
 
-    public const string ImportsView = "Imports.View";
-    public const string ImportsUpload = "Imports.Upload";
-    public const string ImportsApply = "Imports.Apply";
-    public const string ImportsReconcile = "Imports.Reconcile";
-
     public const string ReconciliationView = "Reconciliation.View";
     public const string ReconciliationManage = "Reconciliation.Manage";
     public const string ReconciliationClarify = "Reconciliation.Clarify";

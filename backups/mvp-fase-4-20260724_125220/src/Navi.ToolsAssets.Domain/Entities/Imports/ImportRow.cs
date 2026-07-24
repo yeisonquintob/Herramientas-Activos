@@ -31,22 +31,4 @@ public class ImportRow : BaseEntity
     public string? Message { get; set; }
 
     public string? RawDataJson { get; set; }
-
-    public string? NormalizedDataJson { get; set; }
-
-    public string? ErrorsJson { get; set; }
-
-    public string? WarningsJson { get; set; }
-
-    public string? MatchKey { get; set; }
-
-    public Guid? TargetToolAssetId { get; set; }
-
-    public DateTime? ImportedAt { get; set; }
-
-    public string? Decision { get; set; }
-
-    public DateTime? DecisionAt { get; set; }
-
-    public string? DecisionBy { get; set; }
 }
