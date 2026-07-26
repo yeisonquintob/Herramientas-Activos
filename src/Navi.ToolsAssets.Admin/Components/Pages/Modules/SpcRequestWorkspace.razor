@@ -199,11 +199,23 @@
 
                             <div class="form-group">
                                 <label for="navi-spcrequestworkspace-control-002">Sede</label>
-                                <InputSelect class="form-select" @bind-Value="header.BranchIdText" disabled="@(!CanEditRequest)" id="navi-spcrequestworkspace-control-002">
-                                    <option value="">Seleccione sede</option>
-                                    @foreach (var branch in branches)
+                                <InputSelect class="form-select"
+                                             @bind-Value="header.BranchIdText"
+                                             @bind-Value:after="OnBranchChangedV2262"
+                                             disabled="@(!CanEditRequest || !HasAllBranchScopeV22631)"
+                                             id="navi-spcrequestworkspace-control-002">
+
+                                    <option value="">
+                                        @(HasAllBranchScopeV22631
+                                            ? "Todas las sedes"
+                                            : "Sede asignada")
+                                    </option>
+
+                                    @foreach (var branch in VisibleBranchesV22631)
                                     {
-                                        <option value="@branch.Id">@branch.Code - @branch.Name</option>
+                                        <option value="@branch.Id">
+                                            @branch.Code - @branch.Name
+                                        </option>
                                     }
                                 </InputSelect>
                             </div>
@@ -261,8 +273,37 @@
                             </div>
 
                             <div class="form-group">
-                                <label for="navi-spcrequestworkspace-control-009">Ubicación / área</label>
-                                <InputText class="form-control" @bind-Value="header.Location" disabled="@(!CanEditRequest)" id="navi-spcrequestworkspace-control-009" />
+                                @* NAVI REQUEST WAREHOUSE SELECT V226.3.1 *@
+
+                                <label for="navi-spcrequestworkspace-control-009">
+                                    Almacén / Taller
+                                </label>
+
+                                <InputSelect class="form-select"
+                                             @bind-Value="header.Location"
+                                             @bind-Value:after="OnWarehouseSelectedV22631"
+                                             disabled="@(!CanEditRequest)"
+                                             id="navi-spcrequestworkspace-control-009">
+
+                                    <option value="">
+                                        @WarehousePlaceholderV22631
+                                    </option>
+
+                                    @foreach (
+                                        var warehouse
+                                        in AvailableWarehousesV2262)
+                                    {
+                                        <option
+                                            value="@FormatWarehouseValueV2262(warehouse)">
+
+                                            @FormatWarehouseOptionV22631(warehouse)
+                                        </option>
+                                    }
+                                </InputSelect>
+
+                                <small class="form-text text-muted">
+                                    @WarehouseHintV2262
+                                </small>
                             </div>
 
                             <div class="form-group full">
@@ -481,7 +522,10 @@
                                 ? "Borradores, solicitudes confirmadas y solicitudes de mantenimiento generadas."
                                 : "Borradores, solicitudes confirmadas pendientes por cotizar y solicitudes generadas.")</p>
                         </div>
-                        <button type="button" class="btn ntx-btn--operation btn-sm" @onclick="LoadAsync" data-ntx-tone="refresh" >Actualizar</button>
+                        <NaviRefreshButton
+                            OnClick="LoadAsync"
+                            Title="Actualizar solicitudes registradas"
+                            AriaLabel="Actualizar solicitudes registradas" />
                     </div>
 
             @if (isLoading)
@@ -749,7 +793,7 @@
                                 </div>
 
                                 <div>
-                                    <span>Ubicación / área</span>
+                                    <span>Almacén / Taller</span>
 
                                     <strong>
                                         @(PurchaseV91Value(header.Location, "Pendiente"))
@@ -1017,7 +1061,7 @@
                 </div>
 
                 <div>
-                    <span>Ubicación / área</span>
+                    <span>Almacén / Taller</span>
                     <strong>@Display(header.Location)</strong>
                 </div>
 
@@ -1926,7 +1970,7 @@ else if (SelectedStoredRequestDetail is StoredRequest detailRequest)
                         </div>
 
                         <div>
-                            <span>Ubicación / área</span>
+                            <span>Almacén / Taller</span>
                             <strong>
                                 @Display(
                                     detailRequest.Header.Location)
@@ -2234,7 +2278,7 @@ else if (SelectedStoredRequestDetail is StoredRequest detailRequest)
                             </div>
 
                             <div>
-                                <span>Ubicación / área</span>
+                                <span>Almacén / Taller</span>
                                 <strong>
                                     @Display(
                                         ExtractGeneratedSummaryValue(
@@ -3972,6 +4016,7 @@ else if (SelectedStoredRequestDetail is StoredRequest detailRequest)
     private List<StoredRequest> storedRequests = new();
     private List<ApiRegisteredItem> registeredItems = new();
     private List<BranchOption> branches = new();
+    private List<WarehouseOptionV2262> warehousesV2262 = new();
 
     private Guid? activeStoredRequestId;
     private Guid? editingLineId;
@@ -4100,7 +4145,9 @@ private string RequestVisualState => currentStatus switch
         await Task.WhenAll(
             branchesTask,
             requestsTask);
-    }
+    
+        await LoadWarehousesV2262Async();
+}
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -4155,6 +4202,7 @@ private string RequestVisualState => currentStatus switch
              * finaliza correctamente.
              */
             branches = loadedBranches;
+            EnsureScopedBranchSelectionV22631();
         }
         catch
         {
@@ -4165,7 +4213,463 @@ private string RequestVisualState => currentStatus switch
         }
     }
 
-    private Task LoadAsync()
+    // NAVI REQUEST WAREHOUSE CATALOG V226.2
+    private IEnumerable<WarehouseOptionV2262>
+        AvailableWarehousesV2262
+    {
+        get
+        {
+            IEnumerable<WarehouseOptionV2262> result =
+                warehousesV2262.Where(
+                    warehouse =>
+                        warehouse.IsActive
+                        &&
+                        IsWarehouseCatalogCodeV2281(
+                            warehouse.Code));
+
+            /*
+             * Usuario con sede específica:
+             * solamente ve los almacenes y talleres
+             * correspondientes a su sede.
+             */
+            if (!HasAllBranchScopeV22631)
+            {
+                var scopedBranch =
+                    GetScopedBranchV22631();
+
+                if (scopedBranch is null)
+                {
+                    return Enumerable.Empty<
+                        WarehouseOptionV2262>();
+                }
+
+                return result
+                    .Where(
+                        warehouse =>
+                            WarehouseBelongsToBranchV22631(
+                                warehouse,
+                                scopedBranch))
+                    .OrderBy(
+                        warehouse =>
+                            warehouse.Name)
+                    .ThenBy(
+                        warehouse =>
+                            warehouse.Code);
+            }
+
+            /*
+             * Usuario con TODAS:
+             * sin sede seleccionada muestra todos;
+             * con sede seleccionada filtra por esa sede.
+             */
+            var selectedBranch =
+                GetSelectedBranchV22631();
+
+            if (selectedBranch is not null)
+            {
+                result = result.Where(
+                    warehouse =>
+                        WarehouseBelongsToBranchV22631(
+                            warehouse,
+                            selectedBranch));
+            }
+
+            return result
+                .OrderBy(
+                    warehouse =>
+                        ResolveWarehouseBranchV22631(
+                            warehouse)?.Code
+                        ?? string.Empty)
+                .ThenBy(
+                    warehouse =>
+                        warehouse.Name)
+                .ThenBy(
+                    warehouse =>
+                        warehouse.Code);
+        }
+    }
+
+    private string WarehouseHintV2262
+    {
+        get
+        {
+            var count =
+                AvailableWarehousesV2262.Count();
+
+            if (!HasAllBranchScopeV22631)
+            {
+                var branchCode =
+                    GetScopedBranchV22631()?.Code
+                    ?? AuthSession.BranchCode;
+
+                if (count == 0)
+                {
+                    return
+                        $"No hay almacenes o talleres activos "
+                        +
+                        $"para la sede {branchCode}.";
+                }
+
+                return count == 1
+                    ? $"1 almacén o taller disponible para "
+                      +
+                      $"la sede {branchCode}."
+                    : $"{count} almacenes o talleres disponibles "
+                      +
+                      $"para la sede {branchCode}.";
+            }
+
+            var selectedBranch =
+                GetSelectedBranchV22631();
+
+            if (selectedBranch is null)
+            {
+                return count == 1
+                    ? "1 almacén o taller disponible entre "
+                      +
+                      "todas las sedes."
+                    : $"{count} almacenes o talleres disponibles "
+                      +
+                      "entre todas las sedes.";
+            }
+
+            return count == 1
+                ? $"1 almacén o taller disponible para "
+                  +
+                  $"{selectedBranch.Code}."
+                : $"{count} almacenes o talleres disponibles "
+                  +
+                  $"para {selectedBranch.Code}.";
+        }
+    }
+
+    private bool HasAllBranchScopeV22631 =>
+        string.IsNullOrWhiteSpace(
+            AuthSession.BranchCode)
+        ||
+        AuthSession.BranchCode.Equals(
+            "TODAS",
+            StringComparison.OrdinalIgnoreCase)
+        ||
+        AuthSession.BranchCode.Equals(
+            "ALL",
+            StringComparison.OrdinalIgnoreCase);
+
+    private IEnumerable<BranchOption>
+        VisibleBranchesV22631
+    {
+        get
+        {
+            if (HasAllBranchScopeV22631)
+            {
+                return branches;
+            }
+
+            var scopedBranch =
+                GetScopedBranchV22631();
+
+            return scopedBranch is null
+                ? Enumerable.Empty<BranchOption>()
+                : new[] { scopedBranch };
+        }
+    }
+
+    private string WarehousePlaceholderV22631
+    {
+        get
+        {
+            if (!HasAllBranchScopeV22631)
+            {
+                var branchCode =
+                    GetScopedBranchV22631()?.Code
+                    ?? AuthSession.BranchCode;
+
+                return
+                    $"Seleccione almacén o taller - "
+                    +
+                    branchCode;
+            }
+
+            return GetSelectedBranchV22631() is null
+                ? "Seleccione almacén o taller - Todas las sedes"
+                : "Seleccione almacén o taller";
+        }
+    }
+
+    private BranchOption? GetScopedBranchV22631()
+    {
+        if (AuthSession.BranchId.HasValue)
+        {
+            var branchById =
+                branches.FirstOrDefault(
+                    branch =>
+                        branch.Id
+                        ==
+                        AuthSession.BranchId.Value);
+
+            if (branchById is not null)
+            {
+                return branchById;
+            }
+        }
+
+        var branchCode =
+            AuthSession.BranchCode?.Trim();
+
+        if (string.IsNullOrWhiteSpace(
+                branchCode))
+        {
+            return null;
+        }
+
+        return branches.FirstOrDefault(
+            branch =>
+                string.Equals(
+                    branch.Code,
+                    branchCode,
+                    StringComparison.OrdinalIgnoreCase));
+    }
+
+    private BranchOption? GetSelectedBranchV22631()
+    {
+        if (!Guid.TryParse(
+                header.BranchIdText,
+                out var selectedBranchId))
+        {
+            return null;
+        }
+
+        return branches.FirstOrDefault(
+            branch =>
+                branch.Id == selectedBranchId);
+    }
+
+    private BranchOption?
+        ResolveWarehouseBranchV22631(
+            WarehouseOptionV2262 warehouse)
+    {
+        if (warehouse.Branch is not null)
+        {
+            return warehouse.Branch;
+        }
+
+        return branches.FirstOrDefault(
+            branch =>
+                branch.Id == warehouse.BranchId);
+    }
+
+    private bool WarehouseBelongsToBranchV22631(
+        WarehouseOptionV2262 warehouse,
+        BranchOption branch)
+    {
+        if (
+            warehouse.BranchId == branch.Id
+            ||
+            warehouse.Branch?.Id == branch.Id
+        )
+        {
+            return true;
+        }
+
+        var warehouseBranch =
+            ResolveWarehouseBranchV22631(
+                warehouse);
+
+        return warehouseBranch is not null
+               &&
+               string.Equals(
+                   warehouseBranch.Code,
+                   branch.Code,
+                   StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string FormatWarehouseOptionV22631(
+        WarehouseOptionV2262 warehouse)
+    {
+        var warehouseText =
+            FormatWarehouseValueV2262(
+                warehouse);
+
+        /*
+         * Con TODAS y sin sede seleccionada,
+         * se identifica también la sede.
+         */
+        if (
+            HasAllBranchScopeV22631
+            &&
+            GetSelectedBranchV22631() is null
+        )
+        {
+            var branch =
+                ResolveWarehouseBranchV22631(
+                    warehouse);
+
+            if (branch is not null)
+            {
+                return
+                    $"{branch.Code} - {branch.Name} | "
+                    +
+                    warehouseText;
+            }
+        }
+
+        return warehouseText;
+    }
+
+    private void OnWarehouseSelectedV22631()
+    {
+        if (string.IsNullOrWhiteSpace(
+                header.Location))
+        {
+            return;
+        }
+
+        var selectedWarehouse =
+            warehousesV2262.FirstOrDefault(
+                warehouse =>
+                    string.Equals(
+                        FormatWarehouseValueV2262(
+                            warehouse),
+                        header.Location,
+                        StringComparison.OrdinalIgnoreCase));
+
+        if (selectedWarehouse is null)
+        {
+            return;
+        }
+
+        if (!HasAllBranchScopeV22631)
+        {
+            EnsureScopedBranchSelectionV22631();
+            return;
+        }
+
+        /*
+         * Cuando el usuario tiene TODAS y no había
+         * seleccionado sede, se toma la sede del almacén.
+         */
+        var branch =
+            ResolveWarehouseBranchV22631(
+                selectedWarehouse);
+
+        if (branch is not null)
+        {
+            header.BranchIdText =
+                branch.Id.ToString();
+        }
+    }
+
+    private void EnsureScopedBranchSelectionV22631()
+    {
+        if (HasAllBranchScopeV22631)
+        {
+            return;
+        }
+
+        var scopedBranch =
+            GetScopedBranchV22631();
+
+        if (scopedBranch is not null)
+        {
+            header.BranchIdText =
+                scopedBranch.Id.ToString();
+        }
+    }
+
+    // NAVI LOCATION TYPE FILTER V228.1
+    private static bool IsWarehouseCatalogCodeV2281(
+        string? code)
+    {
+        var normalized =
+            code?
+                .Trim()
+                .ToUpperInvariant()
+            ?? string.Empty;
+
+        return
+            normalized.EndsWith(
+                "-BOD-HERR",
+                StringComparison.Ordinal)
+            ||
+            normalized.EndsWith(
+                "-MANT",
+                StringComparison.Ordinal)
+            ||
+            normalized.EndsWith(
+                "-TALLER",
+                StringComparison.Ordinal);
+    }
+
+    private async Task LoadWarehousesV2262Async()
+    {
+        try
+        {
+            var api =
+                CreateApiClient();
+
+            using var timeout =
+                new CancellationTokenSource(
+                    TimeSpan.FromSeconds(5));
+
+            warehousesV2262 =
+                await api.GetFromJsonAsync<
+                    List<WarehouseOptionV2262>>(
+                    "api/organization/locations",
+                    timeout.Token)
+                ?? new();
+
+            warehousesV2262 =
+                warehousesV2262
+                    .Where(
+                        warehouse =>
+                            warehouse.IsActive)
+                    .OrderBy(
+                        warehouse =>
+                            warehouse.Branch?.Code
+                            ?? string.Empty)
+                    .ThenBy(
+                        warehouse =>
+                            warehouse.Name)
+                    .ThenBy(
+                        warehouse =>
+                            warehouse.Code)
+                    .ToList();
+        }
+        catch
+        {
+            warehousesV2262 = new();
+        }
+    }
+
+
+
+    private void OnBranchChangedV2262()
+    {
+        header.Location = string.Empty;
+
+        if (!HasAllBranchScopeV22631)
+        {
+            EnsureScopedBranchSelectionV22631();
+        }
+    }
+
+    private static string FormatWarehouseValueV2262(
+        WarehouseOptionV2262 warehouse)
+    {
+        return
+            $"{warehouse.Code} - {warehouse.Name}";
+    }
+
+
+
+    private async Task LoadAsync()
+    {
+        await Task.WhenAll(
+            LoadRequestsOnlyV2262Async(),
+            LoadWarehousesV2262Async());
+    }
+
+    private Task LoadRequestsOnlyV2262Async()
     {
         /*
          * Cuando ya existe información, Actualizar no oculta
@@ -6652,6 +7156,25 @@ private string RequestVisualState => currentStatus switch
                 AdditionalDetails = AdditionalDetails
             };
         }
+    }
+
+    private sealed class WarehouseOptionV2262
+    {
+        public Guid Id { get; set; }
+
+        public string Code { get; set; } =
+            string.Empty;
+
+        public string Name { get; set; } =
+            string.Empty;
+
+        public string? Description { get; set; }
+
+        public Guid BranchId { get; set; }
+
+        public bool IsActive { get; set; }
+
+        public BranchOption? Branch { get; set; }
     }
 
     private sealed class BranchOption

@@ -108,13 +108,10 @@ public partial class MyTools
                 NormalizeInventoryImageUrlV54(
                     latestImage.DownloadUrl);
         }
-        catch (Exception exception)
+        catch (Exception)
         {
             inventoryImageErrorV54 =
                 "No se pudo cargar la imagen.";
-
-            System.Diagnostics.Debug.WriteLine(
-                exception);
         }
         finally
         {

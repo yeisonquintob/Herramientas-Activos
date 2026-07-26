@@ -1,6 +1,21 @@
-<Router AppAssembly="typeof(Program).Assembly">
-    <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
-        <FocusOnNavigate RouteData="routeData" Selector="h1" />
-    </Found>
-</Router>
+@rendermode InteractiveServer
+@using Navi.ToolsAssets.Admin.Components.Security
+
+@*
+    NAVI SESSION ROUTE GATE V221
+
+    El router solo se crea después de restaurar:
+    - sesión almacenada;
+    - token JWT;
+    - permisos vigentes;
+    - validación de la ruta actual.
+*@
+<RoutePermissionRedirector>
+    <Router AppAssembly="typeof(Program).Assembly">
+        <Found Context="routeData">
+            <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+            <FocusOnNavigate RouteData="routeData" Selector="h1" />
+        </Found>
+    </Router>
+</RoutePermissionRedirector>
+

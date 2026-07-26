@@ -481,7 +481,7 @@
                                 <span>
                                     <strong>@tool.InternalCode</strong>
                                     <small>@tool.Name</small>
-                                    <small>@Show(tool.BranchCode) · @Show(tool.LocationName) · Est: @Show(tool.ShelfLocation)</small>
+                                    <small>@Show(tool.BranchCode) · @Show(tool.LocationName) · Almacén/Taller: @Show(ResolveWarehouseNameV2301(tool))</small>
                                 </span>
 
                                 <em class="request-status request-status-available request-status-available-v54">
@@ -500,7 +500,7 @@
                     <div>
                         <span>Herramienta seleccionada</span>
                         <strong>@SelectedRequestTool.InternalCode - @SelectedRequestTool.Name</strong>
-                        <small>@Show(SelectedRequestTool.BranchCode) · @Show(SelectedRequestTool.LocationName) · Est: @Show(SelectedRequestTool.ShelfLocation)</small>
+                        <small>@Show(SelectedRequestTool.BranchCode) · @Show(SelectedRequestTool.LocationName) · Almacén/Taller: @Show(ResolveWarehouseNameV2301(SelectedRequestTool))</small>
                     </div>
 
                     <button type="button" @onclick="ClearRequestToolSelection" data-ntx-tone="operation" >
@@ -649,6 +649,7 @@
                     </td>
 
                     <td class="assignment-v24-location">
+                        @* NAVI ASSIGNMENT WAREHOUSE DISPLAY V230.1 *@
 
                         <strong>
                             @Show(tool.BranchCode)
@@ -659,8 +660,8 @@
                         </span>
 
                         <small>
-                            Estantería:
-                            @Show(tool.ShelfLocation)
+                            Almacén / Taller:
+                            @Show(ResolveWarehouseNameV2301(tool))
                         </small>
                     </td>
 
@@ -2290,6 +2291,249 @@ private IEnumerable<ToolItem> AssignmentBaseFilteredTools =>
         public string? Notes { get; set; }
     }
 
+    private string ResolveWarehouseNameV2301(
+        ToolItem tool)
+    {
+        var warehouseCode =
+            ResolveWarehouseCodeV2301(
+                tool);
+
+        if (string.IsNullOrWhiteSpace(
+                warehouseCode))
+        {
+            return "—";
+        }
+
+        var warehouse =
+            locations.FirstOrDefault(
+                location =>
+                    string.Equals(
+                        location.Code,
+                        warehouseCode,
+                        StringComparison.OrdinalIgnoreCase));
+
+        if (
+            warehouse is not null
+            &&
+            !string.IsNullOrWhiteSpace(
+                warehouse.Name)
+        )
+        {
+            return warehouse.Name;
+        }
+
+        return ResolveWarehouseFallbackNameV2301(
+            warehouseCode);
+    }
+
+    private string? ResolveWarehouseCodeV2301(
+        ToolItem tool)
+    {
+        var branchCode =
+            tool.BranchCode?
+                .Trim()
+                .ToUpperInvariant();
+
+        if (string.IsNullOrWhiteSpace(
+                branchCode))
+        {
+            return null;
+        }
+
+        var locationCode =
+            ResolveCurrentLocationCodeV2301(
+                tool);
+
+        var locationName =
+            tool.LocationName?
+                .Trim()
+                .ToUpperInvariant()
+            ?? string.Empty;
+
+        /*
+         * Registros creados durante la separación:
+         *
+         * EST / RACK / CAJ
+         *     -> Bodega de herramientas
+         *
+         * BAH-MAN
+         *     -> Área de mantenimiento
+         *
+         * PTO-TEC / ZONA
+         *     -> Taller principal
+         */
+
+        if (
+            locationCode.Contains(
+                "-EST-",
+                StringComparison.Ordinal)
+            ||
+            locationCode.Contains(
+                "-RACK-",
+                StringComparison.Ordinal)
+            ||
+            locationCode.Contains(
+                "-CAJ-",
+                StringComparison.Ordinal)
+            ||
+            locationName.Contains(
+                "ESTANTERÍA",
+                StringComparison.Ordinal)
+            ||
+            locationName.Contains(
+                "ESTANTERIA",
+                StringComparison.Ordinal)
+            ||
+            locationName.Contains(
+                "RACK",
+                StringComparison.Ordinal)
+            ||
+            locationName.Contains(
+                "CAJÓN",
+                StringComparison.Ordinal)
+            ||
+            locationName.Contains(
+                "CAJON",
+                StringComparison.Ordinal)
+        )
+        {
+            return
+                $"{branchCode}-BOD-HERR";
+        }
+
+        if (
+            locationCode.Contains(
+                "-BAH-MAN-",
+                StringComparison.Ordinal)
+            ||
+            locationName.Contains(
+                "BAHÍA DE MANTENIMIENTO",
+                StringComparison.Ordinal)
+            ||
+            locationName.Contains(
+                "BAHIA DE MANTENIMIENTO",
+                StringComparison.Ordinal)
+        )
+        {
+            return
+                $"{branchCode}-MANT";
+        }
+
+        if (
+            locationCode.Contains(
+                "-PTO-TEC-",
+                StringComparison.Ordinal)
+            ||
+            locationCode.Contains(
+                "-ZONA-",
+                StringComparison.Ordinal)
+            ||
+            locationName.Contains(
+                "PUESTO TÉCNICO",
+                StringComparison.Ordinal)
+            ||
+            locationName.Contains(
+                "PUESTO TECNICO",
+                StringComparison.Ordinal)
+            ||
+            locationName.Contains(
+                "ZONA DE EQUIPOS",
+                StringComparison.Ordinal)
+        )
+        {
+            return
+                $"{branchCode}-TALLER";
+        }
+
+        /*
+         * Compatibilidad cuando una herramienta todavía está
+         * relacionada directamente con un almacén o taller.
+         */
+
+        if (
+            locationCode.EndsWith(
+                "-BOD-HERR",
+                StringComparison.Ordinal)
+            ||
+            locationCode.EndsWith(
+                "-MANT",
+                StringComparison.Ordinal)
+            ||
+            locationCode.EndsWith(
+                "-TALLER",
+                StringComparison.Ordinal)
+        )
+        {
+            return locationCode;
+        }
+
+        return null;
+    }
+
+    private string ResolveCurrentLocationCodeV2301(
+        ToolItem tool)
+    {
+        if (!string.IsNullOrWhiteSpace(
+                tool.LocationCode))
+        {
+            return
+                tool.LocationCode
+                    .Trim()
+                    .ToUpperInvariant();
+        }
+
+        if (!tool.LocationId.HasValue)
+        {
+            return string.Empty;
+        }
+
+        var currentLocation =
+            locations.FirstOrDefault(
+                location =>
+                    location.Id
+                    ==
+                    tool.LocationId.Value);
+
+        return currentLocation?.Code?
+            .Trim()
+            .ToUpperInvariant()
+            ?? string.Empty;
+    }
+
+    private static string
+        ResolveWarehouseFallbackNameV2301(
+            string warehouseCode)
+    {
+        if (
+            warehouseCode.EndsWith(
+                "-BOD-HERR",
+                StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return "Bodega de herramientas";
+        }
+
+        if (
+            warehouseCode.EndsWith(
+                "-MANT",
+                StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return "Área de mantenimiento";
+        }
+
+        if (
+            warehouseCode.EndsWith(
+                "-TALLER",
+                StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return "Taller principal";
+        }
+
+        return "—";
+    }
+
     private sealed class ToolItem
     {
         public string? ToolTypeName { get; set; }
@@ -2301,6 +2545,7 @@ private IEnumerable<ToolItem> AssignmentBaseFilteredTools =>
         public Guid BranchId { get; set; }
         public string? BranchCode { get; set; }
         public Guid? LocationId { get; set; }
+        public string? LocationCode { get; set; }
         public string? LocationName { get; set; }
         public string? ShelfLocation { get; set; }
         public Guid? ResponsiblePersonId { get; set; }

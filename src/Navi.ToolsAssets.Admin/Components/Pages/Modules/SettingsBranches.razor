@@ -12,14 +12,101 @@
     Title="Sedes"
     Description="Administra las sedes operativas donde se ubican herramientas, activos, talleres y almacenes.">
 
-    <a href="/settings">
-        Volver a Configuración
-    </a>
+
 
 </NaviPageHero>
 
-<section class="settings-crud-layout">
-    <div class="settings-crud-form">
+<section class="settings-crud-layout branches-layout--modalized">
+
+
+
+<div class="branches-standard-toolbar">
+    <a href="/settings" class="branches-back-standard">
+        Volver a Configuración
+    </a>
+
+<button class="btn ntx-btn--affirmative branches-new-standard"
+        type="button"
+        @onclick="OpenNewBranchModal"
+        data-ntx-tone="affirmative">
+    <span aria-hidden="true">＋</span>
+    Nueva sede
+</button>
+    <NaviRefreshButton
+        Class="branches-refresh-standard"
+        OnClick="LoadAsync"
+        Title="Actualizar sedes"
+        AriaLabel="Actualizar sedes" />
+</div>
+<div class="settings-crud-table branches-table-card--full">
+        <div class="settings-table-header">
+            <h2>Sedes registradas</h2>
+
+        </div>
+
+        @if (isLoading)
+        {
+            <p role="status" aria-busy="true">Cargando sedes...</p>
+        }
+        else
+        {
+            <div class="ntx-table-scroll">
+                <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Nombre</th>
+                        <th>Ciudad</th>
+                        <th>Zona</th>
+                        <th>Estado</th>
+                        <th class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var branch in branches)
+                    {
+                        <tr>
+                            <td><strong>@branch.Code</strong></td>
+                            <td>
+                                <div>@branch.Name</div>
+                                <small class="text-muted">@branch.Address</small>
+                            </td>
+                            <td>@branch.City</td>
+                            <td>@(branch.Zone is null ? "Sin zona" : $"{branch.Zone.Code} - {branch.Zone.Name}")</td>
+                            <td>
+                                <span class="badge @(branch.IsActive ? "navi-bg-affirmative" : "bg-secondary")">
+                                    @(branch.IsActive ? "Activa" : "Inactiva")
+                                </span>
+                            </td>
+                            <td class="text-end">
+                                @if (CanManageSettings)
+                                    {
+                                        <button class="btn btn-sm ntx-btn--operation" @onclick="() => { Edit(branch); showBranchModal = true; }" data-ntx-tone="operation" >Editar</button>
+                                    }
+                                @if (CanManageSettings)
+                                    {
+                                        <button class="btn btn-sm ntx-btn--danger" @onclick="() => DeleteAsync(branch.Id)" data-ntx-tone="danger" >Eliminar</button>
+                                    }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            </div>
+        }
+    </div>
+</section>
+
+
+@if (showBranchModal)
+{
+    <div class="branches-modal-backdrop">
+        <section class="branches-modal-shell"
+                 role="dialog"
+                 aria-modal="true"
+                 aria-label="Gestión de sede">
+            <div class="branches-modal-scroll">
+                <div class="settings-crud-form branches-modal-form-card">
         <h2>@(editingId is null ? "Crear sede" : "Editar sede")</h2>
 
         <EditForm Model="formModel" OnValidSubmit="SaveAsync">
@@ -74,69 +161,19 @@
             <div class="settings-crud-actions">
                 <button class="btn ntx-btn--operation" type="submit" disabled="@(!CanManageSettings)" data-ntx-tone="affirmative" >Guardar</button>
                 <button class="btn btn-outline-secondary" type="button" @onclick="ClearForm" data-ntx-tone="secondary" >Limpiar</button>
+<button class="btn ntx-btn--danger branches-modal-close-action"
+        type="button"
+        @onclick="CloseBranchModal"
+        data-ntx-tone="danger">
+    Cerrar
+</button>
             </div>
         </EditForm>
     </div>
-
-    <div class="settings-crud-table">
-        <div class="settings-table-header">
-            <h2>Sedes registradas</h2>
-            <button class="btn btn-sm ntx-btn--operation" @onclick="LoadAsync" data-ntx-tone="refresh" >Actualizar</button>
-        </div>
-
-        @if (isLoading)
-        {
-            <p role="status" aria-busy="true">Cargando sedes...</p>
-        }
-        else
-        {
-            <div class="ntx-table-scroll">
-                <table class="table table-hover align-middle">
-                <thead>
-                    <tr>
-                        <th>Código</th>
-                        <th>Nombre</th>
-                        <th>Ciudad</th>
-                        <th>Zona</th>
-                        <th>Estado</th>
-                        <th class="text-end">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var branch in branches)
-                    {
-                        <tr>
-                            <td><strong>@branch.Code</strong></td>
-                            <td>
-                                <div>@branch.Name</div>
-                                <small class="text-muted">@branch.Address</small>
-                            </td>
-                            <td>@branch.City</td>
-                            <td>@(branch.Zone is null ? "Sin zona" : $"{branch.Zone.Code} - {branch.Zone.Name}")</td>
-                            <td>
-                                <span class="badge @(branch.IsActive ? "navi-bg-affirmative" : "bg-secondary")">
-                                    @(branch.IsActive ? "Activa" : "Inactiva")
-                                </span>
-                            </td>
-                            <td class="text-end">
-                                @if (CanManageSettings)
-                                    {
-                                        <button class="btn btn-sm ntx-btn--operation" @onclick="() => Edit(branch)" data-ntx-tone="operation" >Editar</button>
-                                    }
-                                @if (CanManageSettings)
-                                    {
-                                        <button class="btn btn-sm ntx-btn--danger" @onclick="() => DeleteAsync(branch.Id)" data-ntx-tone="danger" >Eliminar</button>
-                                    }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
             </div>
-        }
+        </section>
     </div>
-</section>
-
+}
 
 
 @code {
@@ -330,4 +367,22 @@
         public bool IsPilot { get; set; }
         public bool IsActive { get; set; } = true;
     }
+
+    // NAVI BRANCH MODAL V213 START
+    private bool showBranchModal;
+
+    private void OpenNewBranchModal()
+    {
+        ClearForm();
+        showBranchModal = true;
+    }
+
+    private void CloseBranchModal()
+    {
+        ClearForm();
+        showBranchModal = false;
+    }
+
+    // NAVI BRANCH MODAL V213 END
+
 }

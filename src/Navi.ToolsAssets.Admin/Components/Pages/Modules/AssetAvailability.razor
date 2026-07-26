@@ -19,7 +19,7 @@
         <NaviPageHero
             Pill="ACTIVOS FIJOS"
             Title="Disponible y Ubicación de Herramientas"
-            Description="Gestiona disponibilidad, sede, almacén, taller o ubicación interna de las herramientas." />
+            Description="Gestiona disponibilidad, sede y ubicación interna de las herramientas." />
 
         @if (!string.IsNullOrWhiteSpace(message))
         {
@@ -291,7 +291,7 @@
 
                     <label class="availability-v24-form-field">
 
-                        <span>Almacén, taller o ubicación</span>
+                        <span>Ubicación interna</span>
 
                         <input id="availability-location"
                                name="availability-location"
@@ -299,7 +299,7 @@
                                value="@locationSearchText"
                                @oninput="OnLocationSearchInput"
                                disabled="@(!CanChangeAvailabilityLocation)"
-                               placeholder="Escriba almacén, taller o ubicación..." />
+                               placeholder="Escriba estantería, rack, cajón, bahía o zona..." />
 
                         <datalist id="availability-locations-list">
                             @foreach (var location in AvailableLocations
@@ -315,20 +315,6 @@
                         </small>
                     </label>
 
-                    <label class="availability-v24-form-field">
-
-                        <span>Estantería o ubicación exacta</span>
-
-                        <InputText id="availability-shelf"
-                                   class="availability-v24-control"
-                                   @bind-Value="form.ShelfLocation"
-                                   placeholder="Ejemplo: EST-A1, RACK-3, CAJÓN 2"
-                                   disabled="@(!CanChangeAvailabilityLocation)" />
-
-                        <small class="navi-search-hint ok">
-                            Punto exacto dentro de la ubicación seleccionada.
-                        </small>
-                    </label>
 
                     <label class="availability-v24-form-field">
 
@@ -509,7 +495,6 @@
                                     <th>Herramienta o activo</th>
                                     <th>Sede</th>
                                     <th>Ubicación</th>
-                                    <th>Estantería</th>
                                     <th>Responsable</th>
                                     <th>Estado</th>
                                     <th>Acción</th>
@@ -547,11 +532,6 @@
                                             @Show(tool.LocationName)
                                         </td>
 
-                                        <td>
-                                            <span class="availability-shelf-pill">
-                                                @Show(tool.ShelfLocation)
-                                            </span>
-                                        </td>
 
                                         <td>
                                             @Show(tool.ResponsiblePersonName)
@@ -619,10 +599,55 @@
     private string message = string.Empty;
     private string messageClass = "alert alert-info";
 
-    private IEnumerable<LocationItem> AvailableLocations =>
-        form.BranchId is null
-            ? locations
-            : locations.Where(x => x.BranchId == form.BranchId);
+    // NAVI AVAILABILITY INTERNAL LOCATION V229
+    private IEnumerable<LocationItem> AvailableLocations
+    {
+        get
+        {
+            var internalLocations =
+                locations.Where(
+                    location =>
+                        !IsWarehouseCatalogCodeV229(
+                            location.Code));
+
+            if (!form.BranchId.HasValue)
+            {
+                return internalLocations;
+            }
+
+            var selectedBranchId =
+                form.BranchId.Value;
+
+            return internalLocations.Where(
+                location =>
+                    location.BranchId
+                    ==
+                    selectedBranchId);
+        }
+    }
+
+    private static bool IsWarehouseCatalogCodeV229(
+        string? code)
+    {
+        var normalized =
+            code?
+                .Trim()
+                .ToUpperInvariant()
+            ?? string.Empty;
+
+        return
+            normalized.EndsWith(
+                "-BOD-HERR",
+                StringComparison.Ordinal)
+            ||
+            normalized.EndsWith(
+                "-MANT",
+                StringComparison.Ordinal)
+            ||
+            normalized.EndsWith(
+                "-TALLER",
+                StringComparison.Ordinal);
+    }
 
     private IEnumerable<ToolItem> ScopedTools =>
         AccessScope.FilterTools(
@@ -682,7 +707,7 @@
 
         if (HasAvailabilityLocationChange(current) && !CanChangeAvailabilityLocation)
         {
-            return "No tienes permiso para cambiar sede, almacén, taller o ubicación.";
+            return "No tienes permiso para cambiar sede o ubicación interna.";
         }
 
         if (HasAvailabilityStatusChange(current) && !CanChangeAvailabilityStatus)
@@ -702,7 +727,6 @@ private IEnumerable<ToolItem> AvailabilityBaseFilteredTools =>
                         (x.SerialNumber ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase) ||
                         (x.BranchCode ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase) ||
                         (x.LocationName ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                        (x.ShelfLocation ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase) ||
                         (x.ResponsiblePersonName ?? string.Empty).Contains(search, StringComparison.OrdinalIgnoreCase))
             .Where(x => string.IsNullOrWhiteSpace(selectedBranchCode) ||
                         string.Equals(x.BranchCode ?? string.Empty, selectedBranchCode, StringComparison.OrdinalIgnoreCase));
@@ -1088,7 +1112,6 @@ private IEnumerable<ToolItem> AvailabilityBaseFilteredTools =>
         public Guid? ToolId { get; set; }
         public Guid? BranchId { get; set; }
         public Guid? LocationId { get; set; }
-        public string? ShelfLocation { get; set; }
         public string OperationalStatus { get; set; } = "Available";
         public string? Observation { get; set; }
     }
@@ -1105,7 +1128,6 @@ private IEnumerable<ToolItem> AvailabilityBaseFilteredTools =>
         public string? BranchCode { get; set; }
         public Guid? LocationId { get; set; }
         public string? LocationName { get; set; }
-        public string? ShelfLocation { get; set; }
         public string? ResponsiblePersonName { get; set; }
         public string OperationalStatus { get; set; } = string.Empty;
     }

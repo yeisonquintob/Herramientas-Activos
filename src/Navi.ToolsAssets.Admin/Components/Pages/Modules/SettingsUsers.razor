@@ -13,53 +13,93 @@
 <PageTitle>Usuarios - Configuración</PageTitle>
 
 <section class="users-page">
-    <section class="navi-reference-toolbar navi-reference-toolbar--back-below">
     <NaviPageHero
-        Class="navi-reference-toolbar__actions"
         Pill="SEGURIDAD"
         Title="Usuarios"
-        Description="Administra usuarios del sistema, roles asignados, estado de acceso, cambio de contraseña y alcance operativo por sede o perfil.">
+        Description="Administra usuarios del sistema, roles asignados, estado de acceso, cambio de contraseña y alcance operativo por sede o perfil." />
 
-        <a href="/settings">
-            Volver a Configuración
-        </a>
+    <section class="users-kpi-toolbar" aria-label="Indicadores y acciones de usuarios">
+        <NaviKpiGrid Class="users-kpi-grid users-kpi-grid-standard">
+            <NaviKpiCard>
+                <span>Total usuarios</span>
+                <strong>@FilteredUsers.Count()</strong>
+                <small>Según filtros activos</small>
+            </NaviKpiCard>
 
-    </NaviPageHero>
+            <NaviKpiCard Class="success">
+                <span>Activos</span>
+                <strong>@FilteredUsers.Count(x => x.IsActive)</strong>
+                <small>Con acceso habilitado</small>
+            </NaviKpiCard>
 
-    <NaviKpiGrid Class="users-kpi-grid users-kpi-grid-standard">
-        <NaviKpiCard>
-            <span>Total usuarios</span>
-            <strong>@FilteredUsers.Count()</strong>
-            <small>Según filtros activos</small>
-        </NaviKpiCard>
+            <NaviKpiCard Class="danger">
+                <span>Inactivos</span>
+                <strong>@FilteredUsers.Count(x => !x.IsActive)</strong>
+                <small>Acceso deshabilitado</small>
+            </NaviKpiCard>
 
-        <NaviKpiCard Class="success">
-            <span>Activos</span>
-            <strong>@FilteredUsers.Count(x => x.IsActive)</strong>
-            <small>Con acceso habilitado</small>
-        </NaviKpiCard>
+            <NaviKpiCard Class="neutral">
+                <span>Roles</span>
+                <strong>@FilteredUsers.Select(x => x.Role?.Code).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Count()</strong>
+                <small>Roles visibles</small>
+            </NaviKpiCard>
 
-        <NaviKpiCard Class="danger">
-            <span>Inactivos</span>
-            <strong>@FilteredUsers.Count(x => !x.IsActive)</strong>
-            <small>Acceso deshabilitado</small>
-        </NaviKpiCard>
+            <NaviKpiCard Class="warning">
+                <span>Sedes</span>
+                <strong>@FilteredUsers.Select(x => x.Branch?.Code ?? "Todas").Distinct(StringComparer.OrdinalIgnoreCase).Count()</strong>
+                <small>Alcance operativo</small>
+            </NaviKpiCard>
+        </NaviKpiGrid>
 
-        <NaviKpiCard Class="neutral">
-            <span>Roles</span>
-            <strong>@FilteredUsers.Select(x => x.Role?.Code).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Count()</strong>
-            <small>Roles visibles</small>
-        </NaviKpiCard>
+        <div class="users-kpi-toolbar__actions">
+            <NaviActionButton
+                Tone="secondary"
+                Size="small"
+                Href="/settings"
+                Class="users-toolbar-button users-toolbar-back">
 
-        <NaviKpiCard Class="warning">
-            <span>Sedes</span>
-            <strong>@FilteredUsers.Select(x => x.Branch?.Code ?? "Todas").Distinct(StringComparer.OrdinalIgnoreCase).Count()</strong>
-            <small>Alcance operativo</small>
-        </NaviKpiCard>
-    </NaviKpiGrid>
+                <StartContent>
+                    <svg viewBox="0 0 24 24"
+                         aria-hidden="true"
+                         focusable="false">
+                        <path d="M19 12H5"></path>
+                        <path d="M11 6L5 12L11 18"></path>
+                    </svg>
+                </StartContent>
+
+                <ChildContent>
+                    Volver a Configuración
+                </ChildContent>
+            </NaviActionButton>
+
+            @if (CanManageUsers)
+            {
+                <NaviActionButton
+                    Tone="affirmative"
+                    Size="small"
+                    Class="users-toolbar-button users-toolbar-create"
+                    OnClick="OpenCreateUserModal">
+
+                    <StartContent>
+                        <svg viewBox="0 0 24 24"
+                             aria-hidden="true"
+                             focusable="false">
+                            <path d="M12 5V19"></path>
+                            <path d="M5 12H19"></path>
+                        </svg>
+                    </StartContent>
+
+                    <ChildContent>
+                        Crear usuario
+                    </ChildContent>
+                </NaviActionButton>
+            }
+        </div>
     </section>
 
-    @if (!string.IsNullOrWhiteSpace(message))
+    @if (!isUserFormModalOpen &&
+         !isPasswordModalOpen &&
+         !string.IsNullOrWhiteSpace(message))
     {
         <div class="@messageClass">@message</div>
     }
@@ -98,10 +138,147 @@
         </button>
     </section>
 
-<section class="users-grid"><div class="users-left-stack">
-        <div class="users-card users-create-card">
-            <h3>@(editingId is null ? "Crear usuario" : "Editar usuario")</h3>
+    <section class="users-table-section"
+             aria-label="Usuarios registrados">
+        <div class="users-card users-table-card">
+            <div class="users-table-head">
+                <h3>Usuarios registrados</h3>
+            </div>
 
+            @if (isLoading)
+            {
+                <div class="users-empty" role="status" aria-busy="true">Cargando usuarios...</div>
+            }
+            else if (!FilteredUsers.Any())
+            {
+                <div class="users-empty">No hay usuarios registrados.</div>
+            }
+            else
+            {
+                <div class="users-table-wrapper">
+                    <div class="ntx-table-scroll">
+                        <table class="table table-hover align-middle users-table">
+                        <thead>
+                            <tr>
+                                <th>Documento</th>
+                                <th>Nombre</th>
+                                <th>Correo</th>
+                                <th>Cargo</th>
+                                <th>Área</th>
+                                <th>Rol</th>
+                                <th>Sede</th>
+                                <th>Responsable</th>
+                                <th>Estado</th>
+                                <th class="text-end">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var user in FilteredUsers)
+                            {
+                                <tr class="@(selectedUser?.Id == user.Id ? "users-selected-row" : null)">
+                                    <td><strong>@user.UserName</strong></td>
+                                    <td>@user.DisplayName</td>
+                                    <td>@Display(user.Email)</td>
+                                    <td>@Display(user.Position)</td>
+                                    <td>@Display(user.Area)</td>
+                                    <td>@DisplayRole(user.Role)</td>
+                                    <td>@(user.Branch is null ? "Todas" : $"{user.Branch.Code} - {user.Branch.Name}")</td>
+                                    <td>@DisplayResponsible(user.ResponsiblePerson)</td>
+                                    <td>
+                                        <span class="users-status @(user.IsActive ? "active" : "inactive")">
+                                            @(user.IsActive ? "Activo" : "Inactivo")
+                                        </span>
+                                    </td>
+                                    <td class="text-end">
+                                        @if (CanManageUsers)
+                                        {
+                                            <div class="users-row-actions">
+                                                <button type="button"
+                                                        class="btn btn-sm ntx-btn--operation users-row-action users-row-action--edit"
+                                                        @onclick="() => Edit(user)"
+                                                        data-ntx-tone="operation">
+                                                    Editar
+                                                </button>
+
+                                                <button type="button"
+                                                        class="btn btn-sm ntx-btn--consult users-row-action users-row-action--password"
+                                                        @onclick="() => SelectPasswordUser(user)"
+                                                        data-ntx-tone="consult">
+                                                    Cambiar contraseña
+                                                </button>
+
+                                                @if (user.IsActive)
+                                                {
+                                                    <button type="button"
+                                                            class="btn btn-sm ntx-btn--danger users-row-action users-row-action--status"
+                                                            @onclick="() => SetUserStatusAsync(user, false)"
+                                                            data-ntx-tone="danger">
+                                                        Deshabilitar
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <button type="button"
+                                                            class="btn btn-sm ntx-btn--affirmative users-row-action users-row-action--status"
+                                                            @onclick="() => SetUserStatusAsync(user, true)"
+                                                            data-ntx-tone="affirmative">
+                                                        Habilitar
+                                                    </button>
+                                                }
+                                            </div>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    </div>
+                </div>
+            }
+        </div>
+    </section>
+
+    @if (isUserFormModalOpen)
+    {
+        <div class="users-modal-backdrop" role="presentation">
+            <section class="users-modal users-modal--user"
+                     role="dialog"
+                     aria-modal="true"
+                     aria-labelledby="users-form-modal-title">
+
+                <header class="users-modal-header">
+                    <div>
+                        <span class="users-modal-pill">
+                            @(editingId is null
+                                ? "NUEVO USUARIO"
+                                : "EDICIÓN DE USUARIO")
+                        </span>
+
+                        <h2 id="users-form-modal-title">
+                            @(editingId is null
+                                ? "Crear usuario"
+                                : "Editar usuario")
+                        </h2>
+
+                        <p>
+                            @(editingId is null
+                                ? "Registre la información, el alcance operativo y la contraseña inicial."
+                                : "Actualice la información del usuario seleccionado sin alterar sus permisos actuales.")
+                        </p>
+                    </div>
+
+                </header>
+
+                <div class="users-modal-body">
+                    @if (!string.IsNullOrWhiteSpace(message))
+                    {
+                        <div class="@messageClass users-modal-message">
+                            @message
+                        </div>
+                    }
+
+                    <div class="users-modal-user-layout">
+        <div class="users-modal-form users-create-card">
             <EditForm Model="formModel" OnValidSubmit="SaveAsync" class="users-create-form-standard">
                 <DataAnnotationsValidator />
 
@@ -211,11 +388,13 @@
                     <span>Usuario activo</span>
                 </label>
 
-                <div class="users-actions users-field-full">
+                <div class="users-actions users-field-full users-modal-actions">
                     @if (CanManageUsers)
                     {
-                        <button class="btn ntx-btn--operation" type="submit" data-ntx-tone="affirmative" >
-                            @(editingId is null ? "Guardar" : "Guardar cambios")
+                        <button class="btn ntx-btn--affirmative users-modal-action users-modal-action--save"
+                                type="submit"
+                                data-ntx-tone="affirmative">
+                            @(editingId is null ? "Guardar usuario" : "Guardar cambios")
                         </button>
                     }
                     else
@@ -223,178 +402,191 @@
                         <span class="permission-action-denied">Solo consulta</span>
                     }
 
-                    <button class="btn btn-outline-secondary" type="button" @onclick="ClearForm" data-ntx-tone="secondary" >Limpiar</button>
+                    @if (editingId is null)
+                    {
+                        <button class="btn btn-outline-secondary users-modal-action users-modal-action--clear"
+                                type="button"
+                                @onclick="ClearForm"
+                                data-ntx-tone="secondary">
+                            Limpiar
+                        </button>
+                    }
+
+                    <button class="btn ntx-btn--danger users-modal-action users-modal-action--close"
+                            type="button"
+                            @onclick="CloseUserFormModal"
+                            data-ntx-tone="danger">
+                        Cerrar
+                    </button>
                 </div>
             </EditForm>
         </div>
+                    @if (editingId is null)
+                    {
+                        <aside class="users-modal-password-initial">
+                            <span class="users-modal-section-pill">
+                                SEGURIDAD
+                            </span>
 
-                    <section class="users-edit-panel users-password-panel-left">
-                @if (editingId is null)
-                {
-                    <h3>Contraseña de acceso</h3>
+                            <h3>Contraseña de acceso</h3>
 
-                    <div class="users-edit-box">
-                        <p>Defina la contraseña inicial del usuario que se va a crear.</p>
+                            <p>
+                                Defina la contraseña inicial del usuario que se va a crear.
+                            </p>
 
-                        <div class="users-password-change-grid">
-                            <label>
-                                Contraseña <strong class="users-required-star">*</strong>
-                                <InputText class="form-control"
-                                           type="password"
-                                           @bind-Value="formModel.Password"
-                                           placeholder="Ingrese contraseña"
-                                           disabled="@(!CanManageUsers)" name="navi-settingsusers-field-015" />
-                            </label>
+                            <div class="users-password-change-grid">
+                                <label>
+                                    Contraseña <strong class="users-required-star">*</strong>
 
-                            <label>
-                                Confirmar <strong class="users-required-star">*</strong>
-                                <InputText class="form-control"
-                                           type="password"
-                                           @bind-Value="formModel.ConfirmPassword"
-                                           placeholder="Confirme la contraseña"
-                                           disabled="@(!CanManageUsers)" name="navi-settingsusers-field-016" />
-                            </label>
-                        </div>
-                    </div>
-                }
-                else if (selectedUser is null)
-                {
-                    <h3>Cambiar contraseña de acceso</h3>
+                                    <InputText class="form-control"
+                                               type="password"
+                                               @bind-Value="formModel.Password"
+                                               placeholder="Ingrese contraseña"
+                                               disabled="@(!CanManageUsers)"
+                                               name="navi-settingsusers-field-015" />
+                                </label>
 
-                    <div class="users-empty">
-                        Seleccione un usuario con <strong>Cambiar contraseña</strong>.
-                    </div>
-                }
-                else
-                {
-                    <h3>Cambiar contraseña de acceso</h3>
+                                <label>
+                                    Confirmar <strong class="users-required-star">*</strong>
 
-                    <div class="users-selected-card compact">
-                        <div>
-                            <span>Usuario seleccionado</span>
-                            <strong>@selectedUser.DisplayName</strong>
-                            <small>Documento: @selectedUser.UserName</small>
-                        </div>
-
-                        <span class="users-status @(selectedUser.IsActive ? "active" : "inactive")">
-                            @(selectedUser.IsActive ? "Activo" : "Inactivo")
-                        </span>
-                    </div>
-
-                    <div class="users-edit-box">
-                        <p>Este cambio solo modifica la contraseña. Los datos del usuario se actualizan con <strong>Guardar cambios</strong>.</p>
-
-                        <div class="users-password-change-grid">
-                            <label>
-                                Nueva contraseña
-                                <input class="form-control"
-                                       type="password"
-                                       @bind="passwordModel.NewPassword"
-                                       placeholder="Ingrese nueva contraseña"
-                                       disabled="@(!CanManageUsers)" name="navi-settingsusers-field-017" />
-                            </label>
-
-                            <label>
-                                Confirmar
-                                <input class="form-control"
-                                       type="password"
-                                       @bind="passwordModel.ConfirmPassword"
-                                       placeholder="Confirme la nueva contraseña"
-                                       disabled="@(!CanManageUsers)" name="navi-settingsusers-field-018" />
-                            </label>
-                        </div>
-
-                        <div class="users-edit-actions password-actions">
-                            <button class="btn btn-outline-secondary" type="button" @onclick="ClearForm" data-ntx-tone="secondary" >Cancelar</button>
-
-                            @if (CanManageUsers)
-                            {
-                                <button class="btn ntx-btn--operation" type="button" @onclick="ChangePasswordAsync" data-ntx-tone="operation" >
-                                    Cambiar contraseña
-                                </button>
-                            }
-                        </div>
-                    </div>
-                }
-            </section>
-        </div>
-
-        <div class="users-card users-table-card">
-            <div class="users-table-head">
-                <h3>Usuarios registrados</h3>
-            </div>
-
-            @if (isLoading)
-            {
-                <div class="users-empty" role="status" aria-busy="true">Cargando usuarios...</div>
-            }
-            else if (!FilteredUsers.Any())
-            {
-                <div class="users-empty">No hay usuarios registrados.</div>
-            }
-            else
-            {
-                <div class="users-table-wrapper">
-                    <div class="ntx-table-scroll">
-                        <table class="table table-hover align-middle users-table">
-                        <thead>
-                            <tr>
-                                <th>Documento</th>
-                                <th>Nombre</th>
-                                <th>Correo</th>
-                                <th>Rol</th>
-                                <th>Sede</th>
-                                <th>Responsable</th>
-                                <th>Estado</th>
-                                <th class="text-end">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var user in FilteredUsers)
-                            {
-                                <tr class="@(selectedUser?.Id == user.Id ? "users-selected-row" : null)">
-                                    <td><strong>@user.UserName</strong></td>
-                                    <td>@user.DisplayName</td>
-                                    <td>@Display(user.Email)</td>
-                                    <td>@DisplayRole(user.Role)</td>
-                                    <td>@(user.Branch is null ? "Todas" : $"{user.Branch.Code} - {user.Branch.Name}")</td>
-                                    <td>@DisplayResponsible(user.ResponsiblePerson)</td>
-                                    <td>
-                                        <span class="users-status @(user.IsActive ? "active" : "inactive")">
-                                            @(user.IsActive ? "Activo" : "Inactivo")
-                                        </span>
-                                    </td>
-                                    <td class="text-end">
-                                        @if (CanManageUsers)
-                                        {
-                                            <button class="btn btn-sm ntx-btn--operation" @onclick="() => Edit(user)" data-ntx-tone="operation" >Editar</button>
-                                            <button class="btn btn-sm ntx-btn--operation" @onclick="() => SelectPasswordUser(user)" data-ntx-tone="ghost" >Contraseña</button>
-                                            @if (user.IsActive)
-                                        {
-                                            <button class="btn btn-sm ntx-btn--warning" @onclick="() => SetUserStatusAsync(user, false)" data-ntx-tone="danger" >
-                                                Deshabilitar
-                                            </button>
-                                        }
-                                        else
-                                        {
-                                            <button class="btn btn-sm ntx-btn--affirmative" @onclick="() => SetUserStatusAsync(user, true)" data-ntx-tone="affirmative" >
-                                                Habilitar
-                                            </button>
-                                        }
-                                        }
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
+                                    <InputText class="form-control"
+                                               type="password"
+                                               @bind-Value="formModel.ConfirmPassword"
+                                               placeholder="Confirme la contraseña"
+                                               disabled="@(!CanManageUsers)"
+                                               name="navi-settingsusers-field-016" />
+                                </label>
+                            </div>
+                        </aside>
+                    }
                     </div>
                 </div>
-            }
+            </section>
         </div>
-    </section>
+    }
+
+    @if (isPasswordModalOpen && selectedUser is not null)
+    {
+        <div class="users-modal-backdrop" role="presentation">
+            <section class="users-modal users-modal--password"
+                     role="dialog"
+                     aria-modal="true"
+                     aria-labelledby="users-password-modal-title">
+
+                <header class="users-modal-header">
+                    <div>
+                        <span class="users-modal-pill users-modal-pill--security">
+                            SEGURIDAD DE ACCESO
+                        </span>
+
+                        <h2 id="users-password-modal-title">
+                            Cambiar contraseña
+                        </h2>
+
+                        <p>
+                            Actualice únicamente la contraseña del usuario seleccionado.
+                        </p>
+                    </div>
+
+                </header>
+
+                <div class="users-modal-body">
+                    @if (!string.IsNullOrWhiteSpace(message))
+                    {
+                        <div class="@messageClass users-modal-message">
+                            @message
+                        </div>
+                    }
+
+                    <div class="users-password-modal-grid">
+                        <article class="users-selected-card">
+                            <div>
+                                <span>Usuario seleccionado</span>
+                                <strong>@selectedUser.DisplayName</strong>
+                                <small>Documento: @selectedUser.UserName</small>
+                                <small>Correo: @Display(selectedUser.Email)</small>
+                            </div>
+
+                            <span class="users-status @(selectedUser.IsActive ? "active" : "inactive")">
+                                @(selectedUser.IsActive ? "Activo" : "Inactivo")
+                            </span>
+                        </article>
+
+                        <div class="users-edit-box users-password-edit-box">
+                            <div class="users-password-change-grid">
+                                <label>
+                                    Nueva contraseña <strong class="users-required-star">*</strong>
+
+                                    <input class="form-control"
+                                           type="password"
+                                           @bind="passwordModel.NewPassword"
+                                           placeholder="Ingrese nueva contraseña"
+                                           disabled="@(!CanManageUsers)"
+                                           name="navi-settingsusers-field-017" />
+                                </label>
+
+                                <label>
+                                    Confirmar <strong class="users-required-star">*</strong>
+
+                                    <input class="form-control"
+                                           type="password"
+                                           @bind="passwordModel.ConfirmPassword"
+                                           placeholder="Confirme la nueva contraseña"
+                                           disabled="@(!CanManageUsers)"
+                                           name="navi-settingsusers-field-018" />
+                                </label>
+                            </div>
+
+                            <div class="users-edit-actions password-actions users-modal-actions">
+                                @if (CanManageUsers)
+                                {
+                                    <button class="btn ntx-btn--affirmative users-password-submit users-modal-action users-modal-action--password-save"
+                                            type="button"
+                                            @onclick="ChangePasswordAsync"
+                                            data-ntx-tone="affirmative">
+                                        Cambiar contraseña
+                                    </button>
+                                }
+
+                                <button class="btn ntx-btn--danger users-modal-action users-modal-action--close"
+                                        type="button"
+                                        @onclick="ClosePasswordModal"
+                                        data-ntx-tone="danger">
+                                    Cerrar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    }
 </section>
 
 @code {
+
+    private void OpenCreateUserModal()
+    {
+        message = string.Empty;
+        ClearForm();
+        isPasswordModalOpen = false;
+        isUserFormModalOpen = true;
+    }
+
+    private void CloseUserFormModal()
+    {
+        isUserFormModalOpen = false;
+        ClearForm();
+        message = string.Empty;
+    }
+
+    private void ClosePasswordModal()
+    {
+        isPasswordModalOpen = false;
+        selectedUser = null;
+        passwordModel = new PasswordFormModel();
+        message = string.Empty;
+    }
 
     private void CompleteWithResponsibleButton()
     {
@@ -565,6 +757,8 @@
 
     private Guid? editingId;
     private UserDto? selectedUser;
+    private bool isUserFormModalOpen;
+    private bool isPasswordModalOpen;
     private bool isLoading;
     private string? searchText;
     private string selectedBranchFilter = string.Empty;
@@ -807,21 +1001,36 @@ if (string.IsNullOrWhiteSpace(formModel.UserName) ||
                 passwordChanged = true;
             }
 
-            ShowSuccess(editingId is null
+            // NAVI USERS SAVE KEEP EDIT V201.1
+            var savedEditingId = editingId;
+
+            var successMessage = editingId is null
                 ? "Usuario creado correctamente."
                 : passwordChanged
                     ? "Usuario y contraseña actualizados correctamente."
-                    : "Usuario actualizado correctamente. La contraseña no fue modificada.");
+                    : "Usuario actualizado correctamente. La contraseña no fue modificada.";
 
             formModel.Password = null;
             formModel.ConfirmPassword = null;
 
             await LoadAsync();
 
-            if (editingId is null)
+            if (savedEditingId is null)
             {
                 ClearForm();
             }
+            else
+            {
+                var savedUser = users.FirstOrDefault(
+                    user => user.Id == savedEditingId.Value);
+
+                if (savedUser is not null)
+                {
+                    Edit(savedUser);
+                }
+            }
+
+            ShowSuccess(successMessage);
         }
         catch (Exception ex)
         {
@@ -875,9 +1084,12 @@ if (string.IsNullOrWhiteSpace(formModel.UserName) ||
 
     private void Edit(UserDto user)
     {
+        message = string.Empty;
         editingId = user.Id;
         selectedUser = user;
         passwordModel = new();
+        isPasswordModalOpen = false;
+        isUserFormModalOpen = true;
 
         formModel = new UserFormModel
         {
@@ -896,7 +1108,13 @@ if (string.IsNullOrWhiteSpace(formModel.UserName) ||
 
     private void SelectPasswordUser(UserDto user)
     {
-        Edit(user);
+        message = string.Empty;
+        editingId = null;
+        formModel = new UserFormModel();
+        selectedUser = user;
+        passwordModel = new PasswordFormModel();
+        isUserFormModalOpen = false;
+        isPasswordModalOpen = true;
     }
     private async Task SetUserStatusAsync(UserDto user, bool isActive)
     {

@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 
 namespace Navi.ToolsAssets.Admin.Services.Auth;
@@ -11,18 +12,29 @@ public sealed class NaviPermissionHttpMessageHandler : DelegatingHandler
         _authSession = authSession;
     }
 
-    protected override Task<HttpResponseMessage> SendAsync(
+    protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
         CancellationToken cancellationToken)
     {
-        if (_authSession.IsAuthenticated &&
-            !string.IsNullOrWhiteSpace(_authSession.AccessToken))
+        var requestHasSession =
+            _authSession.IsAuthenticated &&
+            !string.IsNullOrWhiteSpace(_authSession.AccessToken);
+
+        if (requestHasSession)
         {
             request.Headers.Authorization = new AuthenticationHeaderValue(
                 "Bearer",
                 _authSession.AccessToken);
         }
 
-        return base.SendAsync(request, cancellationToken);
+        var response = await base.SendAsync(request, cancellationToken);
+
+        if (requestHasSession &&
+            response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            _authSession.Logout();
+        }
+
+        return response;
     }
 }

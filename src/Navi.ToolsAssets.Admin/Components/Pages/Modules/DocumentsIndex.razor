@@ -122,8 +122,22 @@
                             <small>@item.Module</small>
                         </div>
 
-                        <button type="button" @onclick="() => OpenManual(item.Code)" data-ntx-tone="ghost" >
-                            Ver
+                        @* NAVI DOCUMENTS MANUAL BUTTON V233.1 *@
+                        <button type="button"
+                                class="docs-manual-open-v2331"
+                                title="@($"Abrir manual operativo: {item.Title}")"
+                                aria-label="@($"Abrir manual operativo de {item.Title}")"
+                                @onclick="() => OpenManual(item.Code)"
+                                data-ntx-tone="consult">
+
+                            <svg viewBox="0 0 24 24"
+                                 aria-hidden="true">
+
+                                <path d="M4 5.5h5.5A3.5 3.5 0 0 1 13 9v10H7.5A3.5 3.5 0 0 0 4 22V5.5Z"></path>
+                                <path d="M20 5.5h-5.5A3.5 3.5 0 0 0 11 9v10h5.5A3.5 3.5 0 0 1 20 22V5.5Z"></path>
+                            </svg>
+
+                            <span>Ver manual</span>
                         </button>
                     </div>
                 }
@@ -524,7 +538,7 @@
 
                                         <td>
                                             <div class="docs-row-actions">
-                                                <button type="button" @onclick="() => OpenDocument(item)" data-ntx-tone="ghost" >
+                                                <button type="button" class="docs-document-view-button-v238" @onclick="() => OpenDocument(item)" data-ntx-tone="ghost" >
                                                     Ver
                                                 </button>
 
@@ -631,7 +645,7 @@
 @if (showDocumentModal && selectedDocument is not null)
 {
     <div class="docs-modal-backdrop" @onclick="CloseDocument">
-        <section class="docs-modal docs-document-modal" @onclick:stopPropagation="true">
+        <section class="docs-modal docs-document-modal docs-file-view-modal-v238" @onclick:stopPropagation="true">
             <header>
                 <div class="docs-modal-title">
                     <span>📄</span>
@@ -687,21 +701,62 @@
 
 @if (showManualModal)
 {
-    <div class="docs-modal-backdrop" @onclick="CloseManual">
-        <section class="docs-modal" @onclick:stopPropagation="true">
-            <header>
-                <div class="docs-modal-title">
-                    <span>@SelectedManual.Icon</span>
+    @* NAVI DOCUMENTS MANUAL IMAGES V232.3 *@
+
+    var manualImageIndexV2323 =
+        ManualOptions.FindIndex(
+            item =>
+                string.Equals(
+                    item.Code,
+                    SelectedManual.Code,
+                    StringComparison.OrdinalIgnoreCase))
+        + 1;
+
+    var manualImageNameV2323 =
+        manualImageIndexV2323 > 0
+            ? $"manual_{manualImageIndexV2323:00}.png"
+            : "manual_navi.png";
+
+    var manualImageUrlV2323 =
+        $"/manuales_navi_19_imagenes/"
+        + manualImageNameV2323;
+
+    <div class="docs-modal-backdrop docs-manual-v2323-backdrop"
+         @onclick="CloseManual">
+
+        <section class="docs-modal docs-manual-v2323"
+                 role="dialog"
+                 aria-modal="true"
+                 aria-labelledby="docs-manual-v2323-title"
+                 @onclick:stopPropagation="true">
+
+            <header class="docs-manual-v2323-header">
+                <div class="docs-manual-v2323-title">
+                    <span aria-hidden="true">
+                        @SelectedManual.Icon
+                    </span>
+
                     <div>
-                        <strong>@SelectedManual.Title</strong>
-                        <small>@SelectedManual.Module</small>
+                        <strong id="docs-manual-v2323-title">
+                            @SelectedManual.Title
+                        </strong>
+
+                        <small>
+                            @SelectedManual.Module
+                        </small>
                     </div>
                 </div>
 
-                <button type="button" @onclick="CloseManual" data-ntx-tone="ghost" >Cerrar</button>
+                <button type="button"
+                        class="docs-manual-v2323-close"
+                        @onclick="CloseManual"
+                        data-ntx-tone="ghost">
+
+                    Cerrar
+                </button>
             </header>
 
-            <div class="docs-modal-body">
+            <div class="docs-modal-body docs-manual-v2323-body">
                 <article>
                     <h3>Descripción general</h3>
                     <p>@SelectedManual.Description</p>
@@ -714,6 +769,7 @@
 
                 <article class="span-2">
                     <h3>Proceso funcional</h3>
+
                     <ol>
                         @foreach (var step in SelectedManual.Steps)
                         {
@@ -724,6 +780,7 @@
 
                 <article class="span-2">
                     <h3>Reglas y validaciones</h3>
+
                     <ul>
                         @foreach (var rule in SelectedManual.Rules)
                         {
@@ -734,14 +791,59 @@
 
                 <article class="span-2">
                     <h3>Documentos relacionados</h3>
+
                     <ul>
-                        @foreach (var doc in SelectedManual.RelatedDocuments)
+                        @foreach (
+                            var document
+                            in SelectedManual.RelatedDocuments)
                         {
-                            <li>@doc</li>
+                            <li>@document</li>
                         }
                     </ul>
                 </article>
+
+                <article class="span-2 docs-manual-v2323-preview">
+                    <div class="docs-manual-v2323-preview-header">
+                        <div>
+                            <h3>Manual visual</h3>
+
+                            <p>
+                                Imagen correspondiente a
+                                @SelectedManual.Title.
+                            </p>
+                        </div>
+
+                        <span>PNG</span>
+                    </div>
+
+                    <div class="docs-manual-v2323-image">
+                        <img src="@manualImageUrlV2323"
+                             alt="@SelectedManual.Title"
+                             loading="eager"
+                             decoding="async" />
+                    </div>
+                </article>
             </div>
+
+            <footer class="docs-manual-v2323-footer">
+                <div>
+                    <strong>
+                        @SelectedManual.Title
+                    </strong>
+
+                    <small>
+                        Imagen completa del manual seleccionado.
+                    </small>
+                </div>
+
+                <a class="docs-manual-v2323-download"
+                   href="@manualImageUrlV2323"
+                   download="@manualImageNameV2323">
+
+                    Descargar imagen
+                </a>
+            </footer>
         </section>
     </div>
 }
+

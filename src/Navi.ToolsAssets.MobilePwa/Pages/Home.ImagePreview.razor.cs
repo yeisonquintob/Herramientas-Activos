@@ -70,13 +70,10 @@ public partial class Home
                 NormalizeHomeImageUrlV80(
                     latestImage.DownloadUrl);
         }
-        catch (Exception exception)
+        catch (Exception)
         {
             homeImageErrorV80 =
                 "No se pudo cargar la imagen.";
-
-            System.Diagnostics.Debug.WriteLine(
-                exception);
         }
         finally
         {

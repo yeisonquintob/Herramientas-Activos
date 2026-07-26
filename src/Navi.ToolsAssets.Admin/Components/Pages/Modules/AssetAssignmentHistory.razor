@@ -356,6 +356,9 @@
                                 <th>Entrega</th>
                                 <th>Regreso</th>
                                 <th>Detalle</th>
+                                <th class="assignment-history-v222-actions-column">
+                                    Acciones
+                                </th>
                             </tr>
                         </thead>
 
@@ -434,6 +437,27 @@
                                             </small>
                                         }
                                     </td>
+
+                                    <td class="assignment-history-v222-actions-cell">
+
+                                        <button type="button"
+                                                class="assignment-history-v222-view-button"
+                                                title="Ver todas las asignaciones de esta herramienta"
+                                                aria-label="Ver trazabilidad completa de @item.ToolInternalCode"
+                                                @onclick="() => OpenAssignmentTrace(item)"
+                                                data-ntx-tone="consult">
+
+                                            <svg viewBox="0 0 24 24"
+                                                 aria-hidden="true"
+                                                 focusable="false">
+
+                                                <path d="M2.5 12S6 6.5 12 6.5 21.5 12 21.5 12 18 17.5 12 17.5 2.5 12 2.5 12Z"></path>
+                                                <circle cx="12" cy="12" r="2.5"></circle>
+                                            </svg>
+
+                                            <span>Ver</span>
+                                        </button>
+                                    </td>
                                 </tr>
                             }
                         </tbody>
@@ -442,6 +466,217 @@
             }
         </section>
     </section>
+
+    @* NAVI ASSIGNMENT TRACE V222 *@
+    @if (showAssignmentTrace &&
+         selectedAssignmentTool is not null)
+    {
+        var assignmentTraceItems = SelectedToolAssignments;
+
+        <div class="assignment-history-v222-backdrop"
+             role="presentation"
+             @onclick="CloseAssignmentTrace">
+
+            <section class="assignment-history-v222-dialog"
+                     role="dialog"
+                     aria-modal="true"
+                     aria-labelledby="assignment-history-v222-title"
+                     @onclick:stopPropagation="true">
+
+                <header class="assignment-history-v222-dialog-header">
+
+                    <div class="assignment-history-v222-dialog-title">
+
+                        <span>TRAZABILIDAD DE ASIGNACIONES</span>
+
+                        <h2 id="assignment-history-v222-title">
+                            @Show(selectedAssignmentTool.ToolInternalCode)
+                            ·
+                            @Show(selectedAssignmentTool.ToolName)
+                        </h2>
+
+                        <p>
+                            Historial completo de personas, entregas y
+                            devoluciones registradas para esta herramienta.
+                        </p>
+                    </div>
+
+                    <button type="button"
+                            class="assignment-history-v222-close-icon"
+                            title="Cerrar"
+                            aria-label="Cerrar trazabilidad"
+                            @onclick="CloseAssignmentTrace">
+
+                        <svg viewBox="0 0 24 24"
+                             aria-hidden="true"
+                             focusable="false">
+
+                            <path d="M6 6L18 18"></path>
+                            <path d="M18 6L6 18"></path>
+                        </svg>
+                    </button>
+                </header>
+
+                <section class="assignment-history-v222-tool-summary"
+                         aria-label="Resumen de la herramienta">
+
+                    <article>
+                        <span>Asignaciones registradas</span>
+                        <strong>@assignmentTraceItems.Count</strong>
+                    </article>
+
+                    <article>
+                        <span>Última persona que recibió</span>
+
+                        <strong>
+                            @GetHistoricalResponsibleName(
+                                assignmentTraceItems.FirstOrDefault())
+                        </strong>
+                    </article>
+
+                    <article>
+                        <span>Última entrega</span>
+
+                        <strong>
+                            @ShowDate(
+                                assignmentTraceItems
+                                    .FirstOrDefault()
+                                    ?.AssignedAt)
+                        </strong>
+                    </article>
+
+                    <article>
+                        <span>Última devolución asociada</span>
+
+                        <strong>
+                            @ShowDate(
+                                assignmentTraceItems
+                                    .FirstOrDefault()
+                                    ?.ReturnedAt)
+                        </strong>
+                    </article>
+                </section>
+
+                <section class="assignment-history-v222-dialog-content">
+
+                    @if (assignmentTraceItems.Count == 0)
+                    {
+                        <div class="assignment-history-v222-empty">
+
+                            <strong>
+                                No hay asignaciones registradas
+                            </strong>
+
+                            <span>
+                                No se encontraron movimientos históricos
+                                para esta herramienta.
+                            </span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="assignment-history-v222-table-wrap">
+
+                            <table class="assignment-history-v222-table">
+
+                                <thead>
+                                    <tr>
+                                        <th>Técnico o persona</th>
+                                        <th>Fecha de entrega</th>
+                                        <th>Fecha de devolución</th>
+                                        <th>Movimiento</th>
+                                        <th>Observación</th>
+                                        <th>Registrado por</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+                                    @foreach (
+                                        var movement
+                                        in assignmentTraceItems)
+                                    {
+                                        <tr>
+                                            <td class="assignment-history-v222-person">
+
+                                                <strong>
+                                                    @GetHistoricalResponsibleName(
+                                                        movement)
+                                                </strong>
+
+                                                @if (
+                                                    movement.Id ==
+                                                    assignmentTraceItems[0].Id)
+                                                {
+                                                    <span>
+                                                        Última asignación
+                                                    </span>
+                                                }
+                                            </td>
+
+                                            <td class="assignment-history-v222-date">
+                                                @ShowDate(movement.AssignedAt)
+                                            </td>
+
+                                            <td class="assignment-history-v222-date">
+                                                @ShowDate(movement.ReturnedAt)
+                                            </td>
+
+                                            <td>
+                                                <span class="@GetAssignmentTraceStatusClass(
+                                                    movement)">
+
+                                                    @GetAssignmentTraceStatus(
+                                                        movement)
+                                                </span>
+                                            </td>
+
+                                            <td class="assignment-history-v222-observation">
+
+                                                <span>
+                                                    @Show(movement.Detail)
+                                                </span>
+
+                                                @if (
+                                                    !string.IsNullOrWhiteSpace(
+                                                        movement.ReturnDetail))
+                                                {
+                                                    <small>
+                                                        <b>Devolución:</b>
+                                                        @movement.ReturnDetail
+                                                    </small>
+                                                }
+                                            </td>
+
+                                            <td>
+                                                @Show(movement.CreatedBy)
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </section>
+
+                <footer class="assignment-history-v222-dialog-footer">
+
+                    <span>
+                        La información corresponde a los movimientos
+                        registrados en la hoja de vida del activo.
+                    </span>
+
+                    <button type="button"
+                            class="assignment-history-v222-close-button"
+                            @onclick="CloseAssignmentTrace"
+                            data-ntx-tone="back">
+
+                        Cerrar
+                    </button>
+                </footer>
+            </section>
+        </div>
+    }
+
 </PermissionGuard>
 
 @code {
@@ -462,6 +697,22 @@
     private string selectedBranchCode = string.Empty;
     private string search = string.Empty;
     private HashSet<string> selectedStatuses = new(StringComparer.OrdinalIgnoreCase);
+
+    // NAVI ASSIGNMENT TRACE V222
+    private bool showAssignmentTrace;
+    private Guid? selectedAssignmentToolId;
+    private AssignmentHistoryItem? selectedAssignmentTool;
+
+    private IReadOnlyList<AssignmentHistoryItem> SelectedToolAssignments =>
+        selectedAssignmentToolId.HasValue
+            ? historyItems
+                .Where(item =>
+                    item.ToolAssetId ==
+                    selectedAssignmentToolId.Value)
+                .OrderByDescending(item => item.AssignedAt)
+                .ThenByDescending(item => item.Id)
+                .ToList()
+            : Array.Empty<AssignmentHistoryItem>();
 
     private readonly (string Value, string Text)[] StatusOptions =
     {
@@ -733,6 +984,119 @@ await LoadHistoryAsync();
                ContainsText(GetStatusLabel(item.CurrentStatus ?? string.Empty), search);
     }
 
+    // NAVI ASSIGNMENT TRACE V222
+    private void OpenAssignmentTrace(
+        AssignmentHistoryItem item)
+    {
+        selectedAssignmentToolId = item.ToolAssetId;
+        selectedAssignmentTool = item;
+        showAssignmentTrace = true;
+    }
+
+    private void CloseAssignmentTrace()
+    {
+        showAssignmentTrace = false;
+        selectedAssignmentToolId = null;
+        selectedAssignmentTool = null;
+    }
+
+    private static string GetHistoricalResponsibleName(
+        AssignmentHistoryItem? item)
+    {
+        if (item is null)
+        {
+            return "—";
+        }
+
+        var responsibleFromMetadata = ExtractMetadataValue(
+            item.NewValue,
+            "Responsable");
+
+        if (!string.IsNullOrWhiteSpace(
+                responsibleFromMetadata))
+        {
+            return responsibleFromMetadata;
+        }
+
+        const string assignmentPrefix =
+            "Activo asignado a ";
+
+        var detail = item.Detail?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(detail) &&
+            detail.StartsWith(
+                assignmentPrefix,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            var responsibleFromDetail = detail[
+                    assignmentPrefix.Length..]
+                .Trim()
+                .TrimEnd('.');
+
+            if (!string.IsNullOrWhiteSpace(
+                    responsibleFromDetail))
+            {
+                return responsibleFromDetail;
+            }
+        }
+
+        return Show(item.CurrentResponsibleName);
+    }
+
+    private static string? ExtractMetadataValue(
+        string? source,
+        string key)
+    {
+        if (string.IsNullOrWhiteSpace(source) ||
+            string.IsNullOrWhiteSpace(key))
+        {
+            return null;
+        }
+
+        var expectedPrefix = $"{key}=";
+
+        foreach (
+            var segment
+            in source.Split(
+                ';',
+                StringSplitOptions.RemoveEmptyEntries |
+                StringSplitOptions.TrimEntries))
+        {
+            if (!segment.StartsWith(
+                    expectedPrefix,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var value = segment[
+                    expectedPrefix.Length..]
+                .Trim();
+
+            return string.IsNullOrWhiteSpace(value)
+                ? null
+                : value;
+        }
+
+        return null;
+    }
+
+    private static string GetAssignmentTraceStatus(
+        AssignmentHistoryItem item)
+    {
+        return item.ReturnedAt.HasValue
+            ? "Devuelta"
+            : "Asignación vigente";
+    }
+
+    private static string GetAssignmentTraceStatusClass(
+        AssignmentHistoryItem item)
+    {
+        return item.ReturnedAt.HasValue
+            ? "assignment-history-v222-movement-status returned"
+            : "assignment-history-v222-movement-status active";
+    }
+
     private void GoBackToAssignment()
     {
         NavigationManager.NavigateTo("/asset-assignment");
@@ -817,6 +1181,11 @@ await LoadHistoryAsync();
         public DateTime? ReturnedAt { get; set; }
         public string? ReturnDetail { get; set; }
         public string? Detail { get; set; }
+
+        // Datos históricos ya entregados por assignment-history.
+        public string? PreviousValue { get; set; }
+        public string? NewValue { get; set; }
+        public string? CreatedBy { get; set; }
     }
 
     private static string GetStatusBadge(string? status)

@@ -5,151 +5,336 @@
 
 <PageTitle>Reportes - NAVI</PageTitle>
 
-<section class="navi-reference-toolbar">
 <NaviPageHero
-    Class="navi-reference-toolbar__actions"
     Pill="REPORTES"
     Title="Centro de reportes"
-    Description="Consulta reportes ejecutivos y operativos de inventario, documentos, mantenimiento, compras, toma física y conciliación.">
+    Description="Consulta reportes ejecutivos y operativos de inventario, documentos, mantenimiento, compras, toma física y conciliación." />
 
-    <button type="button" @onclick="LoadAsync" disabled="@isLoading" data-ntx-tone="refresh" >
-        @(isLoading ? "Actualizando..." : "Actualizar")
-    </button>
+<div class="reports-page">
+    <div class="reports-kpi-region">
+        <NaviKpiToolbar
+            Class="reports-kpi-toolbar"
+            Refresh="LoadAsync"
+            IsRefreshing="isLoading"
+            RefreshTitle="Actualizar centro de reportes"
+            RefreshAriaLabel="Actualizar indicadores del centro de reportes">
 
-</NaviPageHero>
+            <NaviKpiGrid
+                Columns="4"
+                Compact="true"
+                Dividers="true"
+                Class="reports-kpis navi-final-kpi-row">
 
-<NaviKpiGrid Class="reports-kpis navi-final-kpi-row">
-    <NaviKpiCard>
-        <span>Inventario</span>
-        <strong>@assets.Count</strong>
-        <small>Activos / herramientas</small>
-    </NaviKpiCard>
+                <NaviKpiCard
+                    Title="Inventario"
+                    Description="Activos y herramientas"
+                    Value="@(assets.Count.ToString())"
+                    Tone="neutral">
 
-    <NaviKpiCard Class="success">
-        <span>Documentos</span>
-        <strong>@documents.Count</strong>
-        <small>Soportes cargados</small>
-    </NaviKpiCard>
+                    <IconContent>
+                        <NaviKpiIcon Name="inventory" />
+                    </IconContent>
+                </NaviKpiCard>
 
-    <NaviKpiCard Class="warning">
-        <span>Mantenimientos</span>
-        <strong>@TotalMaintenance</strong>
-        <small>Registros y solicitudes</small>
-    </NaviKpiCard>
+                <NaviKpiCard
+                    Title="Documentos"
+                    Description="Soportes cargados"
+                    Value="@(documents.Count.ToString())"
+                    Tone="positive">
 
-    <NaviKpiCard Class="primary">
-        <span>Tomas físicas</span>
-        <strong>@physicalCounts.Count</strong>
-        <small>Campañas creadas</small>
-    </NaviKpiCard>
-</NaviKpiGrid>
-</section>
+                    <IconContent>
+                        <NaviKpiIcon Name="document" />
+                    </IconContent>
+                </NaviKpiCard>
 
-@if (!string.IsNullOrWhiteSpace(message))
-{
-    <div class="@messageClass reports-message">@message</div>
-}
+                <NaviKpiCard
+                    Title="Mantenimientos"
+                    Description="Registros y solicitudes"
+                    Value="@(TotalMaintenance.ToString())"
+                    Tone="warning">
 
-<section class="reports-page-filters" aria-label="Filtros de reportes">
-    <input class="form-control form-control-sm"
-           placeholder="Buscar código, nombre, sede, responsable, estado..."
-           @bind="searchText"
-           @bind:event="oninput" name="navi-reportsindex-field-001" />
+                    <IconContent>
+                        <NaviKpiIcon Name="wrench" />
+                    </IconContent>
+                </NaviKpiCard>
 
-    <select class="form-select form-select-sm" @bind="branchFilter" name="navi-reportsindex-field-002">
-        <option value="">Todas las sedes</option>
-        @foreach (var branch in BranchOptions)
-        {
-            <option value="@branch">@branch</option>
-        }
-    </select>
+                <NaviKpiCard
+                    Title="Tomas físicas"
+                    Description="Campañas creadas"
+                    Value="@(physicalCounts.Count.ToString())"
+                    Tone="soft">
 
-    <select class="form-select form-select-sm" @bind="periodFilter" name="navi-reportsindex-field-003">
-        <option value="all">Todo el periodo</option>
-        <option value="today">Hoy</option>
-        <option value="7">Últimos 7 días</option>
-        <option value="30">Últimos 30 días</option>
-        <option value="90">Últimos 90 días</option>
-    </select>
+                    <IconContent>
+                        <NaviKpiIcon Name="report" />
+                    </IconContent>
+                </NaviKpiCard>
 
-    <select class="form-select form-select-sm" @bind="statusFilter" name="navi-reportsindex-field-004">
-        <option value="">Todos los estados</option>
-        @foreach (var status in StatusOptions)
-        {
-            <option value="@status">@status</option>
-        }
-    </select>
+            </NaviKpiGrid>
+        </NaviKpiToolbar>
+    </div>
 
-    <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="ClearFilters" data-ntx-tone="secondary" >
-        Limpiar
-    </button>
-</section>
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <div class="@messageClass reports-message"
+             role="status">
+            @message
+        </div>
+    }
 
+    <section class="reports-filter-card"
+             aria-labelledby="reports-filter-title">
 
-<section class="reports-workspace">
-    <aside class="reports-card reports-left">
-        <div class="reports-card-title compact">
+        <div class="reports-section-heading">
             <div>
-                <h3>Reportes</h3>
-                <p>Selecciona el informe a consultar.</p>
+                <h2 id="reports-filter-title">
+                    Filtros del reporte
+                </h2>
+
+                <p>
+                    Combina texto, sede, periodo y estado
+                    para limitar la información visible.
+                </p>
             </div>
+
+            <NaviActionButton
+                Tone="secondary"
+                Size="sm"
+                OnClick="ClearFilters">
+                Limpiar
+            </NaviActionButton>
         </div>
 
-        <div class="reports-menu">
-            @foreach (var item in Reports)
-            {
-                <button type="button"
-                        class="@GetReportClass(item.Code)"
-                        @onclick="() => SelectReport(item.Code)" data-ntx-tone="ghost" >
-                    <span>@item.Icon</span>
+        <div class="reports-page-filters">
+            <div class="reports-field reports-field-search">
+                <label for="reports-search">
+                    Buscar
+                </label>
 
+                <input id="reports-search"
+                       class="form-control"
+                       placeholder="Código, nombre, sede, responsable o estado..."
+                       @bind="searchText"
+                       @bind:event="oninput"
+                       name="navi-reportsindex-field-001" />
+            </div>
+
+            <div class="reports-field">
+                <label for="reports-branch">
+                    Sede
+                </label>
+
+                <select id="reports-branch"
+                        class="form-select"
+                        @bind="branchFilter"
+                        name="navi-reportsindex-field-002">
+
+                    <option value="">
+                        Todas las sedes
+                    </option>
+
+                    @foreach (var branch in BranchOptions)
+                    {
+                        <option value="@branch">
+                            @branch
+                        </option>
+                    }
+                </select>
+            </div>
+
+            <div class="reports-field">
+                <label for="reports-period">
+                    Periodo
+                </label>
+
+                <select id="reports-period"
+                        class="form-select"
+                        @bind="periodFilter"
+                        name="navi-reportsindex-field-003">
+
+                    <option value="all">
+                        Todo el periodo
+                    </option>
+
+                    <option value="today">
+                        Hoy
+                    </option>
+
+                    <option value="7">
+                        Últimos 7 días
+                    </option>
+
+                    <option value="30">
+                        Últimos 30 días
+                    </option>
+
+                    <option value="90">
+                        Últimos 90 días
+                    </option>
+                </select>
+            </div>
+
+            <div class="reports-field">
+                <label for="reports-status">
+                    Estado
+                </label>
+
+                <select id="reports-status"
+                        class="form-select"
+                        @bind="statusFilter"
+                        name="navi-reportsindex-field-004">
+
+                    <option value="">
+                        Todos los estados
+                    </option>
+
+                    @foreach (var status in StatusOptions)
+                    {
+                        <option value="@status">
+                            @status
+                        </option>
+                    }
+                </select>
+            </div>
+        </div>
+    </section>
+
+    <section class="reports-workspace"
+             aria-label="Centro de reportes">
+
+        <aside class="reports-card reports-left">
+            <div class="reports-card-title compact">
+                <div>
+                    <h2>Reportes</h2>
+
+                    <p>
+                        Selecciona el informe que deseas consultar.
+                    </p>
+                </div>
+            </div>
+
+            <div class="reports-menu">
+                @foreach (var item in Reports)
+                {
+                    <button type="button"
+                            class="@GetReportClass(item.Code)"
+                            aria-pressed="@(selectedReportCode == item.Code)"
+                            @onclick="() => SelectReport(item.Code)"
+                            data-ntx-tone="ghost">
+
+                        <span class="reports-menu-icon"
+                              aria-hidden="true">
+                            @item.Icon
+                        </span>
+
+                        <span class="reports-menu-copy">
+                            <strong>
+                                @item.Title
+                            </strong>
+
+                            <small>
+                                @item.Description
+                            </small>
+                        </span>
+                    </button>
+                }
+            </div>
+        </aside>
+
+        <main class="reports-main">
+            <article class="reports-card reports-selected-card">
+                <div class="reports-card-title reports-selected-heading">
                     <div>
-                        <strong>@item.Title</strong>
-                        <small>@item.Description</small>
+                        <span class="reports-eyebrow">
+                            Reporte seleccionado
+                        </span>
+
+                        <h2>
+                            @SelectedReport.Title
+                        </h2>
+
+                        <p>
+                            @SelectedReport.LongDescription
+                        </p>
                     </div>
-                </button>
-            }
-        </div>
-    </aside>
 
-    <main class="reports-main">
-        <article class="reports-card reports-selected-card">
-            <div class="reports-card-title">
-                <div>
-                    <h3>@SelectedReport.Title</h3>
-                    <p>@SelectedReport.LongDescription</p>
+                    <span class="reports-selected-pill">
+                        @SelectedReport.Area
+                    </span>
                 </div>
 
-                <span class="reports-selected-pill">@SelectedReport.Area</span>
-            </div>
-</article>
+                <NaviKpiGrid
+                    Columns="4"
+                    Compact="true"
+                    Dividers="true"
+                    Class="reports-summary-grid">
 
-<article class="reports-card">
-            <div class="reports-card-title">
-                <div>
-                    <h3>Resultado del reporte</h3>
-                    <p>@FilteredRows.Count registro(s) según filtros aplicados.</p>
-                </div>
-            </div>
+                    @foreach (var item in SelectedSummary)
+                    {
+                        <NaviKpiCard
+                            Title="@item.Label"
+                            Description="@item.Description"
+                            Value="@item.Value"
+                            Tone="neutral"
+                            Class="@("reports-summary-kpi " + item.CssClass)">
 
-            @if (isLoading)
-            {
-                <div class="reports-empty" role="status" aria-busy="true">Cargando información del reporte...</div>
-            }
-            else if (FilteredRows.Count == 0)
-            {
-                <div class="reports-empty">No hay registros para el reporte y filtros seleccionados.</div>
-            }
-            else
-            {
-                <div class="reports-table-wrapper">
-                    <div class="ntx-table-scroll">
-                        <table class="reports-table">
+                            <IconContent>
+                                @if (item.CssClass == "success")
+                                {
+                                    <NaviKpiIcon Name="check" />
+                                }
+                                else if (item.CssClass == "warning")
+                                {
+                                    <NaviKpiIcon Name="clock" />
+                                }
+                                else if (item.CssClass == "purple")
+                                {
+                                    <NaviKpiIcon Name="report" />
+                                }
+                                else
+                                {
+                                    <NaviKpiIcon Name="inventory" />
+                                }
+                            </IconContent>
+                        </NaviKpiCard>
+                    }
+
+                </NaviKpiGrid>
+            </article>
+
+            <NaviTableShell
+                Title="Resultado del reporte"
+                Description="Información consolidada según el reporte y los filtros seleccionados."
+                CountLabel="@($"{FilteredRows.Count} registro(s)")"
+                AriaLabel="@($"Resultado de {SelectedReport.Title}")"
+                Compact="true"
+                StickyHeader="false"
+                Class="reports-results-shell">
+
+                @if (isLoading)
+                {
+                    <div class="reports-empty"
+                         role="status"
+                         aria-busy="true">
+                        Cargando información del reporte...
+                    </div>
+                }
+                else if (FilteredRows.Count == 0)
+                {
+                    <div class="reports-empty">
+                        No hay registros para el reporte y filtros
+                        seleccionados.
+                    </div>
+                }
+                else
+                {
+                    <table class="reports-table">
                         <thead>
                             <tr>
                                 @foreach (var header in CurrentHeaders)
                                 {
-                                    <th>@header</th>
+                                    <th scope="col">
+                                        @header
+                                    </th>
                                 }
                             </tr>
                         </thead>
@@ -163,7 +348,9 @@
                                         <td>
                                             @if (cell.IsBadge)
                                             {
-                                                <span class="@GetBadgeClass(cell.Value)">@cell.Value</span>
+                                                <span class="@GetBadgeClass(cell.Value)">
+                                                    @cell.Value
+                                                </span>
                                             }
                                             else
                                             {
@@ -175,75 +362,119 @@
                             }
                         </tbody>
                     </table>
+                }
+            </NaviTableShell>
+        </main>
+
+        <aside class="reports-right">
+            <section class="reports-card reports-summary-card">
+                <div class="reports-card-title compact">
+                    <div>
+                        <h2>Resumen</h2>
+
+                        <p>
+                            Lectura rápida del reporte actual.
+                        </p>
                     </div>
                 </div>
-            }
-        </article>
-    </main>
 
-    <aside class="reports-card reports-right">
-        <div class="reports-card-title compact">
-            <div>
-                <h3>Resumen</h3>
-                <p>Lectura rápida del reporte actual.</p>
-            </div>
-        </div>
+                <div class="reports-resume-list">
+                    @foreach (var item in SelectedInsights)
+                    {
+                        <div>
+                            <span aria-hidden="true">
+                                @item.Icon
+                            </span>
 
-        <div class="reports-resume-list">
-            @foreach (var item in SelectedInsights)
-            {
-                <div>
-                    <span>@item.Icon</span>
-                    <strong>@item.Title</strong>
-                    <small>@item.Detail</small>
+                            <span>
+                                <strong>
+                                    @item.Title
+                                </strong>
+
+                                <small>
+                                    @item.Detail
+                                </small>
+                            </span>
+                        </div>
+                    }
                 </div>
-            }
-        </div>
+            </section>
 
-        <div class="reports-left-separator"></div>
+            <section class="reports-card reports-export-card">
+                <div class="reports-card-title compact">
+                    <div>
+                        <h2>Exportación</h2>
 
-        <div class="reports-card-title compact">
-            <div>
-                <h3>Exportación</h3>
-                <p>El CSV conserva el reporte y filtros seleccionados.</p>
-            </div>
-        </div>
-
-        <div class="reports-export-box">
-            <strong>@SelectedReport.Title</strong>
-            <small>@FilteredRows.Count registro(s)</small>
-
-            @if (CanExportReports)
-            {
-                <a href="@BuildCsvDataUrl()" download="@($"{SelectedReport.FileName}.csv")">
-                    Descargar reporte
-                </a>
-            }
-            else
-            {
-                <button type="button" class="reports-disabled-export" disabled data-ntx-tone="consult" >
-                    Exportación restringida
-                </button>
-            }
-        </div>
-
-        <div class="reports-left-separator"></div>
-
-        <div class="reports-card-title compact">
-            <div>
-                <h3>Histórico</h3>
-                <p>Últimas acciones de reportería.</p>
-            </div>
-        </div>
-
-        <div class="reports-history">
-            @foreach (var item in History.Take(8))
-            {
-                <div>
-                    <strong>@item.Title</strong>
-                    <small>@item.Date.ToString("dd/MM/yyyy HH:mm") · @item.User</small>
+                        <p>
+                            El CSV conserva el reporte y los filtros
+                            seleccionados.
+                        </p>
+                    </div>
                 </div>
-            }
-        </div>
-    </aside>
-</section>
+
+                <div class="reports-export-box">
+                    <div>
+                        <strong>
+                            @SelectedReport.Title
+                        </strong>
+
+                        <small>
+                            @FilteredRows.Count registro(s) disponibles
+                        </small>
+                    </div>
+
+                    @if (CanExportReports)
+                    {
+                        <NaviActionButton
+                            Href="@BuildCsvDataUrl()"
+                            Tone="operation"
+                            Size="sm"
+                            Block="true"
+                            download="@($"{SelectedReport.FileName}.csv")">
+                            Descargar reporte
+                        </NaviActionButton>
+                    }
+                    else
+                    {
+                        <NaviActionButton
+                            Tone="consult"
+                            Size="sm"
+                            Block="true"
+                            Disabled="true">
+                            Exportación restringida
+                        </NaviActionButton>
+                    }
+                </div>
+            </section>
+
+            <section class="reports-card reports-history-card">
+                <div class="reports-card-title compact">
+                    <div>
+                        <h2>Histórico</h2>
+
+                        <p>
+                            Últimas acciones de reportería.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="reports-history">
+                    @foreach (var item in History.Take(8))
+                    {
+                        <div>
+                            <strong>
+                                @item.Title
+                            </strong>
+
+                            <small>
+                                @item.Date.ToString("dd/MM/yyyy HH:mm")
+                                ·
+                                @item.User
+                            </small>
+                        </div>
+                    }
+                </div>
+            </section>
+        </aside>
+    </section>
+</div>

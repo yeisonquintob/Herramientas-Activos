@@ -1,0 +1,2531 @@
+/* =========================================================
+   NAVI SETTINGS INTERNAL STANDARD V199
+   Alcance:
+   - Catálogos internos de configuración.
+   - Sedes, zonas, almacenes, ubicaciones y responsables.
+   - Usuarios.
+   - Roles y permisos.
+   - Sincronización y exportación.
+   - Parámetros.
+
+   Exclusiones:
+   - Portada /settings.
+   - Apariencia y accesibilidad.
+   ========================================================= */
+
+
+/* =========================================================
+   VARIABLES LOCALES ADAPTABLES A APARIENCIA
+   ========================================================= */
+
+html#navi-admin-app body
+:is(
+    .settings-crud-layout,
+    .users-page,
+    .rolesx-page-standard,
+    .rolesx-workspace,
+    .sync-export-layout
+) {
+    --navi-settings-gap:
+        clamp(
+            var(--ntx-space-2),
+            0.8vw,
+            var(--ntx-space-3)
+        );
+
+    --navi-settings-panel-padding:
+        clamp(
+            var(--ntx-space-3),
+            1vw,
+            var(--ntx-space-4)
+        );
+
+    --navi-settings-cell-y:
+        max(
+            6px,
+            calc(6px * var(--navi-ui-scale))
+        );
+
+    --navi-settings-cell-x:
+        max(
+            8px,
+            calc(8px * var(--navi-ui-scale))
+        );
+
+    color: var(--navi-color-text);
+}
+
+
+/* =========================================================
+   CRUD COMPARTIDO
+   CATÁLOGOS, SEDES, ZONAS, ALMACENES,
+   UBICACIONES Y RESPONSABLES
+   ========================================================= */
+
+html#navi-admin-app body
+.settings-crud-layout {
+    display: grid;
+    grid-template-columns:
+        minmax(
+            max(290px, calc(290px * var(--navi-ui-scale))),
+            0.72fr
+        )
+        minmax(0, 1.72fr);
+
+    align-items: start;
+    gap: var(--navi-settings-gap);
+    width: 100%;
+    min-width: 0;
+    margin-block: var(--ntx-space-3) 0;
+}
+
+html#navi-admin-app body
+.settings-crud-layout
+> .settings-crud-form,
+
+html#navi-admin-app body
+.settings-crud-layout
+> .settings-crud-table {
+    min-width: 0;
+    overflow: hidden;
+
+    border:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    border-radius: var(--ntx-radius-md);
+    background: var(--navi-color-surface);
+    box-shadow: var(--ntx-shadow-xs);
+}
+
+html#navi-admin-app body
+.settings-crud-layout
+> .settings-crud-form {
+    position: sticky;
+    top: var(--ntx-space-2);
+
+    padding: var(--navi-settings-panel-padding);
+
+    border-top:
+        calc(var(--ntx-border-width) * 3)
+        solid
+        var(--navi-action-operation);
+}
+
+html#navi-admin-app body
+.settings-crud-layout
+> .settings-crud-table {
+    padding: var(--navi-settings-panel-padding);
+
+    border-top:
+        calc(var(--ntx-border-width) * 3)
+        solid
+        var(--navi-action-consult);
+}
+
+html#navi-admin-app body
+.settings-crud-layout
+h2 {
+    margin: 0 0 var(--ntx-space-3);
+
+    color: var(--navi-color-text);
+    font-size: var(--navi-font-panel-title);
+    font-weight: var(--ntx-font-weight-bold);
+    line-height: var(--ntx-line-height-heading);
+    overflow-wrap: anywhere;
+}
+
+html#navi-admin-app body
+.settings-crud-form
+form {
+    display: grid;
+    gap: var(--ntx-space-2);
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.settings-crud-form
+.mb-3,
+
+html#navi-admin-app body
+.settings-crud-form
+.mb-2 {
+    min-width: 0;
+    margin: 0;
+}
+
+html#navi-admin-app body
+.settings-crud-form
+.form-label,
+
+html#navi-admin-app body
+.settings-crud-form
+.form-check-label {
+    margin: 0 0 var(--ntx-space-1);
+
+    color: var(--navi-color-text);
+    font-size: var(--navi-font-label);
+    font-weight: var(--ntx-font-weight-semibold);
+    line-height: var(--ntx-line-height-heading);
+}
+
+html#navi-admin-app body
+.settings-crud-form
+:is(
+    .form-control,
+    .form-select
+) {
+    width: 100%;
+    min-width: 0;
+    min-height: var(--ntx-control-height-sm);
+    padding-inline: var(--ntx-control-padding-x-sm);
+
+    border-color: var(--navi-color-border);
+    border-radius: var(--ntx-radius-sm);
+    background: var(--navi-color-surface);
+    color: var(--navi-color-text);
+    font-size: var(--navi-font-input);
+}
+
+html#navi-admin-app body
+.settings-crud-form
+textarea.form-control {
+    min-height:
+        max(
+            72px,
+            calc(72px * var(--navi-ui-scale))
+        );
+
+    resize: vertical;
+}
+
+html#navi-admin-app body
+.settings-crud-form
+.form-check {
+    display: flex;
+    align-items: center;
+    gap: var(--ntx-space-2);
+    min-width: 0;
+    margin: var(--ntx-space-1) 0 0;
+    padding: 0;
+}
+
+html#navi-admin-app body
+.settings-crud-form
+.form-check-input {
+    width:
+        max(
+            18px,
+            calc(18px * var(--navi-ui-scale))
+        );
+
+    height:
+        max(
+            18px,
+            calc(18px * var(--navi-ui-scale))
+        );
+
+    flex: 0 0 auto;
+    margin: 0;
+    accent-color: var(--navi-action-affirmative);
+}
+
+html#navi-admin-app body
+.settings-crud-form
+.settings-crud-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ntx-space-2);
+    width: 100%;
+    min-width: 0;
+    margin-top: var(--ntx-space-2);
+}
+
+html#navi-admin-app body
+.settings-crud-form
+.settings-crud-actions
+:is(
+    button,
+    .btn,
+    .ntx-btn
+) {
+    min-height: var(--ntx-control-height-sm);
+    min-width:
+        min(
+            100%,
+            max(
+                112px,
+                calc(112px * var(--navi-ui-scale))
+            )
+        );
+
+    margin: 0;
+    padding-inline: var(--ntx-control-padding-x-sm);
+    font-size: var(--navi-font-button);
+}
+
+html#navi-admin-app body
+.settings-crud-form
+.permission-action-denied {
+    display: inline-flex;
+    min-height: var(--ntx-control-height-sm);
+    align-items: center;
+    padding-inline: var(--ntx-control-padding-x-sm);
+
+    border:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    border-radius: var(--ntx-radius-sm);
+    background: var(--navi-color-surface-soft);
+    color: var(--navi-color-muted);
+    font-size: var(--navi-font-button);
+    font-weight: var(--ntx-font-weight-semibold);
+}
+
+html#navi-admin-app body
+.settings-crud-table
+.settings-table-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ntx-space-2);
+    min-width: 0;
+    margin-bottom: var(--ntx-space-2);
+}
+
+html#navi-admin-app body
+.settings-crud-table
+.settings-table-header
+h2 {
+    min-width: 0;
+    margin: 0;
+}
+
+html#navi-admin-app body
+.settings-crud-table
+.settings-table-header
+button {
+    min-height: var(--ntx-control-height-sm);
+    flex: 0 0 auto;
+    margin: 0;
+    padding-inline: var(--ntx-control-padding-x-sm);
+    font-size: var(--navi-font-button);
+}
+
+html#navi-admin-app body
+.settings-crud-table
+.ntx-table-scroll {
+    width: 100%;
+    max-block-size:
+        clamp(
+            360px,
+            58vh,
+            680px
+        );
+
+    overflow: auto;
+
+    border:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    border-radius: var(--ntx-radius-sm);
+    background: var(--navi-color-surface);
+    scrollbar-gutter: stable;
+}
+
+html#navi-admin-app body
+.settings-crud-table
+table {
+    width: 100%;
+    min-width: 720px;
+    margin: 0;
+
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: auto;
+
+    color: var(--navi-color-text);
+    font-size: var(--navi-font-table);
+}
+
+html#navi-admin-app body
+.settings-crud-table
+thead
+th {
+    position: sticky;
+    top: 0;
+    z-index: var(--ntx-z-sticky);
+
+    padding:
+        var(--navi-settings-cell-y)
+        var(--navi-settings-cell-x);
+
+    border-bottom:
+        var(--ntx-border-width-strong)
+        solid
+        var(--navi-color-border-strong);
+
+    border-inline-end:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    background: var(--navi-color-surface-soft);
+    color: var(--navi-color-text);
+
+    font-size: var(--navi-font-table-header);
+    font-weight: var(--ntx-font-weight-bold);
+    line-height: var(--ntx-line-height-heading);
+    white-space: nowrap;
+}
+
+html#navi-admin-app body
+.settings-crud-table
+thead
+th:last-child {
+    border-inline-end: 0;
+}
+
+html#navi-admin-app body
+.settings-crud-table
+tbody
+td {
+    padding:
+        var(--navi-settings-cell-y)
+        var(--navi-settings-cell-x);
+
+    border-bottom:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    border-inline-end:
+        var(--ntx-border-width)
+        solid
+        color-mix(
+            in srgb,
+            var(--navi-color-border) 72%,
+            transparent
+        );
+
+    background: var(--navi-color-surface);
+    color: var(--navi-color-text);
+
+    line-height: var(--ntx-line-height-heading);
+    vertical-align: middle;
+}
+
+html#navi-admin-app body
+.settings-crud-table
+tbody
+td:last-child {
+    border-inline-end: 0;
+}
+
+html#navi-admin-app body
+.settings-crud-table
+tbody
+tr:last-child
+td {
+    border-bottom: 0;
+}
+
+html#navi-admin-app body
+.settings-crud-table
+tbody
+tr:nth-child(even)
+td {
+    background:
+        color-mix(
+            in srgb,
+            var(--navi-color-surface-soft) 58%,
+            var(--navi-color-surface)
+        );
+}
+
+html#navi-admin-app body
+.settings-crud-table
+tbody
+tr:hover
+td {
+    background:
+        color-mix(
+            in srgb,
+            var(--navi-action-operation-soft) 54%,
+            var(--navi-color-surface)
+        );
+}
+
+html#navi-admin-app body
+.settings-crud-table
+.settings-description-cell {
+    display: block;
+    max-width: 36ch;
+    overflow: hidden;
+
+    color: var(--navi-color-muted);
+    line-height: var(--ntx-line-height-heading);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+html#navi-admin-app body
+.settings-crud-table
+td.text-end {
+    min-width:
+        max(
+            148px,
+            calc(148px * var(--navi-ui-scale))
+        );
+
+    white-space: nowrap;
+}
+
+html#navi-admin-app body
+.settings-crud-table
+td.text-end
+.btn {
+    min-height: var(--ntx-control-height-xs);
+    margin: 0;
+    padding-inline: var(--ntx-control-padding-x-sm);
+    font-size: var(--navi-font-button);
+}
+
+html#navi-admin-app body
+.settings-crud-table
+td.text-end
+.btn
++
+.btn {
+    margin-inline-start: var(--ntx-space-1);
+}
+
+html#navi-admin-app body
+.settings-crud-table
+.badge {
+    display: inline-flex;
+    min-height:
+        max(
+            22px,
+            calc(22px * var(--navi-ui-scale))
+        );
+
+    align-items: center;
+    justify-content: center;
+    padding:
+        var(--ntx-space-1)
+        var(--ntx-space-2);
+
+    border-radius: var(--ntx-radius-pill);
+    font-size: var(--navi-font-badge);
+    font-weight: var(--ntx-font-weight-bold);
+}
+
+
+/* =========================================================
+   USUARIOS
+   ========================================================= */
+
+html#navi-admin-app body
+.users-page {
+    display: grid;
+    gap: var(--navi-settings-gap);
+    width: 100%;
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.users-page
+.navi-reference-toolbar {
+    display: grid;
+    gap: var(--ntx-space-2);
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.users-page
+.users-kpi-grid-standard {
+    grid-template-columns:
+        repeat(
+            5,
+            minmax(0, 1fr)
+        );
+
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.users-page
+.users-page-filters {
+    display: grid;
+    grid-template-columns:
+        minmax(
+            260px,
+            2fr
+        )
+        repeat(
+            3,
+            minmax(
+                135px,
+                0.72fr
+            )
+        )
+        auto;
+
+    align-items: end;
+    gap: var(--ntx-space-2);
+    min-width: 0;
+    padding: var(--navi-settings-panel-padding);
+
+    border:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    border-left:
+        calc(var(--ntx-border-width) * 3)
+        solid
+        var(--navi-action-consult);
+
+    border-radius: var(--ntx-radius-md);
+    background: var(--navi-color-surface);
+    box-shadow: var(--ntx-shadow-xs);
+}
+
+html#navi-admin-app body
+.users-page
+.users-page-filters
+:is(
+    input,
+    select,
+    button
+) {
+    width: 100%;
+    min-width: 0;
+    min-height: var(--ntx-control-height-sm);
+    margin: 0;
+    font-size: var(--navi-font-input);
+}
+
+html#navi-admin-app body
+.users-page
+.users-grid {
+    display: grid;
+    grid-template-columns:
+        minmax(
+            max(350px, calc(350px * var(--navi-ui-scale))),
+            0.88fr
+        )
+        minmax(0, 1.62fr);
+
+    align-items: start;
+    gap: var(--navi-settings-gap);
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.users-page
+.users-left-stack {
+    display: grid;
+    gap: var(--navi-settings-gap);
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.users-page
+.users-card {
+    min-width: 0;
+    overflow: hidden;
+    padding: var(--navi-settings-panel-padding);
+
+    border:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    border-radius: var(--ntx-radius-md);
+    background: var(--navi-color-surface);
+    box-shadow: var(--ntx-shadow-xs);
+}
+
+html#navi-admin-app body
+.users-page
+.users-create-card {
+    border-top:
+        calc(var(--ntx-border-width) * 3)
+        solid
+        var(--navi-action-operation);
+}
+
+html#navi-admin-app body
+.users-page
+.users-table-card {
+    border-top:
+        calc(var(--ntx-border-width) * 3)
+        solid
+        var(--navi-action-consult);
+}
+
+html#navi-admin-app body
+.users-page
+.users-card
+h3 {
+    margin: 0 0 var(--ntx-space-3);
+
+    color: var(--navi-color-text);
+    font-size: var(--navi-font-panel-title);
+    font-weight: var(--ntx-font-weight-bold);
+    line-height: var(--ntx-line-height-heading);
+}
+
+html#navi-admin-app body
+.users-page
+.users-create-form-standard {
+    display: grid;
+    grid-template-columns:
+        repeat(
+            2,
+            minmax(0, 1fr)
+        );
+
+    gap: var(--ntx-space-2);
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.users-page
+:is(
+    .users-field-half,
+    .users-field-full
+) {
+    display: grid;
+    align-content: start;
+    gap: var(--ntx-space-1);
+    min-width: 0;
+    margin: 0;
+
+    color: var(--navi-color-text);
+    font-size: var(--navi-font-label);
+    font-weight: var(--ntx-font-weight-semibold);
+    line-height: var(--ntx-line-height-heading);
+}
+
+html#navi-admin-app body
+.users-page
+.users-field-full {
+    grid-column: 1 / -1;
+}
+
+html#navi-admin-app body
+.users-page
+:is(
+    .form-control,
+    .form-select
+) {
+    width: 100%;
+    min-width: 0;
+    min-height: var(--ntx-control-height-sm);
+
+    border-color: var(--navi-color-border);
+    border-radius: var(--ntx-radius-sm);
+    background: var(--navi-color-surface);
+    color: var(--navi-color-text);
+    font-size: var(--navi-font-input);
+}
+
+html#navi-admin-app body
+.users-page
+.users-help {
+    color: var(--navi-color-muted);
+    font-size: var(--navi-font-help);
+    font-weight: var(--ntx-font-weight-regular);
+    line-height: var(--ntx-line-height-base);
+}
+
+html#navi-admin-app body
+.users-page
+.users-operational-box {
+    display: grid;
+    gap: var(--ntx-space-2);
+    padding: var(--ntx-space-3);
+
+    border:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    border-left:
+        calc(var(--ntx-border-width) * 3)
+        solid
+        var(--navi-action-affirmative);
+
+    border-radius: var(--ntx-radius-sm);
+    background: var(--navi-color-surface-soft);
+}
+
+html#navi-admin-app body
+.users-page
+.users-switch-row {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--ntx-space-2);
+    min-width: 0;
+    margin: 0;
+}
+
+html#navi-admin-app body
+.users-page
+.users-switch-row
+.form-check-input {
+    width:
+        max(
+            18px,
+            calc(18px * var(--navi-ui-scale))
+        );
+
+    height:
+        max(
+            18px,
+            calc(18px * var(--navi-ui-scale))
+        );
+
+    flex: 0 0 auto;
+    margin: 0;
+    accent-color: var(--navi-action-affirmative);
+}
+
+html#navi-admin-app body
+.users-page
+.users-actions,
+
+html#navi-admin-app body
+.users-page
+.users-edit-actions,
+
+html#navi-admin-app body
+.users-page
+.password-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ntx-space-2);
+    width: 100%;
+    min-width: 0;
+    margin-top: var(--ntx-space-2);
+}
+
+html#navi-admin-app body
+.users-page
+:is(
+    .users-actions,
+    .users-edit-actions,
+    .password-actions
+)
+button {
+    min-height: var(--ntx-control-height-sm);
+    margin: 0;
+    padding-inline: var(--ntx-control-padding-x-sm);
+    font-size: var(--navi-font-button);
+}
+
+html#navi-admin-app body
+.users-page
+.users-edit-box,
+
+html#navi-admin-app body
+.users-page
+.users-operational-box {
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.users-page
+.users-edit-box {
+    padding: var(--ntx-space-3);
+
+    border:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    border-radius: var(--ntx-radius-sm);
+    background: var(--navi-color-surface-soft);
+}
+
+html#navi-admin-app body
+.users-page
+.users-table-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ntx-space-2);
+    min-width: 0;
+    margin-bottom: var(--ntx-space-2);
+}
+
+html#navi-admin-app body
+.users-page
+.users-table-wrapper {
+    width: 100%;
+    max-block-size:
+        clamp(
+            420px,
+            62vh,
+            760px
+        );
+
+    overflow: auto;
+
+    border:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    border-radius: var(--ntx-radius-sm);
+    background: var(--navi-color-surface);
+    scrollbar-gutter: stable;
+}
+
+html#navi-admin-app body
+.users-page
+.users-table {
+    width: 100%;
+    min-width: 940px;
+    margin: 0;
+
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: auto;
+
+    color: var(--navi-color-text);
+    font-size: var(--navi-font-table);
+}
+
+html#navi-admin-app body
+.users-page
+.users-table
+thead
+th {
+    position: sticky;
+    top: 0;
+    z-index: var(--ntx-z-sticky);
+
+    padding:
+        var(--navi-settings-cell-y)
+        var(--navi-settings-cell-x);
+
+    border-bottom:
+        var(--ntx-border-width-strong)
+        solid
+        var(--navi-color-border-strong);
+
+    border-inline-end:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    background: var(--navi-color-surface-soft);
+    color: var(--navi-color-text);
+
+    font-size: var(--navi-font-table-header);
+    font-weight: var(--ntx-font-weight-bold);
+    line-height: var(--ntx-line-height-heading);
+    white-space: nowrap;
+}
+
+html#navi-admin-app body
+.users-page
+.users-table
+tbody
+td {
+    padding:
+        var(--navi-settings-cell-y)
+        var(--navi-settings-cell-x);
+
+    border-bottom:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    border-inline-end:
+        var(--ntx-border-width)
+        solid
+        color-mix(
+            in srgb,
+            var(--navi-color-border) 72%,
+            transparent
+        );
+
+    background: var(--navi-color-surface);
+    vertical-align: middle;
+}
+
+html#navi-admin-app body
+.users-page
+.users-table
+thead
+th:last-child,
+
+html#navi-admin-app body
+.users-page
+.users-table
+tbody
+td:last-child {
+    border-inline-end: 0;
+}
+
+html#navi-admin-app body
+.users-page
+.users-table
+tbody
+tr:nth-child(even)
+td {
+    background:
+        color-mix(
+            in srgb,
+            var(--navi-color-surface-soft) 58%,
+            var(--navi-color-surface)
+        );
+}
+
+html#navi-admin-app body
+.users-page
+.users-table
+tbody
+tr:hover
+td {
+    background:
+        color-mix(
+            in srgb,
+            var(--navi-action-operation-soft) 54%,
+            var(--navi-color-surface)
+        );
+}
+
+html#navi-admin-app body
+.users-page
+.users-table
+td.text-end {
+    min-width:
+        max(
+            190px,
+            calc(190px * var(--navi-ui-scale))
+        );
+
+    white-space: nowrap;
+}
+
+html#navi-admin-app body
+.users-page
+.users-table
+td.text-end
+button {
+    min-height: var(--ntx-control-height-xs);
+    margin: 0;
+    padding-inline: var(--ntx-control-padding-x-sm);
+    font-size: var(--navi-font-button);
+}
+
+html#navi-admin-app body
+.users-page
+.users-table
+td.text-end
+button
++
+button {
+    margin-inline-start: var(--ntx-space-1);
+}
+
+
+/* =========================================================
+   ROLES Y PERMISOS
+   ========================================================= */
+
+html#navi-admin-app body
+.rolesx-page-standard {
+    display: grid;
+    gap: var(--ntx-space-2);
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.rolesx-standard-kpi-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--ntx-space-2);
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.rolesx-standard-kpi-row
+.rolesx-kpis {
+    grid-template-columns:
+        repeat(
+            4,
+            minmax(0, 1fr)
+        );
+
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.rolesx-standard-back {
+    min-height: var(--ntx-control-height-sm);
+    white-space: nowrap;
+}
+
+html#navi-admin-app body
+.rolesx-message {
+    margin-block: var(--ntx-space-2);
+}
+
+html#navi-admin-app body
+.rolesx-workspace {
+    display: grid;
+    gap: var(--navi-settings-gap);
+    min-width: 0;
+    margin-top: var(--ntx-space-2);
+}
+
+html#navi-admin-app body
+.rolesx-management-grid {
+    display: grid;
+    grid-template-columns:
+        minmax(
+            max(430px, calc(430px * var(--navi-ui-scale))),
+            1.24fr
+        )
+        minmax(
+            max(310px, calc(310px * var(--navi-ui-scale))),
+            0.76fr
+        );
+
+    align-items: start;
+    gap: var(--navi-settings-gap);
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.rolesx-card {
+    min-width: 0;
+    overflow: hidden;
+    padding: var(--navi-settings-panel-padding);
+
+    border:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    border-radius: var(--ntx-radius-md);
+    background: var(--navi-color-surface);
+    box-shadow: var(--ntx-shadow-xs);
+}
+
+html#navi-admin-app body
+.rolesx-left {
+    border-top:
+        calc(var(--ntx-border-width) * 3)
+        solid
+        var(--navi-action-operation);
+}
+
+html#navi-admin-app body
+.rolesx-right {
+    border-top:
+        calc(var(--ntx-border-width) * 3)
+        solid
+        var(--navi-action-consult);
+}
+
+html#navi-admin-app body
+.rolesx-main
+> .rolesx-card {
+    border-top:
+        calc(var(--ntx-border-width) * 3)
+        solid
+        var(--navi-action-affirmative);
+}
+
+html#navi-admin-app body
+.rolesx-card-title {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--ntx-space-2);
+    min-width: 0;
+    margin-bottom: var(--ntx-space-2);
+}
+
+html#navi-admin-app body
+.rolesx-card-title
+> div {
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.rolesx-card-title
+h3 {
+    margin: 0;
+
+    color: var(--navi-color-text);
+    font-size: var(--navi-font-panel-title);
+    font-weight: var(--ntx-font-weight-bold);
+    line-height: var(--ntx-line-height-heading);
+    overflow-wrap: anywhere;
+}
+
+html#navi-admin-app body
+.rolesx-card-title
+p {
+    margin: var(--ntx-space-1) 0 0;
+
+    color: var(--navi-color-muted);
+    font-size: var(--navi-font-body);
+    line-height: var(--ntx-line-height-base);
+}
+
+html#navi-admin-app body
+.rolesx-form-grid {
+    display: grid;
+    grid-template-columns:
+        repeat(
+            2,
+            minmax(0, 1fr)
+        );
+
+    gap: var(--ntx-space-2);
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.rolesx-form-grid
+> div {
+    display: grid;
+    align-content: start;
+    gap: var(--ntx-space-1);
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.rolesx-form-grid
+.span-2 {
+    grid-column: 1 / -1;
+}
+
+html#navi-admin-app body
+.rolesx-form-grid
+label {
+    margin: 0;
+
+    color: var(--navi-color-text);
+    font-size: var(--navi-font-label);
+    font-weight: var(--ntx-font-weight-semibold);
+}
+
+html#navi-admin-app body
+.rolesx-form-grid
+:is(
+    .form-control,
+    .form-select
+) {
+    width: 100%;
+    min-width: 0;
+    min-height: var(--ntx-control-height-sm);
+
+    border-color: var(--navi-color-border);
+    border-radius: var(--ntx-radius-sm);
+    background: var(--navi-color-surface);
+    color: var(--navi-color-text);
+    font-size: var(--navi-font-input);
+}
+
+html#navi-admin-app body
+.rolesx-form-grid
+textarea.form-control {
+    min-height:
+        max(
+            68px,
+            calc(68px * var(--navi-ui-scale))
+        );
+
+    resize: vertical;
+}
+
+html#navi-admin-app body
+.rolesx-check-row {
+    display: flex;
+    align-items: center;
+    gap: var(--ntx-space-2);
+    min-width: 0;
+    padding: var(--ntx-space-2);
+
+    border:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    border-radius: var(--ntx-radius-sm);
+    background: var(--navi-color-surface-soft);
+}
+
+html#navi-admin-app body
+.rolesx-role-active-checkbox-final {
+    width:
+        max(
+            18px,
+            calc(18px * var(--navi-ui-scale))
+        );
+
+    height:
+        max(
+            18px,
+            calc(18px * var(--navi-ui-scale))
+        );
+
+    flex: 0 0 auto;
+    margin: 0;
+    accent-color: var(--navi-action-affirmative);
+}
+
+html#navi-admin-app body
+.rolesx-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ntx-space-2);
+    width: 100%;
+    min-width: 0;
+    margin-top: var(--ntx-space-2);
+}
+
+html#navi-admin-app body
+.rolesx-actions
+button {
+    min-height: var(--ntx-control-height-sm);
+    margin: 0;
+    padding-inline: var(--ntx-control-padding-x-sm);
+    font-size: var(--navi-font-button);
+}
+
+html#navi-admin-app body
+.rolesx-separator {
+    width: 100%;
+    height: var(--ntx-border-width);
+    margin-block: var(--ntx-space-3);
+    background: var(--navi-color-border);
+}
+
+html#navi-admin-app body
+.rolesx-template-list {
+    display: grid;
+    grid-template-columns:
+        repeat(
+            2,
+            minmax(0, 1fr)
+        );
+
+    gap: var(--ntx-space-2);
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.rolesx-template-list
+button {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--ntx-space-2);
+    min-width: 0;
+    min-height: var(--ntx-control-height);
+    padding: var(--ntx-space-2);
+
+    border:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    border-radius: var(--ntx-radius-sm);
+    background: var(--navi-color-surface);
+    color: var(--navi-color-text);
+    text-align: start;
+}
+
+html#navi-admin-app body
+.rolesx-template-list
+button:hover:not(:disabled) {
+    border-color: var(--navi-action-operation);
+    background: var(--navi-action-operation-soft);
+}
+
+html#navi-admin-app body
+.rolesx-template-list
+button
+div {
+    display: grid;
+    min-width: 0;
+    gap: 1px;
+}
+
+html#navi-admin-app body
+.rolesx-template-list
+button
+strong,
+
+html#navi-admin-app body
+.rolesx-template-list
+button
+small {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+html#navi-admin-app body
+.rolesx-template-list
+button
+small {
+    color: var(--navi-color-muted);
+    font-size: var(--navi-font-help);
+}
+
+html#navi-admin-app body
+.rolesx-summary-grid {
+    grid-template-columns:
+        repeat(
+            4,
+            minmax(0, 1fr)
+        );
+
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.rolesx-rules {
+    display: grid;
+    grid-template-columns:
+        repeat(
+            2,
+            minmax(0, 1fr)
+        );
+
+    gap: var(--ntx-space-2);
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.rolesx-rules
+> div {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap:
+        var(--ntx-space-1)
+        var(--ntx-space-2);
+
+    min-width: 0;
+    padding: var(--ntx-space-2);
+
+    border:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    border-radius: var(--ntx-radius-sm);
+    background: var(--navi-color-surface-soft);
+}
+
+html#navi-admin-app body
+.rolesx-rules
+> div
+small {
+    grid-column: 2;
+    color: var(--navi-color-muted);
+    font-size: var(--navi-font-help);
+}
+
+html#navi-admin-app body
+.rolesx-selected-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ntx-space-1);
+    min-width: 0;
+    max-block-size:
+        clamp(
+            110px,
+            18vh,
+            220px
+        );
+
+    overflow: auto;
+    padding: var(--ntx-space-2);
+
+    border:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    border-radius: var(--ntx-radius-sm);
+    background: var(--navi-color-surface-soft);
+    scrollbar-gutter: stable;
+}
+
+html#navi-admin-app body
+.rolesx-selected-permission {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    padding:
+        var(--ntx-space-1)
+        var(--ntx-space-2);
+
+    border:
+        var(--ntx-border-width)
+        solid
+        color-mix(
+            in srgb,
+            var(--navi-action-operation) 42%,
+            var(--navi-color-border)
+        );
+
+    border-radius: var(--ntx-radius-pill);
+    background: var(--navi-action-operation-soft);
+    color: var(--navi-color-text);
+    font-size: var(--navi-font-badge);
+    font-weight: var(--ntx-font-weight-semibold);
+    overflow-wrap: anywhere;
+}
+
+html#navi-admin-app body
+.rolesx-registered-filter {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--ntx-space-2);
+    min-width: 0;
+    margin-bottom: var(--ntx-space-2);
+}
+
+html#navi-admin-app body
+.rolesx-registered-filter
+:is(
+    input,
+    button
+) {
+    min-width: 0;
+    min-height: var(--ntx-control-height-sm);
+    margin: 0;
+    font-size: var(--navi-font-input);
+}
+
+html#navi-admin-app body
+.rolesx-role-card-list {
+    display: grid;
+    gap: var(--ntx-space-2);
+    min-width: 0;
+    max-block-size:
+        clamp(
+            440px,
+            62vh,
+            780px
+        );
+
+    overflow: auto;
+    padding-inline-end: var(--ntx-space-1);
+    scrollbar-gutter: stable;
+}
+
+html#navi-admin-app body
+.rolesx-role-card-mini {
+    display: grid;
+    gap: var(--ntx-space-2);
+    min-width: 0;
+    padding: var(--ntx-space-2);
+
+    border:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    border-left:
+        calc(var(--ntx-border-width) * 3)
+        solid
+        var(--navi-color-muted);
+
+    border-radius: var(--ntx-radius-sm);
+    background: var(--navi-color-surface);
+}
+
+html#navi-admin-app body
+.rolesx-role-card-mini.active {
+    border-left-color: var(--navi-action-affirmative);
+}
+
+html#navi-admin-app body
+.rolesx-role-card-mini.inactive {
+    border-left-color: var(--navi-action-danger);
+}
+
+html#navi-admin-app body
+.rolesx-role-card-head,
+
+html#navi-admin-app body
+.rolesx-role-card-body,
+
+html#navi-admin-app body
+.rolesx-role-card-actions {
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.rolesx-role-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--ntx-space-2);
+}
+
+html#navi-admin-app body
+.rolesx-role-card-body {
+    display: grid;
+    grid-template-columns:
+        repeat(
+            2,
+            minmax(0, 1fr)
+        );
+
+    gap: var(--ntx-space-2);
+}
+
+html#navi-admin-app body
+.rolesx-role-card-body
+> div {
+    display: grid;
+    gap: 1px;
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.rolesx-role-card-body
+span {
+    color: var(--navi-color-muted);
+    font-size: var(--navi-font-help);
+}
+
+html#navi-admin-app body
+.rolesx-role-card-body
+em {
+    color: var(--navi-color-text);
+    font-size: var(--navi-font-body);
+    font-style: normal;
+    font-weight: var(--ntx-font-weight-semibold);
+}
+
+html#navi-admin-app body
+.rolesx-role-card-actions {
+    display: grid;
+    grid-template-columns:
+        repeat(
+            2,
+            minmax(0, 1fr)
+        );
+
+    gap: var(--ntx-space-2);
+}
+
+html#navi-admin-app body
+.rolesx-role-card-actions
+button {
+    min-height: var(--ntx-control-height-xs);
+    margin: 0;
+    padding-inline: var(--ntx-control-padding-x-sm);
+    font-size: var(--navi-font-button);
+}
+
+html#navi-admin-app body
+.rolesx-tools {
+    display: grid;
+    grid-template-columns: minmax(240px, 1fr) auto;
+    align-items: center;
+    gap: var(--ntx-space-2);
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.rolesx-tools
+.form-control {
+    min-width: 0;
+    min-height: var(--ntx-control-height-sm);
+    font-size: var(--navi-font-input);
+}
+
+html#navi-admin-app body
+.rolesx-tool-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--ntx-space-1);
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.rolesx-tool-actions
+button {
+    min-height: var(--ntx-control-height-xs);
+    margin: 0;
+    padding-inline: var(--ntx-control-padding-x-sm);
+    font-size: var(--navi-font-button);
+}
+
+html#navi-admin-app body
+.rolesx-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap:
+        var(--ntx-space-1)
+        var(--ntx-space-3);
+
+    min-width: 0;
+    margin-block: var(--ntx-space-2);
+    padding: var(--ntx-space-2);
+
+    border:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    border-radius: var(--ntx-radius-sm);
+    background: var(--navi-color-surface-soft);
+}
+
+html#navi-admin-app body
+.rolesx-matrix {
+    display: grid;
+    grid-template-columns:
+        repeat(
+            4,
+            minmax(0, 1fr)
+        );
+
+    align-items: start;
+    gap: var(--ntx-space-2);
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.rolesx-permission-group {
+    min-width: 0;
+    overflow: hidden;
+
+    border:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    border-top:
+        calc(var(--ntx-border-width) * 3)
+        solid
+        var(--navi-action-operation);
+
+    border-radius: var(--ntx-radius-sm);
+    background: var(--navi-color-surface);
+}
+
+html#navi-admin-app body
+.rolesx-permission-group
+> header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: var(--ntx-space-2);
+    min-width: 0;
+    padding: var(--ntx-space-2);
+
+    border-bottom:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    background: var(--navi-color-surface-soft);
+}
+
+html#navi-admin-app body
+.rolesx-permission-group
+> header
+> div {
+    display: grid;
+    min-width: 0;
+    gap: 1px;
+}
+
+html#navi-admin-app body
+.rolesx-permission-group
+> header
+strong {
+    color: var(--navi-color-text);
+    font-size: var(--navi-font-card-title);
+    line-height: var(--ntx-line-height-heading);
+    overflow-wrap: anywhere;
+}
+
+html#navi-admin-app body
+.rolesx-permission-group
+> header
+small {
+    color: var(--navi-color-muted);
+    font-size: var(--navi-font-help);
+}
+
+html#navi-admin-app body
+.rolesx-permission-list {
+    display: grid;
+    grid-template-columns:
+        repeat(
+            2,
+            minmax(0, 1fr)
+        );
+
+    gap: var(--ntx-space-1);
+    min-width: 0;
+    padding: var(--ntx-space-2);
+}
+
+html#navi-admin-app body
+.rolesx-permission-list
+label {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: var(--ntx-space-1);
+    min-width: 0;
+    margin: 0;
+    padding: var(--ntx-space-1);
+
+    border:
+        var(--ntx-border-width)
+        solid
+        transparent;
+
+    border-radius: var(--ntx-radius-xs);
+    color: var(--navi-color-text);
+    font-size: var(--navi-font-help);
+    line-height: var(--ntx-line-height-heading);
+    overflow-wrap: anywhere;
+}
+
+html#navi-admin-app body
+.rolesx-permission-list
+label:hover {
+    border-color: var(--navi-color-border);
+    background: var(--navi-color-surface-soft);
+}
+
+html#navi-admin-app body
+.rolesx-permission-list
+input {
+    width:
+        max(
+            16px,
+            calc(16px * var(--navi-ui-scale))
+        );
+
+    height:
+        max(
+            16px,
+            calc(16px * var(--navi-ui-scale))
+        );
+
+    margin: 0;
+    accent-color: var(--navi-action-affirmative);
+}
+
+
+/* =========================================================
+   SINCRONIZACIÓN Y EXPORTACIÓN
+   ========================================================= */
+
+html#navi-admin-app body
+.sync-export-kpis {
+    grid-template-columns: minmax(0, 1fr);
+    margin-block: var(--ntx-space-2);
+}
+
+html#navi-admin-app body
+.sync-export-layout {
+    display: grid;
+    grid-template-columns:
+        minmax(
+            max(330px, calc(330px * var(--navi-ui-scale))),
+            0.92fr
+        )
+        minmax(0, 1.38fr);
+
+    align-items: start;
+    gap: var(--navi-settings-gap);
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.sync-export-card {
+    min-width: 0;
+    overflow: hidden;
+    padding: var(--navi-settings-panel-padding);
+
+    border:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    border-top:
+        calc(var(--ntx-border-width) * 3)
+        solid
+        var(--navi-action-consult);
+
+    border-radius: var(--ntx-radius-md);
+    background: var(--navi-color-surface);
+    box-shadow: var(--ntx-shadow-xs);
+}
+
+html#navi-admin-app body
+.sync-export-card.upload {
+    border-top-color: var(--navi-action-operation);
+}
+
+html#navi-admin-app body
+.sync-export-card.export-pending {
+    grid-column: 1 / -1;
+    border-top-color: var(--navi-action-warning);
+}
+
+html#navi-admin-app body
+.sync-export-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--ntx-space-2);
+    min-width: 0;
+    margin-bottom: var(--ntx-space-2);
+}
+
+html#navi-admin-app body
+.sync-export-card-head
+> div {
+    min-width: 0;
+}
+
+html#navi-admin-app body
+.sync-export-card-head
+h3 {
+    margin: 0;
+
+    color: var(--navi-color-text);
+    font-size: var(--navi-font-panel-title);
+    font-weight: var(--ntx-font-weight-bold);
+    line-height: var(--ntx-line-height-heading);
+}
+
+html#navi-admin-app body
+.sync-export-card-head
+p {
+    margin: var(--ntx-space-1) 0 0;
+
+    color: var(--navi-color-muted);
+    font-size: var(--navi-font-body);
+    line-height: var(--ntx-line-height-base);
+}
+
+html#navi-admin-app body
+.sync-export-warning {
+    margin-bottom: var(--ntx-space-2);
+    padding: var(--ntx-space-2);
+
+    border:
+        var(--ntx-border-width)
+        solid
+        var(--navi-action-warning);
+
+    border-left:
+        calc(var(--ntx-border-width) * 3)
+        solid
+        var(--navi-action-warning);
+
+    border-radius: var(--ntx-radius-sm);
+    background: var(--navi-action-warning-soft);
+    color: var(--navi-color-text);
+    font-size: var(--navi-font-body);
+    line-height: var(--ntx-line-height-base);
+}
+
+html#navi-admin-app body
+.sync-export-file-box {
+    display: grid;
+    gap: var(--ntx-space-2);
+    min-width: 0;
+    padding: var(--ntx-space-3);
+
+    border:
+        var(--ntx-border-width)
+        dashed
+        var(--navi-color-border-strong);
+
+    border-radius: var(--ntx-radius-sm);
+    background: var(--navi-color-surface-soft);
+}
+
+html#navi-admin-app body
+.sync-export-file-box
+> span {
+    color: var(--navi-color-text);
+    font-size: var(--navi-font-label);
+    font-weight: var(--ntx-font-weight-bold);
+}
+
+html#navi-admin-app body
+.sync-export-file-box
+small {
+    color: var(--navi-color-muted);
+    font-size: var(--navi-font-help);
+}
+
+html#navi-admin-app body
+.sync-export-selected {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ntx-space-2);
+    min-width: 0;
+    margin-top: var(--ntx-space-2);
+    padding: var(--ntx-space-2);
+
+    border:
+        var(--ntx-border-width)
+        solid
+        var(--navi-action-affirmative);
+
+    border-radius: var(--ntx-radius-sm);
+    background: var(--navi-action-affirmative-soft);
+}
+
+html#navi-admin-app body
+.sync-export-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ntx-space-2);
+    width: 100%;
+    min-width: 0;
+    margin-top: var(--ntx-space-2);
+}
+
+html#navi-admin-app body
+.sync-export-actions
+button {
+    min-height: var(--ntx-control-height-sm);
+    margin: 0;
+    padding-inline: var(--ntx-control-padding-x-sm);
+    font-size: var(--navi-font-button);
+}
+
+html#navi-admin-app body
+.sync-export-table-wrapper
+.ntx-table-scroll {
+    width: 100%;
+    max-block-size:
+        clamp(
+            340px,
+            52vh,
+            620px
+        );
+
+    overflow: auto;
+
+    border:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    border-radius: var(--ntx-radius-sm);
+    background: var(--navi-color-surface);
+    scrollbar-gutter: stable;
+}
+
+html#navi-admin-app body
+.sync-export-table-wrapper
+table {
+    width: 100%;
+    min-width: 720px;
+    margin: 0;
+
+    border-collapse: separate;
+    border-spacing: 0;
+
+    color: var(--navi-color-text);
+    font-size: var(--navi-font-table);
+}
+
+html#navi-admin-app body
+.sync-export-table-wrapper
+thead
+th {
+    position: sticky;
+    top: 0;
+    z-index: var(--ntx-z-sticky);
+
+    padding:
+        var(--navi-settings-cell-y)
+        var(--navi-settings-cell-x);
+
+    border-bottom:
+        var(--ntx-border-width-strong)
+        solid
+        var(--navi-color-border-strong);
+
+    border-inline-end:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    background: var(--navi-color-surface-soft);
+    color: var(--navi-color-text);
+
+    font-size: var(--navi-font-table-header);
+    font-weight: var(--ntx-font-weight-bold);
+    white-space: nowrap;
+}
+
+html#navi-admin-app body
+.sync-export-table-wrapper
+tbody
+td {
+    padding:
+        var(--navi-settings-cell-y)
+        var(--navi-settings-cell-x);
+
+    border-bottom:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    border-inline-end:
+        var(--ntx-border-width)
+        solid
+        color-mix(
+            in srgb,
+            var(--navi-color-border) 72%,
+            transparent
+        );
+
+    background: var(--navi-color-surface);
+    vertical-align: middle;
+}
+
+html#navi-admin-app body
+.sync-export-table-wrapper
+thead
+th:last-child,
+
+html#navi-admin-app body
+.sync-export-table-wrapper
+tbody
+td:last-child {
+    border-inline-end: 0;
+}
+
+html#navi-admin-app body
+.sync-export-table-wrapper
+tbody
+tr:nth-child(even)
+td {
+    background:
+        color-mix(
+            in srgb,
+            var(--navi-color-surface-soft) 58%,
+            var(--navi-color-surface)
+        );
+}
+
+html#navi-admin-app body
+.sync-export-export-box {
+    display: grid;
+    gap: var(--ntx-space-2);
+    min-width: 0;
+    padding: var(--ntx-space-3);
+
+    border:
+        var(--ntx-border-width)
+        solid
+        var(--navi-color-border);
+
+    border-radius: var(--ntx-radius-sm);
+    background: var(--navi-color-surface-soft);
+}
+
+
+/* =========================================================
+   CONTROLES, ESTADOS Y ACCESIBILIDAD
+   ========================================================= */
+
+html#navi-admin-app body
+:is(
+    .settings-crud-layout,
+    .users-page,
+    .rolesx-page-standard,
+    .rolesx-workspace,
+    .sync-export-layout
+)
+:is(
+    input,
+    select,
+    textarea,
+    button,
+    a
+):focus-visible {
+    outline:
+        var(--ntx-border-width-strong)
+        solid
+        var(--navi-color-focus);
+
+    outline-offset: 2px;
+    box-shadow: var(--ntx-focus);
+}
+
+html#navi-admin-app body
+:is(
+    .settings-crud-layout,
+    .users-page,
+    .rolesx-page-standard,
+    .rolesx-workspace,
+    .sync-export-layout
+)
+:is(
+    input,
+    select,
+    textarea
+):disabled {
+    border-color: var(--navi-color-border);
+    background: var(--navi-color-surface-soft);
+    color: var(--navi-color-muted);
+    opacity: 1;
+}
+
+html#navi-admin-app body
+:is(
+    .settings-crud-layout,
+    .users-page,
+    .rolesx-page-standard,
+    .rolesx-workspace,
+    .sync-export-layout
+)
+button:disabled {
+    cursor: not-allowed;
+    opacity: 0.62;
+}
+
+html#navi-admin-app body
+:is(
+    .settings-crud-layout,
+    .users-page,
+    .rolesx-page-standard,
+    .rolesx-workspace,
+    .sync-export-layout
+)
+.alert {
+    margin: var(--ntx-space-2) 0;
+    padding:
+        var(--ntx-space-2)
+        var(--ntx-space-3);
+
+    border-radius: var(--ntx-radius-sm);
+    font-size: var(--navi-font-body);
+    line-height: var(--ntx-line-height-base);
+}
+
+html#navi-admin-app body
+:is(
+    .settings-crud-layout,
+    .users-page,
+    .rolesx-page-standard,
+    .rolesx-workspace,
+    .sync-export-layout
+)
+:is(
+    p,
+    small,
+    span,
+    strong,
+    label,
+    th,
+    td
+) {
+    overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+   DISEÑO RESPONSIVO
+   ========================================================= */
+
+@media (max-width: 1500px) {
+    html#navi-admin-app body
+    .rolesx-matrix {
+        grid-template-columns:
+            repeat(
+                3,
+                minmax(0, 1fr)
+            );
+    }
+
+    html#navi-admin-app body
+    .rolesx-permission-list {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 1280px) {
+    html#navi-admin-app body
+    .users-page
+    .users-kpi-grid-standard {
+        grid-template-columns:
+            repeat(
+                3,
+                minmax(0, 1fr)
+            );
+    }
+
+    html#navi-admin-app body
+    .users-page
+    .users-page-filters {
+        grid-template-columns:
+            minmax(240px, 1.5fr)
+            repeat(
+                2,
+                minmax(150px, 0.75fr)
+            );
+    }
+
+    html#navi-admin-app body
+    .users-page
+    .users-page-filters
+    :nth-child(4),
+
+    html#navi-admin-app body
+    .users-page
+    .users-page-filters
+    :nth-child(5) {
+        min-width: 0;
+    }
+
+    html#navi-admin-app body
+    .rolesx-management-grid {
+        grid-template-columns:
+            minmax(0, 1fr);
+    }
+
+    html#navi-admin-app body
+    .rolesx-role-card-list {
+        max-block-size: 520px;
+    }
+}
+
+@media (max-width: 1120px) {
+    html#navi-admin-app body
+    .settings-crud-layout,
+
+    html#navi-admin-app body
+    .users-page
+    .users-grid,
+
+    html#navi-admin-app body
+    .sync-export-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    html#navi-admin-app body
+    .settings-crud-layout
+    > .settings-crud-form {
+        position: static;
+    }
+
+    html#navi-admin-app body
+    .sync-export-card.export-pending {
+        grid-column: auto;
+    }
+
+    html#navi-admin-app body
+    .rolesx-matrix {
+        grid-template-columns:
+            repeat(
+                2,
+                minmax(0, 1fr)
+            );
+    }
+}
+
+@media (max-width: 820px) {
+    html#navi-admin-app body
+    .users-page
+    .users-kpi-grid-standard,
+
+    html#navi-admin-app body
+    .rolesx-standard-kpi-row
+    .rolesx-kpis,
+
+    html#navi-admin-app body
+    .rolesx-summary-grid {
+        grid-template-columns:
+            repeat(
+                2,
+                minmax(0, 1fr)
+            );
+    }
+
+    html#navi-admin-app body
+    .users-page
+    .users-page-filters {
+        grid-template-columns:
+            minmax(0, 1fr)
+            minmax(0, 1fr);
+    }
+
+    html#navi-admin-app body
+    .rolesx-standard-kpi-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    html#navi-admin-app body
+    .rolesx-standard-back {
+        justify-self: stretch;
+    }
+
+    html#navi-admin-app body
+    .rolesx-tools {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    html#navi-admin-app body
+    .rolesx-tool-actions {
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 620px) {
+    html#navi-admin-app body
+    .users-page
+    .users-create-form-standard,
+
+    html#navi-admin-app body
+    .rolesx-form-grid,
+
+    html#navi-admin-app body
+    .rolesx-template-list,
+
+    html#navi-admin-app body
+    .rolesx-rules,
+
+    html#navi-admin-app body
+    .rolesx-role-card-body,
+
+    html#navi-admin-app body
+    .rolesx-role-card-actions,
+
+    html#navi-admin-app body
+    .rolesx-matrix,
+
+    html#navi-admin-app body
+    .users-page
+    .users-page-filters {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    html#navi-admin-app body
+    .users-page
+    .users-kpi-grid-standard,
+
+    html#navi-admin-app body
+    .rolesx-standard-kpi-row
+    .rolesx-kpis,
+
+    html#navi-admin-app body
+    .rolesx-summary-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    html#navi-admin-app body
+    .settings-crud-table
+    .settings-table-header,
+
+    html#navi-admin-app body
+    .users-page
+    .users-table-head,
+
+    html#navi-admin-app body
+    .sync-export-card-head {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    html#navi-admin-app body
+    .settings-crud-table
+    .settings-table-header
+    button,
+
+    html#navi-admin-app body
+    .users-page
+    .users-table-head
+    button,
+
+    html#navi-admin-app body
+    .sync-export-card-head
+    button {
+        width: 100%;
+    }
+
+    html#navi-admin-app body
+    .settings-crud-form
+    .settings-crud-actions
+    :is(
+        button,
+        .btn,
+        .ntx-btn
+    ),
+
+    html#navi-admin-app body
+    .users-page
+    :is(
+        .users-actions,
+        .users-edit-actions,
+        .password-actions
+    )
+    button,
+
+    html#navi-admin-app body
+    .sync-export-actions
+    button {
+        width: 100%;
+    }
+}
+
+
+/* =========================================================
+   REDUCCIÓN DE MOVIMIENTO
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+    html#navi-admin-app body
+    :is(
+        .settings-crud-layout,
+        .users-page,
+        .rolesx-page-standard,
+        .rolesx-workspace,
+        .sync-export-layout
+    )
+    * {
+        scroll-behavior: auto;
+        transition: none;
+        animation: none;
+    }
+}
+
+/* NAVI SETTINGS INTERNAL STANDARD V199 END */

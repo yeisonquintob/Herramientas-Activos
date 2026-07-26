@@ -4,67 +4,49 @@
 @inject IHttpClientFactory HttpClientFactory
 @inject WebAuthSessionService AuthSession
 
+@* NAVI SETTINGS INTERNAL STANDARD V225.1 *@
 <NaviPageHero
     Pill="CONFIGURACIÓN"
     Title="@Title"
-    Description="@Description">
+    Description="@Description" />
 
-    <a href="/settings">
-        Volver a Configuración
+<div class="settings-v2251-toolbar">
+
+    <a href="/settings"
+       class="settings-v2251-back">
+        ← Volver a configuración
     </a>
 
-</NaviPageHero>
+    @if (CanManageSettings)
+    {
+        <button type="button"
+                class="settings-v2251-new"
+                @onclick="OpenSettingsV2251NewModal"
+                data-ntx-tone="affirmative">
+            @SettingsV2251NewButtonLabel
+        </button>
+    }
 
-<section class="settings-crud-layout">
-    <div class="settings-crud-form">
-        <h2>@(editingId is null ? $"Crear {Title.ToLowerInvariant()}" : $"Editar {Title.ToLowerInvariant()}")</h2>
+    <NaviRefreshButton
+        OnClick="LoadAsync"
+        Loading="isLoading"
+        Title="Actualizar"
+        AriaLabel=@($"Actualizar {Title}") />
+</div>
 
-        <EditForm Model="formModel" OnValidSubmit="SaveAsync">
-            <DataAnnotationsValidator />
-
-            <div class="mb-3">
-                <label class="form-label" for="navi-settingscatalogcrud-control-001">Código</label>
-                <InputText class="form-control" @bind-Value="formModel.Code" disabled="@(!CanManageSettings)" id="navi-settingscatalogcrud-control-001" />
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label" for="navi-settingscatalogcrud-control-002">Nombre</label>
-                <InputText class="form-control" @bind-Value="formModel.Name" disabled="@(!CanManageSettings)" id="navi-settingscatalogcrud-control-002" />
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label" for="navi-settingscatalogcrud-control-003">Descripción</label>
-                <InputTextArea class="form-control" @bind-Value="formModel.Description" rows="3" disabled="@(!CanManageSettings)" id="navi-settingscatalogcrud-control-003" />
-            </div>
-
-            <div class="form-check mb-3">
-                <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive" disabled="@(!CanManageSettings)" name="navi-settingscatalogcrud-field-001" id="navi-settingscatalogcrud-control-004" />
-                <label class="form-check-label" for="navi-settingscatalogcrud-control-004">Activo</label>
-            </div>
-
-            @if (!string.IsNullOrWhiteSpace(message))
-            {
-                <div class="@messageClass">@message</div>
-            }
-
-            <div class="settings-crud-actions">
-                @if (CanManageSettings)
-                {
-                    <button class="btn ntx-btn--operation" type="submit" data-ntx-tone="affirmative" >Guardar</button>
-                }
-                else
-                {
-                    <span class="permission-action-denied">Solo consulta</span>
-                }
-                <button class="btn btn-outline-secondary" type="button" @onclick="ClearForm" data-ntx-tone="secondary" >Limpiar</button>
-            </div>
-        </EditForm>
+@if (!showSettingsV2251Modal &&
+     !string.IsNullOrWhiteSpace(message))
+{
+    <div class="@messageClass"
+         role="status">
+        @message
     </div>
+}
 
-    <div class="settings-crud-table">
+<div class="settings-crud-table settings-v2251-list">
         <div class="settings-table-header">
             <h2>@Title registrados</h2>
-            <button class="btn btn-sm ntx-btn--operation" @onclick="LoadAsync" data-ntx-tone="refresh" >Actualizar</button>
+
         </div>
 
         @if (isLoading)
@@ -82,7 +64,7 @@
         else
         {
             <div class="ntx-table-scroll">
-                <table class="table table-hover align-middle">
+                <table class="table table-hover align-middle settings-v2251-table">
                 <thead>
                     <tr>
                         <th>Código</th>
@@ -109,7 +91,7 @@
                             <td class="text-end">
                                 @if (CanManageSettings)
                                     {
-                                        <button class="btn btn-sm ntx-btn--operation" @onclick="() => Edit(item)" data-ntx-tone="operation" >Editar</button>
+                                        <button class="btn btn-sm ntx-btn--operation" @onclick="() => OpenSettingsV2251EditModal(item)" data-ntx-tone="operation" >Editar</button>
                                     }
                                 @if (CanManageSettings)
                                     {
@@ -123,11 +105,137 @@
             </div>
         }
     </div>
-</section>
 
+<NaviModal
+    IsOpen="showSettingsV2251Modal"
+    Title="@SettingsV2251ModalTitle"
+    Description="Crea o actualiza el registro sin salir del listado."
+    OnClose="CloseSettingsV2251Modal"
+    Class="settings-v2251-modal">
 
+    <EditForm Model="formModel" OnValidSubmit="SaveAsync" class="settings-v2251-modal-form">
+                <DataAnnotationsValidator />
+
+                <div class="mb-3">
+                    <label class="form-label" for="navi-settingscatalogcrud-control-001">Código</label>
+                    <InputText class="form-control" @bind-Value="formModel.Code" disabled="@(!CanManageSettings)" id="navi-settingscatalogcrud-control-001" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="navi-settingscatalogcrud-control-002">Nombre</label>
+                    <InputText class="form-control" @bind-Value="formModel.Name" disabled="@(!CanManageSettings)" id="navi-settingscatalogcrud-control-002" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="navi-settingscatalogcrud-control-003">Descripción</label>
+                    <InputTextArea class="form-control" @bind-Value="formModel.Description" rows="3" disabled="@(!CanManageSettings)" id="navi-settingscatalogcrud-control-003" />
+                </div>
+
+                <div class="form-check mb-3">
+                    <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive" disabled="@(!CanManageSettings)" name="navi-settingscatalogcrud-field-001" id="navi-settingscatalogcrud-control-004" />
+                    <label class="form-check-label" for="navi-settingscatalogcrud-control-004">Activo</label>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(message))
+                {
+                    <div class="@messageClass">@message</div>
+                }
+
+                <div class="settings-crud-actions">
+                    @if (CanManageSettings)
+                    {
+                        <button class="btn ntx-btn--operation" type="submit" data-ntx-tone="affirmative" >Guardar</button>
+                    }
+                    else
+                    {
+                        <span class="permission-action-denied">Solo consulta</span>
+                    }
+                    <button class="btn btn-outline-secondary" type="button" @onclick="ClearSettingsV2251ModalForm" data-ntx-tone="secondary" >Limpiar</button>
+
+    <button class="btn ntx-btn--danger"
+            type="button"
+            @onclick="CloseSettingsV2251Modal"
+            data-ntx-tone="danger">
+        Cerrar
+    </button>
+    </div>
+            </EditForm>
+</NaviModal>
 
 @code {
+
+// NAVI SETTINGS INTERNAL STANDARD V225.1
+private bool showSettingsV2251Modal;
+
+private string SettingsV2251NewButtonLabel =>
+    Title switch
+    {
+        "Tipos de activo" => "+ Nuevo tipo de activo",
+        "Categorías" => "+ Nueva categoría",
+        "Estados" => "+ Nuevo estado",
+        "Tipos de documento" => "+ Nuevo tipo de documento",
+        "Tipos de mantenimiento" => "+ Nuevo tipo de mantenimiento",
+        "Planes de mantenimiento" => "+ Nuevo plan de mantenimiento",
+        "Causales" => "+ Nueva causal",
+        "Parámetros" => "+ Nuevo parámetro",
+        _ => "+ Nuevo registro"
+    };
+
+private string SettingsV2251ModalTitle =>
+    editingId is null
+        ? Title switch
+        {
+            "Tipos de activo" => "Nuevo tipo de activo",
+            "Categorías" => "Nueva categoría",
+            "Estados" => "Nuevo estado",
+            "Tipos de documento" => "Nuevo tipo de documento",
+            "Tipos de mantenimiento" => "Nuevo tipo de mantenimiento",
+            "Planes de mantenimiento" => "Nuevo plan de mantenimiento",
+            "Causales" => "Nueva causal",
+            "Parámetros" => "Nuevo parámetro",
+            _ => "Nuevo registro"
+        }
+        : $"Editar {Title.ToLowerInvariant()}";
+
+private void OpenSettingsV2251NewModal()
+{
+    if (!CanManageSettings)
+    {
+        return;
+    }
+
+    ClearForm();
+    message = string.Empty;
+    showSettingsV2251Modal = true;
+}
+
+private void OpenSettingsV2251EditModal(
+    CatalogDto item)
+{
+    if (!CanManageSettings)
+    {
+        return;
+    }
+
+    Edit(item);
+    message = string.Empty;
+    showSettingsV2251Modal = true;
+}
+
+private void ClearSettingsV2251ModalForm()
+{
+    ClearForm();
+    message = string.Empty;
+}
+
+private void CloseSettingsV2251Modal()
+{
+    showSettingsV2251Modal = false;
+    ClearForm();
+    message = string.Empty;
+}
+
+
     private bool IsAdmin =>
         string.Equals(AuthSession.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase)
         || string.Equals(AuthSession.RoleCode, "SUPERADMIN", StringComparison.OrdinalIgnoreCase);

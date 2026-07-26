@@ -8,8 +8,6 @@
         Ir al contenido principal
     </a>
 
-    <NaviMobileFloatingMenu />
-
     <main class="mobile-main"
           id="navi-mobile-main-content"
           tabindex="-1">
@@ -31,7 +29,7 @@
                     Description="No tienes permiso para visualizar esta pantalla en la aplicación móvil.">
 
                     <NaviMobileActionButton
-                        Tone="secondary"
+                        Tone="primary"
                         OnClick="GoHome"
                         Block="true">
                         Volver al inicio
@@ -44,6 +42,13 @@
             @Body
         }
     </main>
+
+    @if (isReady && Auth.IsAuthenticated)
+    {
+        <NaviMobileFloatingMenu />
+    }
+
+    <NavMenu />
 </div>
 
 @code {
@@ -52,11 +57,11 @@
     // NAVI MOBILE LAYOUT VISUAL STATE START
 
     private string LayoutCssClass =>
-        ShowGlobalHeader
-            ? "mobile-shell navi-mobile-standard-shell navi-mobile-layout--with-header"
-            : "mobile-shell navi-mobile-standard-shell navi-mobile-layout--without-header";
+        ShowBottomNavigation
+            ? "mobile-shell navi-mobile-standard-shell navi-mobile-layout--navigation"
+            : "mobile-shell navi-mobile-standard-shell navi-mobile-layout--without-navigation";
 
-    private bool ShowGlobalHeader
+    private bool ShowBottomNavigation
     {
         get
         {

@@ -1,4 +1,3 @@
-@rendermode InteractiveServer
 @implements IDisposable
 @using System.Text.Json
 @using System.Net.Http.Json
@@ -10,13 +9,34 @@
 @inject IJSRuntime JS
 @inject IHttpClientFactory HttpClientFactory
 
+@*
+    NAVI SESSION ROUTE GATE V221
+
+    Mientras initialized sea false no se crea:
+    - Router;
+    - RouteView;
+    - MainLayout;
+    - página solicitada.
+
+    De esta manera ningún OnInitializedAsync consulta la API
+    antes de restaurar navi-auth-session.
+*@
+@if (initialized && ChildContent is not null)
+{
+    @ChildContent
+}
+
 @code {
     private const string StorageKey = "navi-auth-session";
     private bool initialized;
 
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
     protected override void OnInitialized()
     {
         Navigation.LocationChanged += OnLocationChanged;
+        AuthSession.OnChange += OnAuthSessionChanged;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -31,6 +51,9 @@
 
         initialized = true;
         CheckCurrentRoute();
+
+        await InvokeAsync(
+            StateHasChanged);
     }
 
     private async Task RestoreSessionAsync()
@@ -173,6 +196,47 @@
         }
 
         CheckCurrentRoute();
+    }
+
+    private void OnAuthSessionChanged()
+    {
+        if (AuthSession.IsAuthenticated)
+        {
+            return;
+        }
+
+        _ = InvokeAsync(ClearInvalidSessionAsync);
+    }
+
+    private async Task ClearInvalidSessionAsync()
+    {
+        try
+        {
+            using var timeout =
+                new CancellationTokenSource(
+                    TimeSpan.FromSeconds(2));
+
+            await JS.InvokeVoidAsync(
+                "localStorage.removeItem",
+                timeout.Token,
+                StorageKey);
+        }
+        catch
+        {
+            /*
+             * La sesión en memoria ya está cerrada. La navegación debe
+             * continuar aunque el almacenamiento del navegador no responda.
+             */
+        }
+
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri)
+            .Split('?', '#')[0]
+            .Trim('/');
+
+        if (!path.Equals("login", StringComparison.OrdinalIgnoreCase))
+        {
+            Navigation.NavigateTo("/login", forceLoad: true);
+        }
     }
 
     private void CheckCurrentRoute()
@@ -417,5 +481,6 @@
     public void Dispose()
     {
         Navigation.LocationChanged -= OnLocationChanged;
+        AuthSession.OnChange -= OnAuthSessionChanged;
     }
 }

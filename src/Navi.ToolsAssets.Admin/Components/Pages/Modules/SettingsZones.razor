@@ -7,119 +7,276 @@
 
 <PageTitle>Zonas - Configuración</PageTitle>
 
+@* NAVI ZONES MODAL STANDARD V224.3 *@
 <NaviPageHero
     Pill="CONFIGURACIÓN"
     Title="Zonas"
-    Description="Administra zonas, regionales o agrupaciones administrativas que organizan las sedes del sistema.">
+    Description="Administra zonas, regionales o agrupaciones administrativas que organizan las sedes del sistema." />
 
-    <a href="/settings">
-        Volver a Configuración
-    </a>
+<div class="zones-v2243-toolbar">
 
-</NaviPageHero>
+    <NaviActionButton
+        Href="/settings"
+        Tone="danger"
+        Size="sm">
+        Volver a configuración
+    </NaviActionButton>
 
-<section class="settings-crud-layout">
-    <div class="settings-crud-form">
-        <h2>@(editingId is null ? "Crear zona" : "Editar zona")</h2>
+    @if (CanManageSettings)
+    {
+        <NaviActionButton
+            Tone="affirmative"
+            Size="sm"
+            OnClick="OpenCreateZoneModal">
+            + Nueva zona
+        </NaviActionButton>
+    }
 
-        <EditForm Model="formModel" OnValidSubmit="SaveAsync">
-            <DataAnnotationsValidator />
+    <NaviRefreshButton
+        OnClick="LoadAsync"
+        Loading="isLoading"
+        Title="Actualizar zonas"
+        AriaLabel="Actualizar zonas" />
+</div>
 
-            <div class="mb-3">
-                <label class="form-label" for="navi-settingszones-control-001">Código</label>
-                <InputText class="form-control" @bind-Value="formModel.Code" placeholder="ANT, CUN, VAL, NOR"  disabled="@(!CanManageSettings)" id="navi-settingszones-control-001" />
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label" for="navi-settingszones-control-002">Nombre</label>
-                <InputText class="form-control" @bind-Value="formModel.Name" placeholder="Antioquia, Cundinamarca, Valle"  disabled="@(!CanManageSettings)" id="navi-settingszones-control-002" />
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label" for="navi-settingszones-control-003">Descripción</label>
-                <InputTextArea class="form-control" @bind-Value="formModel.Description" rows="3" placeholder="Regional, zona operativa o agrupación administrativa."  disabled="@(!CanManageSettings)" id="navi-settingszones-control-003" />
-            </div>
-
-            <div class="form-check mb-3">
-                <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive"  disabled="@(!CanManageSettings)" name="navi-settingszones-field-001" id="navi-settingszones-control-004" />
-                <label class="form-check-label" for="navi-settingszones-control-004">Activa</label>
-            </div>
-
-            @if (!string.IsNullOrWhiteSpace(message))
-            {
-                <div class="@messageClass">@message</div>
-            }
-
-            <div class="settings-crud-actions">
-                <button class="btn ntx-btn--operation" type="submit" disabled="@(!CanManageSettings)" data-ntx-tone="affirmative" >Guardar</button>
-                <button class="btn btn-outline-secondary" type="button" @onclick="ClearForm" data-ntx-tone="secondary" >Limpiar</button>
-            </div>
-        </EditForm>
+@if (!showZoneModal &&
+     !string.IsNullOrWhiteSpace(message))
+{
+    <div class="@messageClass"
+         role="status">
+        @message
     </div>
+}
 
-    <div class="settings-crud-table">
-        <div class="settings-table-header">
+<section class="zones-v2243-list-panel">
+
+    <div class="zones-v2243-list-heading">
+        <div>
+            <span>CONFIGURACIÓN</span>
             <h2>Zonas registradas</h2>
-            <button class="btn btn-sm ntx-btn--operation" @onclick="LoadAsync" data-ntx-tone="refresh" >Actualizar</button>
         </div>
 
-        @if (isLoading)
-        {
-            <p role="status" aria-busy="true">Cargando zonas...</p>
-        }
-        else if (zones.Count == 0)
-        {
-            <div class="alert alert-info">No hay zonas registradas.</div>
-        }
-        else
-        {
-            <div class="ntx-table-scroll">
-                <table class="table table-hover align-middle">
+        <strong>
+            @zones.Count
+            @(zones.Count == 1 ? "zona" : "zonas")
+        </strong>
+    </div>
+
+    @if (isLoading)
+    {
+        <p role="status"
+           aria-busy="true"
+           class="zones-v2243-loading">
+            Cargando zonas...
+        </p>
+    }
+    else if (zones.Count == 0)
+    {
+        <div class="alert alert-info">
+            No hay zonas registradas.
+        </div>
+    }
+    else
+    {
+        <div class="ntx-table-scroll zones-v2243-table-scroll">
+
+            <table class="table table-hover align-middle zones-v2243-table">
+
                 <thead>
                     <tr>
                         <th>Código</th>
                         <th>Nombre</th>
                         <th>Descripción</th>
                         <th>Estado</th>
-                        <th class="text-end">Acciones</th>
+                        <th class="text-end">
+                            Acciones
+                        </th>
                     </tr>
                 </thead>
+
                 <tbody>
                     @foreach (var zone in zones)
                     {
                         <tr>
-                            <td><strong>@zone.Code</strong></td>
-                            <td>@zone.Name</td>
+                            <td>
+                                <strong>@zone.Code</strong>
+                            </td>
+
+                            <td>
+                                @zone.Name
+                            </td>
+
                             <td>
                                 <span class="settings-description-cell">
                                     @zone.Description
                                 </span>
                             </td>
+
                             <td>
-                                <span class="badge @(zone.IsActive ? "navi-bg-affirmative" : "bg-secondary")">
-                                    @(zone.IsActive ? "Activa" : "Inactiva")
+                                <span class="badge @(zone.IsActive
+                                    ? "navi-bg-affirmative"
+                                    : "bg-secondary")">
+
+                                    @(zone.IsActive
+                                        ? "Activa"
+                                        : "Inactiva")
                                 </span>
                             </td>
-                            <td class="text-end">
+
+                            <td class="text-end zones-v2243-row-actions">
+
                                 @if (CanManageSettings)
-                                    {
-                                        <button class="btn btn-sm ntx-btn--operation" @onclick="() => Edit(zone)" data-ntx-tone="operation" >Editar</button>
-                                    }
-                                @if (CanManageSettings)
-                                    {
-                                        <button class="btn btn-sm ntx-btn--danger" @onclick="() => DeleteAsync(zone.Id)" data-ntx-tone="danger" >Eliminar</button>
-                                    }
+                                {
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm ntx-btn--operation"
+                                        data-ntx-tone="operation"
+                                        @onclick="() => OpenEditZoneModal(zone)">
+
+                                        Editar
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm ntx-btn--danger"
+                                        data-ntx-tone="danger"
+                                        @onclick="() => DeleteAsync(zone.Id)">
+
+                                        Eliminar
+                                    </button>
+                                }
                             </td>
                         </tr>
                     }
                 </tbody>
             </table>
-            </div>
-        }
-    </div>
+        </div>
+    }
 </section>
 
+<NaviModal
+    IsOpen="showZoneModal"
+    Title="@ZoneModalTitle"
+    Description="@ZoneModalDescription"
+    OnClose="CloseZoneModal"
+    Class="zones-v2243-modal">
 
+    <EditForm
+        Model="formModel"
+        OnValidSubmit="SaveAsync"
+        class="zones-v2243-modal-form">
+
+        <DataAnnotationsValidator />
+
+        <div class="zones-v2243-form-grid">
+
+            <div class="zones-v2243-field">
+                <label
+                    class="form-label"
+                    for="navi-settingszones-control-001">
+
+                    Código
+                </label>
+
+                <InputText
+                    class="form-control"
+                    @bind-Value="formModel.Code"
+                    placeholder="ANT, CUN, VAL, NOR"
+                    disabled="@(!CanManageSettings)"
+                    id="navi-settingszones-control-001" />
+            </div>
+
+            <div class="zones-v2243-field">
+                <label
+                    class="form-label"
+                    for="navi-settingszones-control-002">
+
+                    Nombre
+                </label>
+
+                <InputText
+                    class="form-control"
+                    @bind-Value="formModel.Name"
+                    placeholder="Antioquia, Cundinamarca, Valle"
+                    disabled="@(!CanManageSettings)"
+                    id="navi-settingszones-control-002" />
+            </div>
+
+            <div class="zones-v2243-field zones-v2243-field-wide">
+                <label
+                    class="form-label"
+                    for="navi-settingszones-control-003">
+
+                    Descripción
+                </label>
+
+                <InputTextArea
+                    class="form-control"
+                    @bind-Value="formModel.Description"
+                    rows="4"
+                    placeholder="Regional, zona operativa o agrupación administrativa."
+                    disabled="@(!CanManageSettings)"
+                    id="navi-settingszones-control-003" />
+            </div>
+
+            <div class="zones-v2243-field-wide zones-v2243-checkbox-row">
+
+                <InputCheckbox
+                    class="form-check-input"
+                    @bind-Value="formModel.IsActive"
+                    disabled="@(!CanManageSettings)"
+                    name="navi-settingszones-field-001"
+                    id="navi-settingszones-control-004" />
+
+                <label
+                    class="form-check-label"
+                    for="navi-settingszones-control-004">
+
+                    Activa
+                </label>
+            </div>
+        </div>
+
+        @if (showZoneModal &&
+             !string.IsNullOrWhiteSpace(message))
+        {
+            <div class="@messageClass"
+                 role="status">
+                @message
+            </div>
+        }
+
+        <div class="zones-v2243-modal-actions">
+
+            <button
+                class="ntx-btn ntx-btn--affirmative"
+                type="submit"
+                disabled="@(!CanManageSettings)"
+                data-ntx-tone="affirmative">
+
+                @(editingId is null
+                    ? "Guardar"
+                    : "Actualizar")
+            </button>
+
+            <NaviActionButton
+                Tone="secondary"
+                Size="sm"
+                OnClick="ClearZoneModalForm">
+
+                Limpiar
+            </NaviActionButton>
+
+            <NaviActionButton
+                Tone="danger"
+                Size="sm"
+                OnClick="CloseZoneModal">
+
+                Cerrar
+            </NaviActionButton>
+        </div>
+    </EditForm>
+</NaviModal>
 
 @code {
 
@@ -136,6 +293,18 @@
     private ZoneFormModel formModel = new();
     private Guid? editingId;
     private bool isLoading;
+    private bool showZoneModal;
+
+    private string ZoneModalTitle =>
+        editingId is null
+            ? "Nueva zona"
+            : "Editar zona";
+
+    private string ZoneModalDescription =>
+        editingId is null
+            ? "Registra una nueva zona administrativa u operativa."
+            : "Actualiza la información de la zona seleccionada.";
+
     private string message = string.Empty;
     private string messageClass = "alert alert-info";
 
@@ -199,14 +368,66 @@
                 return;
             }
 
-            ShowSuccess(editingId is null ? "Zona creada correctamente." : "Zona actualizada correctamente.");
+            var successMessage =
+                editingId is null
+                    ? "Zona creada correctamente."
+                    : "Zona actualizada correctamente.";
+
             ClearForm();
             await LoadAsync();
+
+            showZoneModal = false;
+            ShowSuccess(successMessage);
         }
         catch (Exception ex)
         {
             ShowError($"Error guardando zona: {ex.Message}");
         }
+    }
+
+    // NAVI ZONES MODAL STANDARD V224.3
+    private void OpenCreateZoneModal()
+    {
+        if (!CanManageSettings)
+        {
+            ShowError(
+                "No tienes permiso para modificar configuración.");
+
+            return;
+        }
+
+        ClearForm();
+        message = string.Empty;
+        showZoneModal = true;
+    }
+
+    private void OpenEditZoneModal(
+        ZoneDto zone)
+    {
+        if (!CanManageSettings)
+        {
+            ShowError(
+                "No tienes permiso para editar configuración.");
+
+            return;
+        }
+
+        message = string.Empty;
+        Edit(zone);
+        showZoneModal = true;
+    }
+
+    private void CloseZoneModal()
+    {
+        showZoneModal = false;
+        ClearForm();
+        message = string.Empty;
+    }
+
+    private void ClearZoneModalForm()
+    {
+        ClearForm();
+        message = string.Empty;
     }
 
     private void Edit(ZoneDto zone)

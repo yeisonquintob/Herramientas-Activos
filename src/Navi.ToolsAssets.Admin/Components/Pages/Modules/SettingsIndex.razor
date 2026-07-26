@@ -7,70 +7,168 @@
 <PageTitle>Configuración - NAVI Herramientas</PageTitle>
 
 <PermissionGuard Permission="Settings.View" ModuleName="Configuración">
-    <section class="navi-reference-toolbar">
-    <NaviPageHero
-        Class="navi-reference-toolbar__actions"
-        Pill="CONFIGURACIÓN"
-        Title="Configuración"
-        Description="Administra sedes, zonas, talleres, ubicaciones, responsables, tipos de activos, documentos, mantenimientos, causales y parámetros base.">
+    <section class="settings-page">
+        <NaviPageHero
+            Pill="CONFIGURACIÓN"
+            Title="Configuración"
+            Description="Administra sedes, zonas, talleres, ubicaciones, responsables, tipos de activos, documentos, mantenimientos, causales y parámetros base." />
 
-        <button type="button" onclick="window.location.reload()" data-ntx-tone="refresh" >
-            Actualizar
-        </button>
+        <section class="navi-kpi-toolbar settings-kpi-toolbar"
+                 data-ntx-component="kpi-toolbar"
+                 aria-label="Indicadores de configuración">
+            <div class="navi-kpi-toolbar__content">
+                <NaviKpiGrid Columns="4"
+                             Compact="true"
+                             Dividers="true"
+                             Class="settings-reference-kpis">
+                    <NaviKpiCard Title="Opciones visibles"
+                                 Description="Según permisos actuales"
+                                 Tone="neutral">
+                        <IconContent>
+                            <NaviKpiIcon Name="inventory" />
+                        </IconContent>
+                        <ValueContent>
+                            @VisibleOptions.Count()
+                        </ValueContent>
+                    </NaviKpiCard>
 
-    </NaviPageHero>
+                    <NaviKpiCard Title="Organización"
+                                 Description="Sedes y ubicaciones"
+                                 Tone="soft">
+                        <IconContent>
+                            <NaviKpiIcon Name="location" />
+                        </IconContent>
+                        <ValueContent>
+                            @VisibleOptions.Count(x => x.Group == "ORGANIZACIÓN")
+                        </ValueContent>
+                    </NaviKpiCard>
 
-    <NaviKpiGrid Class="settings-reference-kpis">
-        <NaviKpiCard>
-            <span>Opciones visibles</span>
-            <strong>@VisibleOptions.Count()</strong>
-            <small>Según permisos actuales</small>
-        </NaviKpiCard>
+                    <NaviKpiCard Title="Activos y operación"
+                                 Description="Catálogos operativos"
+                                 Tone="warning">
+                        <IconContent>
+                            <NaviKpiIcon Name="wrench" />
+                        </IconContent>
+                        <ValueContent>
+                            @VisibleOptions.Count(x => x.Group == "ACTIVOS FIJOS" || x.Group == "OPERACIÓN")
+                        </ValueContent>
+                    </NaviKpiCard>
 
-        <NaviKpiCard Class="success">
-            <span>Organización</span>
-            <strong>@VisibleOptions.Count(x => x.Group == "ORGANIZACIÓN")</strong>
-            <small>Sedes y ubicaciones</small>
-        </NaviKpiCard>
+                    <NaviKpiCard Title="Administración"
+                                 Description="Seguridad y apariencia"
+                                 Tone="danger">
+                        <IconContent>
+                            <NaviKpiIcon Name="users" />
+                        </IconContent>
+                        <ValueContent>
+                            @VisibleOptions.Count(x => x.Group == "SEGURIDAD" || x.Group == "SISTEMA")
+                        </ValueContent>
+                    </NaviKpiCard>
+                </NaviKpiGrid>
+            </div>
 
-        <NaviKpiCard Class="warning">
-            <span>Activos y operación</span>
-            <strong>@VisibleOptions.Count(x => x.Group == "ACTIVOS FIJOS" || x.Group == "OPERACIÓN")</strong>
-            <small>Catálogos operativos</small>
-        </NaviKpiCard>
+            <div class="navi-kpi-toolbar__action">
+                <button type="button"
+                        class="navi-refresh-icon-button"
+                        title="Actualizar configuración"
+                        aria-label="Actualizar configuración"
+                        onclick="window.location.reload()"
+                        data-ntx-icon-only="true"
+                        data-ntx-tone="refresh">
+                    <svg viewBox="0 0 24 24"
+                         focusable="false"
+                         aria-hidden="true">
+                        <path class="navi-refresh-icon-button__orbit"
+                              d="M20 12a8 8 0 1 1-2.34-5.66" />
+                        <path class="navi-refresh-icon-button__arrow"
+                              d="M20 4v6h-6" />
+                    </svg>
+                </button>
+            </div>
+        </section>
 
-        <NaviKpiCard Class="primary">
-            <span>Administración</span>
-            <strong>@VisibleOptions.Count(x => x.Group == "SEGURIDAD" || x.Group == "SISTEMA")</strong>
-            <small>Seguridad y apariencia</small>
-        </NaviKpiCard>
-    </NaviKpiGrid>
-    </section>
-
-    <section class="settings-tech-grid">
-
-        @foreach (var item in VisibleOptions)
-        {
-            <article class="settings-tech-card">
-                <span>@item.Group</span>
-                <h3>@item.Title</h3>
-                <p>@item.Description</p>
-
-                @if (CanOpenOption(item))
+        <section class="settings-tech-grid"
+                 aria-label="Opciones de configuración">
+            @foreach (var item in VisibleOptions)
+            {
+                var actionTone = item.Group switch
                 {
-                    <a class="btn ntx-btn--operation w-100" href="@item.Url" data-ntx-tone="secondary" >
-                        @(CanManageOption(item) ? "Gestionar" : "Consultar")
-                    </a>
-                }
-                else
-                {
-                    <button class="btn btn-outline-secondary w-100" type="button" disabled data-ntx-tone="ghost" >
-                        Sin permiso
-                    </button>
-                }
-            </article>
-        }
+                    "SEGURIDAD" or "SISTEMA" => "danger",
+                    "ORGANIZACIÓN" => "operation",
+                    "ACTIVOS FIJOS" => "affirmative",
+                    "MANTENIMIENTO" or "OPERACIÓN" => "warning",
+                    "RESPONSABLES" or "DOCUMENTOS" => "consult",
+                    _ => "secondary"
+                };
 
+                var iconName = item.Code switch
+                {
+                    "users" => "users",
+                    "roles" => "check",
+                    "branches" => "location",
+                    "zones" => "location",
+                    "warehouses" => "inventory",
+                    "locations" => "location",
+                    "responsibles" => "users",
+                    "asset-types" => "inventory",
+                    "categories" => "inventory",
+                    "statuses" => "progress",
+                    "document-types" => "document",
+                    "maintenance-types" => "wrench",
+                    "maintenance-plans" => "calendar",
+                    "causes" => "alert",
+                    "appearance" => "report",
+                    "sync-export" => "transfer",
+                    "system-parameters" => "wrench",
+                    _ => "report"
+                };
+
+                <article class="settings-tech-card"
+                         data-settings-tone="@actionTone">
+                    <header class="settings-tech-card__header">
+                        <div class="settings-tech-card__heading">
+                            <span class="settings-tech-card__group">
+                                @item.Group
+                            </span>
+                            <h3>@item.Title</h3>
+                        </div>
+
+                        <span class="settings-tech-card__icon"
+                              aria-hidden="true">
+                            <NaviKpiIcon Name="@iconName" />
+                        </span>
+                    </header>
+
+                    <p class="settings-tech-card__description">
+                        @item.Description
+                    </p>
+
+                    <footer class="settings-tech-card__footer">
+                        @if (CanOpenOption(item))
+                        {
+                            <NaviActionButton Href="@item.Url"
+                                              Tone="@actionTone"
+                                              Size="small"
+                                              Block="true"
+                                              Class="settings-tech-card__action"
+                                              aria-label="@item.Title">
+                                @(CanManageOption(item) ? "Gestionar" : "Consultar")
+                            </NaviActionButton>
+                        }
+                        else
+                        {
+                            <NaviActionButton Tone="ghost"
+                                              Size="small"
+                                              Block="true"
+                                              Disabled="true"
+                                              Class="settings-tech-card__action">
+                                Sin permiso
+                            </NaviActionButton>
+                        }
+                    </footer>
+                </article>
+            }
+        </section>
     </section>
 </PermissionGuard>
 

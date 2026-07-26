@@ -7,75 +7,50 @@
 
 <PageTitle>Responsables - Configuración</PageTitle>
 
+@* NAVI SETTINGS INTERNAL STANDARD V225.1 *@
+@* NAVI RESPONSIBLES TABLE V234 *@
 <NaviPageHero
     Pill="CONFIGURACIÓN"
     Title="Responsables"
-    Description="Administra técnicos, herramienteros, jefes, coordinadores y responsables asociados a activos.">
+    Description="Administra técnicos, herramienteros, jefes, coordinadores y responsables asociados a activos." />
 
-    <a href="/settings">
-        Volver a Configuración
+<div class="settings-v2251-toolbar">
+
+    <a href="/settings"
+       class="settings-v2251-back">
+        ← Volver a configuración
     </a>
 
-</NaviPageHero>
+    @if (CanManageSettings)
+    {
+        <button type="button"
+                class="settings-v2251-new"
+                @onclick="OpenSettingsV2251NewModal"
+                data-ntx-tone="affirmative">
+            + Nuevo responsable
+        </button>
+    }
 
-<section class="settings-crud-layout">
-    <div class="settings-crud-form">
-        <h2>@(editingId is null ? "Crear responsable" : "Editar responsable")</h2>
+    <NaviRefreshButton
+        OnClick="LoadAsync"
+        Loading="isLoading"
+        Title="Actualizar"
+        AriaLabel="Actualizar información" />
+</div>
 
-        <EditForm Model="formModel" OnValidSubmit="SaveAsync">
-            <DataAnnotationsValidator />
-
-            <div class="mb-3">
-                <label class="form-label" for="navi-settingsresponsibles-control-001">Código empleado</label>
-                <InputText class="form-control" @bind-Value="formModel.EmployeeCode"  disabled="@(!CanManageSettings)" id="navi-settingsresponsibles-control-001" />
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label" for="navi-settingsresponsibles-control-002">Documento</label>
-                <InputText class="form-control" @bind-Value="formModel.DocumentNumber"  disabled="@(!CanManageSettings)" id="navi-settingsresponsibles-control-002" />
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label" for="navi-settingsresponsibles-control-003">Nombre completo</label>
-                <InputText class="form-control" @bind-Value="formModel.FullName"  disabled="@(!CanManageSettings)" id="navi-settingsresponsibles-control-003" />
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label" for="navi-settingsresponsibles-control-004">Correo</label>
-                <InputText class="form-control" @bind-Value="formModel.Email"  disabled="@(!CanManageSettings)" id="navi-settingsresponsibles-control-004" />
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label" for="navi-settingsresponsibles-control-005">Cargo</label>
-                <InputText class="form-control" @bind-Value="formModel.Position"  disabled="@(!CanManageSettings)" id="navi-settingsresponsibles-control-005" />
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label" for="navi-settingsresponsibles-control-006">Área</label>
-                <InputText class="form-control" @bind-Value="formModel.Area"  disabled="@(!CanManageSettings)" id="navi-settingsresponsibles-control-006" />
-            </div>
-
-            <div class="form-check mb-3">
-                <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive"  disabled="@(!CanManageSettings)" name="navi-settingsresponsibles-field-001" id="navi-settingsresponsibles-control-007" />
-                <label class="form-check-label" for="navi-settingsresponsibles-control-007">Activo</label>
-            </div>
-
-            @if (!string.IsNullOrWhiteSpace(message))
-            {
-                <div class="@messageClass">@message</div>
-            }
-
-            <div class="settings-crud-actions">
-                <button class="btn ntx-btn--operation" type="submit" disabled="@(!CanManageSettings)" data-ntx-tone="affirmative" >Guardar</button>
-                <button class="btn btn-outline-secondary" type="button" @onclick="ClearForm" data-ntx-tone="secondary" >Limpiar</button>
-            </div>
-        </EditForm>
+@if (!showSettingsV2251Modal &&
+     !string.IsNullOrWhiteSpace(message))
+{
+    <div class="@messageClass"
+         role="status">
+        @message
     </div>
+}
 
-    <div class="settings-crud-table">
+<div class="settings-crud-table settings-v2251-list settings-responsibles-v234-list">
         <div class="settings-table-header">
             <h2>Responsables registrados</h2>
-            <button class="btn btn-sm ntx-btn--operation" @onclick="LoadAsync" data-ntx-tone="refresh" >Actualizar</button>
+
         </div>
 
         @if (isLoading)
@@ -85,7 +60,7 @@
         else
         {
             <div class="ntx-table-scroll">
-                <table class="table table-hover align-middle">
+                <table class="table table-hover align-middle settings-v2251-table settings-responsibles-v234-table">
                 <thead>
                     <tr>
                         <th>Código</th>
@@ -102,8 +77,8 @@
                         <tr>
                             <td><strong>@item.EmployeeCode</strong></td>
                             <td>
-                                <div>@item.FullName</div>
-                                <small class="text-muted">@item.Email</small>
+                                <div class="settings-responsibles-v234-name">@item.FullName</div>
+                                <small class="text-muted settings-responsibles-v234-email">@item.Email</small>
                             </td>
                             <td>@item.Position</td>
                             <td>@item.Area</td>
@@ -115,7 +90,7 @@
                             <td class="text-end">
                                 @if (CanManageSettings)
                                     {
-                                        <button class="btn btn-sm ntx-btn--operation" @onclick="() => Edit(item)" data-ntx-tone="operation" >Editar</button>
+                                        <button class="btn btn-sm ntx-btn--operation" @onclick="() => OpenSettingsV2251EditModal(item)" data-ntx-tone="operation" >Editar</button>
                                     }
                                 @if (CanManageSettings)
                                     {
@@ -129,11 +104,120 @@
             </div>
         }
     </div>
-</section>
 
+<NaviModal
+    IsOpen="showSettingsV2251Modal"
+    Title="@SettingsV2251ModalTitle"
+    Description="Registra o actualiza técnicos, herramienteros, coordinadores y responsables."
+    OnClose="CloseSettingsV2251Modal"
+    Class="settings-v2251-modal">
 
+    <EditForm Model="formModel" OnValidSubmit="SaveAsync" class="settings-v2251-modal-form">
+                <DataAnnotationsValidator />
+
+                <div class="mb-3">
+                    <label class="form-label" for="navi-settingsresponsibles-control-001">Código empleado</label>
+                    <InputText class="form-control" @bind-Value="formModel.EmployeeCode"  disabled="@(!CanManageSettings)" id="navi-settingsresponsibles-control-001" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="navi-settingsresponsibles-control-002">Documento</label>
+                    <InputText class="form-control" @bind-Value="formModel.DocumentNumber"  disabled="@(!CanManageSettings)" id="navi-settingsresponsibles-control-002" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="navi-settingsresponsibles-control-003">Nombre completo</label>
+                    <InputText class="form-control" @bind-Value="formModel.FullName"  disabled="@(!CanManageSettings)" id="navi-settingsresponsibles-control-003" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="navi-settingsresponsibles-control-004">Correo</label>
+                    <InputText class="form-control" @bind-Value="formModel.Email"  disabled="@(!CanManageSettings)" id="navi-settingsresponsibles-control-004" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="navi-settingsresponsibles-control-005">Cargo</label>
+                    <InputText class="form-control" @bind-Value="formModel.Position"  disabled="@(!CanManageSettings)" id="navi-settingsresponsibles-control-005" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="navi-settingsresponsibles-control-006">Área</label>
+                    <InputText class="form-control" @bind-Value="formModel.Area"  disabled="@(!CanManageSettings)" id="navi-settingsresponsibles-control-006" />
+                </div>
+
+                <div class="form-check mb-3">
+                    <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive"  disabled="@(!CanManageSettings)" name="navi-settingsresponsibles-field-001" id="navi-settingsresponsibles-control-007" />
+                    <label class="form-check-label" for="navi-settingsresponsibles-control-007">Activo</label>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(message))
+                {
+                    <div class="@messageClass">@message</div>
+                }
+
+                <div class="settings-crud-actions">
+                    <button class="btn ntx-btn--operation" type="submit" disabled="@(!CanManageSettings)" data-ntx-tone="affirmative" >Guardar</button>
+                    <button class="btn btn-outline-secondary" type="button" @onclick="ClearSettingsV2251ModalForm" data-ntx-tone="secondary" >Limpiar</button>
+
+    <button class="btn ntx-btn--danger"
+            type="button"
+            @onclick="CloseSettingsV2251Modal"
+            data-ntx-tone="danger">
+        Cerrar
+    </button>
+    </div>
+            </EditForm>
+</NaviModal>
 
 @code {
+
+// NAVI SETTINGS INTERNAL STANDARD V225.1
+private bool showSettingsV2251Modal;
+
+private string SettingsV2251ModalTitle =>
+    editingId is null
+        ? "Nuevo responsable"
+        : "Editar responsable";
+
+private void OpenSettingsV2251NewModal()
+{
+    if (!CanManageSettings)
+    {
+        return;
+    }
+
+    ClearForm();
+    message = string.Empty;
+    showSettingsV2251Modal = true;
+}
+
+private void OpenSettingsV2251EditModal(
+    ResponsibleDto item)
+{
+    if (!CanManageSettings)
+    {
+        return;
+    }
+
+    Edit(item);
+    message = string.Empty;
+    showSettingsV2251Modal = true;
+}
+
+private void ClearSettingsV2251ModalForm()
+{
+    ClearForm();
+    message = string.Empty;
+}
+
+private void CloseSettingsV2251Modal()
+{
+    showSettingsV2251Modal = false;
+    ClearForm();
+    message = string.Empty;
+}
+
+
 
     private bool IsAdmin =>
         string.Equals(AuthSession.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase)

@@ -50,11 +50,19 @@ public partial class AddEnterpriseSecurity : Migration
 
             IF COL_LENGTH('dbo.AppUsers', 'SecurityStamp') IS NULL
                 ALTER TABLE dbo.AppUsers ADD SecurityStamp uniqueidentifier NULL;
+            """);
 
+        // SQL Server compiles each batch before executing it. Keep the data
+        // backfill in a separate command so SecurityStamp already exists.
+        migrationBuilder.Sql(
+            """
             UPDATE dbo.AppUsers
             SET SecurityStamp = NEWID()
             WHERE SecurityStamp IS NULL OR SecurityStamp = '00000000-0000-0000-0000-000000000000';
+            """);
 
+        migrationBuilder.Sql(
+            """
             ALTER TABLE dbo.AppUsers ALTER COLUMN SecurityStamp uniqueidentifier NOT NULL;
             """);
 

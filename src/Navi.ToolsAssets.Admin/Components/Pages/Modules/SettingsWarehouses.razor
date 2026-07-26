@@ -7,71 +7,49 @@
 
 <PageTitle>Almacenes / Talleres - Configuración</PageTitle>
 
+@* NAVI SETTINGS INTERNAL STANDARD V225.1 *@
 <NaviPageHero
     Pill="CONFIGURACIÓN"
     Title="Almacenes / Talleres"
-    Description="Administra almacenes, talleres, bodegas, patios, oficinas y áreas técnicas asociadas a cada sede.">
+    Description="Administra almacenes, talleres, bodegas, patios, oficinas y áreas técnicas asociadas a cada sede." />
 
-    <a href="/settings">
-        Volver a Configuración
+<div class="settings-v2251-toolbar">
+
+    <a href="/settings"
+       class="settings-v2251-back">
+        ← Volver a configuración
     </a>
 
-</NaviPageHero>
+    @if (CanManageSettings)
+    {
+        <button type="button"
+                class="settings-v2251-new"
+                @onclick="OpenSettingsV2251NewModal"
+                data-ntx-tone="affirmative">
+            + Nuevo almacén / taller
+        </button>
+    }
 
-<section class="settings-crud-layout">
-    <div class="settings-crud-form">
-        <h2>@(editingId is null ? "Crear almacén / taller" : "Editar almacén / taller")</h2>
+    <NaviRefreshButton
+        OnClick="LoadAsync"
+        Loading="isLoading"
+        Title="Actualizar"
+        AriaLabel="Actualizar información" />
+</div>
 
-        <EditForm Model="formModel" OnValidSubmit="SaveAsync">
-            <DataAnnotationsValidator />
-
-            <div class="mb-3">
-                <label class="form-label" for="navi-settingswarehouses-control-001">Código</label>
-                <InputText class="form-control" @bind-Value="formModel.Code" placeholder="AGU-TALLER, AGU-BOD-HERR"  disabled="@(!CanManageSettings)" id="navi-settingswarehouses-control-001" />
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label" for="navi-settingswarehouses-control-002">Nombre</label>
-                <InputText class="form-control" @bind-Value="formModel.Name" placeholder="Taller, Bodega de herramientas"  disabled="@(!CanManageSettings)" id="navi-settingswarehouses-control-002" />
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label" for="navi-settingswarehouses-control-003">Sede</label>
-                <InputSelect class="form-select" @bind-Value="formModel.BranchId" disabled="@(!CanManageSettings)" id="navi-settingswarehouses-control-003">
-                    <option value="">Seleccione sede</option>
-                    @foreach (var branch in branches)
-                    {
-                        <option value="@branch.Id">@branch.Code - @branch.Name</option>
-                    }
-                </InputSelect>
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label" for="navi-settingswarehouses-control-004">Descripción</label>
-                <InputTextArea class="form-control" @bind-Value="formModel.Description" rows="3" placeholder="Zona de mantenimiento, almacén principal, patio operativo..."  disabled="@(!CanManageSettings)" id="navi-settingswarehouses-control-004" />
-            </div>
-
-            <div class="form-check mb-3">
-                <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive"  disabled="@(!CanManageSettings)" name="navi-settingswarehouses-field-001" id="navi-settingswarehouses-control-005" />
-                <label class="form-check-label" for="navi-settingswarehouses-control-005">Activo</label>
-            </div>
-
-            @if (!string.IsNullOrWhiteSpace(message))
-            {
-                <div class="@messageClass">@message</div>
-            }
-
-            <div class="settings-crud-actions">
-                <button class="btn ntx-btn--operation" type="submit" disabled="@(!CanManageSettings)" data-ntx-tone="affirmative" >Guardar</button>
-                <button class="btn btn-outline-secondary" type="button" @onclick="ClearForm" data-ntx-tone="secondary" >Limpiar</button>
-            </div>
-        </EditForm>
+@if (!showSettingsV2251Modal &&
+     !string.IsNullOrWhiteSpace(message))
+{
+    <div class="@messageClass"
+         role="status">
+        @message
     </div>
+}
 
-    <div class="settings-crud-table">
+<div class="settings-crud-table settings-v2251-list">
         <div class="settings-table-header">
             <h2>Almacenes / Talleres registrados</h2>
-            <button class="btn btn-sm ntx-btn--operation" @onclick="LoadAsync" data-ntx-tone="refresh" >Actualizar</button>
+
         </div>
 
         @if (isLoading)
@@ -85,7 +63,7 @@
         else
         {
             <div class="ntx-table-scroll">
-                <table class="table table-hover align-middle">
+                <table class="table table-hover align-middle settings-v2251-table">
                 <thead>
                     <tr>
                         <th>Código</th>
@@ -116,7 +94,7 @@
                             <td class="text-end">
                                 @if (CanManageSettings)
                                     {
-                                        <button class="btn btn-sm ntx-btn--operation" @onclick="() => Edit(warehouse)" data-ntx-tone="operation" >Editar</button>
+                                        <button class="btn btn-sm ntx-btn--operation" @onclick="() => OpenSettingsV2251EditModal(warehouse)" data-ntx-tone="operation" >Editar</button>
                                     }
                                 @if (CanManageSettings)
                                     {
@@ -130,11 +108,116 @@
             </div>
         }
     </div>
-</section>
 
+<NaviModal
+    IsOpen="showSettingsV2251Modal"
+    Title="@SettingsV2251ModalTitle"
+    Description="Registra o actualiza almacenes, talleres, bodegas y áreas operativas."
+    OnClose="CloseSettingsV2251Modal"
+    Class="settings-v2251-modal">
 
+    <EditForm Model="formModel" OnValidSubmit="SaveAsync" class="settings-v2251-modal-form">
+                <DataAnnotationsValidator />
+
+                <div class="mb-3">
+                    <label class="form-label" for="navi-settingswarehouses-control-001">Código</label>
+                    <InputText class="form-control" @bind-Value="formModel.Code" placeholder="AGU-TALLER, AGU-BOD-HERR"  disabled="@(!CanManageSettings)" id="navi-settingswarehouses-control-001" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="navi-settingswarehouses-control-002">Nombre</label>
+                    <InputText class="form-control" @bind-Value="formModel.Name" placeholder="Taller, Bodega de herramientas"  disabled="@(!CanManageSettings)" id="navi-settingswarehouses-control-002" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="navi-settingswarehouses-control-003">Sede</label>
+                    <InputSelect class="form-select" @bind-Value="formModel.BranchId" disabled="@(!CanManageSettings)" id="navi-settingswarehouses-control-003">
+                        <option value="">Seleccione sede</option>
+                        @foreach (var branch in branches)
+                        {
+                            <option value="@branch.Id">@branch.Code - @branch.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="navi-settingswarehouses-control-004">Descripción</label>
+                    <InputTextArea class="form-control" @bind-Value="formModel.Description" rows="3" placeholder="Zona de mantenimiento, almacén principal, patio operativo..."  disabled="@(!CanManageSettings)" id="navi-settingswarehouses-control-004" />
+                </div>
+
+                <div class="form-check mb-3">
+                    <InputCheckbox class="form-check-input" @bind-Value="formModel.IsActive"  disabled="@(!CanManageSettings)" name="navi-settingswarehouses-field-001" id="navi-settingswarehouses-control-005" />
+                    <label class="form-check-label" for="navi-settingswarehouses-control-005">Activo</label>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(message))
+                {
+                    <div class="@messageClass">@message</div>
+                }
+
+                <div class="settings-crud-actions">
+                    <button class="btn ntx-btn--operation" type="submit" disabled="@(!CanManageSettings)" data-ntx-tone="affirmative" >Guardar</button>
+                    <button class="btn btn-outline-secondary" type="button" @onclick="ClearSettingsV2251ModalForm" data-ntx-tone="secondary" >Limpiar</button>
+
+    <button class="btn ntx-btn--danger"
+            type="button"
+            @onclick="CloseSettingsV2251Modal"
+            data-ntx-tone="danger">
+        Cerrar
+    </button>
+    </div>
+            </EditForm>
+</NaviModal>
 
 @code {
+
+// NAVI SETTINGS INTERNAL STANDARD V225.1
+private bool showSettingsV2251Modal;
+
+private string SettingsV2251ModalTitle =>
+    editingId is null
+        ? "Nuevo almacén / taller"
+        : "Editar almacén / taller";
+
+private void OpenSettingsV2251NewModal()
+{
+    if (!CanManageSettings)
+    {
+        return;
+    }
+
+    ClearForm();
+    message = string.Empty;
+    showSettingsV2251Modal = true;
+}
+
+private void OpenSettingsV2251EditModal(
+    WarehouseDto item)
+{
+    if (!CanManageSettings)
+    {
+        return;
+    }
+
+    Edit(item);
+    message = string.Empty;
+    showSettingsV2251Modal = true;
+}
+
+private void ClearSettingsV2251ModalForm()
+{
+    ClearForm();
+    message = string.Empty;
+}
+
+private void CloseSettingsV2251Modal()
+{
+    showSettingsV2251Modal = false;
+    ClearForm();
+    message = string.Empty;
+}
+
+
 
     private bool IsAdmin =>
         string.Equals(AuthSession.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase)
@@ -158,6 +241,30 @@
         await LoadAsync();
     }
 
+    // NAVI LOCATION TYPE FILTER V228.1
+    private static bool IsWarehouseCatalogCodeV2281(
+        string? code)
+    {
+        var normalized =
+            code?
+                .Trim()
+                .ToUpperInvariant()
+            ?? string.Empty;
+
+        return
+            normalized.EndsWith(
+                "-BOD-HERR",
+                StringComparison.Ordinal)
+            ||
+            normalized.EndsWith(
+                "-MANT",
+                StringComparison.Ordinal)
+            ||
+            normalized.EndsWith(
+                "-TALLER",
+                StringComparison.Ordinal);
+    }
+
     private async Task LoadAsync()
     {
         isLoading = true;
@@ -165,7 +272,18 @@
 
         try
         {
-            warehouses = await Api.GetFromJsonAsync<List<WarehouseDto>>("api/settings/warehouses") ?? new();
+            var loadedWarehouses =
+                await Api.GetFromJsonAsync<List<WarehouseDto>>(
+                    "api/settings/warehouses")
+                ?? new();
+
+            warehouses =
+                loadedWarehouses
+                    .Where(
+                        item =>
+                            IsWarehouseCatalogCodeV2281(
+                                item.Code))
+                    .ToList();
             branches = await Api.GetFromJsonAsync<List<BranchDto>>("api/settings/branches") ?? new();
         }
         catch (Exception ex)

@@ -1,4 +1,5 @@
 using Navi.ToolsAssets.Admin.Components;
+using Navi.ToolsAssets.Admin.Services.Api;
 using Navi.ToolsAssets.Admin.Services.Auth;
 using Navi.ToolsAssets.Admin.Services.Ui;
 
@@ -7,16 +8,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-builder.Services.AddTransient<NaviPermissionHttpMessageHandler>();
-
-builder.Services.AddHttpClient("NaviApi", client =>
-{
-    client.BaseAddress = new Uri(builder.Configuration["NaviApi:BaseUrl"] ?? "http://localhost:5218");
-    client.Timeout = TimeSpan.FromSeconds(
-        builder.Configuration.GetValue("NaviApi:TimeoutSeconds", 30));
-}).AddHttpMessageHandler<NaviPermissionHttpMessageHandler>();
-
 builder.Services.AddScoped<WebAuthSessionService>();
+builder.Services.AddScoped<IHttpClientFactory, NaviScopedHttpClientFactory>();
 builder.Services.AddScoped<NaviAdminPageHeaderState>();
 builder.Services.AddScoped<NaviAdminNotificationState>();
 builder.Services.AddScoped<NaviAccessScopeService>();

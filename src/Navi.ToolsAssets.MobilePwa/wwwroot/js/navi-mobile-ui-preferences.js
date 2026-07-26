@@ -172,11 +172,7 @@
                 storageKey,
                 JSON.stringify(preferences)
             );
-        } catch (error) {
-            console.warn(
-                "No fue posible guardar las preferencias móviles.",
-                error
-            );
+        } catch {
         }
 
         return applyPreferences(
@@ -232,11 +228,7 @@
             window.localStorage.removeItem(
                 storageKey
             );
-        } catch (error) {
-            console.warn(
-                "No fue posible restablecer las preferencias móviles.",
-                error
-            );
+        } catch {
         }
 
         return applyPreferences(
